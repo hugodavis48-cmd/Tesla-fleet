@@ -35,6 +35,14 @@ export interface User {
   sessionHistory?: UserSession[];
   kycStatus?: 'unverified' | 'in_review' | 'verified' | 'rejected';
   kycData?: UserKycData;
+  isOnline?: boolean;
+  lastActiveAt?: string;
+  lastVisitedPath?: string;
+  accountStatus?: 'active' | 'suspended' | 'flagged';
+  totalDepositedUsd?: number;
+  totalWithdrawnUsd?: number;
+  ipAddress?: string;
+  deviceInfo?: string;
 }
 
 export interface UserKycData {
@@ -82,6 +90,24 @@ export interface EmailCampaign {
   status: 'sent' | 'scheduled' | 'draft';
   openRate: number;
   clickRate: number;
+}
+
+export interface TestEmailResult {
+  success: boolean;
+  delivered: boolean;
+  status: 'delivered' | 'failed';
+  message: string;
+  failureReason?: string;
+  failureCode?: string;
+  failureCategory?: string;
+  troubleshooting?: string;
+  smtpLog?: string;
+  messageId?: string;
+  timestamp?: string;
+  recipient?: string;
+  host?: string;
+  port?: number;
+  simulationMode?: boolean;
 }
 
 export interface ReferredUser {
@@ -199,6 +225,7 @@ export interface InvestmentPool {
 
 export interface UserInvestment {
   id: string;
+  userId?: string;
   poolId: string;
   poolTitle: string;
   amountInvestedUsd: number;
@@ -206,6 +233,18 @@ export interface UserInvestment {
   earnedDividendsUsd: number;
   apy: number;
   nextPayoutHours: number;
+  status: 'running' | 'completed' | 'paused';
+  durationDays: number;
+  daysElapsed: number;
+  startDate?: string;
+  maturityDate: string;
+  totalExpectedRoiUsd: number;
+  dailyRoiRate?: number;
+  completedAt?: string;
+  capitalReturned?: boolean;
+  autoCompound?: boolean;
+  txHash?: string;
+  certificateId?: string;
 }
 
 export interface ProductItem {
@@ -250,3 +289,124 @@ export interface ChatMessage {
   timestamp: string;
   type?: 'text' | 'diagnostic' | 'suggestion';
 }
+
+export interface FleetPerformanceTarget {
+  id: string;
+  poolId: string;
+  poolTitle: string;
+  metric: 'apy_threshold' | 'daily_dividend' | 'fleet_utilization' | 'pool_capacity' | 'payout_ready';
+  targetValue: number;
+  unit: '%' | '$' | 'hours';
+  label: string;
+  description: string;
+  currentValue: number;
+  triggered?: boolean;
+}
+
+export interface AssetAlertHistoryItem {
+  id: string;
+  assetTitle: string;
+  metricLabel: string;
+  targetValue: string;
+  currentValue: string;
+  timestamp: string;
+  channels: ('browser' | 'email')[];
+  status: 'delivered' | 'simulated';
+}
+
+export interface AssetNotificationSettings {
+  enabled: boolean;
+  emailAlerts: boolean;
+  browserAlerts: boolean;
+  targetEmail: string;
+  selectedPoolIds: string[]; // pool IDs or ['all']
+  customThresholds: {
+    minApy: number; // e.g. 18.0 (%)
+    minUtilization: number; // e.g. 85 (%)
+    minDailyYieldUsd: number; // e.g. 25 ($)
+    poolCapWarningPercent: number; // e.g. 90 (%)
+    payoutReadyAlert: boolean;
+  };
+  activeTargetIds: string[];
+  history: AssetAlertHistoryItem[];
+}
+
+export type InvestmentActivityType = 'deposit' | 'payout' | 'milestone' | 'compound';
+
+export interface InvestmentActivityItem {
+  id: string;
+  type: InvestmentActivityType;
+  assetId: string;
+  assetTitle: string;
+  category: string;
+  amountUsd: number;
+  cryptoFormatted?: string;
+  apyRate?: number;
+  timestamp: string;
+  status: 'confirmed' | 'settled' | 'compounded';
+  txHash: string;
+  milestoneTitle?: string;
+  notes?: string;
+}
+
+export type NotificationType = 'announcement' | 'payout' | 'alert' | 'system' | 'bonus' | 'investment';
+export type NotificationPriority = 'low' | 'normal' | 'urgent';
+
+export interface AdminNotificationMessage {
+  id: string;
+  title: string;
+  message: string;
+  type: NotificationType;
+  priority: NotificationPriority;
+  targetType: 'all' | 'individual';
+  targetUserId?: string;
+  targetUserEmail?: string;
+  createdAt: string;
+  readBy: string[]; // user IDs who marked as read
+  dismissedBy: string[];
+  actionUrl?: string;
+  actionLabel?: string;
+}
+
+export interface SitePage {
+  id: string;
+  slug: string;
+  title: string;
+  content: string;
+  displayLocation: 'navbar' | 'footer' | 'both' | 'hidden';
+  order: number;
+  isSystem: boolean;
+  published: boolean;
+  metaDescription?: string;
+  updatedAt: string;
+}
+
+export interface ManualDepositMethod {
+  id: string;
+  title: string;
+  category: 'crypto' | 'fiat' | 'e_wallet';
+  currencySymbol: string;
+  accountDetails: string;
+  instructions: string;
+  qrCodeUrl?: string;
+  minDepositUsd: number;
+  maxDepositUsd: number;
+  processingTime: string;
+  feePercent: number;
+  isActive: boolean;
+  requiresProofUpload: boolean;
+  network?: string;
+}
+
+export interface SocialLinkConfig {
+  id: string;
+  platform: 'whatsapp' | 'twitter' | 'telegram' | 'discord' | 'youtube' | 'instagram' | 'facebook' | 'tiktok' | 'pinterest' | 'threads';
+  label: string;
+  url: string;
+  handle: string;
+  enabled: boolean;
+  showInHeader: boolean;
+  showInFooter: boolean;
+}
+
+

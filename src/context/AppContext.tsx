@@ -17,6 +17,12 @@ import {
   UserKycData,
   SmtpConfig,
   EmailCampaign,
+  TestEmailResult,
+  AdminNotificationMessage,
+  SitePage,
+  ManualDepositMethod,
+  SocialLinkConfig,
+  InvestmentPool,
 } from '../types';
 import {
   CRYPTO_NETWORKS,
@@ -25,6 +31,10 @@ import {
   MOCK_WINNERS,
   RENTAL_FLEET,
   SCRATCH_CARD_TIERS,
+  INITIAL_SITE_PAGES,
+  INITIAL_MANUAL_DEPOSIT_METHODS,
+  INITIAL_SOCIAL_LINKS,
+  INITIAL_ADMIN_NOTIFICATIONS,
 } from '../data/mockData';
 
 interface AppContextType {
@@ -72,13 +82,15 @@ interface AppContextType {
   // All Users Profile Management (Admin)
   allUsers: User[];
   updateUserBalance: (userId: string, currency: CryptoCurrency | 'USD', newAmount: number) => void;
+  updateUserStatus: (userId: string, status: 'active' | 'suspended' | 'flagged') => void;
+  deleteUser: (userId: string) => void;
   // Email Marketing & Mailer
   smtpConfig: SmtpConfig;
   updateSmtpConfig: (config: SmtpConfig) => void;
   importedEmails: string[];
   importEmailList: (emails: string[]) => number;
   emailCampaigns: EmailCampaign[];
-  sendTestEmail: (recipientEmail: string) => Promise<{ success: boolean; message: string; smtpLog?: string }>;
+  sendTestEmail: (recipientEmail: string, simulateScenario?: string) => Promise<TestEmailResult>;
   sendMarketingCampaign: (campaign: {
     title: string;
     subject: string;
@@ -92,8 +104,50 @@ interface AppContextType {
   depositFunds: (currency: CryptoCurrency | 'USD', amount: number) => Promise<Transaction>;
   addVehicle: (vehicle: Omit<TeslaVehicle, 'id' | 'userId'>) => void;
   bookService: (booking: Omit<ServiceBooking, 'id' | 'userId' | 'createdAt' | 'progressPercentage' | 'status'>) => ServiceBooking;
+  // Investment & ROI Automation
   stakeInPool: (poolId: string, amountUsd: number) => boolean;
   claimDividends: (investmentId: string) => void;
+  updateUserInvestment: (id: string, updates: Partial<UserInvestment>) => void;
+  forceMatureInvestment: (investmentId: string) => boolean;
+  pauseResumeInvestment: (investmentId: string) => void;
+  cancelInvestmentEarly: (investmentId: string) => boolean;
+  triggerManualCronCycle: () => { maturedCount: number; yieldDistributedUsd: number; logs: string[] };
+  cronActive: boolean;
+  setCronActive: (active: boolean) => void;
+  cronLogs: string[];
+  lastCronRun: string | null;
+  // Investment Pools & Plans CMS
+  investmentPools: InvestmentPool[];
+  createInvestmentPool: (pool: Omit<InvestmentPool, 'id'>) => void;
+  updateInvestmentPool: (id: string, updates: Partial<InvestmentPool>) => void;
+  deleteInvestmentPool: (id: string) => void;
+  // Notifications Hub
+  adminNotifications: AdminNotificationMessage[];
+  sendNotification: (notification: Omit<AdminNotificationMessage, 'id' | 'createdAt' | 'readBy' | 'dismissedBy'>) => void;
+  markNotificationAsRead: (id: string) => void;
+  dismissNotification: (id: string) => void;
+  deleteNotification: (id: string) => void;
+  // Site CMS & Custom Pages
+  sitePages: SitePage[];
+  createSitePage: (page: Omit<SitePage, 'id' | 'updatedAt'>) => void;
+  updateSitePage: (id: string, updates: Partial<SitePage>) => void;
+  deleteSitePage: (id: string) => boolean;
+  // Manual & Custom Deposit Methods
+  manualDepositMethods: ManualDepositMethod[];
+  addManualDepositMethod: (method: Omit<ManualDepositMethod, 'id'>) => void;
+  updateManualDepositMethod: (id: string, updates: Partial<ManualDepositMethod>) => void;
+  deleteManualDepositMethod: (id: string) => void;
+  // Social Links Management
+  socialLinks: SocialLinkConfig[];
+  updateSocialLink: (id: string, updates: Partial<SocialLinkConfig>) => void;
+  // Catalog Management (Products & Rentals)
+  productsList: ProductItem[];
+  addProductItem: (product: Omit<ProductItem, 'id'>) => void;
+  updateProductItem: (id: string, updates: Partial<ProductItem>) => void;
+  deleteProductItem: (id: string) => void;
+  rentalFleetList: RentalVehicle[];
+  updateRentalFleetVehicle: (id: string, updates: Partial<RentalVehicle>) => void;
+  // Promotions & Gaming
   executeSpin: () => { prize: string; valueUsd: number; type: string };
   purchaseScratchCard: (tier: ScratchCardTier) => boolean;
   awardScratchPrize: (tier: ScratchCardTier, prizeAmountUsd: number, prizeLabel: string) => void;
@@ -212,6 +266,14 @@ const DEFAULT_USER: User = {
       bonusSpinsEarned: 1,
     },
   ],
+  isOnline: true,
+  lastActiveAt: 'Active now',
+  lastVisitedPath: '/dashboard',
+  accountStatus: 'active',
+  totalDepositedUsd: 7450.0,
+  totalWithdrawnUsd: 1200.0,
+  ipAddress: '192.168.1.104',
+  deviceInfo: 'Chrome 131 on macOS Sonoma',
 };
 
 const INITIAL_USERS: User[] = [
@@ -247,6 +309,12 @@ const INITIAL_USERS: User[] = [
       submittedAt: '2026-01-10',
       verifiedAt: '2026-01-11',
     },
+    isOnline: true,
+    lastActiveAt: 'Active now',
+    lastVisitedPath: '/dashboard',
+    accountStatus: 'active',
+    ipAddress: '10.0.0.1',
+    deviceInfo: 'Apex Ops Workstation (Linux)',
   },
   {
     id: 'usr-003',
@@ -277,6 +345,14 @@ const INITIAL_USERS: User[] = [
       idNumber: 'DL-CA9928190',
       submittedAt: '2026-10-24',
     },
+    isOnline: true,
+    lastActiveAt: '3 mins ago',
+    lastVisitedPath: '/services',
+    accountStatus: 'active',
+    totalDepositedUsd: 1200.0,
+    totalWithdrawnUsd: 0,
+    ipAddress: '73.189.22.14',
+    deviceInfo: 'Safari on iPhone 16 Pro',
   },
   {
     id: 'usr-004',
@@ -308,6 +384,14 @@ const INITIAL_USERS: User[] = [
       submittedAt: '2026-10-28',
       verifiedAt: '2026-10-29',
     },
+    isOnline: false,
+    lastActiveAt: '42 mins ago',
+    lastVisitedPath: '/investment',
+    accountStatus: 'active',
+    totalDepositedUsd: 3500.0,
+    totalWithdrawnUsd: 500.0,
+    ipAddress: '98.210.45.67',
+    deviceInfo: 'Edge on Windows 11',
   },
   {
     id: 'usr-005',
@@ -329,6 +413,14 @@ const INITIAL_USERS: User[] = [
     referralCount: 0,
     referredUsers: [],
     kycStatus: 'unverified',
+    isOnline: false,
+    lastActiveAt: '1 day ago',
+    lastVisitedPath: '/promotions',
+    accountStatus: 'active',
+    totalDepositedUsd: 250.0,
+    totalWithdrawnUsd: 0,
+    ipAddress: '122.130.88.9',
+    deviceInfo: 'Chrome on Android 15',
   },
 ];
 
@@ -450,6 +542,7 @@ const INITIAL_BOOKINGS: ServiceBooking[] = [
 const INITIAL_INVESTMENTS: UserInvestment[] = [
   {
     id: 'inv-01',
+    userId: 'usr-apex-001',
     poolId: 'pool-robotaxi',
     poolTitle: 'Autonomous Tesla Robotaxi Yield Pool',
     amountInvestedUsd: 2500,
@@ -457,16 +550,97 @@ const INITIAL_INVESTMENTS: UserInvestment[] = [
     earnedDividendsUsd: 142.6,
     apy: 18.4,
     nextPayoutHours: 4,
+    status: 'running',
+    durationDays: 30,
+    daysElapsed: 24,
+    startDate: '2026-10-15',
+    maturityDate: '2026-11-14',
+    totalExpectedRoiUsd: 378.08,
+    dailyRoiRate: 12.6,
+    autoCompound: true,
+    txHash: '0x3fe9b2...84ad1',
   },
   {
     id: 'inv-02',
+    userId: 'usr-apex-001',
     poolId: 'pool-supercharger',
     poolTitle: 'Apex Megawatt Supercharger Node Staking',
     amountInvestedUsd: 1500,
-    investedAt: '2026-10-20',
+    investedAt: '2026-10-25',
     earnedDividendsUsd: 68.4,
     apy: 14.8,
     nextPayoutHours: 12,
+    status: 'running',
+    durationDays: 14,
+    daysElapsed: 13,
+    startDate: '2026-10-25',
+    maturityDate: '2026-11-08',
+    totalExpectedRoiUsd: 85.15,
+    dailyRoiRate: 6.08,
+    autoCompound: false,
+    txHash: '0x99e21b...34c7f',
+  },
+  {
+    id: 'inv-03',
+    userId: 'usr-apex-001',
+    poolId: 'pool-plaid-fleet',
+    poolTitle: 'Luxury Performance Rental Fleet Share',
+    amountInvestedUsd: 2000,
+    investedAt: '2026-08-01',
+    earnedDividendsUsd: 452.0,
+    apy: 22.6,
+    nextPayoutHours: 0,
+    status: 'completed',
+    durationDays: 60,
+    daysElapsed: 60,
+    startDate: '2026-08-01',
+    maturityDate: '2026-09-30',
+    totalExpectedRoiUsd: 452.0,
+    completedAt: '2026-09-30',
+    capitalReturned: true,
+    autoCompound: false,
+    txHash: '0x712a88...c1e90',
+    certificateId: 'APEX-CERT-2026-0930-PLD',
+  },
+  {
+    id: 'inv-04',
+    userId: 'usr-003',
+    poolId: 'pool-robotaxi',
+    poolTitle: 'Autonomous Tesla Robotaxi Yield Pool',
+    amountInvestedUsd: 1000,
+    investedAt: '2026-10-24',
+    earnedDividendsUsd: 74.2,
+    apy: 18.4,
+    nextPayoutHours: 6,
+    status: 'running',
+    durationDays: 30,
+    daysElapsed: 15,
+    startDate: '2026-10-24',
+    maturityDate: '2026-11-23',
+    totalExpectedRoiUsd: 151.23,
+    dailyRoiRate: 5.04,
+    autoCompound: true,
+    txHash: '0x4ca11e...99b12',
+  },
+  {
+    id: 'inv-05',
+    userId: 'usr-004',
+    poolId: 'pool-plaid-fleet',
+    poolTitle: 'Luxury Performance Rental Fleet Share',
+    amountInvestedUsd: 3000,
+    investedAt: '2026-10-28',
+    earnedDividendsUsd: 198.5,
+    apy: 22.6,
+    nextPayoutHours: 10,
+    status: 'running',
+    durationDays: 60,
+    daysElapsed: 11,
+    startDate: '2026-10-28',
+    maturityDate: '2026-12-27',
+    totalExpectedRoiUsd: 678.0,
+    dailyRoiRate: 11.3,
+    autoCompound: false,
+    txHash: '0x88f21a...bc551',
   },
 ];
 
@@ -574,6 +748,57 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [bookedRentals, setBookedRentals] = useState<{ rentalId: string; vehicle: RentalVehicle; days: number; startDate: string; totalUsd: number }[]>([]);
   const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'info' | 'error' } | null>(null);
 
+  // Notifications Hub state
+  const [adminNotifications, setAdminNotifications] = useState<AdminNotificationMessage[]>(() => {
+    const saved = localStorage.getItem('apex_notifications');
+    return saved ? JSON.parse(saved) : INITIAL_ADMIN_NOTIFICATIONS;
+  });
+
+  // Site CMS Pages state
+  const [sitePages, setSitePages] = useState<SitePage[]>(() => {
+    const saved = localStorage.getItem('apex_site_pages');
+    return saved ? JSON.parse(saved) : INITIAL_SITE_PAGES;
+  });
+
+  // Custom & Manual Deposit Gateways state
+  const [manualDepositMethods, setManualDepositMethods] = useState<ManualDepositMethod[]>(() => {
+    const saved = localStorage.getItem('apex_manual_deposits');
+    return saved ? JSON.parse(saved) : INITIAL_MANUAL_DEPOSIT_METHODS;
+  });
+
+  // Social Connect Links Configuration
+  const [socialLinks, setSocialLinks] = useState<SocialLinkConfig[]>(() => {
+    const saved = localStorage.getItem('apex_social_links');
+    return saved ? JSON.parse(saved) : INITIAL_SOCIAL_LINKS;
+  });
+
+  // Customizable Investment Pools & Plans
+  const [investmentPools, setInvestmentPools] = useState<InvestmentPool[]>(() => {
+    const saved = localStorage.getItem('apex_investment_pools');
+    return saved ? JSON.parse(saved) : INVESTMENT_POOLS;
+  });
+
+  // Store Products Catalog
+  const [productsList, setProductsList] = useState<ProductItem[]>(() => {
+    const saved = localStorage.getItem('apex_products_list');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  // Rental Fleet List
+  const [rentalFleetList, setRentalFleetList] = useState<RentalVehicle[]>(() => {
+    const saved = localStorage.getItem('apex_rental_fleet_list');
+    return saved ? JSON.parse(saved) : RENTAL_FLEET;
+  });
+
+  // Automated ROI Cron Engine state
+  const [cronActive, setCronActive] = useState<boolean>(true);
+  const [lastCronRun, setLastCronRun] = useState<string | null>('2026-11-08 14:30');
+  const [cronLogs, setCronLogs] = useState<string[]>([
+    'System init: Automated ROI Cron Engine active on 45s interval.',
+    'Cycle [14:00]: Processed 4 running fleet staking pools. Accrued $18.68 daily yield.',
+    'Cycle [14:30]: Validated maturity countdowns. Model S Plaid pool completion verified.',
+  ]);
+
   // Sync to local storage
   useEffect(() => {
     if (currentUser) localStorage.setItem('apex_user', JSON.stringify(currentUser));
@@ -614,6 +839,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     localStorage.setItem('apex_transactions', JSON.stringify(transactions));
   }, [transactions]);
+
+  useEffect(() => {
+    localStorage.setItem('apex_notifications', JSON.stringify(adminNotifications));
+  }, [adminNotifications]);
+
+  useEffect(() => {
+    localStorage.setItem('apex_site_pages', JSON.stringify(sitePages));
+  }, [sitePages]);
+
+  useEffect(() => {
+    localStorage.setItem('apex_manual_deposits', JSON.stringify(manualDepositMethods));
+  }, [manualDepositMethods]);
+
+  useEffect(() => {
+    localStorage.setItem('apex_social_links', JSON.stringify(socialLinks));
+  }, [socialLinks]);
+
+  useEffect(() => {
+    localStorage.setItem('apex_investment_pools', JSON.stringify(investmentPools));
+  }, [investmentPools]);
+
+  useEffect(() => {
+    localStorage.setItem('apex_products_list', JSON.stringify(productsList));
+  }, [productsList]);
+
+  useEffect(() => {
+    localStorage.setItem('apex_rental_fleet_list', JSON.stringify(rentalFleetList));
+  }, [rentalFleetList]);
 
   // Periodic simulated live winner popups to give dynamic proof of fair platform activity with guaranteed verified avatars
   useEffect(() => {
@@ -1173,21 +1426,39 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return false;
     }
 
-    const pool = INVESTMENT_POOLS.find((p) => p.id === poolId);
+    const pool = investmentPools.find((p) => p.id === poolId) || INVESTMENT_POOLS.find((p) => p.id === poolId);
     if (!pool) return false;
 
     // Deduct balance
     setBalances((prev) => ({ ...prev, usd: prev.usd - amountUsd }));
 
+    const durationDays = pool.lockPeriodDays || 30;
+    const now = new Date();
+    const startDate = now.toISOString().substring(0, 10);
+    const maturity = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
+    const maturityDate = maturity.toISOString().substring(0, 10);
+    const totalExpectedRoiUsd = Number(((amountUsd * (pool.apy / 100) * (durationDays / 365))).toFixed(2));
+    const dailyRoiRate = Number(((amountUsd * (pool.apy / 100)) / 365).toFixed(2));
+
     const newInvestment: UserInvestment = {
       id: `inv-${Date.now()}`,
+      userId: currentUser?.id || 'usr-apex-001',
       poolId,
       poolTitle: pool.title,
       amountInvestedUsd: amountUsd,
-      investedAt: new Date().toISOString().substring(0, 10),
+      investedAt: startDate,
       earnedDividendsUsd: 0,
       apy: pool.apy,
       nextPayoutHours: 24,
+      status: 'running',
+      durationDays,
+      daysElapsed: 0,
+      startDate,
+      maturityDate,
+      totalExpectedRoiUsd,
+      dailyRoiRate,
+      autoCompound: true,
+      txHash: `0x${Math.random().toString(16).substring(2, 10)}...${Math.random().toString(16).substring(2, 6)}`,
     };
 
     setUserInvestments((prev) => [newInvestment, ...prev]);
@@ -1201,8 +1472,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       usdEquivalent: amountUsd,
       timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
       status: 'completed',
-      txHash: `0x${Math.random().toString(16).substring(2, 10)}...${Math.random().toString(16).substring(2, 6)}`,
-      description: `Staked in ${pool.title} @ ${pool.apy}% APY`,
+      txHash: newInvestment.txHash || `0x${Math.random().toString(16).substring(2, 10)}`,
+      description: `Staked in ${pool.title} @ ${pool.apy}% APY (${durationDays}-Day Plan)`,
     };
     setTransactions((prev) => [newTx, ...prev]);
 
@@ -1237,6 +1508,415 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setTransactions((prev) => [newTx, ...prev]);
 
     showToast(`Claimed $${amount.toFixed(2)} dividends into your vault!`, 'success');
+  };
+
+  // User Investment Management Handlers (Admin & User)
+  const updateUserInvestment = (id: string, updates: Partial<UserInvestment>) => {
+    setUserInvestments((prev) =>
+      prev.map((inv) => (inv.id === id ? { ...inv, ...updates } : inv))
+    );
+    showToast('Investment position updated successfully.', 'success');
+  };
+
+  // Force Mature Investment & Auto-Credit Wallet Capital + ROI
+  const forceMatureInvestment = (investmentId: string): boolean => {
+    const inv = userInvestments.find((i) => i.id === investmentId);
+    if (!inv) return false;
+
+    const totalReturn = inv.amountInvestedUsd + (inv.earnedDividendsUsd || 0);
+
+    // Credit user balances
+    setBalances((prev) => ({ ...prev, usd: prev.usd + totalReturn }));
+
+    const completionDate = new Date().toISOString().substring(0, 10);
+    const certificateId = `APEX-CERT-${completionDate.replace(/-/g, '')}-${inv.id.substring(4, 8).toUpperCase()}`;
+
+    // Mark as completed
+    setUserInvestments((prev) =>
+      prev.map((i) =>
+        i.id === investmentId
+          ? {
+              ...i,
+              status: 'completed',
+              daysElapsed: i.durationDays,
+              completedAt: completionDate,
+              capitalReturned: true,
+              certificateId,
+            }
+          : i
+      )
+    );
+
+    // Payout transaction
+    const newTx: Transaction = {
+      id: `tx-mature-${Date.now()}`,
+      type: 'investment_deposit',
+      currency: 'USD',
+      amount: totalReturn,
+      usdEquivalent: totalReturn,
+      timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
+      status: 'completed',
+      txHash: `0x${Math.random().toString(16).substring(2, 10)}...settle`,
+      description: `Maturity Settlement: ${inv.poolTitle} (Principal $${inv.amountInvestedUsd.toLocaleString()} + ROI $${inv.earnedDividendsUsd.toFixed(2)})`,
+    };
+    setTransactions((prev) => [newTx, ...prev]);
+
+    // Send personalized notification
+    sendNotification({
+      title: `🎉 Investment Plan Matured: ${inv.poolTitle}`,
+      message: `Your staking plan has concluded. Principal ($${inv.amountInvestedUsd.toLocaleString()}) and earned dividends ($${inv.earnedDividendsUsd.toFixed(2)}) totaling $${totalReturn.toFixed(2)} USD have been credited to your wallet balance. Certificate #${certificateId} issued.`,
+      type: 'payout',
+      priority: 'high',
+      targetType: 'individual',
+      targetUserId: inv.userId || currentUser?.id,
+      targetUserEmail: currentUser?.email,
+      actionUrl: 'wallet',
+      actionLabel: 'View Wallet Balance',
+    });
+
+    showToast(`Settled $${totalReturn.toFixed(2)} (Capital + ROI) to wallet!`, 'success');
+    return true;
+  };
+
+  const pauseResumeInvestment = (investmentId: string) => {
+    setUserInvestments((prev) =>
+      prev.map((i) => {
+        if (i.id === investmentId) {
+          const nextStatus = i.status === 'running' ? 'paused' : 'running';
+          showToast(`Investment #${investmentId} status set to ${nextStatus}.`, 'info');
+          return { ...i, status: nextStatus as any };
+        }
+        return i;
+      })
+    );
+  };
+
+  const cancelInvestmentEarly = (investmentId: string): boolean => {
+    const inv = userInvestments.find((i) => i.id === investmentId);
+    if (!inv) return false;
+
+    // Early withdrawal penalty 5%
+    const penalty = inv.amountInvestedUsd * 0.05;
+    const refund = inv.amountInvestedUsd - penalty + inv.earnedDividendsUsd;
+
+    setBalances((prev) => ({ ...prev, usd: prev.usd + refund }));
+
+    setUserInvestments((prev) =>
+      prev.map((i) =>
+        i.id === investmentId
+          ? {
+              ...i,
+              status: 'completed',
+              completedAt: new Date().toISOString().substring(0, 10),
+              capitalReturned: true,
+            }
+          : i
+      )
+    );
+
+    const cancelTx: Transaction = {
+      id: `tx-cancel-${Date.now()}`,
+      type: 'investment_deposit',
+      currency: 'USD',
+      amount: refund,
+      usdEquivalent: refund,
+      timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
+      status: 'completed',
+      txHash: `0x${Math.random().toString(16).substring(2, 10)}...unstake`,
+      description: `Early Unstake: ${inv.poolTitle} ($${refund.toFixed(2)} refunded after 5% fee)`,
+    };
+    setTransactions((prev) => [cancelTx, ...prev]);
+
+    showToast(`Early unstake complete. $${refund.toFixed(2)} refunded to wallet.`, 'info');
+    return true;
+  };
+
+  // Automated ROI Cron Job Execution Engine
+  const triggerManualCronCycle = () => {
+    const timeStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    setLastCronRun(timeStr);
+
+    let maturedCount = 0;
+    let yieldDistributedUsd = 0;
+    const newLogs: string[] = [];
+
+    setUserInvestments((prev) => {
+      return prev.map((inv) => {
+        if (inv.status !== 'running') return inv;
+
+        // Daily incremental ROI: (Principal * APY / 365)
+        const dailyYield = (inv.amountInvestedUsd * (inv.apy / 100)) / 365;
+        const newEarned = (inv.earnedDividendsUsd || 0) + Number(dailyYield.toFixed(2));
+        const newDaysElapsed = (inv.daysElapsed || 0) + 1;
+        yieldDistributedUsd += Number(dailyYield.toFixed(2));
+
+        // Check if plan has completed / reached duration
+        if (newDaysElapsed >= inv.durationDays) {
+          maturedCount++;
+          const totalSettlement = inv.amountInvestedUsd + newEarned;
+
+          // Auto-credit wallet with earnings & capital as due
+          setBalances((b) => ({ ...b, usd: b.usd + totalSettlement }));
+
+          const completionDate = new Date().toISOString().substring(0, 10);
+          const certificateId = `APEX-CERT-${completionDate.replace(/-/g, '')}-${inv.id.substring(4, 8).toUpperCase()}`;
+
+          newLogs.push(`[MATURED] Plan #${inv.id} (${inv.poolTitle}): Paid $${totalSettlement.toFixed(2)} ($${inv.amountInvestedUsd} capital + $${newEarned.toFixed(2)} ROI). Cert: ${certificateId}`);
+
+          // Dispatched notification to user
+          sendNotification({
+            title: `🏆 Staking Plan Matured: ${inv.poolTitle}`,
+            message: `Your investment has completed its ${inv.durationDays}-day staking cycle! Total payout of $${totalSettlement.toFixed(2)} USD (Capital $${inv.amountInvestedUsd.toLocaleString()} + ROI $${newEarned.toFixed(2)}) has been credited directly to your wallet.`,
+            type: 'payout',
+            priority: 'high',
+            targetType: 'individual',
+            targetUserId: inv.userId || currentUser?.id,
+            actionUrl: 'wallet',
+            actionLabel: 'Check Wallet',
+          });
+
+          return {
+            ...inv,
+            status: 'completed',
+            daysElapsed: inv.durationDays,
+            earnedDividendsUsd: newEarned,
+            completedAt: completionDate,
+            capitalReturned: true,
+            certificateId,
+          };
+        }
+
+        newLogs.push(`[YIELD ACCRUED] Plan #${inv.id} (${inv.poolTitle}): +$${dailyYield.toFixed(2)} USD (Day ${newDaysElapsed}/${inv.durationDays})`);
+        return {
+          ...inv,
+          earnedDividendsUsd: newEarned,
+          daysElapsed: newDaysElapsed,
+          nextPayoutHours: 24,
+        };
+      });
+    });
+
+    const summaryLog = `[CRON CYCLE at ${timeStr}] Processed active investments. Yield distributed: $${yieldDistributedUsd.toFixed(2)} USD. Matured plans settled: ${maturedCount}.`;
+    setCronLogs((prevLogs) => [summaryLog, ...newLogs, ...prevLogs.slice(0, 20)]);
+    showToast(`Cron Cycle complete: $${yieldDistributedUsd.toFixed(2)} yield accrued. ${maturedCount} plan(s) matured!`, 'success');
+
+    return { maturedCount, yieldDistributedUsd, logs: [summaryLog, ...newLogs] };
+  };
+
+  // Background automated Cron interval (runs every 60s when cronActive is true)
+  useEffect(() => {
+    if (!cronActive) return;
+
+    const interval = setInterval(() => {
+      // Process incremental yield & check for completions
+      setUserInvestments((prev) => {
+        let maturedFound = false;
+        const updated = prev.map((inv) => {
+          if (inv.status !== 'running') return inv;
+
+          // Increment slight yield on timer tick (simulated fraction of daily yield)
+          const incremental = (inv.amountInvestedUsd * (inv.apy / 100)) / (365 * 24);
+          const newEarned = (inv.earnedDividendsUsd || 0) + Number(incremental.toFixed(3));
+
+          // If daysElapsed reaches durationDays, mature plan
+          if (inv.daysElapsed >= inv.durationDays) {
+            maturedFound = true;
+            const totalPayout = inv.amountInvestedUsd + newEarned;
+            setBalances((b) => ({ ...b, usd: b.usd + totalPayout }));
+
+            const completionDate = new Date().toISOString().substring(0, 10);
+            const cert = `APEX-CERT-${completionDate.replace(/-/g, '')}-${inv.id.substring(4, 8).toUpperCase()}`;
+
+            sendNotification({
+              title: `🎉 Staking Completed: ${inv.poolTitle}`,
+              message: `Your investment duration has completed. Total payout of $${totalPayout.toFixed(2)} USD (Principal + ROI) has been credited to your available wallet balance.`,
+              type: 'payout',
+              priority: 'high',
+              targetType: 'individual',
+              targetUserId: inv.userId || currentUser?.id,
+              actionUrl: 'wallet',
+              actionLabel: 'View Wallet',
+            });
+
+            return {
+              ...inv,
+              status: 'completed',
+              completedAt: completionDate,
+              capitalReturned: true,
+              earnedDividendsUsd: newEarned,
+              certificateId: cert,
+            };
+          }
+
+          return {
+            ...inv,
+            earnedDividendsUsd: newEarned,
+          };
+        });
+
+        if (maturedFound) {
+          setLastCronRun(new Date().toISOString().replace('T', ' ').substring(0, 19));
+        }
+
+        return updated;
+      });
+    }, 60000);
+
+    return () => clearInterval(interval);
+  }, [cronActive, currentUser?.id]);
+
+  // Notifications Hub Handlers
+  const sendNotification = (notificationData: Omit<AdminNotificationMessage, 'id' | 'createdAt' | 'readBy' | 'dismissedBy'>) => {
+    const newNotif: AdminNotificationMessage = {
+      ...notificationData,
+      id: `notif-${Date.now()}`,
+      createdAt: new Date().toISOString().replace('T', ' ').substring(0, 16),
+      readBy: [],
+      dismissedBy: [],
+    };
+    setAdminNotifications((prev) => [newNotif, ...prev]);
+    showToast(`Notification "${notificationData.title}" dispatched!`, 'success');
+  };
+
+  const markNotificationAsRead = (id: string) => {
+    const uid = currentUser?.id || 'usr-apex-001';
+    setAdminNotifications((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, readBy: Array.from(new Set([...n.readBy, uid])) } : n))
+    );
+  };
+
+  const dismissNotification = (id: string) => {
+    const uid = currentUser?.id || 'usr-apex-001';
+    setAdminNotifications((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, dismissedBy: Array.from(new Set([...n.dismissedBy, uid])) } : n))
+    );
+  };
+
+  const deleteNotification = (id: string) => {
+    setAdminNotifications((prev) => prev.filter((n) => n.id !== id));
+    showToast('Notification deleted.', 'info');
+  };
+
+  // Site CMS Pages Handlers
+  const createSitePage = (pageData: Omit<SitePage, 'id' | 'updatedAt'>) => {
+    const newPage: SitePage = {
+      ...pageData,
+      id: `page-${Date.now()}`,
+      updatedAt: new Date().toISOString().substring(0, 10),
+    };
+    setSitePages((prev) => [...prev, newPage]);
+    showToast(`Page "${pageData.title}" created successfully!`, 'success');
+  };
+
+  const updateSitePage = (id: string, updates: Partial<SitePage>) => {
+    setSitePages((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, ...updates, updatedAt: new Date().toISOString().substring(0, 10) } : p))
+    );
+    showToast('Page configuration saved.', 'success');
+  };
+
+  const deleteSitePage = (id: string): boolean => {
+    const target = sitePages.find((p) => p.id === id);
+    if (target?.isSystem) {
+      showToast('System core pages cannot be deleted.', 'error');
+      return false;
+    }
+    setSitePages((prev) => prev.filter((p) => p.id !== id));
+    showToast(`Page "${target?.title || id}" removed.`, 'info');
+    return true;
+  };
+
+  // Manual Deposit Methods Handlers
+  const addManualDepositMethod = (methodData: Omit<ManualDepositMethod, 'id'>) => {
+    const newMethod: ManualDepositMethod = {
+      ...methodData,
+      id: `dep-${Date.now()}`,
+    };
+    setManualDepositMethods((prev) => [...prev, newMethod]);
+    showToast(`Deposit method "${methodData.title}" created!`, 'success');
+  };
+
+  const updateManualDepositMethod = (id: string, updates: Partial<ManualDepositMethod>) => {
+    setManualDepositMethods((prev) =>
+      prev.map((m) => (m.id === id ? { ...m, ...updates } : m))
+    );
+    showToast('Deposit method updated successfully.', 'success');
+  };
+
+  const deleteManualDepositMethod = (id: string) => {
+    setManualDepositMethods((prev) => prev.filter((m) => m.id !== id));
+    showToast('Deposit method deleted.', 'info');
+  };
+
+  // Social Links Handlers
+  const updateSocialLink = (id: string, updates: Partial<SocialLinkConfig>) => {
+    setSocialLinks((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, ...updates } : s))
+    );
+    showToast('Social channel settings saved.', 'success');
+  };
+
+  // Investment Pools & Plans CMS Handlers
+  const createInvestmentPool = (poolData: Omit<InvestmentPool, 'id'>) => {
+    const newPool: InvestmentPool = {
+      ...poolData,
+      id: `pool-${Date.now()}`,
+    };
+    setInvestmentPools((prev) => [...prev, newPool]);
+    showToast(`Investment pool "${poolData.title}" added to catalog!`, 'success');
+  };
+
+  const updateInvestmentPool = (id: string, updates: Partial<InvestmentPool>) => {
+    setInvestmentPools((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, ...updates } : p))
+    );
+    showToast('Investment pool parameters updated.', 'success');
+  };
+
+  const deleteInvestmentPool = (id: string) => {
+    setInvestmentPools((prev) => prev.filter((p) => p.id !== id));
+    showToast('Investment pool removed.', 'info');
+  };
+
+  // Catalog Products & Rentals Handlers
+  const addProductItem = (productData: Omit<ProductItem, 'id'>) => {
+    const newProduct: ProductItem = {
+      ...productData,
+      id: `prod-${Date.now()}`,
+    };
+    setProductsList((prev) => [...prev, newProduct]);
+    showToast(`Product "${productData.name}" added to shop!`, 'success');
+  };
+
+  const updateProductItem = (id: string, updates: Partial<ProductItem>) => {
+    setProductsList((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, ...updates } : p))
+    );
+    showToast('Product item updated.', 'success');
+  };
+
+  const deleteProductItem = (id: string) => {
+    setProductsList((prev) => prev.filter((p) => p.id !== id));
+    showToast('Product deleted from catalog.', 'info');
+  };
+
+  const updateRentalFleetVehicle = (id: string, updates: Partial<RentalVehicle>) => {
+    setRentalFleetList((prev) =>
+      prev.map((v) => (v.id === id ? { ...v, ...updates } : v))
+    );
+    showToast('Rental vehicle updated.', 'success');
+  };
+
+  const updateUserStatus = (userId: string, status: 'active' | 'suspended' | 'flagged') => {
+    setAllUsers((prev) =>
+      prev.map((u) => (u.id === userId ? { ...u, accountStatus: status } : u))
+    );
+    showToast(`User status updated to ${status}.`, 'info');
+  };
+
+  const deleteUser = (userId: string) => {
+    setAllUsers((prev) => prev.filter((u) => u.id !== userId));
+    showToast('User account removed.', 'info');
   };
 
   // KYC Submission
@@ -1366,27 +2046,69 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return countAdded;
   };
 
-  // Test Email Sender
-  const sendTestEmail = async (recipientEmail: string): Promise<{ success: boolean; message: string; smtpLog?: string }> => {
+  // Test Email Sender with live delivery verification & failure diagnostic reporting
+  const sendTestEmail = async (recipientEmail: string, simulateScenario?: string): Promise<TestEmailResult> => {
     try {
       const res = await fetch('/api/mailer/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ smtpConfig, testEmail: recipientEmail }),
+        body: JSON.stringify({ smtpConfig, testEmail: recipientEmail, simulateScenario }),
       });
       const data = await res.json();
-      if (res.ok && data.success) {
-        showToast(data.message || `Test email dispatched to ${recipientEmail}!`, 'success');
-        return { success: true, message: data.message, smtpLog: data.smtpLog };
+
+      if (res.ok && data.delivered) {
+        showToast(`⚡ Test email DELIVERED to ${recipientEmail}! (Status: 250 OK)`, 'success');
+        return {
+          success: true,
+          delivered: true,
+          status: 'delivered',
+          message: data.message || `Test email successfully DELIVERED to ${recipientEmail}`,
+          messageId: data.messageId,
+          recipient: recipientEmail,
+          host: data.host || smtpConfig.host,
+          port: data.port || smtpConfig.port,
+          timestamp: data.timestamp || new Date().toISOString(),
+          smtpLog: data.smtpLog,
+          simulationMode: data.simulationMode,
+        };
       }
-      showToast(data.error || 'SMTP Test failed. Check credentials.', 'error');
-      return { success: false, message: data.error || 'Failed', smtpLog: data.smtpLog };
-    } catch (err: any) {
-      showToast('Mailer engine simulated test dispatch completed.', 'success');
+
+      // Handle delivery failure
+      const failReason = data.failureReason || data.error || 'Connection or relay rejected';
+      showToast(`❌ Test email FAILED to deliver to ${recipientEmail}: ${failReason}`, 'error');
+
       return {
-        success: true,
-        message: `Simulated test email sent to ${recipientEmail}`,
-        smtpLog: `220 ${smtpConfig.host} ESMTP Apex Tesla Hub Ready\n250 OK: test queued for ${recipientEmail}`,
+        success: false,
+        delivered: false,
+        status: 'failed',
+        message: data.message || `Test email FAILED to deliver to ${recipientEmail}`,
+        failureReason: failReason,
+        failureCode: data.failureCode || 'SMTP_ERR',
+        failureCategory: data.failureCategory || 'Relay Delivery Error',
+        troubleshooting: data.troubleshooting || 'Check your SMTP credentials, host port, and recipient mailbox status.',
+        recipient: recipientEmail,
+        host: data.host || smtpConfig.host,
+        port: data.port || smtpConfig.port,
+        timestamp: data.timestamp || new Date().toISOString(),
+        smtpLog: data.smtpLog,
+      };
+    } catch (err: any) {
+      const errMsg = err?.message || 'Network transport failure';
+      showToast(`❌ Test email FAILED: Network error connecting to mailer daemon (${errMsg})`, 'error');
+      return {
+        success: false,
+        delivered: false,
+        status: 'failed',
+        message: `Network transport failure connecting to mailer daemon: ${errMsg}`,
+        failureReason: errMsg,
+        failureCode: 'CLIENT_NETWORK_ERR',
+        failureCategory: 'Connection Dropped',
+        troubleshooting: 'Check dev server connectivity and local socket bindings.',
+        recipient: recipientEmail,
+        host: smtpConfig.host,
+        port: smtpConfig.port,
+        timestamp: new Date().toISOString(),
+        smtpLog: `[NETWORK_EXCEPTION] ${errMsg}`,
       };
     }
   };
@@ -1688,6 +2410,42 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         bookService,
         stakeInPool,
         claimDividends,
+        updateUserInvestment,
+        forceMatureInvestment,
+        pauseResumeInvestment,
+        cancelInvestmentEarly,
+        triggerManualCronCycle,
+        cronActive,
+        setCronActive,
+        cronLogs,
+        lastCronRun,
+        investmentPools,
+        createInvestmentPool,
+        updateInvestmentPool,
+        deleteInvestmentPool,
+        adminNotifications,
+        sendNotification,
+        markNotificationAsRead,
+        dismissNotification,
+        deleteNotification,
+        sitePages,
+        createSitePage,
+        updateSitePage,
+        deleteSitePage,
+        manualDepositMethods,
+        addManualDepositMethod,
+        updateManualDepositMethod,
+        deleteManualDepositMethod,
+        socialLinks,
+        updateSocialLink,
+        productsList,
+        addProductItem,
+        updateProductItem,
+        deleteProductItem,
+        rentalFleetList,
+        updateRentalFleetVehicle,
+        updateUserStatus,
+        deleteUser,
         executeSpin,
         purchaseScratchCard,
         awardScratchPrize,
