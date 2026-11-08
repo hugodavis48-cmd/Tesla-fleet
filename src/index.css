@@ -1,0 +1,55 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    background-color: #07090e;
+    color: #f1f5f9;
+    overflow-x: hidden;
+    selection-background-color: #e82127;
+    selection-color: #ffffff;
+  }
+
+  h1, h2, h3, h4, .font-heading {
+    font-family: 'Space Grotesk', system-ui, sans-serif;
+    letter-spacing: -0.02em;
+  }
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0d1117;
+}
+::-webkit-scrollbar-thumb {
+  background: #272f3d;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #e82127;
+}
+
+/* Custom Tesla metallic and neon glow effects */
+.tesla-glow-red {
+  box-shadow: 0 0 25px -5px rgba(232, 33, 39, 0.45);
+}
+
+.tesla-glow-cyan {
+  box-shadow: 0 0 25px -5px rgba(0, 243, 255, 0.35);
+}
+
+.tesla-border-gradient {
+  border-image: linear-gradient(to bottom right, rgba(232, 33, 39, 0.6), rgba(255, 255, 255, 0.1), rgba(0, 243, 255, 0.4)) 1;
+}
+
+@keyframes pulse-subtle {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.animate-pulse-subtle {
+  animation: pulse-subtle 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}

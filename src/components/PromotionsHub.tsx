@@ -1,0 +1,441 @@
+import React, { useState, useRef } from 'react';
+import { useApp } from '../context/AppContext';
+import { SCRATCH_CARD_TIERS } from '../data/mockData';
+import { ScratchCardTier } from '../types';
+import { ScratchCardModal } from './ScratchCardModal';
+import confetti from 'canvas-confetti';
+import {
+  Gift,
+  Sparkles,
+  Trophy,
+  Award,
+  ShieldCheck,
+  Zap,
+  ArrowRight,
+  Flame,
+  CheckCircle2,
+  RefreshCw,
+  Coins,
+} from 'lucide-react';
+
+interface PromotionsHubProps {
+  onOpenDeposit: () => void;
+}
+
+export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) => {
+  const { availableSpins, executeSpin, recentWinners, purchaseScratchCard, balances, showToast } = useApp();
+
+  const [isSpinning, setIsSpinning] = useState(false);
+  const [wheelRotation, setWheelRotation] = useState(0);
+  const [lastWonPrize, setLastWonPrize] = useState<{ prize: string; valueUsd: number } | null>(null);
+  const [selectedScratchTier, setSelectedScratchTier] = useState<ScratchCardTier | null>(null);
+
+  // Wheel slice definitions (8 slices: 45deg each)
+  const wheelSlices = [
+    { label: 'Cybertruck Pass', color: '#dc2626', text: 'white' },
+    { label: '1,000 USDT', color: '#16a34a', text: 'white' },
+    { label: 'Full Body Wrap', color: '#0891b2', text: 'white' },
+    { label: '500 Credits', color: '#eab308', text: 'black' },
+    { label: '100 USDT', color: '#2563eb', text: 'white' },
+    { label: 'Supercharge 1k kWh', color: '#9333ea', text: 'white' },
+    { label: 'Gold Card ($1k)', color: '#d97706', text: 'white' },
+    { label: '50 Credits', color: '#475569', text: 'white' },
+  ];
+
+  // Synthesized mechanical ticking sound for the wheel
+  const playTickSound = () => {
+    try {
+      const audioCtx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+      gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.04);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.04);
+    } catch {
+      // Audio fallback
+    }
+  };
+
+  const handleSpinClick = () => {
+    if (isSpinning) return;
+    if (balances.usd < 25) {
+      showToast('Spin cost is strictly $25 USD per spin (no free spins). Please deposit funds to spin.', 'error');
+      onOpenDeposit();
+      return;
+    }
+
+    setIsSpinning(true);
+    setLastWonPrize(null);
+
+    // Pick outcome with $25 fee deducted from balance
+    let result: { prize: string; valueUsd: number; type: string };
+    try {
+      result = executeSpin();
+    } catch (err: unknown) {
+      const error = err as Error;
+      setIsSpinning(false);
+      showToast(error.message, 'error');
+      return;
+    }
+
+    // Sound ticks during spin
+    let tickCount = 0;
+    const tickInterval = setInterval(() => {
+      playTickSound();
+      tickCount++;
+      if (tickCount > 24) clearInterval(tickInterval);
+    }, 150);
+
+    // Spin 5 to 7 full revolutions plus random angle
+    const extraRounds = 360 * 6;
+    const randomAngle = Math.floor(Math.random() * 360);
+    const totalNewRotation = wheelRotation + extraRounds + randomAngle;
+    setWheelRotation(totalNewRotation);
+
+    setTimeout(() => {
+      setIsSpinning(false);
+      setLastWonPrize(result);
+
+      confetti({
+        particleCount: 100,
+        spread: 70,
+        origin: { y: 0.6 },
+        colors: ['#e82127', '#00f3ff', '#f59e0b', '#ffffff'],
+      });
+
+      showToast(`WINNER! You landed on: ${result.prize} (+$${result.valueUsd.toLocaleString()})!`, 'success');
+    }, 4200);
+  };
+
+  const handleBuyScratchCard = (tier: ScratchCardTier) => {
+    if (purchaseScratchCard(tier)) {
+      setSelectedScratchTier(tier);
+    } else {
+      onOpenDeposit();
+    }
+  };
+
+  return (
+    <div id="promotions" className="py-12 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto space-y-16">
+      {/* Promotion Title */}
+      <div className="text-center max-w-3xl mx-auto space-y-3">
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 text-xs font-semibold uppercase tracking-wider">
+          <Trophy className="w-3.5 h-3.5" />
+          <span>Provably Fair Platform Promotions & Giveaways</span>
+        </div>
+        <h2 className="font-heading font-black text-3xl sm:text-5xl text-white">
+          SPIN & WIN • $8,000 SCRATCH JACKPOTS
+        </h2>
+        <p className="text-zinc-400 text-sm sm:text-base">
+          Cost-to-spin wheel featuring high-tier Tesla prizes. Purchasable scratch and win cards valued from $50 minimum up to $8,000 max.
+        </p>
+      </div>
+
+      {/* Section 1: The Interactive Spin Wheel */}
+      <div className="rounded-3xl border border-zinc-800 bg-gradient-to-b from-zinc-950 via-zinc-900/60 to-zinc-950 p-6 sm:p-10 shadow-2xl relative overflow-hidden">
+        {/* Ambient background glow */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-red-600/10 rounded-full blur-[140px] pointer-events-none" />
+
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center relative z-10">
+          {/* Left: Interactive Wheel Canvas/SVG representation */}
+          <div className="lg:col-span-7 flex flex-col items-center">
+            {/* The Wheel Container */}
+            <div className="relative w-[320px] h-[320px] sm:w-[420px] sm:h-[420px] flex items-center justify-center">
+              {/* Outer Glowing Metallic Rim */}
+              <div className="absolute inset-0 rounded-full border-8 border-zinc-800 shadow-[0_0_50px_rgba(232,33,39,0.3)] bg-zinc-950" />
+
+              {/* Top Pointer Indicator */}
+              <div className="absolute -top-3 z-30 flex flex-col items-center">
+                <div className="w-6 h-8 bg-gradient-to-b from-yellow-300 via-amber-500 to-red-600 clip-triangle shadow-lg animate-bounce" style={{ clipPath: 'polygon(50% 100%, 0 0, 100% 0)' }} />
+              </div>
+
+              {/* The Spinning Rotating Disc */}
+              <div
+                className="w-[94%] h-[94%] rounded-full overflow-hidden relative shadow-inner transition-transform"
+                style={{
+                  transform: `rotate(${wheelRotation}deg)`,
+                  transitionDuration: isSpinning ? '4.2s' : '0s',
+                  transitionTimingFunction: 'cubic-bezier(0.15, 0.9, 0.25, 1)',
+                }}
+              >
+                {/* SVG Wheel Pie Wedges */}
+                <svg viewBox="0 0 100 100" className="w-full h-full transform -rotate-90">
+                  {wheelSlices.map((slice, i) => {
+                    const angle = 360 / wheelSlices.length;
+                    const startAngle = (i * angle * Math.PI) / 180;
+                    const endAngle = ((i + 1) * angle * Math.PI) / 180;
+                    const x1 = 50 + 50 * Math.cos(startAngle);
+                    const y1 = 50 + 50 * Math.sin(startAngle);
+                    const x2 = 50 + 50 * Math.cos(endAngle);
+                    const y2 = 50 + 50 * Math.sin(endAngle);
+
+                    return (
+                      <g key={i}>
+                        <path
+                          d={`M 50 50 L ${x1} ${y1} A 50 50 0 0 1 ${x2} ${y2} Z`}
+                          fill={slice.color}
+                          stroke="#18181b"
+                          strokeWidth="0.8"
+                        />
+                      </g>
+                    );
+                  })}
+                </svg>
+
+                {/* Text overlays around the wheel */}
+                {wheelSlices.map((slice, i) => {
+                  const angle = (360 / wheelSlices.length) * i + 360 / (wheelSlices.length * 2);
+                  return (
+                    <div
+                      key={i}
+                      className="absolute inset-0 flex items-center justify-end pr-4 pointer-events-none"
+                      style={{
+                        transform: `rotate(${angle}deg)`,
+                        transformOrigin: '50% 50%',
+                      }}
+                    >
+                      <span
+                        className="text-[9px] sm:text-[11px] font-heading font-black uppercase tracking-wider drop-shadow-md"
+                        style={{ color: slice.text }}
+                      >
+                        {slice.label}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Center Hub Emblem */}
+              <div className="absolute z-20 w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gradient-to-br from-zinc-900 via-black to-zinc-900 border-4 border-red-500 shadow-xl flex items-center justify-center cursor-pointer select-none">
+                <div className="text-center">
+                  <Zap className="w-6 h-6 text-red-500 fill-red-500 mx-auto" />
+                  <span className="text-[9px] font-mono font-bold text-white block -mt-0.5">APEX</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Right: Spin Controls & Information */}
+          <div className="lg:col-span-5 space-y-6">
+            <div className="space-y-2">
+              <span className="text-xs uppercase font-mono font-bold text-yellow-400 tracking-wider">
+                Daily Platform Wheel
+              </span>
+              <h3 className="font-heading font-black text-2xl sm:text-3xl text-white">
+                SPIN TO WIN TESLA PERKS
+              </h3>
+              <p className="text-xs text-zinc-400 leading-relaxed">
+                Win Tesla Cybertruck rental passes, $1,000 USDT instant wallet credits, custom body wrap vouchers ($3,500), and free Supercharging kWh!
+              </p>
+            </div>
+
+            {/* Spin cost banner */}
+            <div className="p-4 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-between">
+              <div>
+                <span className="text-[11px] text-zinc-400 block font-mono">EXECUTION COST</span>
+                <span className="font-heading font-black text-2xl text-amber-400">
+                  $25.00 <span className="text-xs font-normal text-zinc-300">USD / Spin</span>
+                </span>
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] px-2.5 py-1 rounded-full bg-red-600/20 text-red-400 border border-red-500/30 font-mono font-bold block mb-1">
+                  NO FREE SPINS
+                </span>
+                <span className="text-[10px] text-zinc-400 font-mono">Deducted from Vault</span>
+              </div>
+            </div>
+
+            {/* Last Won Prize Callout */}
+            {lastWonPrize && (
+              <div className="p-4 rounded-2xl bg-gradient-to-r from-red-950/60 to-zinc-900 border border-red-500/50 space-y-1 animate-in zoom-in-95">
+                <div className="flex items-center gap-2 text-yellow-400 text-xs font-bold uppercase tracking-wider">
+                  <Trophy className="w-4 h-4 text-yellow-400" />
+                  <span>JUST WON ON WHEEL</span>
+                </div>
+                <h4 className="font-heading font-black text-xl text-white">
+                  {lastWonPrize.prize}
+                </h4>
+                <p className="text-emerald-400 text-xs font-semibold">
+                  +${lastWonPrize.valueUsd.toLocaleString()} USD credited to your dashboard wallet!
+                </p>
+              </div>
+            )}
+
+            {/* Spin CTA Button */}
+            <button
+              onClick={handleSpinClick}
+              disabled={isSpinning}
+              className="w-full py-4 rounded-2xl bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white font-heading font-black text-base shadow-2xl shadow-red-950/70 flex items-center justify-center gap-2 transition hover:scale-[1.01] disabled:opacity-60 cursor-pointer"
+            >
+              {isSpinning ? (
+                <>
+                  <RefreshCw className="w-5 h-5 animate-spin" />
+                  <span>WHEEL IS SPINNING...</span>
+                </>
+              ) : (
+                <>
+                  <Coins className="w-5 h-5 text-yellow-300" />
+                  <span>SPIN WHEEL ($25 USD)</span>
+                </>
+              )}
+            </button>
+
+            <div className="flex items-center justify-center gap-1.5 text-[11px] text-zinc-500">
+              <ShieldCheck className="w-4 h-4 text-emerald-400" />
+              <span>Cryptographic Randomness (SHA-256 Proven Outcome)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Section 2: Purchasable Scratch & Win Cards ($50 min to $8,000 max) */}
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 border-b border-zinc-800 pb-4">
+          <div>
+            <div className="inline-flex items-center gap-1.5 text-xs font-mono font-bold text-amber-400 uppercase tracking-wider mb-1">
+              <Flame className="w-4 h-4 text-amber-500" />
+              <span>Purchasable Foil Scratch Cards ($50 Min — $8,000 Max)</span>
+            </div>
+            <h3 className="font-heading font-black text-2xl sm:text-3xl text-white">
+              SCRATCH & WIN JACKPOTS
+            </h3>
+            <p className="text-xs text-zinc-400 max-w-xl">
+              Instant gratification. Scratch off the metallic foil with your mouse or finger to uncover cash vault jackpots, body wraps, and crypto rewards.
+            </p>
+          </div>
+
+          <div className="text-right">
+            <span className="text-xs text-zinc-400 block">Your Wallet Balance:</span>
+            <span className="font-heading font-bold text-lg text-emerald-400">
+              ${balances.usd.toFixed(2)} USD
+            </span>
+          </div>
+        </div>
+
+        {/* Scratch Card Tiers Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          {SCRATCH_CARD_TIERS.map((tier) => (
+            <div
+              key={tier.id}
+              className="rounded-3xl border border-zinc-800 bg-zinc-950 p-6 flex flex-col justify-between hover:border-yellow-500/50 shadow-xl transition-all group"
+            >
+              <div className="space-y-4">
+                {/* Header card badge */}
+                <div className={`p-4 rounded-2xl bg-gradient-to-r ${tier.gradient} text-white shadow-md`}>
+                  <div className="flex justify-between items-start">
+                    <span className="text-[10px] uppercase font-mono font-bold tracking-wider opacity-90">
+                      Apex Scratch Card
+                    </span>
+                    <Trophy className="w-4 h-4 text-yellow-300" />
+                  </div>
+                  <h4 className="font-heading font-black text-lg mt-1">{tier.name}</h4>
+                  <div className="mt-2 text-right">
+                    <span className="text-[10px] block opacity-80">MAX JACKPOT</span>
+                    <span className="font-heading font-black text-2xl text-yellow-300">
+                      ${tier.maxPrizeUsd.toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+
+                <p className="text-xs text-zinc-400 leading-relaxed min-h-[36px]">
+                  {tier.description}
+                </p>
+
+                {/* Possible wins list */}
+                <div className="space-y-1 text-[11px] text-zinc-400 border-t border-zinc-800/80 pt-3">
+                  <span className="text-[10px] uppercase font-mono text-zinc-500 block mb-1">
+                    Top Prize Payouts:
+                  </span>
+                  {tier.possiblePrizes.slice(0, 3).map((p, i) => (
+                    <div key={i} className="flex justify-between">
+                      <span>{p.label}</span>
+                      <span className="text-yellow-400 font-mono font-semibold">+${p.amountUsd}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="pt-6">
+                <button
+                  onClick={() => handleBuyScratchCard(tier)}
+                  className="w-full py-3.5 rounded-2xl bg-zinc-900 group-hover:bg-gradient-to-r group-hover:from-yellow-500 group-hover:to-amber-600 border border-zinc-700 group-hover:border-transparent text-white group-hover:text-black font-heading font-bold text-xs flex items-center justify-center gap-2 transition duration-200 shadow-md"
+                >
+                  <Coins className="w-4 h-4" />
+                  <span>Buy & Scratch for ${tier.priceUsd}</span>
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Section 3: Live Community Winnings & Random Win History Feed */}
+      <div className="rounded-3xl border border-zinc-800 bg-zinc-950 p-6 sm:p-8 space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-800 pb-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <Trophy className="w-5 h-5 text-yellow-400" />
+              <h3 className="font-heading font-bold text-xl text-white">
+                Live Community Win History & Ledger
+              </h3>
+            </div>
+            <p className="text-xs text-zinc-400 mt-1">
+              Transparent real-time payout feed across Spin-and-Win Wheel & Scratch Cards with verifiable cryptographic hashes.
+            </p>
+          </div>
+
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-600/10 border border-emerald-500/30 text-emerald-400 text-xs font-semibold">
+            <span className="h-2 w-2 rounded-full bg-emerald-400 animate-ping" />
+            <span>Feed Synchronized Live</span>
+          </div>
+        </div>
+
+        {/* Winners Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {recentWinners.slice(0, 9).map((win) => (
+            <div
+              key={win.id}
+              className="p-4 rounded-2xl bg-zinc-900/60 border border-zinc-800/80 hover:border-zinc-700 transition flex items-center gap-3.5"
+            >
+              <img
+                src={win.avatar}
+                alt={win.username}
+                className="w-11 h-11 rounded-xl object-cover border border-red-500/30 shrink-0"
+              />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-semibold text-xs text-white truncate">{win.username}</h4>
+                  <span className="text-[10px] text-zinc-500">{win.timestamp}</span>
+                </div>
+                <p className="font-heading font-bold text-xs text-yellow-400 truncate mt-0.5">
+                  {win.prize}
+                </p>
+                <div className="flex items-center justify-between mt-1 text-[10px] text-zinc-500 font-mono">
+                  <span>{win.type}</span>
+                  <span className="text-emerald-400 flex items-center gap-0.5">
+                    <ShieldCheck className="w-3 h-3" />
+                    {win.verifiedHash}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Scratch Card Interactive Modal */}
+      {selectedScratchTier && (
+        <ScratchCardModal
+          tier={selectedScratchTier}
+          isOpen={!!selectedScratchTier}
+          onClose={() => setSelectedScratchTier(null)}
+        />
+      )}
+    </div>
+  );
+};

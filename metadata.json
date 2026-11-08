@@ -1,0 +1,6 @@
+{
+  "name": "Apex Tesla Hub - Service, Customization, Rentals & Fleet Yield",
+  "description": "Comprehensive Tesla vehicle hub for maintenance, wraps & custom accessories, fleet rentals, decentralized investment yields, spin & scratch promotions, and Gemini-powered service & fleet ops.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
