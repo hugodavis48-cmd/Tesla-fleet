@@ -136,6 +136,19 @@ export const SocialConnect: React.FC = () => {
       iconType: 'DC',
       features: ['Direct Tech Support Chat', 'Alpha Investment Calls', 'Exclusive Scratch Card Drop Pings'],
     },
+    {
+      id: 'whatsapp',
+      name: 'WhatsApp VIP Concierge',
+      handle: '+1 (800) 555-APEX (2739)',
+      category: 'VIP Direct Desk & Wire Support',
+      membersCount: '19,400+ Subscribed',
+      url: 'https://wa.me/18005552739?text=Hi%20Apex%20Tesla%20Hub!%20I%20am%20inquiring%20about%20vehicle%20service%2C%20rental%20or%20fleet%20investments.',
+      description: 'Instant, encrypted concierge desk for high-volume deposits, manual bank wire clearance, exotic rental reservations, and bespoke wraps.',
+      color: 'from-emerald-600 to-teal-700',
+      badge: 'DIRECT DESK',
+      iconType: 'WA',
+      features: ['Immediate Wire Support', 'Custom Wrap Quotes', '24/7 Priority Emergency Ranger Dispatch'],
+    },
   ];
 
   const shareUrl = window.location.origin || 'https://apex-tesla.io';

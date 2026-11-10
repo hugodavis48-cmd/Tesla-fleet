@@ -19,6 +19,8 @@ import {
   TrendingUp,
   Users,
   Share2,
+  Bell,
+  MessageCircle,
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -36,11 +38,16 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenAuth,
   onOpenCart,
 }) => {
-  const { currentUser, logout, balances, cart, userRole, setRole } = useApp();
+  const { currentUser, logout, balances, cart, userRole, setRole, adminNotifications } = useApp();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
 
   const totalCartCount = cart.reduce((acc, item) => acc + item.quantity, 0);
+  const unreadNotificationsCount = adminNotifications.filter((n) => {
+    const isRead = Boolean(n.isRead || (currentUser && n.readBy?.includes(currentUser.id)));
+    const isTargeted = n.targetType === 'all' || (currentUser && n.targetUserId === currentUser.id);
+    return !isRead && isTargeted;
+  }).length;
 
   const navLinks = [
     { id: 'home', label: 'Home' },
@@ -145,6 +152,32 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span>Deposit</span>
             </button>
           </div>
+
+          {/* WhatsApp VIP Concierge Quick Link */}
+          <a
+            href="https://wa.me/18005552739?text=Hi%20Apex%20Tesla%20Hub!%20I%20am%20inquiring%20about%20vehicle%20service%20or%20fleet%20investments."
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-emerald-950/40 border border-emerald-500/30 hover:border-emerald-500/60 text-emerald-300 hover:text-emerald-200 text-xs font-semibold transition"
+            title="Chat with WhatsApp VIP Concierge"
+          >
+            <MessageCircle className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="hidden lg:inline text-[11px]">WhatsApp</span>
+          </a>
+
+          {/* User Notifications Bell */}
+          <button
+            onClick={() => handleNavClick('dashboard')}
+            className="relative p-2 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-300 hover:text-white hover:border-zinc-700 transition"
+            title="User Notifications & Investment Dashboard"
+          >
+            <Bell className="w-4 h-4" />
+            {unreadNotificationsCount > 0 && (
+              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-600 text-white text-[9px] font-bold flex items-center justify-center animate-pulse">
+                {unreadNotificationsCount}
+              </span>
+            )}
+          </button>
 
           {/* Cart Icon */}
           <button

@@ -29,9 +29,14 @@ import {
   AlertCircle,
   FileCheck,
   Image as ImageIcon,
+  TrendingUp,
+  Bell,
+  BellRing,
 } from 'lucide-react';
 import { TeslaVehicle, ServiceBooking, UserKycData } from '../types';
 import { ReferralHub } from './ReferralHub';
+import { UserInvestmentBoard } from './UserInvestmentBoard';
+import { NotificationInbox } from './NotificationInbox';
 
 interface DashboardProps {
   onOpenDeposit: () => void;
@@ -85,6 +90,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
     vehicles,
     serviceBookings,
     transactions,
+    userInvestments,
+    adminNotifications,
     addVehicle,
     toggle2FA,
     updatePin,
@@ -96,7 +103,17 @@ export const Dashboard: React.FC<DashboardProps> = ({
     showToast,
   } = useApp();
 
-  const [activeTab, setActiveTab] = useState<'garage' | 'services' | 'history' | 'wallet' | 'kyc' | 'referrals' | 'security'>('garage');
+  const [activeTab, setActiveTab] = useState<
+    'garage' | 'services' | 'history' | 'wallet' | 'investments' | 'notifications' | 'kyc' | 'referrals' | 'security'
+  >('garage');
+
+  const unreadNotificationsCount = adminNotifications.filter((n) => {
+    const isTarget =
+      n.targetType === 'all' ||
+      n.targetUserId === currentUser?.id ||
+      n.targetUserEmail?.toLowerCase() === currentUser?.email?.toLowerCase();
+    return isTarget && !(n.readBy || []).includes(currentUser?.id || 'usr-apex-001');
+  }).length;
   const [showAddVehicleModal, setShowAddVehicleModal] = useState(false);
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
   const [showAvatarModal, setShowAvatarModal] = useState(false);
@@ -436,6 +453,19 @@ export const Dashboard: React.FC<DashboardProps> = ({
               </button>
 
               <button
+                onClick={() => setActiveTab('notifications')}
+                title="Owner Notifications & Alerts"
+                className="relative p-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-300 hover:text-white transition cursor-pointer"
+              >
+                <Bell className="w-4 h-4 text-zinc-300" />
+                {unreadNotificationsCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-600 text-white font-bold text-[9px] flex items-center justify-center animate-pulse">
+                    {unreadNotificationsCount}
+                  </span>
+                )}
+              </button>
+
+              <button
                 onClick={onOpenDeposit}
                 className="px-4 py-2 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 text-white font-heading font-bold text-xs shadow-lg shadow-red-950/40 flex items-center gap-1.5 transition cursor-pointer"
               >
@@ -459,6 +489,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
       <div className="flex items-center gap-2 border-b border-zinc-800 pb-2 overflow-x-auto">
         {[
           { id: 'garage', label: 'My Digital Garage', count: vehicles.length, icon: Car },
+          { id: 'investments', label: 'Fleet Investments & ROI', count: userInvestments.filter(i => !i.userId || i.userId === currentUser.id).length, icon: TrendingUp, badge: 'ROI' },
+          { id: 'notifications', label: 'Notifications', count: unreadNotificationsCount > 0 ? unreadNotificationsCount : undefined, icon: BellRing, badge: unreadNotificationsCount > 0 ? `${unreadNotificationsCount} NEW` : undefined },
           { id: 'services', label: 'Active Repairs', count: activeBookings.length, icon: Wrench },
           { id: 'history', label: 'Past Service History', count: pastBookings.length, icon: History },
           { id: 'wallet', label: 'Transaction Summary & Vault', count: transactions.length, icon: Wallet },
@@ -1326,9 +1358,29 @@ export const Dashboard: React.FC<DashboardProps> = ({
         </div>
       )}
 
-      {/* Tab 7: Referrals & Invites */}
+      {/* Tab: Referrals & Invites */}
       {activeTab === 'referrals' && (
         <ReferralHub onOpenDeposit={onOpenDeposit} onOpenAuth={onOpenAuth} />
+      )}
+
+      {/* Tab: Fleet Investments & ROI Dashboard Board */}
+      {activeTab === 'investments' && (
+        <UserInvestmentBoard
+          onNavigateToStake={onNavigateToServices}
+          onOpenDeposit={onOpenDeposit}
+        />
+      )}
+
+      {/* Tab: Owner Notifications & Messages Hub */}
+      {activeTab === 'notifications' && (
+        <NotificationInbox
+          onNavigateTab={(tab) => {
+            if (tab === 'investment' || tab === 'investments') setActiveTab('investments');
+            else if (tab === 'wallet') setActiveTab('wallet');
+            else if (tab === 'services') onNavigateToServices();
+          }}
+          onOpenDeposit={onOpenDeposit}
+        />
       )}
 
       {/* Avatar Selector / Editor Modal */}

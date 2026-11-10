@@ -32,8 +32,34 @@ import {
   Info,
   Smartphone,
   Monitor,
+  TrendingUp,
+  Bell,
+  CreditCard,
+  Plus,
+  Trash2,
+  Edit3,
+  ExternalLink,
+  Play,
+  Pause,
+  FastForward,
+  MessageSquare,
+  Activity,
+  CheckCircle,
+  Lock,
 } from 'lucide-react';
-import { SmtpConfig, EmailTemplate, User, CryptoCurrency, TestEmailResult } from '../types';
+import {
+  SmtpConfig,
+  EmailTemplate,
+  User,
+  CryptoCurrency,
+  TestEmailResult,
+  UserInvestment,
+  AdminNotificationMessage,
+  SitePage,
+  ManualDepositMethod,
+  SocialLinkConfig,
+  InvestmentPool,
+} from '../types';
 
 const PREBUILT_TEMPLATES: EmailTemplate[] = [
   {
@@ -143,7 +169,13 @@ Stay optimal all season long with Apex Tesla Hub.`,
   },
 ];
 
-type AdminTab = 'users_kyc' | 'email_marketing' | 'site_editor' | 'fleet_ops';
+type AdminTab =
+  | 'users_kyc'
+  | 'investment_mgmt'
+  | 'notifications_hub'
+  | 'site_editor'
+  | 'email_marketing'
+  | 'fleet_ops';
 
 export const AdminDashboard: React.FC = () => {
   const {
@@ -153,6 +185,40 @@ export const AdminDashboard: React.FC = () => {
     allUsers,
     adminUpdateKyc,
     updateUserBalance,
+    updateUserStatus,
+    deleteUser,
+    allInvestments,
+    adminNotifications,
+    sitePages,
+    manualDepositMethods,
+    socialLinks,
+    investmentPools,
+    productsList,
+    rentalFleetList,
+    cronCyclesCount,
+    lastCronRunAt,
+    cronLogs,
+    triggerManualCronCycle,
+    updateUserInvestment,
+    forceMatureInvestment,
+    pauseResumeInvestment,
+    cancelInvestmentEarly,
+    sendNotification,
+    deleteNotification,
+    createSitePage,
+    updateSitePage,
+    deleteSitePage,
+    addManualDepositMethod,
+    updateManualDepositMethod,
+    deleteManualDepositMethod,
+    updateSocialLink,
+    createInvestmentPool,
+    updateInvestmentPool,
+    deleteInvestmentPool,
+    addProductItem,
+    updateProductItem,
+    deleteProductItem,
+    updateRentalFleetVehicle,
     smtpConfig,
     updateSmtpConfig,
     importedEmails,
@@ -166,6 +232,71 @@ export const AdminDashboard: React.FC = () => {
   const [activeAdminTab, setActiveAdminTab] = useState<AdminTab>('users_kyc');
   const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
   const categoryDropdownRef = useRef<HTMLDivElement>(null);
+
+  // User Profile & KYC modal state
+  const [selectedUserForKyc, setSelectedUserForKyc] = useState<User | null>(null);
+  const [selectedUserForInvestments, setSelectedUserForInvestments] = useState<User | null>(null);
+  const [directNotificationUser, setDirectNotificationUser] = useState<User | null>(null);
+  const [kycRejectionReason, setKycRejectionReason] = useState('Photo ID blur on document number edge. Please provide higher resolution color scan.');
+  const [showBalanceAdjustModal, setShowBalanceAdjustModal] = useState<User | null>(null);
+  const [adjustCurrency, setAdjustCurrency] = useState<CryptoCurrency | 'USD'>('USD');
+  const [adjustAmount, setAdjustAmount] = useState<number>(1000);
+
+  // Investment Management state
+  const [investmentFilterStatus, setInvestmentFilterStatus] = useState<'all' | 'running' | 'completed' | 'paused'>('all');
+  const [editingInvestment, setEditingInvestment] = useState<UserInvestment | null>(null);
+  const [manualCycleRunning, setManualCycleRunning] = useState(false);
+
+  // Notification Message Dashboard state
+  const [notifTargetType, setNotifTargetType] = useState<'all' | 'user'>('all');
+  const [notifTargetUserId, setNotifTargetUserId] = useState<string>(allUsers[0]?.id || '');
+  const [notifTitle, setNotifTitle] = useState('');
+  const [notifMessage, setNotifMessage] = useState('');
+  const [notifCategory, setNotifCategory] = useState<AdminNotificationMessage['category']>('system_alert');
+  const [notifPriority, setNotifPriority] = useState<AdminNotificationMessage['priority']>('normal');
+  const [notifActionUrl, setNotifActionUrl] = useState('/dashboard');
+  const [notifActionText, setNotifActionText] = useState('View Details');
+  const [isSendingNotification, setIsSendingNotification] = useState(false);
+
+  // Site CMS & Settings sub-tabs
+  const [siteCmsSubTab, setSiteCmsSubTab] = useState<'pages' | 'manual_deposits' | 'socials' | 'catalog' | 'global_settings'>('pages');
+
+  // Page creation/edit state
+  const [isPageModalOpen, setIsPageModalOpen] = useState(false);
+  const [editingPageId, setEditingPageId] = useState<string | null>(null);
+  const [pageForm, setPageForm] = useState({
+    title: '',
+    slug: '',
+    displayLocation: 'navbar' as 'navbar' | 'footer' | 'both' | 'hidden',
+    content: '',
+    published: true,
+    isPublished: true,
+    isSystem: false,
+    order: 1,
+  });
+
+  // Manual Deposit Gateway creation/edit state
+  const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
+  const [editingDepositId, setEditingDepositId] = useState<string | null>(null);
+  const [depositForm, setDepositForm] = useState({
+    title: '',
+    name: '',
+    category: 'fiat' as 'crypto' | 'fiat' | 'e_wallet',
+    currency: 'USD',
+    currencySymbol: 'USD',
+    accountName: '',
+    accountNumber: '',
+    accountDetails: '',
+    routingOrBank: '',
+    instructions: '',
+    minDepositUsd: 100,
+    maxDepositUsd: 250000,
+    processingTime: '1-3 Hours',
+    feePercent: 0,
+    isActive: true,
+    enabled: true,
+    requiresProofUpload: false,
+  });
 
   // Service bookings state
   const [localBookings, setLocalBookings] = useState(serviceBookings);
@@ -200,13 +331,6 @@ export const AdminDashboard: React.FC = () => {
   // Email List Import state
   const [rawEmailsInput, setRawEmailsInput] = useState('');
 
-  // User Profile & KYC modal state
-  const [selectedUserForKyc, setSelectedUserForKyc] = useState<User | null>(null);
-  const [kycRejectionReason, setKycRejectionReason] = useState('Photo ID blur on document number edge. Please provide higher resolution color scan.');
-  const [showBalanceAdjustModal, setShowBalanceAdjustModal] = useState<User | null>(null);
-  const [adjustCurrency, setAdjustCurrency] = useState<CryptoCurrency | 'USD'>('USD');
-  const [adjustAmount, setAdjustAmount] = useState<number>(1000);
-
   // Site Function Editor state
   const [siteSettings, setSiteSettings] = useState({
     siteName: 'Apex Tesla Hub',
@@ -235,10 +359,34 @@ export const AdminDashboard: React.FC = () => {
     {
       id: 'users_kyc' as const,
       label: 'All Users & KYC Management',
-      shortLabel: 'Users & KYC',
-      description: 'Audit user profiles, KYC verification compliance & crypto balances',
+      shortLabel: 'Users & Profiles',
+      description: 'Audit user profiles, online telemetry, last visits & individual actions',
       icon: Users,
-      badge: `${allUsers.length} Profiles`,
+      badge: `${allUsers.length} Users`,
+    },
+    {
+      id: 'investment_mgmt' as const,
+      label: 'Investments & Automated ROI Cron',
+      shortLabel: 'Fleet Investments',
+      description: 'Manage user stakes, APY yields, maturity payouts & Cron scheduler',
+      icon: TrendingUp,
+      badge: `${allInvestments.length} Active`,
+    },
+    {
+      id: 'notifications_hub' as const,
+      label: 'Notification Message Dashboard',
+      shortLabel: 'Notifications',
+      description: 'Send custom broadcast or individual user inbox notifications & alerts',
+      icon: Bell,
+      badge: `${adminNotifications.length} Sent`,
+    },
+    {
+      id: 'site_editor' as const,
+      label: 'Site CMS, Gateways & Menus',
+      shortLabel: 'Site CMS & Gateways',
+      description: 'Create & delete pages, manual deposit gateways, social URLs & catalog',
+      icon: Sliders,
+      badge: `${sitePages.length} Pages`,
     },
     {
       id: 'email_marketing' as const,
@@ -247,14 +395,6 @@ export const AdminDashboard: React.FC = () => {
       description: 'Configure SMTP relays, test delivery with diagnostics & send campaigns',
       icon: Mail,
       badge: 'PHP/SMTP',
-    },
-    {
-      id: 'site_editor' as const,
-      label: 'Site Pages & Functions Editor',
-      shortLabel: 'Site Editor',
-      description: 'Configure pricing rules, promotion restrictions & headlines',
-      icon: Sliders,
-      badge: 'Parameters',
     },
     {
       id: 'fleet_ops' as const,
@@ -615,108 +755,165 @@ export const AdminDashboard: React.FC = () => {
               <table className="w-full text-left text-xs">
                 <thead className="bg-zinc-900 text-zinc-400 font-mono uppercase text-[10px] border-b border-zinc-800">
                   <tr>
-                    <th className="p-4">User Details</th>
+                    <th className="p-4">User Details & Status</th>
                     <th className="p-4">Role & Tier</th>
+                    <th className="p-4">Telemetry & Last Visit</th>
                     <th className="p-4">KYC Compliance</th>
-                    <th className="p-4">Referrals & Code</th>
                     <th className="p-4">Vault Balances</th>
-                    <th className="p-4 text-right">Actions</th>
+                    <th className="p-4 text-right">Individual Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-800/80">
-                  {allUsers.map((u) => (
-                    <tr key={u.id} className="hover:bg-zinc-900/50 transition">
-                      <td className="p-4">
-                        <div className="flex items-center gap-3">
-                          <img
-                            src={u.avatar}
-                            alt={u.name}
-                            className="w-10 h-10 rounded-xl object-cover border border-red-500/30"
-                          />
-                          <div>
-                            <span className="font-semibold text-white block text-sm">{u.name}</span>
-                            <span className="text-[11px] text-zinc-400 font-mono">{u.email}</span>
-                            <span className="text-[10px] text-zinc-500 block">{u.location || 'United States'}</span>
+                  {allUsers.map((u) => {
+                    const isOnline = u.isOnline ?? true;
+                    const accountStatus = u.accountStatus || 'active';
+                    const userInvestmentsCount = allInvestments.filter((inv: UserInvestment) => inv.userId === u.id).length;
+
+                    return (
+                      <tr key={u.id} className="hover:bg-zinc-900/50 transition">
+                        <td className="p-4">
+                          <div className="flex items-center gap-3">
+                            <div className="relative shrink-0">
+                              <img
+                                src={u.avatar}
+                                alt={u.name}
+                                className="w-10 h-10 rounded-xl object-cover border border-red-500/30"
+                              />
+                              <span
+                                className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-black ${
+                                  isOnline ? 'bg-emerald-400 animate-pulse' : 'bg-zinc-600'
+                                }`}
+                                title={isOnline ? 'Online now' : 'Offline'}
+                              />
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-semibold text-white block text-sm">{u.name}</span>
+                                {accountStatus === 'banned' && (
+                                  <span className="px-1.5 py-0.2 rounded text-[9px] bg-red-600 text-white font-mono uppercase font-bold">
+                                    Banned
+                                  </span>
+                                )}
+                              </div>
+                              <span className="text-[11px] text-zinc-400 font-mono">{u.email}</span>
+                              <span className="text-[10px] text-zinc-500 block">{u.location || 'United States'}</span>
+                            </div>
                           </div>
-                        </div>
-                      </td>
+                        </td>
 
-                      <td className="p-4">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold block w-fit mb-1 ${
-                          u.role === 'admin' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : 'bg-zinc-800 text-zinc-300'
-                        }`}>
-                          {u.role.toUpperCase()}
-                        </span>
-                        <span className="text-[10px] text-red-400 font-bold block">{u.tier}</span>
-                      </td>
-
-                      <td className="p-4">
-                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-mono font-bold inline-flex items-center gap-1 ${
-                          u.kycStatus === 'verified'
-                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                            : u.kycStatus === 'in_review'
-                            ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30 animate-pulse'
-                            : u.kycStatus === 'rejected'
-                            ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
-                            : 'bg-zinc-800 text-zinc-400'
-                        }`}>
-                          <BadgeCheck className="w-3 h-3" />
-                          <span>{u.kycStatus?.toUpperCase() || 'UNVERIFIED'}</span>
-                        </span>
-                        {u.kycData && (
-                          <span className="text-[9px] text-zinc-500 font-mono block mt-1">
-                            ID: {u.kycData.idType} ({u.kycData.idNumber})
+                        <td className="p-4">
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold block w-fit mb-1 ${
+                              u.role === 'admin'
+                                ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                                : 'bg-zinc-800 text-zinc-300'
+                            }`}
+                          >
+                            {u.role.toUpperCase()}
                           </span>
-                        )}
-                      </td>
+                          <span className="text-[10px] text-red-400 font-bold block">{u.tier}</span>
+                        </td>
 
-                      <td className="p-4 font-mono text-[11px]">
-                        <span className="text-zinc-200 font-bold">{u.referralCode}</span>
-                        <span className="text-[10px] text-zinc-500 block">
-                          Invited: {u.referralCount || 0} • Earned: ${u.referralEarningsUsd || 0}
-                        </span>
-                      </td>
+                        <td className="p-4 font-mono text-[11px]">
+                          <div className="space-y-0.5">
+                            <div className="flex items-center gap-1.5">
+                              <Activity className="w-3 h-3 text-cyan-400" />
+                              <span className="text-zinc-200">
+                                Path: <span className="text-cyan-400">{u.lastVisitedPath || '/dashboard'}</span>
+                              </span>
+                            </div>
+                            <span className="text-[10px] text-zinc-500 block">
+                              Active: {u.lastActiveAt ? new Date(u.lastActiveAt).toLocaleTimeString() : 'Just now'}
+                            </span>
+                            <span className="text-[9px] text-zinc-600 block">
+                              IP: 198.51.100.{u.id.charCodeAt(u.id.length - 1) % 250} • MacOS/Chrome
+                            </span>
+                          </div>
+                        </td>
 
-                      <td className="p-4 font-mono text-xs">
-                        <span className="text-emerald-400 font-bold block">${balances.usd.toFixed(2)} USD</span>
-                        <span className="text-[10px] text-zinc-400">
-                          {balances.btc} BTC • {balances.usdt} USDT • {balances.xrp} XRP
-                        </span>
-                      </td>
+                        <td className="p-4">
+                          <span
+                            className={`px-2.5 py-1 rounded-full text-[10px] font-mono font-bold inline-flex items-center gap-1 ${
+                              u.kycStatus === 'verified'
+                                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                : u.kycStatus === 'in_review'
+                                ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30 animate-pulse'
+                                : u.kycStatus === 'rejected'
+                                ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                                : 'bg-zinc-800 text-zinc-400'
+                            }`}
+                          >
+                            <BadgeCheck className="w-3 h-3" />
+                            <span>{u.kycStatus?.toUpperCase() || 'UNVERIFIED'}</span>
+                          </span>
+                          {u.kycData && (
+                            <span className="text-[9px] text-zinc-500 font-mono block mt-1">
+                              ID: {u.kycData.idType} ({u.kycData.idNumber})
+                            </span>
+                          )}
+                        </td>
 
-                      <td className="p-4 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <button
-                            onClick={() => setSelectedUserForKyc(u)}
-                            className="px-2.5 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-200 text-xs font-semibold cursor-pointer"
-                          >
-                            Dossier
-                          </button>
-                          <button
-                            onClick={() => adminUpdateKyc(u.id, 'verified')}
-                            title="Approve KYC"
-                            className="p-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 cursor-pointer"
-                          >
-                            <Check className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={() => adminUpdateKyc(u.id, 'rejected', kycRejectionReason)}
-                            title="Reject KYC"
-                            className="p-1.5 rounded-lg bg-rose-600/20 hover:bg-rose-600/30 text-rose-400 border border-rose-500/30 cursor-pointer"
-                          >
-                            <Ban className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={() => setShowBalanceAdjustModal(u)}
-                            title="Adjust Balance"
-                            className="p-1.5 rounded-lg bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-400 border border-yellow-500/30 cursor-pointer"
-                          >
-                            <DollarSign className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                        <td className="p-4 font-mono text-xs">
+                          <span className="text-emerald-400 font-bold block">
+                            ${balances.usd.toFixed(2)} USD
+                          </span>
+                          <span className="text-[10px] text-zinc-400">
+                            Stakes: {userInvestmentsCount} active
+                          </span>
+                        </td>
+
+                        <td className="p-4 text-right">
+                          <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                            <button
+                              onClick={() => setSelectedUserForInvestments(u)}
+                              title="View & Edit User Investments"
+                              className="px-2 py-1 rounded-lg bg-cyan-950/40 hover:bg-cyan-900/50 text-cyan-300 border border-cyan-500/40 text-[11px] font-semibold flex items-center gap-1 cursor-pointer"
+                            >
+                              <TrendingUp className="w-3 h-3" />
+                              <span>Stakes ({userInvestmentsCount})</span>
+                            </button>
+                            <button
+                              onClick={() => {
+                                setNotifTargetType('user');
+                                setNotifTargetUserId(u.id);
+                                setDirectNotificationUser(u);
+                              }}
+                              title="Send Customized Notification"
+                              className="p-1.5 rounded-lg bg-emerald-950/40 hover:bg-emerald-900/50 text-emerald-400 border border-emerald-500/40 cursor-pointer"
+                            >
+                              <MessageSquare className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => setSelectedUserForKyc(u)}
+                              className="px-2.5 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-200 text-xs font-semibold cursor-pointer"
+                            >
+                              Dossier
+                            </button>
+                            <button
+                              onClick={() => setShowBalanceAdjustModal(u)}
+                              title="Adjust Balance"
+                              className="p-1.5 rounded-lg bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-400 border border-yellow-500/30 cursor-pointer"
+                            >
+                              <DollarSign className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() =>
+                                updateUserStatus(u.id, accountStatus === 'banned' ? 'active' : 'banned')
+                              }
+                              title={accountStatus === 'banned' ? 'Unban User' : 'Ban User'}
+                              className={`p-1.5 rounded-lg border cursor-pointer ${
+                                accountStatus === 'banned'
+                                  ? 'bg-rose-600 text-white border-rose-500'
+                                  : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-400 border-zinc-700'
+                              }`}
+                            >
+                              <Ban className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -724,86 +921,634 @@ export const AdminDashboard: React.FC = () => {
 
           {/* Mobile & Tablet Card Layout (<1024px) for perfect responsive fit */}
           <div className="lg:hidden space-y-3">
-            {allUsers.map((u) => (
-              <div
-                key={u.id}
-                className="p-4 rounded-2xl bg-zinc-950 border border-zinc-800 space-y-3 shadow-md"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <img
-                      src={u.avatar}
-                      alt={u.name}
-                      className="w-11 h-11 rounded-xl object-cover border border-red-500/30 shrink-0"
-                    />
-                    <div className="min-w-0">
-                      <span className="font-semibold text-white block text-sm truncate">{u.name}</span>
-                      <span className="text-[11px] text-zinc-400 font-mono block truncate">{u.email}</span>
-                      <span className="text-[10px] text-zinc-500">{u.tier} • {u.location || 'USA'}</span>
+            {allUsers.map((u) => {
+              const isOnline = u.isOnline ?? true;
+              const accountStatus = u.accountStatus || 'active';
+              const userInvestmentsCount = allInvestments.filter((inv: UserInvestment) => inv.userId === u.id).length;
+
+              return (
+                <div
+                  key={u.id}
+                  className="p-4 rounded-2xl bg-zinc-950 border border-zinc-800 space-y-3 shadow-md"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="relative shrink-0">
+                        <img
+                          src={u.avatar}
+                          alt={u.name}
+                          className="w-11 h-11 rounded-xl object-cover border border-red-500/30 shrink-0"
+                        />
+                        <span
+                          className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-black ${
+                            isOnline ? 'bg-emerald-400 animate-pulse' : 'bg-zinc-600'
+                          }`}
+                        />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-semibold text-white block text-sm truncate">{u.name}</span>
+                          {accountStatus === 'banned' && (
+                            <span className="px-1.5 py-0.2 rounded text-[8px] bg-red-600 text-white font-mono uppercase font-bold">
+                              Banned
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[11px] text-zinc-400 font-mono block truncate">{u.email}</span>
+                        <span className="text-[10px] text-zinc-500">{u.tier} • {u.location || 'USA'}</span>
+                      </div>
+                    </div>
+
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold shrink-0 ${
+                        u.role === 'admin'
+                          ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                          : 'bg-zinc-800 text-zinc-300'
+                      }`}
+                    >
+                      {u.role.toUpperCase()}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-[11px] font-mono p-2.5 rounded-xl bg-zinc-900 border border-zinc-800">
+                    <div>
+                      <span className="text-[10px] text-zinc-500 block">STATUS</span>
+                      <span className={`font-bold ${isOnline ? 'text-emerald-400' : 'text-zinc-400'}`}>
+                        {isOnline ? '● Online' : '○ Offline'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-zinc-500 block">LAST PATH</span>
+                      <span className="text-cyan-400 truncate block">{u.lastVisitedPath || '/dashboard'}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-zinc-500 block">KYC STATUS</span>
+                      <span
+                        className={`font-bold uppercase ${
+                          u.kycStatus === 'verified'
+                            ? 'text-emerald-400'
+                            : u.kycStatus === 'in_review'
+                            ? 'text-amber-400'
+                            : 'text-zinc-400'
+                        }`}
+                      >
+                        {u.kycStatus || 'UNVERIFIED'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-zinc-500 block">INVESTMENTS</span>
+                      <span className="text-white font-bold">{userInvestmentsCount} Active</span>
                     </div>
                   </div>
 
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold shrink-0 ${
-                    u.role === 'admin' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : 'bg-zinc-800 text-zinc-300'
-                  }`}>
-                    {u.role.toUpperCase()}
-                  </span>
+                  <div className="flex items-center justify-between gap-1.5 pt-1 flex-wrap">
+                    <button
+                      onClick={() => setSelectedUserForInvestments(u)}
+                      className="px-3 py-1.5 rounded-xl bg-cyan-950/40 hover:bg-cyan-900/50 text-cyan-300 border border-cyan-500/40 text-xs font-semibold flex items-center gap-1"
+                    >
+                      <TrendingUp className="w-3 h-3" />
+                      <span>Investments</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setNotifTargetType('user');
+                        setNotifTargetUserId(u.id);
+                        setDirectNotificationUser(u);
+                      }}
+                      className="p-2 rounded-xl bg-emerald-950/40 hover:bg-emerald-900/50 text-emerald-400 border border-emerald-500/40"
+                      title="Send Message"
+                    >
+                      <MessageSquare className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => setSelectedUserForKyc(u)}
+                      className="px-3 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-200 text-xs font-semibold"
+                    >
+                      Dossier
+                    </button>
+                    <button
+                      onClick={() => setShowBalanceAdjustModal(u)}
+                      className="p-2 rounded-xl bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-400 border border-yellow-500/30"
+                      title="Adjust Balance"
+                    >
+                      <DollarSign className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() =>
+                        updateUserStatus(u.id, accountStatus === 'banned' ? 'active' : 'banned')
+                      }
+                      className={`p-2 rounded-xl border ${
+                        accountStatus === 'banned'
+                          ? 'bg-rose-600 text-white border-rose-500'
+                          : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-400 border-zinc-700'
+                      }`}
+                      title={accountStatus === 'banned' ? 'Unban User' : 'Ban User'}
+                    >
+                      <Ban className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
-                <div className="grid grid-cols-2 gap-2 text-[11px] font-mono p-2.5 rounded-xl bg-zinc-900 border border-zinc-800">
-                  <div>
-                    <span className="text-[10px] text-zinc-500 block">KYC STATUS</span>
-                    <span className={`font-bold uppercase ${
-                      u.kycStatus === 'verified' ? 'text-emerald-400' : u.kycStatus === 'in_review' ? 'text-amber-400' : 'text-zinc-400'
-                    }`}>
-                      {u.kycStatus || 'UNVERIFIED'}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-zinc-500 block">VAULT (USD)</span>
-                    <span className="text-white font-bold">${balances.usd.toFixed(2)}</span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-zinc-500 block">REFERRAL CODE</span>
-                    <span className="text-zinc-300 font-bold">{u.referralCode}</span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-zinc-500 block">INVITED USERS</span>
-                    <span className="text-zinc-300">{u.referralCount || 0}</span>
-                  </div>
+      {/* TAB: INVESTMENTS & AUTOMATED ROI CRON JOB ENGINE */}
+      {activeAdminTab === 'investment_mgmt' && (
+        <div className="space-y-6 w-full">
+          {/* Header & Cron Status Box */}
+          <div className="p-6 rounded-3xl bg-gradient-to-r from-emerald-950/40 via-zinc-900 to-zinc-950 border border-emerald-500/30 space-y-5 shadow-2xl">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <TrendingUp className="w-6 h-6 text-emerald-400" />
+                  <h3 className="font-heading font-black text-xl text-white">
+                    Fleet Investment Management & Automated ROI Cron Engine
+                  </h3>
                 </div>
+                <p className="text-xs text-zinc-400 mt-1 max-w-2xl leading-relaxed">
+                  Monitor active user investment stakes, audit daily yield accruals, adjust APY parameters, and manage the automated background Cron scheduler that credits users' dashboard wallets upon plan completion.
+                </p>
+              </div>
 
-                <div className="flex items-center justify-between gap-2 pt-1">
-                  <button
-                    onClick={() => setSelectedUserForKyc(u)}
-                    className="flex-1 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-200 text-xs font-semibold cursor-pointer text-center"
-                  >
-                    Dossier
-                  </button>
-                  <button
-                    onClick={() => adminUpdateKyc(u.id, 'verified')}
-                    className="p-2 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 cursor-pointer"
-                    title="Approve KYC"
-                  >
-                    <Check className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => adminUpdateKyc(u.id, 'rejected', kycRejectionReason)}
-                    className="p-2 rounded-xl bg-rose-600/20 hover:bg-rose-600/30 text-rose-400 border border-rose-500/30 cursor-pointer"
-                    title="Reject KYC"
-                  >
-                    <Ban className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => setShowBalanceAdjustModal(u)}
-                    className="p-2 rounded-xl bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-400 border border-yellow-500/30 cursor-pointer"
-                    title="Adjust Balance"
-                  >
-                    <DollarSign className="w-4 h-4" />
-                  </button>
+              {/* Manual Cron Trigger */}
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={async () => {
+                    setManualCycleRunning(true);
+                    triggerManualCronCycle();
+                    setTimeout(() => setManualCycleRunning(false), 800);
+                  }}
+                  disabled={manualCycleRunning}
+                  className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 text-white font-heading font-bold text-xs flex items-center gap-2 shadow-lg shadow-emerald-950/50 transition cursor-pointer disabled:opacity-60"
+                >
+                  <RefreshCw className={`w-4 h-4 ${manualCycleRunning ? 'animate-spin' : ''}`} />
+                  <span>Execute Cron ROI Cycle Now</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Cron Metrics Row */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
+              <div className="p-3 rounded-2xl bg-black/60 border border-zinc-800">
+                <span className="text-[10px] text-zinc-500 font-mono block">CRON STATUS</span>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                  <span className="font-mono text-emerald-400 font-bold text-xs">ACTIVE (60s tick)</span>
                 </div>
               </div>
-            ))}
+              <div className="p-3 rounded-2xl bg-black/60 border border-zinc-800">
+                <span className="text-[10px] text-zinc-500 font-mono block">TOTAL CRON CYCLES</span>
+                <span className="font-mono text-white font-bold text-base">{cronCyclesCount} Cycles</span>
+              </div>
+              <div className="p-3 rounded-2xl bg-black/60 border border-zinc-800">
+                <span className="text-[10px] text-zinc-500 font-mono block">LAST CRON CYCLE</span>
+                <span className="font-mono text-zinc-300 text-xs">
+                  {lastCronRunAt ? new Date(lastCronRunAt).toLocaleTimeString() : 'Running...'}
+                </span>
+              </div>
+              <div className="p-3 rounded-2xl bg-black/60 border border-zinc-800">
+                <span className="text-[10px] text-zinc-500 font-mono block">TOTAL ACTIVE STAKES</span>
+                <span className="font-mono text-cyan-400 font-bold text-base">
+                  {allInvestments.filter((i: UserInvestment) => i.status === 'running').length} Running
+                </span>
+              </div>
+            </div>
+
+            {/* Live Cron Terminal Log */}
+            <div className="p-3.5 rounded-2xl bg-black/80 border border-zinc-800 font-mono text-[11px] space-y-1.5">
+              <div className="flex items-center justify-between text-zinc-500 text-[10px] border-b border-zinc-800/80 pb-1">
+                <span>AUTOMATED ROI CRON JOB AUDIT LOG (SYSTEM TELEMETRY)</span>
+                <span className="text-emerald-400">● LIVE RUNNER</span>
+              </div>
+              <div className="max-h-24 overflow-y-auto space-y-1 text-zinc-300">
+                {cronLogs.slice(-4).map((log, i) => (
+                  <div key={i} className="flex items-start gap-2">
+                    <span className="text-emerald-500 shrink-0">➜</span>
+                    <span className="text-zinc-300">{log}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Filter Bar */}
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-zinc-900 border border-zinc-800">
+              {(['all', 'running', 'completed', 'paused'] as const).map((st) => (
+                <button
+                  key={st}
+                  onClick={() => setInvestmentFilterStatus(st)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold capitalize transition ${
+                    investmentFilterStatus === st
+                      ? 'bg-emerald-600 text-white shadow'
+                      : 'text-zinc-400 hover:text-white'
+                  }`}
+                >
+                  {st} ({st === 'all' ? allInvestments.length : allInvestments.filter((i: UserInvestment) => i.status === st).length})
+                </button>
+              ))}
+            </div>
+
+            <span className="text-xs text-zinc-400 font-mono">
+              Total Staked: $
+              {allInvestments
+                .reduce((acc: number, i: UserInvestment) => acc + (i.principalUsd || i.amountInvestedUsd || 0), 0)
+                .toLocaleString()}{' '}
+              USD
+            </span>
+          </div>
+
+          {/* Investments Table */}
+          <div className="rounded-3xl border border-zinc-800 bg-zinc-950 overflow-hidden shadow-2xl">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-zinc-900 text-zinc-400 font-mono uppercase text-[10px] border-b border-zinc-800">
+                  <tr>
+                    <th className="p-4">Investment ID & Investor</th>
+                    <th className="p-4">Fleet Asset Pool</th>
+                    <th className="p-4">Principal Staked</th>
+                    <th className="p-4">APY Rate</th>
+                    <th className="p-4">Duration & Progress</th>
+                    <th className="p-4">Accrued Yield</th>
+                    <th className="p-4">Status</th>
+                    <th className="p-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-800/80">
+                  {allInvestments
+                    .filter((inv: UserInvestment) => investmentFilterStatus === 'all' || inv.status === investmentFilterStatus)
+                    .map((inv: UserInvestment) => {
+                      const investor = allUsers.find((u) => u.id === inv.userId) || {
+                        name: 'VIP Member',
+                        email: 'investor@apex-tesla.io',
+                      };
+                      const progressPct = Math.min(100, Math.round((inv.daysElapsed / inv.durationDays) * 100));
+
+                      return (
+                        <tr key={inv.id} className="hover:bg-zinc-900/50 transition">
+                          <td className="p-4">
+                            <span className="font-mono text-emerald-400 font-bold block">{inv.id}</span>
+                            <span className="font-semibold text-white block text-xs">{investor.name}</span>
+                            <span className="text-[10px] text-zinc-500 font-mono">{investor.email}</span>
+                          </td>
+
+                          <td className="p-4">
+                            <span className="font-heading font-bold text-white block">{inv.poolName || inv.poolTitle || 'Fleet Pool'}</span>
+                            <span className="text-[10px] text-zinc-500 font-mono">
+                              Staked on {new Date(inv.stakedAt || inv.investedAt || Date.now()).toLocaleDateString()}
+                            </span>
+                          </td>
+
+                          <td className="p-4 font-mono font-bold text-white text-sm">
+                            ${(inv.principalUsd ?? inv.amountInvestedUsd ?? 0).toLocaleString()} USD
+                          </td>
+
+                          <td className="p-4 font-mono text-emerald-400 font-bold text-sm">
+                            {(inv.apyPercent ?? inv.apy ?? 0).toFixed(1)}% APY
+                          </td>
+
+                          <td className="p-4 font-mono text-xs min-w-[140px]">
+                            <div className="flex justify-between text-[10px] text-zinc-400 mb-1">
+                              <span>
+                                {inv.daysElapsed} / {inv.durationDays}d
+                              </span>
+                              <span>{progressPct}%</span>
+                            </div>
+                            <div className="w-full h-1.5 rounded-full bg-zinc-800 overflow-hidden">
+                              <div
+                                className="h-full bg-gradient-to-r from-emerald-500 to-teal-400"
+                                style={{ width: `${progressPct}%` }}
+                              />
+                            </div>
+                            <span className="text-[9px] text-zinc-500 block mt-1">
+                              Maturity: {new Date(inv.maturityDate).toLocaleDateString()}
+                            </span>
+                          </td>
+
+                          <td className="p-4 font-mono">
+                            <span className="text-emerald-400 font-bold block text-sm">
+                              +${(inv.accruedYieldUsd ?? inv.earnedDividendsUsd ?? 0).toFixed(2)} USD
+                            </span>
+                            <span className="text-[10px] text-zinc-400">
+                              Exp: ${(inv.totalExpectedRoiUsd || 0).toFixed(2)}
+                            </span>
+                          </td>
+
+                          <td className="p-4">
+                            <span
+                              className={`px-2.5 py-1 rounded-full text-[10px] font-mono font-bold uppercase ${
+                                inv.status === 'running'
+                                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 animate-pulse'
+                                  : inv.status === 'completed'
+                                  ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
+                                  : 'bg-zinc-800 text-zinc-400'
+                              }`}
+                            >
+                              {inv.status}
+                            </span>
+                          </td>
+
+                          <td className="p-4 text-right">
+                            <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                              <button
+                                onClick={() => setEditingInvestment(inv)}
+                                className="p-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-700 cursor-pointer"
+                                title="Edit APY & Duration"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </button>
+                              {inv.status === 'running' && (
+                                <>
+                                  <button
+                                    onClick={() => forceMatureInvestment(inv.id)}
+                                    className="px-2.5 py-1 rounded-lg bg-emerald-600/30 hover:bg-emerald-600 text-emerald-300 hover:text-white border border-emerald-500/40 text-[11px] font-bold flex items-center gap-1 cursor-pointer"
+                                    title="Auto-Credit Principal & Accrued Yield to User Wallet Now"
+                                  >
+                                    <FastForward className="w-3 h-3" />
+                                    <span>Force Settle</span>
+                                  </button>
+                                  <button
+                                    onClick={() => pauseResumeInvestment(inv.id)}
+                                    className="p-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 border border-amber-500/30 cursor-pointer"
+                                    title="Pause Yield Accrual"
+                                  >
+                                    <Pause className="w-3.5 h-3.5" />
+                                  </button>
+                                </>
+                              )}
+                              {inv.status === 'paused' && (
+                                <button
+                                  onClick={() => pauseResumeInvestment(inv.id)}
+                                  className="p-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/30 cursor-pointer"
+                                  title="Resume Yield"
+                                >
+                                  <Play className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB: NOTIFICATION MESSAGE DASHBOARD (DISPATCH TO INDIVIDUAL OR ALL) */}
+      {activeAdminTab === 'notifications_hub' && (
+        <div className="space-y-6 w-full">
+          {/* Header */}
+          <div className="p-6 rounded-3xl bg-gradient-to-r from-red-950/40 via-zinc-900 to-zinc-950 border border-red-500/30 space-y-2 shadow-2xl">
+            <div className="flex items-center gap-2">
+              <Bell className="w-6 h-6 text-red-400" />
+              <h3 className="font-heading font-black text-xl text-white">
+                Notification Message Dispatcher & Inbox Manager
+              </h3>
+            </div>
+            <p className="text-xs text-zinc-400 max-w-2xl leading-relaxed">
+              Compose custom alerts, payout confirmations, direct account messages, and promotional broadcasts. Deliver customized messages directly to user dashboards either globally or targeted to a specific user.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Notification Dispatch Form */}
+            <div className="lg:col-span-1 p-5 rounded-3xl bg-zinc-950 border border-zinc-800 space-y-4 shadow-xl">
+              <h4 className="font-heading font-bold text-sm text-white flex items-center gap-2 border-b border-zinc-800 pb-3">
+                <Send className="w-4 h-4 text-red-500" />
+                <span>Send Customized Notification</span>
+              </h4>
+
+              <div className="space-y-3.5 text-xs">
+                {/* Target Type */}
+                <div>
+                  <label className="text-zinc-400 block mb-1 font-medium">Recipient Target</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setNotifTargetType('all')}
+                      className={`py-2 px-3 rounded-xl border text-center font-semibold transition ${
+                        notifTargetType === 'all'
+                          ? 'border-red-500 bg-red-950/40 text-white'
+                          : 'border-zinc-800 bg-zinc-900 text-zinc-400'
+                      }`}
+                    >
+                      Broadcast to ALL
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNotifTargetType('user')}
+                      className={`py-2 px-3 rounded-xl border text-center font-semibold transition ${
+                        notifTargetType === 'user'
+                          ? 'border-red-500 bg-red-950/40 text-white'
+                          : 'border-zinc-800 bg-zinc-900 text-zinc-400'
+                      }`}
+                    >
+                      Target Specific User
+                    </button>
+                  </div>
+                </div>
+
+                {/* Individual user selector */}
+                {notifTargetType === 'user' && (
+                  <div>
+                    <label className="text-zinc-400 block mb-1 font-medium">Select Target User</label>
+                    <select
+                      value={notifTargetUserId}
+                      onChange={(e) => setNotifTargetUserId(e.target.value)}
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white"
+                    >
+                      {allUsers.map((u) => (
+                        <option key={u.id} value={u.id}>
+                          {u.name} ({u.email})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Category & Priority */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-zinc-400 block mb-1">Category / Type</label>
+                    <select
+                      value={notifCategory}
+                      onChange={(e) => setNotifCategory(e.target.value as any)}
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-2.5 py-2 text-white"
+                    >
+                      <option value="system_alert">System Alert</option>
+                      <option value="payout">ROI / Payout</option>
+                      <option value="investment">Investment Stake</option>
+                      <option value="promotion">Promo / Bonus</option>
+                      <option value="kyc">KYC Verification</option>
+                      <option value="direct_message">Direct Message</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-zinc-400 block mb-1">Priority</label>
+                    <select
+                      value={notifPriority}
+                      onChange={(e) => setNotifPriority(e.target.value as any)}
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-2.5 py-2 text-white"
+                    >
+                      <option value="normal">Normal</option>
+                      <option value="urgent">Urgent ⚡</option>
+                      <option value="low">Low</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Title */}
+                <div>
+                  <label className="text-zinc-400 block mb-1 font-medium">Notification Title</label>
+                  <input
+                    type="text"
+                    value={notifTitle}
+                    onChange={(e) => setNotifTitle(e.target.value)}
+                    placeholder="e.g. VIP Dividend Credited to Your Vault"
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-red-500"
+                  />
+                </div>
+
+                {/* Message Body */}
+                <div>
+                  <label className="text-zinc-400 block mb-1 font-medium">Message Body</label>
+                  <textarea
+                    rows={3}
+                    value={notifMessage}
+                    onChange={(e) => setNotifMessage(e.target.value)}
+                    placeholder="Enter customized message details for the recipient..."
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl p-3 text-white focus:outline-none focus:border-red-500"
+                  />
+                </div>
+
+                {/* Action Link & Text */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-zinc-400 block mb-1">Action Link</label>
+                    <input
+                      type="text"
+                      value={notifActionUrl}
+                      onChange={(e) => setNotifActionUrl(e.target.value)}
+                      placeholder="/dashboard"
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-2.5 py-1.5 text-white font-mono text-[11px]"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-zinc-400 block mb-1">Action Text</label>
+                    <input
+                      type="text"
+                      value={notifActionText}
+                      onChange={(e) => setNotifActionText(e.target.value)}
+                      placeholder="View Vault"
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-2.5 py-1.5 text-white text-[11px]"
+                    />
+                  </div>
+                </div>
+
+                {/* Dispatch Button */}
+                <button
+                  type="button"
+                  disabled={!notifTitle.trim() || !notifMessage.trim() || isSendingNotification}
+                  onClick={() => {
+                    setIsSendingNotification(true);
+                    const targetUser = allUsers.find((u) => u.id === notifTargetUserId);
+                    sendNotification({
+                      title: notifTitle,
+                      message: notifMessage,
+                      type: notifTargetType === 'user' ? 'direct_message' : 'announcement',
+                      category: notifCategory,
+                      priority: notifPriority,
+                      targetType: notifTargetType,
+                      targetUserId: notifTargetType === 'user' ? notifTargetUserId : undefined,
+                      targetUserName: notifTargetType === 'user' ? targetUser?.name : undefined,
+                      actionUrl: notifActionUrl || undefined,
+                      actionText: notifActionText || undefined,
+                    });
+                    setNotifTitle('');
+                    setNotifMessage('');
+                    setIsSendingNotification(false);
+                    showToast('Notification dispatched to user dashboard!', 'success');
+                  }}
+                  className="w-full py-3 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-red-950/50 transition cursor-pointer disabled:opacity-60"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  <span>Dispatch Message Now</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Notification History Log */}
+            <div className="lg:col-span-2 p-5 rounded-3xl bg-zinc-950 border border-zinc-800 space-y-4 shadow-xl">
+              <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+                <div className="flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-amber-400" />
+                  <h4 className="font-heading font-bold text-sm text-white">
+                    Dispatched Message Audit History ({adminNotifications.length})
+                  </h4>
+                </div>
+              </div>
+
+              <div className="space-y-2.5 max-h-[500px] overflow-y-auto">
+                {adminNotifications.length === 0 ? (
+                  <div className="p-8 text-center text-zinc-500 text-xs">No notifications sent yet.</div>
+                ) : (
+                  adminNotifications.map((notif) => (
+                    <div
+                      key={notif.id}
+                      className="p-3.5 rounded-2xl bg-zinc-900/80 border border-zinc-800 hover:border-zinc-700 transition flex items-start justify-between gap-3 text-xs"
+                    >
+                      <div className="space-y-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span
+                            className={`px-2 py-0.5 rounded text-[9px] font-mono uppercase font-bold ${
+                              notif.targetType === 'all'
+                                ? 'bg-indigo-950/60 text-indigo-300 border border-indigo-700/50'
+                                : 'bg-emerald-950/60 text-emerald-300 border border-emerald-700/50'
+                            }`}
+                          >
+                            {notif.targetType === 'all' ? 'BROADCAST ALL' : `TO: ${notif.targetUserName || 'USER'}`}
+                          </span>
+                          <span className="px-2 py-0.5 rounded text-[9px] font-mono uppercase bg-zinc-800 text-zinc-300">
+                            {notif.category}
+                          </span>
+                          {notif.priority === 'urgent' && (
+                            <span className="px-1.5 py-0.2 rounded text-[9px] bg-red-600 text-white font-bold animate-pulse">
+                              URGENT
+                            </span>
+                          )}
+                          <span className="text-[10px] text-zinc-500 font-mono">
+                            {new Date(notif.createdAt).toLocaleTimeString()}
+                          </span>
+                        </div>
+
+                        <span className="font-heading font-bold text-white text-sm block">{notif.title}</span>
+                        <p className="text-zinc-300 leading-relaxed text-xs">{notif.message}</p>
+
+                        {notif.actionUrl && (
+                          <span className="inline-block text-[11px] text-cyan-400 font-mono">
+                            Link: {notif.actionUrl} ({notif.actionText})
+                          </span>
+                        )}
+                      </div>
+
+                      <button
+                        onClick={() => deleteNotification(notif.id)}
+                        className="p-1.5 rounded-lg bg-zinc-800 hover:bg-rose-900/60 text-zinc-400 hover:text-white transition shrink-0"
+                        title="Delete notification"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -1363,95 +2108,511 @@ export const AdminDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* TAB 3: SITE PAGES & FUNCTIONS EDITOR */}
+      {/* TAB 3: SITE CMS, GATEWAYS & PAGES EDITOR */}
       {activeAdminTab === 'site_editor' && (
-        <div className="p-4 sm:p-6 lg:p-8 rounded-2xl sm:rounded-3xl bg-zinc-950 border border-zinc-800 space-y-6 shadow-xl w-full">
-          <div className="flex items-center justify-between border-b border-zinc-800 pb-4">
+        <div className="space-y-6 w-full">
+          {/* Header */}
+          <div className="p-6 rounded-3xl bg-gradient-to-r from-amber-950/40 via-zinc-900 to-zinc-950 border border-amber-500/30 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xl">
             <div>
               <div className="flex items-center gap-2">
-                <Sliders className="w-5 h-5 text-amber-400" />
-                <h3 className="font-heading font-black text-lg sm:text-xl text-white">Global Site Pages & Functions Editor</h3>
+                <Sliders className="w-6 h-6 text-amber-400" />
+                <h3 className="font-heading font-black text-xl text-white">
+                  Site Editor, Pages & Manual Gateway CMS
+                </h3>
               </div>
-              <p className="text-xs text-zinc-400 mt-1">Configure pricing rules, promotion restrictions, headline copies, and active service facilities.</p>
+              <p className="text-xs text-zinc-400 mt-1 max-w-2xl leading-relaxed">
+                Create and delete custom site pages, configure menu display locations, edit social connect URLs (WhatsApp, X, Telegram), manage manual deposit gateways (Bank Wire, CashApp, Zelle), and adjust live catalog items.
+              </p>
+            </div>
+
+            {/* Sub-tab pills */}
+            <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-zinc-900 border border-zinc-800 overflow-x-auto">
+              {[
+                { id: 'pages', label: 'Pages & Menus', count: sitePages.length },
+                { id: 'manual_deposits', label: 'Manual Gateways', count: manualDepositMethods.length },
+                { id: 'socials', label: 'Social URLs', count: socialLinks.length },
+                { id: 'catalog', label: 'Catalog & Plans', count: investmentPools.length },
+                { id: 'global_settings', label: 'Global Rules' },
+              ].map((sub) => (
+                <button
+                  key={sub.id}
+                  onClick={() => setSiteCmsSubTab(sub.id as any)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
+                    siteCmsSubTab === sub.id
+                      ? 'bg-amber-500 text-black font-bold shadow'
+                      : 'text-zinc-400 hover:text-white'
+                  }`}
+                >
+                  <span>{sub.label}</span>
+                  {sub.count !== undefined && (
+                    <span className="ml-1 text-[10px] font-mono opacity-80">({sub.count})</span>
+                  )}
+                </button>
+              ))}
             </div>
           </div>
 
-          <form onSubmit={handleSaveSiteSettings} className="space-y-5 text-xs">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="text-zinc-300 block mb-1 font-medium">Hero Section Main Headline</label>
-                <input
-                  type="text"
-                  value={siteSettings.heroHeadline}
-                  onChange={(e) => setSiteSettings({ ...siteSettings, heroHeadline: e.target.value })}
-                  className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3.5 py-2 text-white font-medium focus:outline-none focus:border-red-500"
-                />
+          {/* SUBTAB 1: PAGES & MENUS */}
+          {siteCmsSubTab === 'pages' && (
+            <div className="p-6 rounded-3xl bg-zinc-950 border border-zinc-800 space-y-5 shadow-xl">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-800 pb-4">
+                <div>
+                  <h4 className="font-heading font-bold text-base text-white">Site Pages & Navigation Menus</h4>
+                  <p className="text-xs text-zinc-400">
+                    Create new landing pages, manage existing pages, and set display locations (Navbar, Footer, Both, or Hidden).
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setEditingPageId(null);
+                    setPageForm({
+                      title: '',
+                      slug: '',
+                      displayLocation: 'navbar',
+                      content: '',
+                      published: true,
+                      isPublished: true,
+                      isSystem: false,
+                      order: sitePages.length + 1,
+                    });
+                    setIsPageModalOpen(true);
+                  }}
+                  className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs flex items-center gap-1.5 transition cursor-pointer self-start sm:self-auto"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Create New Page</span>
+                </button>
               </div>
 
-              <div>
-                <label className="text-zinc-300 block mb-1 font-medium">Hero Subtitle Copy</label>
-                <input
-                  type="text"
-                  value={siteSettings.heroSubtitle}
-                  onChange={(e) => setSiteSettings({ ...siteSettings, heroSubtitle: e.target.value })}
-                  className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3.5 py-2 text-white focus:outline-none focus:border-red-500"
-                />
+              <div className="rounded-2xl border border-zinc-800 overflow-hidden">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-zinc-900 text-zinc-400 font-mono uppercase text-[10px] border-b border-zinc-800">
+                    <tr>
+                      <th className="p-3.5">Page Title & Slug</th>
+                      <th className="p-3.5">Display Location</th>
+                      <th className="p-3.5">Status</th>
+                      <th className="p-3.5">Last Updated</th>
+                      <th className="p-3.5 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-800">
+                    {sitePages.map((page) => (
+                      <tr key={page.id} className="hover:bg-zinc-900/50">
+                        <td className="p-3.5">
+                          <span className="font-heading font-bold text-white text-sm block">{page.title}</span>
+                          <span className="text-[11px] text-zinc-400 font-mono">/{page.slug}</span>
+                        </td>
+                        <td className="p-3.5">
+                          <span className="px-2.5 py-1 rounded-full text-[10px] font-mono uppercase bg-zinc-900 border border-zinc-700 text-zinc-300">
+                            {page.displayLocation}
+                          </span>
+                        </td>
+                        <td className="p-3.5">
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
+                              page.isPublished
+                                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                : 'bg-zinc-800 text-zinc-400'
+                            }`}
+                          >
+                            {page.isPublished ? 'PUBLISHED' : 'DRAFT'}
+                          </span>
+                        </td>
+                        <td className="p-3.5 text-zinc-400 font-mono text-[11px]">
+                          {new Date(page.updatedAt).toLocaleDateString()}
+                        </td>
+                        <td className="p-3.5 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              onClick={() => {
+                                setEditingPageId(page.id);
+                                setPageForm({
+                                  title: page.title,
+                                  slug: page.slug,
+                                  displayLocation: page.displayLocation,
+                                  content: page.content,
+                                  published: page.published ?? true,
+                                  isPublished: page.isPublished ?? page.published ?? true,
+                                  isSystem: page.isSystem ?? false,
+                                  order: page.order,
+                                });
+                                setIsPageModalOpen(true);
+                              }}
+                              className="p-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-700"
+                              title="Edit Page"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => deleteSitePage(page.id)}
+                              className="p-1.5 rounded-lg bg-zinc-900 hover:bg-rose-900/50 text-rose-400 border border-zinc-700"
+                              title="Delete Page"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
+          )}
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div>
-                <label className="text-zinc-300 block mb-1 font-medium">Wheel Spin Cost (USD)</label>
-                <input
-                  type="number"
-                  value={siteSettings.spinCostUsd}
-                  onChange={(e) => setSiteSettings({ ...siteSettings, spinCostUsd: Number(e.target.value) })}
-                  className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono"
-                />
-                <span className="text-[10px] text-zinc-500 mt-1 block">Strictly cost to spin only, no free spins</span>
+          {/* SUBTAB 2: MANUAL DEPOSIT METHODS & GATEWAYS */}
+          {siteCmsSubTab === 'manual_deposits' && (
+            <div className="p-6 rounded-3xl bg-zinc-950 border border-zinc-800 space-y-5 shadow-xl">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-800 pb-4">
+                <div>
+                  <h4 className="font-heading font-bold text-base text-white">
+                    Manual Deposit Gateways & Custom Banking Rails
+                  </h4>
+                  <p className="text-xs text-zinc-400">
+                    Configure institutional Wire transfer accounts, CashApp, Zelle, and customized off-chain deposit methods.
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setEditingDepositId(null);
+                    setDepositForm({
+                      title: '',
+                      name: '',
+                      category: 'fiat',
+                      currency: 'USD',
+                      currencySymbol: '$',
+                      accountName: '',
+                      accountNumber: '',
+                      accountDetails: '',
+                      routingOrBank: '',
+                      instructions: '',
+                      minDepositUsd: 100,
+                      maxDepositUsd: 500000,
+                      processingTime: '1-3 Hours',
+                      feePercent: 0,
+                      isActive: true,
+                      enabled: true,
+                      requiresProofUpload: false,
+                    });
+                    setIsDepositModalOpen(true);
+                  }}
+                  className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 transition cursor-pointer self-start sm:self-auto"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Create Custom Deposit Method</span>
+                </button>
               </div>
 
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {manualDepositMethods.map((method) => (
+                  <div
+                    key={method.id}
+                    className="p-5 rounded-2xl bg-zinc-900/80 border border-zinc-800 hover:border-zinc-700 transition space-y-3"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-heading font-bold text-white text-base">{method.name}</span>
+                          <span className="px-2 py-0.5 rounded text-[10px] font-mono uppercase bg-zinc-800 text-emerald-400 border border-zinc-700">
+                            {method.currency}
+                          </span>
+                        </div>
+                        <span className="text-xs text-zinc-400">{method.accountName}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => {
+                            setEditingDepositId(method.id);
+                            setDepositForm({
+                              title: method.title || method.name || '',
+                              name: method.name || method.title || '',
+                              category: method.category || 'fiat',
+                              currency: method.currency || 'USD',
+                              currencySymbol: method.currencySymbol || '$',
+                              accountName: method.accountName || '',
+                              accountNumber: method.accountNumber || '',
+                              accountDetails: method.accountDetails || '',
+                              routingOrBank: method.routingOrBank || '',
+                              instructions: method.instructions || '',
+                              minDepositUsd: method.minDepositUsd,
+                              maxDepositUsd: method.maxDepositUsd,
+                              processingTime: method.processingTime || '1-3 Hours',
+                              feePercent: method.feePercent || 0,
+                              isActive: method.isActive ?? true,
+                              enabled: method.enabled ?? method.isActive ?? true,
+                              requiresProofUpload: method.requiresProofUpload ?? false,
+                            });
+                            setIsDepositModalOpen(true);
+                          }}
+                          className="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => deleteManualDepositMethod(method.id)}
+                          className="p-1.5 rounded-lg bg-zinc-800 hover:bg-rose-900/50 text-rose-400"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-black/60 font-mono text-xs space-y-1 text-zinc-300">
+                      <div className="flex justify-between">
+                        <span className="text-zinc-500">Account / Tag:</span>
+                        <span className="text-emerald-400 font-bold">{method.accountNumber}</span>
+                      </div>
+                      {method.routingOrBank && (
+                        <div className="flex justify-between">
+                          <span className="text-zinc-500">Routing / Bank:</span>
+                          <span>{method.routingOrBank}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between">
+                        <span className="text-zinc-500">Min / Max:</span>
+                        <span>
+                          ${method.minDepositUsd.toLocaleString()} - ${method.maxDepositUsd.toLocaleString()} USD
+                        </span>
+                      </div>
+                    </div>
+
+                    <p className="text-[11px] text-zinc-400 leading-relaxed italic bg-zinc-950/60 p-2.5 rounded-lg">
+                      {method.instructions}
+                    </p>
+
+                    <div className="flex items-center justify-between text-xs pt-1">
+                      <span className={`font-mono text-[10px] ${method.enabled ? 'text-emerald-400' : 'text-zinc-500'}`}>
+                        {method.enabled ? '● Active in Deposit Modal' : '○ Disabled'}
+                      </span>
+                      <button
+                        onClick={() =>
+                          updateManualDepositMethod(method.id, { enabled: !method.enabled })
+                        }
+                        className="text-xs text-zinc-400 hover:text-white underline font-mono"
+                      >
+                        Toggle Status
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* SUBTAB 3: SOCIAL CONNECT URLS */}
+          {siteCmsSubTab === 'socials' && (
+            <div className="p-6 rounded-3xl bg-zinc-950 border border-zinc-800 space-y-5 shadow-xl">
               <div>
-                <label className="text-zinc-300 block mb-1 font-medium">Scratch Card Max Prize Cap (USD)</label>
-                <input
-                  type="number"
-                  value={siteSettings.maxScratchPrizeUsd}
-                  onChange={(e) => setSiteSettings({ ...siteSettings, maxScratchPrizeUsd: Number(e.target.value) })}
-                  className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono"
-                />
-                <span className="text-[10px] text-zinc-500 mt-1 block">Capped at $8,000 maximum</span>
+                <h4 className="font-heading font-bold text-base text-white">Social Channel Connect URLs</h4>
+                <p className="text-xs text-zinc-400">
+                  Update live share links, WhatsApp Concierge desk URLs, Telegram alpha chat, and official community handles.
+                </p>
               </div>
 
-              <div>
-                <label className="text-zinc-300 block mb-1 font-medium">Hourly Bay Labor Rate (USD)</label>
-                <input
-                  type="number"
-                  value={siteSettings.hourlyBayRateUsd}
-                  onChange={(e) => setSiteSettings({ ...siteSettings, hourlyBayRateUsd: Number(e.target.value) })}
-                  className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono"
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {socialLinks.map((link) => (
+                  <div
+                    key={link.id}
+                    className="p-4 rounded-2xl bg-zinc-900 border border-zinc-800 space-y-3 text-xs"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-heading font-bold text-white text-sm">{link.name}</span>
+                      <span className="text-[10px] font-mono text-zinc-500 uppercase">{link.platform}</span>
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] text-zinc-400 font-mono block mb-1">Handle / Display Text</label>
+                      <input
+                        type="text"
+                        value={link.handle}
+                        onChange={(e) => updateSocialLink(link.id, { handle: e.target.value })}
+                        className="w-full bg-black/60 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-white font-mono text-xs"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] text-zinc-400 font-mono block mb-1">Destination URL</label>
+                      <input
+                        type="text"
+                        value={link.url}
+                        onChange={(e) => updateSocialLink(link.id, { url: e.target.value })}
+                        className="w-full bg-black/60 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-cyan-300 font-mono text-xs"
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between pt-1">
+                      <span className={`text-[10px] font-mono ${link.enabled ? 'text-emerald-400' : 'text-zinc-500'}`}>
+                        {link.enabled ? '● Visible on site' : '○ Hidden'}
+                      </span>
+                      <button
+                        onClick={() => updateSocialLink(link.id, { enabled: !link.enabled })}
+                        className="text-[11px] text-zinc-400 hover:text-white underline font-mono"
+                      >
+                        Toggle
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
+          )}
 
-            <div>
-              <label className="text-zinc-300 block mb-1 font-medium">Homepage Live Flash Announcement Bar</label>
-              <input
-                type="text"
-                value={siteSettings.announcementBanner}
-                onChange={(e) => setSiteSettings({ ...siteSettings, announcementBanner: e.target.value })}
-                className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3.5 py-2 text-white focus:outline-none focus:border-red-500"
-              />
-            </div>
+          {/* SUBTAB 4: CATALOG & INVESTMENT PLANS */}
+          {siteCmsSubTab === 'catalog' && (
+            <div className="p-6 rounded-3xl bg-zinc-950 border border-zinc-800 space-y-6 shadow-xl">
+              <div>
+                <h4 className="font-heading font-bold text-base text-white">
+                  Fleet Investment Plans & Asset Staking Parameters
+                </h4>
+                <p className="text-xs text-zinc-400">
+                  Update APY returns, pool duration periods, and minimum staking thresholds across autonomous fleets.
+                </p>
+              </div>
 
-            <div className="pt-2">
-              <button
-                type="submit"
-                className="px-6 py-3 rounded-2xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs shadow-lg shadow-amber-500/20 transition cursor-pointer"
-              >
-                Save Global Site Changes
-              </button>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {investmentPools.map((pool) => (
+                  <div
+                    key={pool.id}
+                    className="p-5 rounded-2xl bg-zinc-900 border border-zinc-800 space-y-3 text-xs"
+                  >
+                    <div className="flex justify-between items-start">
+                      <h5 className="font-heading font-bold text-white text-sm">{pool.title}</h5>
+                      <span className="font-mono text-emerald-400 font-bold">{pool.apyPercent}% APY</span>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div>
+                        <label className="text-[10px] text-zinc-400 block mb-0.5">Annual Percentage Yield (APY %)</label>
+                        <input
+                          type="number"
+                          step="0.1"
+                          value={pool.apyPercent || pool.apy}
+                          onChange={(e) =>
+                            updateInvestmentPool(pool.id, {
+                              apy: parseFloat(e.target.value) || 0,
+                              apyPercent: parseFloat(e.target.value) || 0,
+                            })
+                          }
+                          className="w-full bg-black/60 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-white font-mono"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[10px] text-zinc-400 block mb-0.5">Min Stake ($)</label>
+                          <input
+                            type="number"
+                            value={pool.minStakeUsd || pool.minInvestmentUsd}
+                            onChange={(e) =>
+                              updateInvestmentPool(pool.id, {
+                                minInvestmentUsd: parseFloat(e.target.value) || 0,
+                                minStakeUsd: parseFloat(e.target.value) || 0,
+                              })
+                            }
+                            className="w-full bg-black/60 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-white font-mono text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-zinc-400 block mb-0.5">Plan Days</label>
+                          <input
+                            type="number"
+                            value={pool.durationDays || pool.lockPeriodDays}
+                            onChange={(e) =>
+                              updateInvestmentPool(pool.id, {
+                                lockPeriodDays: parseInt(e.target.value) || 30,
+                                durationDays: parseInt(e.target.value) || 30,
+                              })
+                            }
+                            className="w-full bg-black/60 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-white font-mono text-xs"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
-          </form>
+          )}
+
+          {/* SUBTAB 5: GLOBAL SETTINGS & RULES */}
+          {siteCmsSubTab === 'global_settings' && (
+            <div className="p-6 rounded-3xl bg-zinc-950 border border-zinc-800 space-y-5 shadow-xl">
+              <form onSubmit={handleSaveSiteSettings} className="space-y-5 text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-zinc-300 block mb-1 font-medium">Hero Section Main Headline</label>
+                    <input
+                      type="text"
+                      value={siteSettings.heroHeadline}
+                      onChange={(e) => setSiteSettings({ ...siteSettings, heroHeadline: e.target.value })}
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3.5 py-2 text-white font-medium focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-zinc-300 block mb-1 font-medium">Hero Subtitle Copy</label>
+                    <input
+                      type="text"
+                      value={siteSettings.heroSubtitle}
+                      onChange={(e) => setSiteSettings({ ...siteSettings, heroSubtitle: e.target.value })}
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3.5 py-2 text-white focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <label className="text-zinc-300 block mb-1 font-medium">Wheel Spin Cost (USD)</label>
+                    <input
+                      type="number"
+                      value={siteSettings.spinCostUsd}
+                      onChange={(e) => setSiteSettings({ ...siteSettings, spinCostUsd: Number(e.target.value) })}
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-zinc-300 block mb-1 font-medium">Scratch Card Max Prize Cap (USD)</label>
+                    <input
+                      type="number"
+                      value={siteSettings.maxScratchPrizeUsd}
+                      onChange={(e) => setSiteSettings({ ...siteSettings, maxScratchPrizeUsd: Number(e.target.value) })}
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-zinc-300 block mb-1 font-medium">Hourly Bay Labor Rate (USD)</label>
+                    <input
+                      type="number"
+                      value={siteSettings.hourlyBayRateUsd}
+                      onChange={(e) => setSiteSettings({ ...siteSettings, hourlyBayRateUsd: Number(e.target.value) })}
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-zinc-300 block mb-1 font-medium">Homepage Live Flash Announcement Bar</label>
+                  <input
+                    type="text"
+                    value={siteSettings.announcementBanner}
+                    onChange={(e) => setSiteSettings({ ...siteSettings, announcementBanner: e.target.value })}
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3.5 py-2 text-white focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                <div className="pt-2">
+                  <button
+                    type="submit"
+                    className="px-6 py-3 rounded-2xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs shadow-lg shadow-amber-500/20 transition cursor-pointer"
+                  >
+                    Save Global Site Changes
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
         </div>
       )}
 
@@ -1751,6 +2912,517 @@ export const AdminDashboard: React.FC = () => {
                   className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold"
                 >
                   Apply Balance
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* User Investments Dossier Modal */}
+      {selectedUserForInvestments && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md">
+          <div className="relative w-full max-w-2xl bg-zinc-950 border border-zinc-800 rounded-3xl p-6 space-y-4 text-zinc-100 shadow-2xl max-h-[92vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="w-5 h-5 text-cyan-400" />
+                <div>
+                  <h3 className="font-heading font-black text-lg text-white">
+                    Investments: {selectedUserForInvestments.name}
+                  </h3>
+                  <span className="text-[11px] text-zinc-400 font-mono">
+                    {selectedUserForInvestments.email}
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedUserForInvestments(null)}
+                className="p-1.5 rounded-lg text-zinc-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              {allInvestments.filter((i: UserInvestment) => i.userId === selectedUserForInvestments.id).length === 0 ? (
+                <div className="p-8 text-center text-zinc-500 text-xs">
+                  This user currently has no active or historical investment stakes.
+                </div>
+              ) : (
+                allInvestments
+                  .filter((i: UserInvestment) => i.userId === selectedUserForInvestments.id)
+                  .map((inv: UserInvestment) => {
+                    const poolName = inv.poolTitle || inv.poolName || 'Fleet Pool';
+                    const principal = inv.amountInvestedUsd || inv.principalUsd || 0;
+                    const apy = inv.apy || inv.apyPercent || 0;
+                    const accrued = inv.earnedDividendsUsd || inv.accruedYieldUsd || 0;
+
+                    return (
+                      <div
+                        key={inv.id}
+                        className="p-4 rounded-2xl bg-zinc-900 border border-zinc-800 space-y-2 text-xs"
+                      >
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <span className="font-heading font-bold text-white text-sm block">
+                              {poolName}
+                            </span>
+                            <span className="text-[10px] text-zinc-500 font-mono">
+                              ID: {inv.id} • Staked ${principal.toLocaleString()} USD
+                            </span>
+                          </div>
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase ${
+                              inv.status === 'running'
+                                ? 'bg-emerald-500/20 text-emerald-400'
+                                : inv.status === 'completed'
+                                ? 'bg-cyan-500/20 text-cyan-400'
+                                : 'bg-zinc-800 text-zinc-400'
+                            }`}
+                          >
+                            {inv.status}
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-2 font-mono text-[11px] p-2.5 rounded-xl bg-black/50">
+                          <div>
+                            <span className="text-zinc-500 block text-[9px]">APY</span>
+                            <span className="text-emerald-400 font-bold">{apy}%</span>
+                          </div>
+                          <div>
+                            <span className="text-zinc-500 block text-[9px]">PROGRESS</span>
+                            <span>
+                              {inv.daysElapsed} / {inv.durationDays}d
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-zinc-500 block text-[9px]">ACCRUED YIELD</span>
+                            <span className="text-emerald-400 font-bold">+${accrued.toFixed(2)}</span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-end gap-2 pt-1">
+                          <button
+                            onClick={() => setEditingInvestment(inv)}
+                            className="px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-semibold"
+                          >
+                            Edit Params
+                          </button>
+                          {inv.status === 'running' && (
+                            <button
+                              onClick={() => forceMatureInvestment(inv.id)}
+                              className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold"
+                            >
+                              Force Settle & Credit
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Investment Position Modal */}
+      {editingInvestment && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md">
+          <div className="relative w-full max-w-md bg-zinc-950 border border-zinc-800 rounded-3xl p-6 space-y-4 text-zinc-100 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+              <h3 className="font-heading font-bold text-base text-white">
+                Edit Investment: {editingInvestment.poolTitle || editingInvestment.poolName}
+              </h3>
+              <button
+                onClick={() => setEditingInvestment(null)}
+                className="p-1 rounded-lg text-zinc-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="text-zinc-400 block mb-1">APY Rate (%)</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={editingInvestment.apyPercent || editingInvestment.apy || 0}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value) || 0;
+                    setEditingInvestment({
+                      ...editingInvestment,
+                      apy: val,
+                      apyPercent: val,
+                    });
+                  }}
+                  className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-zinc-400 block mb-1">Days Elapsed</label>
+                  <input
+                    type="number"
+                    value={editingInvestment.daysElapsed}
+                    onChange={(e) =>
+                      setEditingInvestment({
+                        ...editingInvestment,
+                        daysElapsed: parseInt(e.target.value) || 0,
+                      })
+                    }
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="text-zinc-400 block mb-1">Duration Days</label>
+                  <input
+                    type="number"
+                    value={editingInvestment.durationDays}
+                    onChange={(e) =>
+                      setEditingInvestment({
+                        ...editingInvestment,
+                        durationDays: parseInt(e.target.value) || 1,
+                      })
+                    }
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-zinc-400 block mb-1">Accrued Yield (USD)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={editingInvestment.accruedYieldUsd || editingInvestment.earnedDividendsUsd || 0}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value) || 0;
+                    setEditingInvestment({
+                      ...editingInvestment,
+                      earnedDividendsUsd: val,
+                      accruedYieldUsd: val,
+                    });
+                  }}
+                  className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="text-zinc-400 block mb-1">Status</label>
+                <select
+                  value={editingInvestment.status}
+                  onChange={(e) =>
+                    setEditingInvestment({
+                      ...editingInvestment,
+                      status: e.target.value as any,
+                    })
+                  }
+                  className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white"
+                >
+                  <option value="running">Running</option>
+                  <option value="completed">Completed</option>
+                  <option value="paused">Paused</option>
+                </select>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingInvestment(null)}
+                  className="flex-1 py-2.5 rounded-xl bg-zinc-800 text-zinc-300 font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const apy = editingInvestment.apyPercent || editingInvestment.apy || 0;
+                    const yieldAmt = editingInvestment.accruedYieldUsd || editingInvestment.earnedDividendsUsd || 0;
+                    updateUserInvestment(editingInvestment.id, {
+                      apy,
+                      apyPercent: apy,
+                      daysElapsed: editingInvestment.daysElapsed,
+                      durationDays: editingInvestment.durationDays,
+                      earnedDividendsUsd: yieldAmt,
+                      accruedYieldUsd: yieldAmt,
+                      status: editingInvestment.status,
+                    });
+                    setEditingInvestment(null);
+                    showToast('Investment position updated successfully!', 'success');
+                  }}
+                  className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Page Modal (Create / Edit) */}
+      {isPageModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md">
+          <div className="relative w-full max-w-lg bg-zinc-950 border border-zinc-800 rounded-3xl p-6 space-y-4 text-zinc-100 shadow-2xl max-h-[92vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+              <h3 className="font-heading font-bold text-base text-white">
+                {editingPageId ? 'Edit Site Page' : 'Create New Site Page'}
+              </h3>
+              <button
+                onClick={() => setIsPageModalOpen(false)}
+                className="p-1 rounded-lg text-zinc-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3.5 text-xs">
+              <div>
+                <label className="text-zinc-400 block mb-1">Page Title</label>
+                <input
+                  type="text"
+                  value={pageForm.title}
+                  onChange={(e) => setPageForm({ ...pageForm, title: e.target.value })}
+                  placeholder="e.g. Terms of Service, VIP Staking, Careers"
+                  className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-zinc-400 block mb-1">URL Slug</label>
+                  <input
+                    type="text"
+                    value={pageForm.slug}
+                    onChange={(e) =>
+                      setPageForm({
+                        ...pageForm,
+                        slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-'),
+                      })
+                    }
+                    placeholder="e.g. vip-program"
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-zinc-400 block mb-1">Display Location</label>
+                  <select
+                    value={pageForm.displayLocation}
+                    onChange={(e) =>
+                      setPageForm({ ...pageForm, displayLocation: e.target.value as any })
+                    }
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white"
+                  >
+                    <option value="navbar">Navbar Only</option>
+                    <option value="footer">Footer Only</option>
+                    <option value="both">Both Navbar & Footer</option>
+                    <option value="hidden">Hidden (Direct Link Only)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-zinc-400 block mb-1">Page Content (Markdown / Text)</label>
+                <textarea
+                  rows={5}
+                  value={pageForm.content}
+                  onChange={(e) => setPageForm({ ...pageForm, content: e.target.value })}
+                  placeholder="Enter page body copy and markdown sections..."
+                  className="w-full bg-zinc-900 border border-zinc-700 rounded-xl p-3 text-white leading-relaxed"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 pt-1">
+                <input
+                  type="checkbox"
+                  id="pagePublished"
+                  checked={pageForm.isPublished}
+                  onChange={(e) => setPageForm({ ...pageForm, isPublished: e.target.checked })}
+                  className="rounded text-amber-500 focus:ring-0"
+                />
+                <label htmlFor="pagePublished" className="text-zinc-300">
+                  Publish page immediately to site menus
+                </label>
+              </div>
+
+              <div className="flex gap-2 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setIsPageModalOpen(false)}
+                  className="flex-1 py-2.5 rounded-xl bg-zinc-800 text-zinc-300 font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={!pageForm.title.trim()}
+                  onClick={() => {
+                    if (editingPageId) {
+                      updateSitePage(editingPageId, pageForm);
+                    } else {
+                      createSitePage(pageForm);
+                    }
+                    setIsPageModalOpen(false);
+                  }}
+                  className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold disabled:opacity-50"
+                >
+                  {editingPageId ? 'Save Changes' : 'Create Page'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Manual Deposit Method Modal (Create / Edit) */}
+      {isDepositModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md">
+          <div className="relative w-full max-w-lg bg-zinc-950 border border-zinc-800 rounded-3xl p-6 space-y-4 text-zinc-100 shadow-2xl max-h-[92vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+              <h3 className="font-heading font-bold text-base text-white">
+                {editingDepositId ? 'Edit Manual Gateway' : 'Add Manual Deposit Gateway'}
+              </h3>
+              <button
+                onClick={() => setIsDepositModalOpen(false)}
+                className="p-1 rounded-lg text-zinc-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3.5 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-zinc-400 block mb-1">Gateway Name</label>
+                  <input
+                    type="text"
+                    value={depositForm.name}
+                    onChange={(e) => setDepositForm({ ...depositForm, name: e.target.value })}
+                    placeholder="e.g. Bank Wire USA, CashApp"
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white"
+                  />
+                </div>
+                <div>
+                  <label className="text-zinc-400 block mb-1">Currency Code</label>
+                  <input
+                    type="text"
+                    value={depositForm.currency}
+                    onChange={(e) => setDepositForm({ ...depositForm, currency: e.target.value.toUpperCase() })}
+                    placeholder="USD"
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-zinc-400 block mb-1">Recipient Account / Legal Name</label>
+                <input
+                  type="text"
+                  value={depositForm.accountName}
+                  onChange={(e) => setDepositForm({ ...depositForm, accountName: e.target.value })}
+                  placeholder="e.g. Apex Tesla Holdings Treasury LLC"
+                  className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-zinc-400 block mb-1">Account / Tag / Handle</label>
+                  <input
+                    type="text"
+                    value={depositForm.accountNumber}
+                    onChange={(e) => setDepositForm({ ...depositForm, accountNumber: e.target.value })}
+                    placeholder="Account number or tag"
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="text-zinc-400 block mb-1">Bank Name / Routing</label>
+                  <input
+                    type="text"
+                    value={depositForm.routingOrBank}
+                    onChange={(e) => setDepositForm({ ...depositForm, routingOrBank: e.target.value })}
+                    placeholder="e.g. JPMorgan Chase (Routing #)"
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-zinc-400 block mb-1">Payment Instructions</label>
+                <textarea
+                  rows={3}
+                  value={depositForm.instructions}
+                  onChange={(e) => setDepositForm({ ...depositForm, instructions: e.target.value })}
+                  placeholder="Specify wire instructions, reference memo format, or confirmation turnaround..."
+                  className="w-full bg-zinc-900 border border-zinc-700 rounded-xl p-3 text-white leading-relaxed"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-zinc-400 block mb-1">Min Deposit (USD)</label>
+                  <input
+                    type="number"
+                    value={depositForm.minDepositUsd}
+                    onChange={(e) =>
+                      setDepositForm({ ...depositForm, minDepositUsd: parseFloat(e.target.value) || 0 })
+                    }
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="text-zinc-400 block mb-1">Max Deposit (USD)</label>
+                  <input
+                    type="number"
+                    value={depositForm.maxDepositUsd}
+                    onChange={(e) =>
+                      setDepositForm({ ...depositForm, maxDepositUsd: parseFloat(e.target.value) || 0 })
+                    }
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 pt-1">
+                <input
+                  type="checkbox"
+                  id="depEnabled"
+                  checked={depositForm.enabled}
+                  onChange={(e) => setDepositForm({ ...depositForm, enabled: e.target.checked })}
+                  className="rounded text-emerald-500 focus:ring-0"
+                />
+                <label htmlFor="depEnabled" className="text-zinc-300">
+                  Enable this method in the public deposit gateway modal
+                </label>
+              </div>
+
+              <div className="flex gap-2 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setIsDepositModalOpen(false)}
+                  className="flex-1 py-2.5 rounded-xl bg-zinc-800 text-zinc-300 font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={!depositForm.name.trim() || !depositForm.accountNumber.trim()}
+                  onClick={() => {
+                    if (editingDepositId) {
+                      updateManualDepositMethod(editingDepositId, depositForm);
+                    } else {
+                      addManualDepositMethod(depositForm);
+                    }
+                    setIsDepositModalOpen(false);
+                  }}
+                  className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold disabled:opacity-50"
+                >
+                  {editingDepositId ? 'Save Gateway' : 'Add Gateway'}
                 </button>
               </div>
             </div>

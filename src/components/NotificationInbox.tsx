@@ -49,10 +49,10 @@ export const NotificationInbox: React.FC<NotificationInboxProps> = ({
     return false;
   });
 
-  const unreadCount = userNotifications.filter((n) => !n.readBy.includes(userId)).length;
+  const unreadCount = userNotifications.filter((n) => !(n.readBy || []).includes(userId)).length;
 
   const filteredNotifications = userNotifications.filter((n) => {
-    const isUnread = !n.readBy.includes(userId);
+    const isUnread = !(n.readBy || []).includes(userId);
     if (activeFilter === 'unread') return isUnread;
     if (activeFilter === 'payouts') return n.type === 'payout';
     if (activeFilter === 'announcements') return n.type === 'announcement' || n.type === 'alert';
@@ -70,7 +70,7 @@ export const NotificationInbox: React.FC<NotificationInboxProps> = ({
 
   const handleMarkAllRead = () => {
     userNotifications.forEach((n) => {
-      if (!n.readBy.includes(userId)) {
+      if (!(n.readBy || []).includes(userId)) {
         markNotificationAsRead(n.id);
       }
     });
@@ -182,7 +182,7 @@ export const NotificationInbox: React.FC<NotificationInboxProps> = ({
       ) : (
         <div className="space-y-3">
           {filteredNotifications.map((notif) => {
-            const isUnread = !notif.readBy.includes(userId);
+            const isUnread = !(notif.readBy || []).includes(userId);
             const isPersonal = notif.targetType === 'individual';
 
             return (

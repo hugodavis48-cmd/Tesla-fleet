@@ -23,6 +23,11 @@ import {
   ManualDepositMethod,
   SocialLinkConfig,
   InvestmentPool,
+  TeslaCarListing,
+  ShippingAddress,
+  VehicleOrder,
+  NationwideShippingSettings,
+  VehicleRefundPolicySettings,
 } from '../types';
 import {
   CRYPTO_NETWORKS,
@@ -35,6 +40,9 @@ import {
   INITIAL_MANUAL_DEPOSIT_METHODS,
   INITIAL_SOCIAL_LINKS,
   INITIAL_ADMIN_NOTIFICATIONS,
+  INITIAL_TESLA_CARS,
+  DEFAULT_SHIPPING_SETTINGS,
+  DEFAULT_REFUND_POLICY,
 } from '../data/mockData';
 
 interface AppContextType {
@@ -82,7 +90,7 @@ interface AppContextType {
   // All Users Profile Management (Admin)
   allUsers: User[];
   updateUserBalance: (userId: string, currency: CryptoCurrency | 'USD', newAmount: number) => void;
-  updateUserStatus: (userId: string, status: 'active' | 'suspended' | 'flagged') => void;
+  updateUserStatus: (userId: string, status: 'active' | 'suspended' | 'flagged' | 'banned') => void;
   deleteUser: (userId: string) => void;
   // Email Marketing & Mailer
   smtpConfig: SmtpConfig;
@@ -116,6 +124,9 @@ interface AppContextType {
   setCronActive: (active: boolean) => void;
   cronLogs: string[];
   lastCronRun: string | null;
+  cronCyclesCount: number;
+  lastCronRunAt: string | null;
+  allInvestments: UserInvestment[];
   // Investment Pools & Plans CMS
   investmentPools: InvestmentPool[];
   createInvestmentPool: (pool: Omit<InvestmentPool, 'id'>) => void;
@@ -160,6 +171,21 @@ interface AppContextType {
   referralLink: string;
   updateReferralCode: (code: string) => boolean;
   simulateFriendReferral: (friendName?: string, depositAmount?: number) => void;
+  // Tesla Car Sales & Nationwide Delivery
+  teslaCarListings: TeslaCarListing[];
+  createTeslaCarListing: (car: Omit<TeslaCarListing, 'id'>) => Promise<void>;
+  updateTeslaCarListing: (id: string, updates: Partial<TeslaCarListing>) => Promise<void>;
+  deleteTeslaCarListing: (id: string) => Promise<void>;
+  nationwideShippingSettings: NationwideShippingSettings;
+  updateShippingSettings: (settings: NationwideShippingSettings) => Promise<void>;
+  vehicleRefundPolicy: VehicleRefundPolicySettings;
+  updateRefundPolicy: (policy: VehicleRefundPolicySettings) => Promise<void>;
+  vehicleOrders: VehicleOrder[];
+  placeVehicleOrder: (
+    vehicle: TeslaCarListing,
+    address: ShippingAddress,
+    paymentMethod?: string
+  ) => Promise<{ success: boolean; orderId?: string; message: string }>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -790,8 +816,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return saved ? JSON.parse(saved) : RENTAL_FLEET;
   });
 
+  // Tesla Car Sales Catalog
+  const [teslaCarListings, setTeslaCarListings] = useState<TeslaCarListing[]>(() => {
+    const saved = localStorage.getItem('apex_tesla_cars_catalog');
+    return saved ? JSON.parse(saved) : INITIAL_TESLA_CARS;
+  });
+
+  // Nationwide Shipping Settings
+  const [nationwideShippingSettings, setNationwideShippingSettings] = useState<NationwideShippingSettings>(() => {
+    const saved = localStorage.getItem('apex_shipping_settings');
+    return saved ? JSON.parse(saved) : DEFAULT_SHIPPING_SETTINGS;
+  });
+
+  // Vehicle Refund Policy Settings
+  const [vehicleRefundPolicy, setVehicleRefundPolicy] = useState<VehicleRefundPolicySettings>(() => {
+    const saved = localStorage.getItem('apex_refund_policy');
+    return saved ? JSON.parse(saved) : DEFAULT_REFUND_POLICY;
+  });
+
+  // Vehicle Orders
+  const [vehicleOrders, setVehicleOrders] = useState<VehicleOrder[]>(() => {
+    const saved = localStorage.getItem('apex_vehicle_orders');
+    return saved ? JSON.parse(saved) : [];
+  });
+
   // Automated ROI Cron Engine state
   const [cronActive, setCronActive] = useState<boolean>(true);
+  const [cronCyclesCount, setCronCyclesCount] = useState<number>(142);
   const [lastCronRun, setLastCronRun] = useState<string | null>('2026-11-08 14:30');
   const [cronLogs, setCronLogs] = useState<string[]>([
     'System init: Automated ROI Cron Engine active on 45s interval.',
@@ -867,6 +918,59 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     localStorage.setItem('apex_rental_fleet_list', JSON.stringify(rentalFleetList));
   }, [rentalFleetList]);
+
+  useEffect(() => {
+    localStorage.setItem('apex_tesla_cars_catalog', JSON.stringify(teslaCarListings));
+  }, [teslaCarListings]);
+
+  useEffect(() => {
+    localStorage.setItem('apex_shipping_settings', JSON.stringify(nationwideShippingSettings));
+  }, [nationwideShippingSettings]);
+
+  useEffect(() => {
+    localStorage.setItem('apex_refund_policy', JSON.stringify(vehicleRefundPolicy));
+  }, [vehicleRefundPolicy]);
+
+  useEffect(() => {
+    localStorage.setItem('apex_vehicle_orders', JSON.stringify(vehicleOrders));
+  }, [vehicleOrders]);
+
+  // Hydrate with server data on mount
+  useEffect(() => {
+    fetch('/api/cars')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (Array.isArray(data) && data.length > 0) {
+          setTeslaCarListings(data);
+        }
+      })
+      .catch((e) => console.warn('Failed to fetch server car catalog:', e));
+
+    fetch('/api/cars/shipping-settings')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data) setNationwideShippingSettings(data);
+      })
+      .catch((e) => console.warn('Failed to fetch shipping settings:', e));
+
+    fetch('/api/cars/refund-policy')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data) setVehicleRefundPolicy(data);
+      })
+      .catch((e) => console.warn('Failed to fetch refund policy:', e));
+
+    fetch('/api/cron/status')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((status) => {
+        if (status) {
+          if (typeof status.cyclesRun === 'number') setCronCyclesCount(status.cyclesRun);
+          if (status.lastRunTimestamp) setLastCronRun(status.lastRunTimestamp.replace('T', ' ').substring(0, 16));
+          if (Array.isArray(status.logs)) setCronLogs(status.logs);
+        }
+      })
+      .catch((e) => console.warn('Failed to fetch cron status:', e));
+  }, []);
 
   // Periodic simulated live winner popups to give dynamic proof of fair platform activity with guaranteed verified avatars
   useEffect(() => {
@@ -1566,7 +1670,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       title: `🎉 Investment Plan Matured: ${inv.poolTitle}`,
       message: `Your staking plan has concluded. Principal ($${inv.amountInvestedUsd.toLocaleString()}) and earned dividends ($${inv.earnedDividendsUsd.toFixed(2)}) totaling $${totalReturn.toFixed(2)} USD have been credited to your wallet balance. Certificate #${certificateId} issued.`,
       type: 'payout',
-      priority: 'high',
+      priority: 'urgent',
       targetType: 'individual',
       targetUserId: inv.userId || currentUser?.id,
       targetUserEmail: currentUser?.email,
@@ -1668,7 +1772,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             title: `🏆 Staking Plan Matured: ${inv.poolTitle}`,
             message: `Your investment has completed its ${inv.durationDays}-day staking cycle! Total payout of $${totalSettlement.toFixed(2)} USD (Capital $${inv.amountInvestedUsd.toLocaleString()} + ROI $${newEarned.toFixed(2)}) has been credited directly to your wallet.`,
             type: 'payout',
-            priority: 'high',
+            priority: 'urgent',
             targetType: 'individual',
             targetUserId: inv.userId || currentUser?.id,
             actionUrl: 'wallet',
@@ -1677,7 +1781,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
           return {
             ...inv,
-            status: 'completed',
+            status: 'completed' as const,
             daysElapsed: inv.durationDays,
             earnedDividendsUsd: newEarned,
             completedAt: completionDate,
@@ -1731,7 +1835,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               title: `🎉 Staking Completed: ${inv.poolTitle}`,
               message: `Your investment duration has completed. Total payout of $${totalPayout.toFixed(2)} USD (Principal + ROI) has been credited to your available wallet balance.`,
               type: 'payout',
-              priority: 'high',
+              priority: 'urgent',
               targetType: 'individual',
               targetUserId: inv.userId || currentUser?.id,
               actionUrl: 'wallet',
@@ -1740,7 +1844,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
             return {
               ...inv,
-              status: 'completed',
+              status: 'completed' as const,
               completedAt: completionDate,
               capitalReturned: true,
               earnedDividendsUsd: newEarned,
@@ -1781,14 +1885,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const markNotificationAsRead = (id: string) => {
     const uid = currentUser?.id || 'usr-apex-001';
     setAdminNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, readBy: Array.from(new Set([...n.readBy, uid])) } : n))
+      prev.map((n) => (n.id === id ? { ...n, readBy: Array.from(new Set([...(n.readBy || []), uid])) } : n))
     );
   };
 
   const dismissNotification = (id: string) => {
     const uid = currentUser?.id || 'usr-apex-001';
     setAdminNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, dismissedBy: Array.from(new Set([...n.dismissedBy, uid])) } : n))
+      prev.map((n) => (n.id === id ? { ...n, dismissedBy: Array.from(new Set([...(n.dismissedBy || []), uid])) } : n))
     );
   };
 
@@ -1907,7 +2011,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast('Rental vehicle updated.', 'success');
   };
 
-  const updateUserStatus = (userId: string, status: 'active' | 'suspended' | 'flagged') => {
+  const updateUserStatus = (userId: string, status: 'active' | 'suspended' | 'flagged' | 'banned') => {
     setAllUsers((prev) =>
       prev.map((u) => (u.id === userId ? { ...u, accountStatus: status } : u))
     );
@@ -2367,6 +2471,197 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     ? `${window.location.origin}/?ref=${referralCode}`
     : `https://apex-tesla.io/?ref=${referralCode}`;
 
+  // Tesla Car Sales Catalog CRUD Handlers
+  const createTeslaCarListing = async (carData: Omit<TeslaCarListing, 'id'>) => {
+    const newCar: TeslaCarListing = {
+      ...carData,
+      id: `car-${Date.now()}`,
+    };
+    setTeslaCarListings((prev) => [newCar, ...prev]);
+    localStorage.setItem('apex_tesla_cars_catalog', JSON.stringify([newCar, ...teslaCarListings]));
+    showToast(`Tesla ${newCar.model} ${newCar.trim} listed successfully!`, 'success');
+
+    try {
+      await fetch('/api/cars', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newCar),
+      });
+    } catch (e) {
+      console.warn('Server sync error for car listing:', e);
+    }
+  };
+
+  const updateTeslaCarListing = async (id: string, updates: Partial<TeslaCarListing>) => {
+    setTeslaCarListings((prev) => {
+      const updated = prev.map((c) => (c.id === id ? { ...c, ...updates } : c));
+      localStorage.setItem('apex_tesla_cars_catalog', JSON.stringify(updated));
+      return updated;
+    });
+    showToast('Tesla vehicle listing updated successfully!', 'success');
+
+    try {
+      await fetch(`/api/cars/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+    } catch (e) {
+      console.warn('Server sync error for car update:', e);
+    }
+  };
+
+  const deleteTeslaCarListing = async (id: string) => {
+    setTeslaCarListings((prev) => {
+      const filtered = prev.filter((c) => c.id !== id);
+      localStorage.setItem('apex_tesla_cars_catalog', JSON.stringify(filtered));
+      return filtered;
+    });
+    showToast('Vehicle removed from catalog.', 'info');
+
+    try {
+      await fetch(`/api/cars/${id}`, { method: 'DELETE' });
+    } catch (e) {
+      console.warn('Server sync error for car delete:', e);
+    }
+  };
+
+  const updateShippingSettings = async (settings: NationwideShippingSettings) => {
+    setNationwideShippingSettings(settings);
+    localStorage.setItem('apex_shipping_settings', JSON.stringify(settings));
+    showToast('Nationwide shipping settings updated!', 'success');
+
+    try {
+      await fetch('/api/cars/shipping-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settings),
+      });
+    } catch (e) {
+      console.warn('Server sync error for shipping settings:', e);
+    }
+  };
+
+  const updateRefundPolicy = async (policy: VehicleRefundPolicySettings) => {
+    setVehicleRefundPolicy(policy);
+    localStorage.setItem('apex_refund_policy', JSON.stringify(policy));
+    showToast('Vehicle refund policy updated!', 'success');
+
+    try {
+      await fetch('/api/cars/refund-policy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(policy),
+      });
+    } catch (e) {
+      console.warn('Server sync error for refund policy:', e);
+    }
+  };
+
+  const placeVehicleOrder = async (
+    vehicle: TeslaCarListing,
+    address: ShippingAddress,
+    paymentMethod: string = 'vault_balance'
+  ): Promise<{ success: boolean; orderId?: string; message: string }> => {
+    const shippingFee = vehicle.nationwideShippingFeeUsd ?? nationwideShippingSettings.flatFeeUsd;
+    const totalUsd = vehicle.salePriceUsd + shippingFee;
+
+    if (paymentMethod === 'vault_balance' && balances.usd < totalUsd) {
+      showToast(`Insufficient vault balance ($${balances.usd.toFixed(2)}). Total is $${totalUsd.toLocaleString()} USD.`, 'error');
+      return { success: false, message: 'Insufficient balance' };
+    }
+
+    if (paymentMethod === 'vault_balance') {
+      setBalances((b) => ({ ...b, usd: b.usd - totalUsd }));
+    }
+
+    const orderId = `ORD-TESLA-${Date.now().toString(36).toUpperCase()}`;
+    const trackingNumber = `APX-TRK-${Math.floor(10000000 + Math.random() * 90000000)}`;
+    const vinAssigned = vehicle.vin || `5YJ${vehicle.model[0]}E${Date.now().toString().slice(-8)}`;
+
+    const newOrder: VehicleOrder = {
+      id: orderId,
+      userId: currentUser?.id || 'usr-apex-001',
+      userName: currentUser?.name || 'Alex Vance',
+      userEmail: currentUser?.email || 'alex.vance@apex-tesla.io',
+      vehicleId: vehicle.id,
+      vehicleName: `Tesla ${vehicle.model} ${vehicle.trim}`,
+      model: vehicle.model,
+      trim: vehicle.trim,
+      totalUsd,
+      shippingFeeUsd: shippingFee,
+      shippingAddress: address,
+      status: 'confirmed',
+      trackingNumber,
+      refundPolicyAccepted: true,
+      orderedAt: new Date().toISOString(),
+      vinAssigned,
+      paymentMethod,
+    };
+
+    setVehicleOrders((prev) => [newOrder, ...prev]);
+    localStorage.setItem('apex_vehicle_orders', JSON.stringify([newOrder, ...vehicleOrders]));
+
+    // Decrement stock in catalog
+    setTeslaCarListings((prev) =>
+      prev.map((c) =>
+        c.id === vehicle.id
+          ? { ...c, stockCount: Math.max(0, c.stockCount - 1), inStock: c.stockCount > 1 }
+          : c
+      )
+    );
+
+    // Also add to transactions log
+    const newTx: Transaction = {
+      id: `tx-order-${Date.now()}`,
+      type: 'service_payment',
+      currency: 'USD',
+      amount: totalUsd,
+      usdEquivalent: totalUsd,
+      timestamp: new Date().toISOString().replace('T', ' ').substring(0, 19),
+      status: 'completed',
+      txHash: `0x${Array.from({ length: 40 }, () => Math.floor(Math.random() * 16).toString(16)).join('')}`,
+      description: `Purchase: Tesla ${vehicle.model} ${vehicle.trim} (VIN: ${vinAssigned}) with Nationwide Shipping`,
+    };
+    setTransactions((prev) => [newTx, ...prev]);
+
+    // Send in-app notification
+    sendNotification({
+      title: `🚗 Tesla ${vehicle.model} Order Confirmed!`,
+      message: `Your Tesla ${vehicle.model} ${vehicle.trim} order (#${orderId}) is confirmed. Carrier assigned for nationwide delivery to ${address.city}, ${address.state}. Tracking: ${trackingNumber}. Protected by our 7-Day Money-Back Guarantee!`,
+      type: 'direct_message',
+      priority: 'high',
+      targetType: 'user',
+      targetUserId: currentUser?.id || 'usr-apex-001',
+      targetUserName: currentUser?.name || 'Alex Vance',
+      actionUrl: 'dashboard',
+      actionText: 'View Vehicle Order',
+    });
+
+    showToast(`Tesla ${vehicle.model} order #${orderId} confirmed! Tracking number generated.`, 'success');
+
+    // Sync order to backend
+    try {
+      await fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: currentUser?.id || 'usr-apex-001',
+          userName: currentUser?.name || 'Alex Vance',
+          userEmail: currentUser?.email || 'alex.vance@apex-tesla.io',
+          vehicleId: vehicle.id,
+          shippingAddress: address,
+          paymentMethod,
+          refundPolicyAccepted: true,
+        }),
+      });
+    } catch (e) {
+      console.warn('Backend order sync:', e);
+    }
+
+    return { success: true, orderId, message: 'Order confirmed successfully!' };
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -2419,6 +2714,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setCronActive,
         cronLogs,
         lastCronRun,
+        cronCyclesCount,
+        lastCronRunAt: lastCronRun,
+        allInvestments: userInvestments,
         investmentPools,
         createInvestmentPool,
         updateInvestmentPool,

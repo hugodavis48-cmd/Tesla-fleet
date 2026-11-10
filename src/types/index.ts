@@ -38,7 +38,7 @@ export interface User {
   isOnline?: boolean;
   lastActiveAt?: string;
   lastVisitedPath?: string;
-  accountStatus?: 'active' | 'suspended' | 'flagged';
+  accountStatus?: 'active' | 'suspended' | 'flagged' | 'banned';
   totalDepositedUsd?: number;
   totalWithdrawnUsd?: number;
   ipAddress?: string;
@@ -221,6 +221,9 @@ export interface InvestmentPool {
   dailyPayoutEstUsdPer1000: number;
   description: string;
   image: string;
+  apyPercent?: number;
+  durationDays?: number;
+  minStakeUsd?: number;
 }
 
 export interface UserInvestment {
@@ -245,6 +248,11 @@ export interface UserInvestment {
   autoCompound?: boolean;
   txHash?: string;
   certificateId?: string;
+  principalUsd?: number;
+  poolName?: string;
+  apyPercent?: number;
+  accruedYieldUsd?: number;
+  stakedAt?: string;
 }
 
 export interface ProductItem {
@@ -349,8 +357,8 @@ export interface InvestmentActivityItem {
   notes?: string;
 }
 
-export type NotificationType = 'announcement' | 'payout' | 'alert' | 'system' | 'bonus' | 'investment';
-export type NotificationPriority = 'low' | 'normal' | 'urgent';
+export type NotificationType = 'announcement' | 'payout' | 'alert' | 'system' | 'bonus' | 'investment' | 'system_alert' | 'promotion' | 'kyc' | 'direct_message';
+export type NotificationPriority = 'low' | 'normal' | 'urgent' | 'high';
 
 export interface AdminNotificationMessage {
   id: string;
@@ -358,14 +366,18 @@ export interface AdminNotificationMessage {
   message: string;
   type: NotificationType;
   priority: NotificationPriority;
-  targetType: 'all' | 'individual';
+  targetType: 'all' | 'individual' | 'user';
   targetUserId?: string;
   targetUserEmail?: string;
+  targetUserName?: string;
   createdAt: string;
-  readBy: string[]; // user IDs who marked as read
-  dismissedBy: string[];
+  readBy?: string[]; // user IDs who marked as read
+  dismissedBy?: string[];
   actionUrl?: string;
   actionLabel?: string;
+  actionText?: string;
+  category?: string;
+  isRead?: boolean;
 }
 
 export interface SitePage {
@@ -377,6 +389,7 @@ export interface SitePage {
   order: number;
   isSystem: boolean;
   published: boolean;
+  isPublished?: boolean;
   metaDescription?: string;
   updatedAt: string;
 }
@@ -384,9 +397,14 @@ export interface SitePage {
 export interface ManualDepositMethod {
   id: string;
   title: string;
+  name?: string;
   category: 'crypto' | 'fiat' | 'e_wallet';
   currencySymbol: string;
+  currency?: string;
   accountDetails: string;
+  accountNumber?: string;
+  accountName?: string;
+  routingOrBank?: string;
   instructions: string;
   qrCodeUrl?: string;
   minDepositUsd: number;
@@ -394,6 +412,7 @@ export interface ManualDepositMethod {
   processingTime: string;
   feePercent: number;
   isActive: boolean;
+  enabled?: boolean;
   requiresProofUpload: boolean;
   network?: string;
 }
@@ -402,11 +421,97 @@ export interface SocialLinkConfig {
   id: string;
   platform: 'whatsapp' | 'twitter' | 'telegram' | 'discord' | 'youtube' | 'instagram' | 'facebook' | 'tiktok' | 'pinterest' | 'threads';
   label: string;
+  name?: string;
   url: string;
   handle: string;
   enabled: boolean;
   showInHeader: boolean;
   showInFooter: boolean;
 }
+
+export interface TeslaCarListing {
+  id: string;
+  model: 'Cybertruck' | 'Model S' | 'Model 3' | 'Model X' | 'Model Y' | 'Roadster';
+  trim: string;
+  year: number;
+  originalPriceUsd: number; // Official Tesla MSRP
+  salePriceUsd: number;
+  image: string;
+  galleryImages?: string[];
+  rangeMiles: number;
+  zeroToSixty: string;
+  topSpeedMph: number;
+  horsepower: number;
+  driveTrain: string;
+  batteryKwh?: number;
+  color: string;
+  interiorColor: string;
+  autopilotType: string;
+  inStock: boolean;
+  stockCount: number;
+  vin?: string;
+  description: string;
+  specs: {
+    seating: string;
+    cargoSpaceCuFt: string;
+    weightLbs: string;
+    superchargingMaxKw: string;
+    wheels: string;
+  };
+  deliveryEstimate: string;
+  nationwideShippingFeeUsd: number;
+  refundPolicy: string;
+  warrantyDetails: string;
+  isFeatured?: boolean;
+}
+
+export interface ShippingAddress {
+  fullName: string;
+  street: string;
+  apartmentOrSuite?: string;
+  city: string;
+  state: string;
+  zipCode: string;
+  phone: string;
+  deliveryMethod: 'enclosed_carrier' | 'apex_flatbed' | 'delivery_hub_pickup';
+  deliveryNotes?: string;
+}
+
+export interface VehicleOrder {
+  id: string;
+  userId: string;
+  userName?: string;
+  userEmail?: string;
+  vehicleId: string;
+  vehicleName: string;
+  model: string;
+  trim: string;
+  totalUsd: number;
+  shippingFeeUsd: number;
+  shippingAddress: ShippingAddress;
+  status: 'confirmed' | 'carrier_assigned' | 'in_transit' | 'delivered';
+  trackingNumber: string;
+  refundPolicyAccepted: boolean;
+  orderedAt: string;
+  vinAssigned: string;
+  paymentMethod: string;
+}
+
+export interface NationwideShippingSettings {
+  flatFeeUsd: number;
+  freeShippingEligibleTiers: string[];
+  estimatedDays: string;
+  carrierPartners: string[];
+  trackingPortalUrl: string;
+}
+
+export interface VehicleRefundPolicySettings {
+  trialDays: number;
+  maxMileage: number;
+  moneyBackGuaranteePercent: number;
+  inspectionRequired: boolean;
+  termsSummary: string;
+}
+
 
 

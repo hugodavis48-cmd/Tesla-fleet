@@ -11,15 +11,22 @@ interface DepositModalProps {
 }
 
 export const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose, defaultCurrency = 'USDT' }) => {
-  const { depositFunds, showToast } = useApp();
+  const { depositFunds, manualDepositMethods, showToast } = useApp();
+  const [depositMode, setDepositMode] = useState<'crypto' | 'manual'>('crypto');
   const [selectedCurrency, setSelectedCurrency] = useState<CryptoCurrency>(defaultCurrency);
   const [depositAmount, setDepositAmount] = useState<string>('500');
+  const [selectedManualMethodId, setSelectedManualMethodId] = useState<string>(
+    manualDepositMethods[0]?.id || 'dep-wire'
+  );
+  const [manualAmount, setManualAmount] = useState<string>('1000');
+  const [manualTxProof, setManualTxProof] = useState<string>('');
   const [isCopied, setIsCopied] = useState<boolean>(false);
   const [isConfirming, setIsConfirming] = useState<boolean>(false);
   const [confirmationStep, setConfirmationStep] = useState<number>(0);
 
   if (!isOpen) return null;
 
+  const activeManualMethod = manualDepositMethods.find((m) => m.id === selectedManualMethodId) || manualDepositMethods[0];
   const currentNetwork = CRYPTO_NETWORKS[selectedCurrency];
   const rateUsd = currentNetwork?.rateUsd || 1;
   const numAmount = parseFloat(depositAmount) || 0;
@@ -28,8 +35,36 @@ export const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose, def
   const handleCopy = (text: string) => {
     navigator.clipboard.writeText(text);
     setIsCopied(true);
-    showToast('Address copied to clipboard!');
+    showToast('Copied to clipboard!');
     setTimeout(() => setIsCopied(false), 2500);
+  };
+
+  const handleOpenWhatsAppConcierge = () => {
+    const text = 'Hi Apex Tesla Hub Concierge! I need assistance with depositing funds via crypto or manual bank transfer.';
+    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
+  };
+
+  const handleSimulateManualDeposit = () => {
+    const numMan = parseFloat(manualAmount) || 0;
+    if (numMan <= 0) {
+      showToast('Please enter a valid deposit amount.', 'error');
+      return;
+    }
+    if (activeManualMethod && numMan < activeManualMethod.minDepositUsd) {
+      showToast(`Minimum deposit is $${activeManualMethod.minDepositUsd} USD.`, 'error');
+      return;
+    }
+
+    setIsConfirming(true);
+    setConfirmationStep(1);
+    setTimeout(() => setConfirmationStep(2), 1200);
+    setTimeout(async () => {
+      await depositFunds('USD', numMan);
+      setIsConfirming(false);
+      setConfirmationStep(0);
+      showToast(`Manual deposit of $${numMan.toLocaleString()} USD credited to vault!`, 'success');
+      onClose();
+    }, 2400);
   };
 
   const handleSimulateDeposit = async () => {
@@ -78,188 +113,354 @@ export const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose, def
           </button>
         </div>
 
-        <div className="p-6 space-y-6 max-h-[80vh] overflow-y-auto">
-          {/* Currency Selector */}
-          <div>
-            <label className="text-xs font-semibold uppercase tracking-wider text-zinc-400 block mb-2">
-              Select Deposit Cryptocurrency
-            </label>
-            <div className="grid grid-cols-4 gap-2">
-              {(Object.keys(CRYPTO_NETWORKS) as CryptoCurrency[]).map((curr) => {
-                const info = CRYPTO_NETWORKS[curr];
-                const active = selectedCurrency === curr;
-                return (
-                  <button
-                    key={curr}
-                    onClick={() => {
-                      setSelectedCurrency(curr);
-                      if (curr === 'BTC') setDepositAmount('0.02');
-                      else if (curr === 'XRP') setDepositAmount('250');
-                      else if (curr === 'BNB') setDepositAmount('1.5');
-                      else setDepositAmount('500');
-                    }}
-                    className={`flex flex-col items-center justify-center p-3 rounded-xl border text-center transition ${
-                      active
-                        ? 'border-red-500 bg-red-950/40 text-white shadow-lg shadow-red-950/30'
-                        : 'border-zinc-800 bg-zinc-900/60 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200'
-                    }`}
-                  >
-                    <span className="font-heading font-bold text-base" style={{ color: info.iconColor }}>
-                      {curr}
+        {/* Tab Selector: Crypto vs Manual/Bank */}
+        <div className="px-6 pt-4 pb-2 flex gap-2 border-b border-zinc-800 bg-zinc-900/50">
+          <button
+            onClick={() => setDepositMode('crypto')}
+            className={`flex-1 py-2.5 px-3 rounded-xl font-heading font-bold text-xs flex items-center justify-center gap-2 transition ${
+              depositMode === 'crypto'
+                ? 'bg-red-600 text-white shadow-md shadow-red-950/50 border border-red-500/50'
+                : 'bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800'
+            }`}
+          >
+            <Zap className="w-4 h-4" />
+            <span>Instant Crypto Gateway</span>
+          </button>
+          <button
+            onClick={() => setDepositMode('manual')}
+            className={`flex-1 py-2.5 px-3 rounded-xl font-heading font-bold text-xs flex items-center justify-center gap-2 transition ${
+              depositMode === 'manual'
+                ? 'bg-emerald-600 text-white shadow-md shadow-emerald-950/50 border border-emerald-500/50'
+                : 'bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800'
+            }`}
+          >
+            <ShieldCheck className="w-4 h-4" />
+            <span>Bank Wire & Manual ({manualDepositMethods.length})</span>
+          </button>
+        </div>
+
+        <div className="p-6 space-y-6 max-h-[75vh] overflow-y-auto">
+          {depositMode === 'crypto' ? (
+            <>
+              {/* Currency Selector */}
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-wider text-zinc-400 block mb-2">
+                  Select Deposit Cryptocurrency
+                </label>
+                <div className="grid grid-cols-4 gap-2">
+                  {(Object.keys(CRYPTO_NETWORKS) as CryptoCurrency[]).map((curr) => {
+                    const info = CRYPTO_NETWORKS[curr];
+                    const active = selectedCurrency === curr;
+                    return (
+                      <button
+                        key={curr}
+                        onClick={() => {
+                          setSelectedCurrency(curr);
+                          if (curr === 'BTC') setDepositAmount('0.02');
+                          else if (curr === 'XRP') setDepositAmount('250');
+                          else if (curr === 'BNB') setDepositAmount('1.5');
+                          else setDepositAmount('500');
+                        }}
+                        className={`flex flex-col items-center justify-center p-3 rounded-xl border text-center transition ${
+                          active
+                            ? 'border-red-500 bg-red-950/40 text-white shadow-lg shadow-red-950/30'
+                            : 'border-zinc-800 bg-zinc-900/60 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200'
+                        }`}
+                      >
+                        <span className="font-heading font-bold text-base" style={{ color: info.iconColor }}>
+                          {curr}
+                        </span>
+                        <span className="text-[10px] text-zinc-500">{info.name.split(' ')[0]}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Amount input */}
+              <div className="bg-zinc-900/80 p-4 rounded-xl border border-zinc-800">
+                <div className="flex justify-between items-center text-xs text-zinc-400 mb-1.5">
+                  <span>Deposit Amount ({selectedCurrency})</span>
+                  <span>1 {selectedCurrency} ≈ ${rateUsd.toLocaleString()} USD</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    step="any"
+                    value={depositAmount}
+                    onChange={(e) => setDepositAmount(e.target.value)}
+                    placeholder="Enter amount"
+                    className="w-full bg-black/60 border border-zinc-700 rounded-lg px-3 py-2 text-white font-mono text-lg focus:outline-none focus:border-red-500"
+                  />
+                  <span className="font-heading font-semibold text-zinc-300 px-3 py-2 bg-zinc-800 rounded-lg shrink-0">
+                    {selectedCurrency}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center mt-2 text-xs">
+                  <span className="text-zinc-500">Min: {currentNetwork.minDeposit} {selectedCurrency}</span>
+                  <span className="text-emerald-400 font-medium">
+                    Est. Value: ≈ ${Math.round(estimatedUsd).toLocaleString()} USD
+                  </span>
+                </div>
+              </div>
+
+              {/* Address & QR Code */}
+              <div className="p-4 rounded-xl bg-black/60 border border-zinc-800/80 space-y-3">
+                <div className="flex items-start gap-4">
+                  <div className="shrink-0 p-2 bg-white rounded-xl shadow-md flex flex-col items-center justify-center">
+                    <svg className="w-24 h-24" viewBox="0 0 100 100" fill="none">
+                      <rect x="5" y="5" width="26" height="26" fill="black" rx="2" />
+                      <rect x="9" y="9" width="18" height="18" fill="white" rx="1" />
+                      <rect x="13" y="13" width="10" height="10" fill="black" rx="1" />
+                      <rect x="69" y="5" width="26" height="26" fill="black" rx="2" />
+                      <rect x="73" y="9" width="18" height="18" fill="white" rx="1" />
+                      <rect x="77" y="13" width="10" height="10" fill="black" rx="1" />
+                      <rect x="5" y="69" width="26" height="26" fill="black" rx="2" />
+                      <rect x="9" y="73" width="18" height="18" fill="white" rx="1" />
+                      <rect x="13" y="77" width="10" height="10" fill="black" rx="1" />
+                      <rect x="36" y="8" width="6" height="6" fill="black" />
+                      <rect x="48" y="14" width="6" height="6" fill="black" />
+                      <rect x="36" y="24" width="6" height="6" fill="black" />
+                      <rect x="54" y="24" width="6" height="6" fill="black" />
+                      <rect x="12" y="38" width="6" height="6" fill="black" />
+                      <rect x="24" y="42" width="6" height="6" fill="black" />
+                      <rect x="36" y="40" width="8" height="8" fill="#e82127" rx="1" />
+                      <rect x="48" y="40" width="6" height="6" fill="black" />
+                      <rect x="62" y="38" width="6" height="6" fill="black" />
+                      <rect x="78" y="42" width="6" height="6" fill="black" />
+                      <rect x="40" y="54" width="6" height="6" fill="black" />
+                      <rect x="56" y="56" width="6" height="6" fill="black" />
+                      <rect x="72" y="56" width="6" height="6" fill="black" />
+                      <rect x="36" y="70" width="6" height="6" fill="black" />
+                      <rect x="52" y="72" width="6" height="6" fill="black" />
+                      <rect x="68" y="70" width="6" height="6" fill="black" />
+                      <rect x="82" y="78" width="6" height="6" fill="black" />
+                    </svg>
+                    <span className="text-[9px] font-mono font-bold text-zinc-800 mt-1 uppercase tracking-wider">
+                      {selectedCurrency} SCAN
                     </span>
-                    <span className="text-[10px] text-zinc-500">{info.name.split(' ')[0]}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+                  </div>
 
-          {/* Amount input */}
-          <div className="bg-zinc-900/80 p-4 rounded-xl border border-zinc-800">
-            <div className="flex justify-between items-center text-xs text-zinc-400 mb-1.5">
-              <span>Deposit Amount ({selectedCurrency})</span>
-              <span>1 {selectedCurrency} ≈ ${rateUsd.toLocaleString()} USD</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <input
-                type="number"
-                step="any"
-                value={depositAmount}
-                onChange={(e) => setDepositAmount(e.target.value)}
-                placeholder="Enter amount"
-                className="w-full bg-black/60 border border-zinc-700 rounded-lg px-3 py-2 text-white font-mono text-lg focus:outline-none focus:border-red-500"
-              />
-              <span className="font-heading font-semibold text-zinc-300 px-3 py-2 bg-zinc-800 rounded-lg shrink-0">
-                {selectedCurrency}
-              </span>
-            </div>
-            <div className="flex justify-between items-center mt-2 text-xs">
-              <span className="text-zinc-500">Min: {currentNetwork.minDeposit} {selectedCurrency}</span>
-              <span className="text-emerald-400 font-medium">
-                Est. Value: ≈ ${Math.round(estimatedUsd).toLocaleString()} USD
-              </span>
-            </div>
-          </div>
+                  <div className="flex-1 space-y-2 min-w-0">
+                    <div>
+                      <span className="text-[11px] text-zinc-400 block mb-0.5">Network Protocol</span>
+                      <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-zinc-800 text-zinc-200 border border-zinc-700">
+                        {currentNetwork.network}
+                      </span>
+                    </div>
 
-          {/* Address & QR Code */}
-          <div className="p-4 rounded-xl bg-black/60 border border-zinc-800/80 space-y-3">
-            <div className="flex items-start gap-4">
-              {/* Visual simulated QR code */}
-              <div className="shrink-0 p-2 bg-white rounded-xl shadow-md flex flex-col items-center justify-center">
-                <svg className="w-24 h-24" viewBox="0 0 100 100" fill="none">
-                  {/* Outer corner squares */}
-                  <rect x="5" y="5" width="26" height="26" fill="black" rx="2" />
-                  <rect x="9" y="9" width="18" height="18" fill="white" rx="1" />
-                  <rect x="13" y="13" width="10" height="10" fill="black" rx="1" />
+                    <div>
+                      <span className="text-[11px] text-zinc-400 block mb-0.5">Your Dedicated Deposit Address</span>
+                      <div className="flex items-center gap-1.5 bg-zinc-900 border border-zinc-700/80 rounded-lg p-2">
+                        <span className="font-mono text-xs text-red-300 break-all select-all flex-1">
+                          {currentNetwork.address}
+                        </span>
+                        <button
+                          onClick={() => handleCopy(currentNetwork.address)}
+                          className="p-1.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white transition shrink-0"
+                          title="Copy Address"
+                        >
+                          {isCopied ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
 
-                  <rect x="69" y="5" width="26" height="26" fill="black" rx="2" />
-                  <rect x="73" y="9" width="18" height="18" fill="white" rx="1" />
-                  <rect x="77" y="13" width="10" height="10" fill="black" rx="1" />
+                    {currentNetwork.memoTag && (
+                      <div className="p-2 rounded bg-amber-950/40 border border-amber-600/40 text-amber-200 text-xs flex items-center justify-between">
+                        <div>
+                          <span className="font-semibold block">Required XRP Destination Tag:</span>
+                          <span className="font-mono text-sm text-yellow-300">{currentNetwork.memoTag}</span>
+                        </div>
+                        <button
+                          onClick={() => handleCopy(currentNetwork.memoTag!)}
+                          className="px-2 py-1 text-[11px] bg-amber-800/80 hover:bg-amber-700 rounded text-white"
+                        >
+                          Copy Tag
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
 
-                  <rect x="5" y="69" width="26" height="26" fill="black" rx="2" />
-                  <rect x="9" y="73" width="18" height="18" fill="white" rx="1" />
-                  <rect x="13" y="77" width="10" height="10" fill="black" rx="1" />
-
-                  {/* Matrix bit blocks */}
-                  <rect x="36" y="8" width="6" height="6" fill="black" />
-                  <rect x="48" y="14" width="6" height="6" fill="black" />
-                  <rect x="36" y="24" width="6" height="6" fill="black" />
-                  <rect x="54" y="24" width="6" height="6" fill="black" />
-                  <rect x="12" y="38" width="6" height="6" fill="black" />
-                  <rect x="24" y="42" width="6" height="6" fill="black" />
-                  <rect x="36" y="40" width="8" height="8" fill="#e82127" rx="1" />
-                  <rect x="48" y="40" width="6" height="6" fill="black" />
-                  <rect x="62" y="38" width="6" height="6" fill="black" />
-                  <rect x="78" y="42" width="6" height="6" fill="black" />
-                  <rect x="40" y="54" width="6" height="6" fill="black" />
-                  <rect x="56" y="56" width="6" height="6" fill="black" />
-                  <rect x="72" y="56" width="6" height="6" fill="black" />
-                  <rect x="36" y="70" width="6" height="6" fill="black" />
-                  <rect x="52" y="72" width="6" height="6" fill="black" />
-                  <rect x="68" y="70" width="6" height="6" fill="black" />
-                  <rect x="82" y="78" width="6" height="6" fill="black" />
-                </svg>
-                <span className="text-[9px] font-mono font-bold text-zinc-800 mt-1 uppercase tracking-wider">
-                  {selectedCurrency} SCAN
+              {/* Security Notice */}
+              <div className="flex items-center gap-3 p-3 rounded-xl bg-zinc-900/60 border border-emerald-500/20 text-xs text-zinc-300">
+                <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0" />
+                <span>
+                  <strong>Cold-Storage Vault Protection:</strong> 100% of user balances are backed in multi-sig institutional reserves. Zero platform fees. Auto-credited after 3 confirmations.
                 </span>
               </div>
 
-              {/* Address details */}
-              <div className="flex-1 space-y-2 min-w-0">
-                <div>
-                  <span className="text-[11px] text-zinc-400 block mb-0.5">Network Protocol</span>
-                  <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-zinc-800 text-zinc-200 border border-zinc-700">
-                    {currentNetwork.network}
-                  </span>
-                </div>
-
-                <div>
-                  <span className="text-[11px] text-zinc-400 block mb-0.5">Your Dedicated Deposit Address</span>
-                  <div className="flex items-center gap-1.5 bg-zinc-900 border border-zinc-700/80 rounded-lg p-2">
-                    <span className="font-mono text-xs text-red-300 break-all select-all flex-1">
-                      {currentNetwork.address}
-                    </span>
-                    <button
-                      onClick={() => handleCopy(currentNetwork.address)}
-                      className="p-1.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white transition shrink-0"
-                      title="Copy Address"
-                    >
-                      {isCopied ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-                    </button>
-                  </div>
-                </div>
-
-                {/* XRP Memo Tag requirement */}
-                {currentNetwork.memoTag && (
-                  <div className="p-2 rounded bg-amber-950/40 border border-amber-600/40 text-amber-200 text-xs flex items-center justify-between">
-                    <div>
-                      <span className="font-semibold block">Required XRP Destination Tag:</span>
-                      <span className="font-mono text-sm text-yellow-300">{currentNetwork.memoTag}</span>
-                    </div>
-                    <button
-                      onClick={() => handleCopy(currentNetwork.memoTag!)}
-                      className="px-2 py-1 text-[11px] bg-amber-800/80 hover:bg-amber-700 rounded text-white"
-                    >
-                      Copy Tag
-                    </button>
-                  </div>
-                )}
+              {/* Transfer Confirmation Button */}
+              <div className="pt-2">
+                <button
+                  onClick={handleSimulateDeposit}
+                  disabled={isConfirming}
+                  className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-red-600 via-red-500 to-rose-600 hover:from-red-500 hover:to-rose-500 font-heading font-bold text-white shadow-lg shadow-red-900/50 flex items-center justify-center gap-2 transition disabled:opacity-60"
+                >
+                  {isConfirming ? (
+                    <>
+                      <RefreshCw className="w-5 h-5 animate-spin" />
+                      <span>
+                        Validating On-Chain Block ({confirmationStep}/3 Confirmations)...
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Simulate Instant On-Chain Deposit ({numAmount} {selectedCurrency})</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
+                </button>
+                <p className="text-center text-[11px] text-zinc-500 mt-2">
+                  For testing: Click above to simulate real blockchain network confirmation and credit your wallet.
+                </p>
               </div>
-            </div>
-          </div>
+            </>
+          ) : (
+            /* MANUAL & BANK GATEWAYS MODE */
+            <div className="space-y-5">
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-wider text-zinc-400 block mb-2">
+                  Select Bank or Custom Deposit Channel
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {manualDepositMethods
+                    .filter((m) => m.enabled ?? m.isActive)
+                    .map((method) => {
+                      const isSel = selectedManualMethodId === method.id;
+                      const methodName = method.name || method.title;
+                      const methodCurrency = method.currency || method.currencySymbol;
+                      const methodAccount = method.accountName || method.title;
 
-          {/* Security Notice */}
-          <div className="flex items-center gap-3 p-3 rounded-xl bg-zinc-900/60 border border-emerald-500/20 text-xs text-zinc-300">
-            <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0" />
-            <span>
-              <strong>Cold-Storage Vault Protection:</strong> 100% of user balances are backed in multi-sig institutional reserves. Zero platform fees. Auto-credited after 3 confirmations.
-            </span>
-          </div>
+                      return (
+                        <button
+                          key={method.id}
+                          onClick={() => setSelectedManualMethodId(method.id)}
+                          className={`p-3 rounded-xl border text-left transition flex flex-col justify-between ${
+                            isSel
+                              ? 'border-emerald-500 bg-emerald-950/30 text-white shadow-md shadow-emerald-950/40'
+                              : 'border-zinc-800 bg-zinc-900/60 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="font-heading font-bold text-sm text-white">
+                              {methodName}
+                            </span>
+                            <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700">
+                              {methodCurrency}
+                            </span>
+                          </div>
+                          <span className="text-xs text-zinc-400 line-clamp-1">{methodAccount}</span>
+                          <div className="mt-2 text-[11px] text-emerald-400 font-mono">
+                            Min: ${method.minDepositUsd.toLocaleString()} USD
+                          </div>
+                        </button>
+                      );
+                    })}
+                </div>
+              </div>
 
-          {/* Transfer Confirmation Button */}
-          <div className="pt-2">
-            <button
-              onClick={handleSimulateDeposit}
-              disabled={isConfirming}
-              className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-red-600 via-red-500 to-rose-600 hover:from-red-500 hover:to-rose-500 font-heading font-bold text-white shadow-lg shadow-red-900/50 flex items-center justify-center gap-2 transition disabled:opacity-60"
-            >
-              {isConfirming ? (
-                <>
-                  <RefreshCw className="w-5 h-5 animate-spin" />
-                  <span>
-                    Validating On-Chain Block ({confirmationStep}/3 Confirmations)...
-                  </span>
-                </>
-              ) : (
-                <>
-                  <span>Simulate Instant On-Chain Deposit ({numAmount} {selectedCurrency})</span>
-                  <ArrowRight className="w-4 h-4" />
-                </>
+              {activeManualMethod && (
+                <div className="p-4 rounded-xl bg-zinc-900/90 border border-zinc-800 space-y-3 text-xs">
+                  <div className="flex justify-between items-center pb-2 border-b border-zinc-800">
+                    <span className="font-semibold text-zinc-300">Recipient Account Name:</span>
+                    <span className="font-mono text-white font-bold">
+                      {activeManualMethod.accountName || activeManualMethod.title}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center pb-2 border-b border-zinc-800">
+                    <span className="font-semibold text-zinc-300">Account / Routing / Tag:</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-mono text-emerald-400 font-bold">
+                        {activeManualMethod.accountNumber || activeManualMethod.accountDetails}
+                      </span>
+                      <button
+                        onClick={() =>
+                          handleCopy(activeManualMethod.accountNumber || activeManualMethod.accountDetails)
+                        }
+                        className="p-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300"
+                        title="Copy"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                  {activeManualMethod.routingOrBank && (
+                    <div className="flex justify-between items-center pb-2 border-b border-zinc-800">
+                      <span className="font-semibold text-zinc-300">Bank / Routing Code:</span>
+                      <span className="font-mono text-zinc-200">{activeManualMethod.routingOrBank}</span>
+                    </div>
+                  )}
+                  <div>
+                    <span className="text-zinc-400 block font-semibold mb-1">Payment Instructions:</span>
+                    <p className="text-zinc-300 leading-relaxed bg-black/40 p-2.5 rounded-lg border border-zinc-800/80">
+                      {activeManualMethod.instructions}
+                    </p>
+                  </div>
+                </div>
               )}
+
+              {/* Amount and Proof Notes */}
+              <div className="space-y-3">
+                <div className="bg-zinc-900/80 p-3.5 rounded-xl border border-zinc-800">
+                  <div className="flex justify-between items-center text-xs text-zinc-400 mb-1.5">
+                    <span>Manual Deposit Amount (USD)</span>
+                    <span className="text-emerald-400 font-mono">1 USD = $1.00 USD Vault</span>
+                  </div>
+                  <input
+                    type="number"
+                    value={manualAmount}
+                    onChange={(e) => setManualAmount(e.target.value)}
+                    placeholder="Enter USD Amount"
+                    className="w-full bg-black/60 border border-zinc-700 rounded-lg px-3 py-2 text-white font-mono text-lg focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+
+                <div className="bg-zinc-900/80 p-3.5 rounded-xl border border-zinc-800">
+                  <span className="text-xs text-zinc-400 block mb-1.5">
+                    Wire / Transfer Reference Number or Note (Optional Proof)
+                  </span>
+                  <input
+                    type="text"
+                    value={manualTxProof}
+                    onChange={(e) => setManualTxProof(e.target.value)}
+                    placeholder="e.g. WIRE-REF-9948201 / CashApp Tag"
+                    className="w-full bg-black/60 border border-zinc-700 rounded-lg px-3 py-2 text-zinc-200 font-mono text-xs focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+              </div>
+
+              {/* Submit / Confirm Manual Deposit Button */}
+              <button
+                onClick={handleSimulateManualDeposit}
+                disabled={isConfirming}
+                className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 font-heading font-bold text-white shadow-lg shadow-emerald-950/60 flex items-center justify-center gap-2 transition disabled:opacity-60"
+              >
+                {isConfirming ? (
+                  <>
+                    <RefreshCw className="w-5 h-5 animate-spin" />
+                    <span>Verifying Banking Ledger & Crediting Vault...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Submit & Credit Manual Deposit (${parseFloat(manualAmount || '0').toLocaleString()} USD)</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
+              </button>
+            </div>
+          )}
+
+          {/* Dedicated WhatsApp VIP Concierge Action */}
+          <div className="pt-2 border-t border-zinc-800/80">
+            <button
+              onClick={handleOpenWhatsAppConcierge}
+              className="w-full py-2.5 px-4 rounded-xl bg-emerald-950/40 hover:bg-emerald-900/50 border border-emerald-500/40 text-emerald-300 text-xs font-bold transition flex items-center justify-center gap-2"
+            >
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+              <span>💬 High-Limit Wire or Custom Payment? Chat with WhatsApp VIP Concierge</span>
             </button>
-            <p className="text-center text-[11px] text-zinc-500 mt-2">
-              For testing: Click above to simulate real blockchain network confirmation and credit your wallet.
-            </p>
           </div>
         </div>
       </div>

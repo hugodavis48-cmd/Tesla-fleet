@@ -60,6 +60,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenDeposit }) => 
               </div>
               <div className="flex flex-wrap gap-1.5 text-xs">
                 {[
+                  { name: 'WhatsApp VIP', url: 'https://wa.me/18005552739' },
                   { name: 'Facebook', url: 'https://facebook.com' },
                   { name: 'Pinterest', url: 'https://pinterest.com' },
                   { name: 'Threads', url: 'https://threads.net' },

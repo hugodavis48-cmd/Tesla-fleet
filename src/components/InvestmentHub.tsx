@@ -4,6 +4,7 @@ import { INVESTMENT_POOLS } from '../data/mockData';
 import { InvestmentPool, AssetNotificationSettings, AssetAlertHistoryItem, InvestmentActivityItem } from '../types';
 import { AssetAlertsModal, PRESET_TARGETS } from './AssetAlertsModal';
 import { InvestmentActivityTable, INITIAL_INVESTMENT_ACTIVITIES } from './InvestmentActivityTable';
+import { UserInvestmentBoard } from './UserInvestmentBoard';
 import {
   TrendingUp,
   Zap,
@@ -25,6 +26,7 @@ import {
   Send,
   CheckCircle2,
   Volume2,
+  Share2,
 } from 'lucide-react';
 
 interface InvestmentHubProps {
@@ -394,6 +396,12 @@ export const InvestmentHub: React.FC<InvestmentHubProps> = ({ onOpenDeposit, onN
     playTeslaAudioChime();
   };
 
+  const handleSharePoolOnWhatsApp = (pool: InvestmentPool) => {
+    const text = `🚗 Check out this decentralized Tesla fleet yield pool: ${pool.title} earning ${pool.apy}% APY with daily payouts! Learn more:`;
+    const url = typeof window !== 'undefined' ? window.location.origin : 'https://apex-tesla.io';
+    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}%20${encodeURIComponent(url)}`, '_blank');
+  };
+
   return (
     <div className="py-12 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto space-y-10">
       {/* Header */}
@@ -675,17 +683,25 @@ export const InvestmentHub: React.FC<InvestmentHubProps> = ({ onOpenDeposit, onN
                   </div>
                 </div>
 
-                {/* Stake CTA */}
-                <div className="p-6 pt-0">
+                {/* Stake CTA & WhatsApp Share */}
+                <div className="p-6 pt-0 flex items-center gap-2">
                   <button
                     onClick={() => {
                       setActivePoolToStake(pool);
                       setStakeAmount(pool.minInvestmentUsd.toString());
                     }}
-                    className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-heading font-bold text-xs shadow-lg shadow-emerald-950/40 flex items-center justify-center gap-2 transition"
+                    className="flex-1 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-heading font-bold text-xs shadow-lg shadow-emerald-950/40 flex items-center justify-center gap-2 transition"
                   >
                     <Coins className="w-4 h-4" />
                     <span>Stake Funds into Pool</span>
+                  </button>
+
+                  <button
+                    onClick={() => handleSharePoolOnWhatsApp(pool)}
+                    className="p-3.5 rounded-2xl bg-emerald-600/10 hover:bg-emerald-600/20 border border-emerald-500/30 text-emerald-400 hover:text-emerald-300 transition"
+                    title="Share this pool on WhatsApp"
+                  >
+                    <Share2 className="w-4 h-4" />
                   </button>
                 </div>
               </div>
@@ -700,12 +716,16 @@ export const InvestmentHub: React.FC<InvestmentHubProps> = ({ onOpenDeposit, onN
         onSimulateMilestone={handleSimulateMilestoneEvent}
       />
 
-      {/* Active User Investments Panel */}
+      {/* Historical Investment Performance & Total Accrued Yield Dashboard Board */}
       <div className="p-6 sm:p-8 rounded-3xl bg-zinc-950 border border-zinc-800 space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-800 pb-4">
           <div>
-            <h3 className="font-heading font-bold text-xl text-white">Your Active Fleet Staking Portfolio</h3>
-            <p className="text-xs text-zinc-400">Live telematics dividend yield tracking & automated smart contract payouts</p>
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-600/10 border border-emerald-500/30 text-emerald-400 text-xs font-semibold uppercase tracking-wider mb-2">
+              <TrendingUp className="w-3.5 h-3.5" />
+              <span>Performance Tracking Board</span>
+            </div>
+            <h3 className="font-heading font-bold text-2xl text-white">Your Historical Investment Performance & Accrued Yield</h3>
+            <p className="text-xs text-zinc-400">Audit all running staking plans, completed payouts, total accrued yield, and settlement certificates</p>
           </div>
           <div className="flex items-center gap-3">
             <span className="text-xs text-zinc-400">Total Portfolio Value:</span>
@@ -715,71 +735,11 @@ export const InvestmentHub: React.FC<InvestmentHubProps> = ({ onOpenDeposit, onN
           </div>
         </div>
 
-        {userInvestments.length === 0 ? (
-          <div className="text-center py-10 space-y-2">
-            <TrendingUp className="w-12 h-12 text-zinc-600 mx-auto" />
-            <p className="text-zinc-400 text-sm">You haven't staked in any vehicle yield pools yet.</p>
-            <p className="text-xs text-zinc-500">Pick a pool above to start earning daily automated dividends!</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {userInvestments.map((inv) => (
-              <div
-                key={inv.id}
-                className="p-5 rounded-2xl bg-zinc-900/80 border border-zinc-800 flex flex-col justify-between gap-4"
-              >
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h4 className="font-heading font-bold text-sm text-white">{inv.poolTitle}</h4>
-                    <span className="text-[11px] text-zinc-400 font-mono">Staked on {inv.investedAt}</span>
-                  </div>
-                  <span className="px-2.5 py-1 rounded-lg bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 text-xs font-mono font-bold">
-                    {inv.apy}% APY
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-3 gap-2 p-3 rounded-xl bg-black/60 border border-zinc-800/80 text-xs font-mono">
-                  <div>
-                    <span className="text-[10px] text-zinc-500 block">PRINCIPAL</span>
-                    <span className="text-white font-bold">${inv.amountInvestedUsd.toLocaleString()}</span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-zinc-500 block">UNCLAIMED</span>
-                    <span className="text-emerald-400 font-bold">${inv.earnedDividendsUsd.toFixed(2)}</span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-zinc-500 block">NEXT PAYOUT</span>
-                    <span className="text-yellow-400 font-bold">in {inv.nextPayoutHours}h</span>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between gap-2 pt-1">
-                  <div className="flex items-center gap-1.5 text-[11px] text-zinc-500">
-                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Auto-compounding active</span>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setIsAlertModalOpen(true)}
-                      className="p-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-mono flex items-center gap-1"
-                      title="Manage alert targets for this asset"
-                    >
-                      <Bell className="w-3.5 h-3.5 text-emerald-400" />
-                    </button>
-
-                    <button
-                      onClick={() => handleClaimWithActivity(inv)}
-                      className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md transition"
-                    >
-                      Claim ${inv.earnedDividendsUsd.toFixed(2)} Dividends
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+        {/* User Investment Board with Running, Completed, ROI, WhatsApp Share & Certificate View */}
+        <UserInvestmentBoard
+          onNavigateToStake={() => window.scrollTo({ top: 350, behavior: 'smooth' })}
+          onOpenDeposit={onOpenDeposit}
+        />
       </div>
 
       {/* Staking Action Modal */}

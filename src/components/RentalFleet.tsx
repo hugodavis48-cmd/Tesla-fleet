@@ -144,6 +144,16 @@ export const RentalFleet: React.FC<RentalFleetProps> = ({ onOpenDeposit, onNavig
                   </button>
                   <button
                     onClick={() => {
+                      const text = encodeURIComponent(`Check out this Tesla rental on Apex Hub: ${vehicle.model} (${vehicle.trim}) for $${vehicle.dailyRateUsd}/day! ${window.location.href}`);
+                      window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
+                    }}
+                    title="Share on WhatsApp"
+                    className="px-1.5 py-0.5 rounded bg-emerald-600/20 text-emerald-300 hover:bg-emerald-600/30 cursor-pointer font-bold text-[10px]"
+                  >
+                    WhatsApp
+                  </button>
+                  <button
+                    onClick={() => {
                       const text = encodeURIComponent(`Rent this ${vehicle.model} on Apex Tesla Hub: ${window.location.href}`);
                       window.open(`https://threads.net/intent/post?text=${text}`, '_blank');
                     }}

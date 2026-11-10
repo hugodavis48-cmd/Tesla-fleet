@@ -172,6 +172,16 @@ export const ProductShop: React.FC<ProductShopProps> = ({ onOpenCart }) => {
                   </button>
                   <button
                     onClick={() => {
+                      const text = encodeURIComponent(`Check out ${product.name} on Apex Tesla Hub: ${window.location.href}`);
+                      window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
+                    }}
+                    title="Share on WhatsApp"
+                    className="px-1.5 py-0.5 rounded-lg bg-emerald-600/20 text-emerald-300 hover:bg-emerald-600/30 text-[10px] font-bold cursor-pointer"
+                  >
+                    WA
+                  </button>
+                  <button
+                    onClick={() => {
                       const url = encodeURIComponent(window.location.href);
                       window.open(`https://www.facebook.com/sharer/sharer.php?u=${url}`, '_blank');
                     }}
