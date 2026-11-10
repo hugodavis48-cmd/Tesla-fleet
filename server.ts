@@ -13,7 +13,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = Number(process.env.PORT) || 3000;
+const PORT = 3000;
 
 app.use(express.json());
 app.use('/api/auth', authRouter);
@@ -840,7 +840,7 @@ app.get('/api/cron/status', (_req, res) => {
   return res.json({
     active: cronActive,
     cyclesRun: cronCyclesRun,
-    lastRunTimestamp,
+    lastRunTimestamp: lastCronRunTimestamp,
     intervalMs: 60000,
     runningCount,
     completedCount,

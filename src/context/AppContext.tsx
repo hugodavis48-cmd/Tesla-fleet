@@ -2755,6 +2755,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         referralLink,
         updateReferralCode,
         simulateFriendReferral,
+        teslaCarListings,
+        createTeslaCarListing,
+        updateTeslaCarListing,
+        deleteTeslaCarListing,
+        nationwideShippingSettings,
+        updateShippingSettings,
+        vehicleRefundPolicy,
+        updateRefundPolicy,
+        vehicleOrders,
+        placeVehicleOrder,
       }}
     >
       {children}
