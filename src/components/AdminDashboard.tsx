@@ -46,6 +46,9 @@ import {
   Activity,
   CheckCircle,
   Lock,
+  Car,
+  Truck,
+  ShieldCheck,
 } from 'lucide-react';
 import {
   SmtpConfig,
@@ -59,6 +62,10 @@ import {
   ManualDepositMethod,
   SocialLinkConfig,
   InvestmentPool,
+  TeslaCarListing,
+  NationwideShippingSettings,
+  VehicleRefundPolicySettings,
+  VehicleOrder,
 } from '../types';
 
 const PREBUILT_TEMPLATES: EmailTemplate[] = [
@@ -173,6 +180,7 @@ type AdminTab =
   | 'users_kyc'
   | 'investment_mgmt'
   | 'notifications_hub'
+  | 'car_sales'
   | 'site_editor'
   | 'email_marketing'
   | 'fleet_ops';
@@ -227,11 +235,63 @@ export const AdminDashboard: React.FC = () => {
     sendTestEmail,
     sendMarketingCampaign,
     showToast,
+    teslaCarListings,
+    createTeslaCarListing,
+    updateTeslaCarListing,
+    deleteTeslaCarListing,
+    nationwideShippingSettings,
+    updateShippingSettings,
+    vehicleRefundPolicy,
+    updateRefundPolicy,
+    vehicleOrders,
   } = useApp();
 
   const [activeAdminTab, setActiveAdminTab] = useState<AdminTab>('users_kyc');
   const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
   const categoryDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Tesla Car Sales & Nationwide Logistics Admin State
+  const [carSalesSubTab, setCarSalesSubTab] = useState<'inventory' | 'shipping' | 'refund_policy' | 'orders'>('inventory');
+  const [carSearchTerm, setCarSearchTerm] = useState('');
+  const [carFilterModel, setCarFilterModel] = useState<string>('all');
+  const [editingCar, setEditingCar] = useState<TeslaCarListing | null>(null);
+  const [isAddingCar, setIsAddingCar] = useState(false);
+  const [newCarForm, setNewCarForm] = useState<Omit<TeslaCarListing, 'id'>>({
+    model: 'Model S',
+    trim: 'Model S Plaid Tri-Motor (1,020 HP)',
+    year: 2026,
+    originalPriceUsd: 89990,
+    salePriceUsd: 89990,
+    image: 'https://images.unsplash.com/photo-1617788138017-80ad40651399?auto=format&fit=crop&w=1200&q=80',
+    rangeMiles: 359,
+    zeroToSixty: '1.99s',
+    topSpeedMph: 200,
+    horsepower: 1020,
+    driveTrain: 'Tri-Motor All-Wheel Drive',
+    batteryKwh: 100,
+    color: 'Solid Black',
+    interiorColor: 'All Black with Carbon Fiber Decor',
+    autopilotType: 'Full Self-Driving (Supervised) Included',
+    inStock: true,
+    stockCount: 4,
+    vin: '5YJSA1E28TA994821',
+    description: 'High performance tri-motor track specification with carbon-sleeved rotors and Yoke steering.',
+    specs: {
+      seating: '5 Adults',
+      cargoSpaceCuFt: '28 cu ft',
+      weightLbs: '4,766 lbs',
+      superchargingMaxKw: '250 kW Supercharging V3/V4',
+      wheels: '21" Arachnid Forged Wheels',
+    },
+    deliveryEstimate: 'Priority Nationwide Express (2-4 Days)',
+    nationwideShippingFeeUsd: 1200,
+    refundPolicy: '7-Day / 1,000-Mile 100% Money-Back Guarantee',
+    warrantyDetails: '4-Yr / 50k Mi Basic • 8-Yr / 150k Mi Battery & Drivetrain',
+    isFeatured: true,
+  });
+
+  const [localShippingSettings, setLocalShippingSettings] = useState<NationwideShippingSettings>(nationwideShippingSettings);
+  const [localRefundPolicy, setLocalRefundPolicy] = useState<VehicleRefundPolicySettings>(vehicleRefundPolicy);
 
   // User Profile & KYC modal state
   const [selectedUserForKyc, setSelectedUserForKyc] = useState<User | null>(null);
@@ -379,6 +439,14 @@ export const AdminDashboard: React.FC = () => {
       description: 'Send custom broadcast or individual user inbox notifications & alerts',
       icon: Bell,
       badge: `${adminNotifications.length} Sent`,
+    },
+    {
+      id: 'car_sales' as const,
+      label: 'Tesla Car Sales, Shipping & Refunds',
+      shortLabel: 'Car Sales & Logistics',
+      description: 'Vehicle inventory, MSRP, nationwide shipping flat-rates & 7-day money-back guarantee',
+      icon: Car,
+      badge: `${teslaCarListings.length} Vehicles`,
     },
     {
       id: 'site_editor' as const,
@@ -2611,6 +2679,723 @@ export const AdminDashboard: React.FC = () => {
                   </button>
                 </div>
               </form>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB: TESLA CAR SALES, NATIONWIDE SHIPPING & REFUND POLICIES */}
+      {activeAdminTab === 'car_sales' && (
+        <div className="space-y-6 w-full">
+          {/* Header Card */}
+          <div className="p-6 rounded-3xl bg-gradient-to-r from-red-950/40 via-zinc-900 to-zinc-950 border border-red-500/30 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xl">
+            <div>
+              <div className="flex items-center gap-2">
+                <Car className="w-6 h-6 text-red-500" />
+                <h3 className="font-heading font-black text-xl text-white">
+                  Tesla Vehicle Sales, Shipping & Refund Management
+                </h3>
+              </div>
+              <p className="text-xs text-zinc-400 mt-1 max-w-xl">
+                Manage factory MSRP prices, inventory stock counts, nationwide enclosed carrier rates, 7-day refund guarantee policies, and customer vehicle deliveries.
+              </p>
+            </div>
+
+            {/* Sub Tabs */}
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setCarSalesSubTab('inventory')}
+                className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition ${
+                  carSalesSubTab === 'inventory'
+                    ? 'bg-red-600 text-white shadow-md'
+                    : 'bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800'
+                }`}
+              >
+                Vehicles ({teslaCarListings.length})
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setCarSalesSubTab('shipping')}
+                className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition ${
+                  carSalesSubTab === 'shipping'
+                    ? 'bg-red-600 text-white shadow-md'
+                    : 'bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800'
+                }`}
+              >
+                Nationwide Shipping
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setCarSalesSubTab('refund_policy')}
+                className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition ${
+                  carSalesSubTab === 'refund_policy'
+                    ? 'bg-red-600 text-white shadow-md'
+                    : 'bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800'
+                }`}
+              >
+                7-Day Refund Policy
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setCarSalesSubTab('orders')}
+                className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition ${
+                  carSalesSubTab === 'orders'
+                    ? 'bg-red-600 text-white shadow-md'
+                    : 'bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800'
+                }`}
+              >
+                Orders ({vehicleOrders.length})
+              </button>
+            </div>
+          </div>
+
+          {/* SUB-TAB 1: VEHICLE CATALOG & INVENTORY */}
+          {carSalesSubTab === 'inventory' && (
+            <div className="space-y-4">
+              {/* Controls bar */}
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-zinc-950 p-4 rounded-2xl border border-zinc-800">
+                <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                  <select
+                    value={carFilterModel}
+                    onChange={(e) => setCarFilterModel(e.target.value)}
+                    className="px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-xl text-xs text-white"
+                  >
+                    <option value="all">All Models ({teslaCarListings.length})</option>
+                    <option value="Cybertruck">Cybertruck</option>
+                    <option value="Model S">Model S</option>
+                    <option value="Model 3">Model 3</option>
+                    <option value="Model X">Model X</option>
+                    <option value="Model Y">Model Y</option>
+                    <option value="Roadster">Roadster</option>
+                  </select>
+
+                  <div className="relative flex-1 sm:w-60">
+                    <input
+                      type="text"
+                      placeholder="Search trim, color, VIN..."
+                      value={carSearchTerm}
+                      onChange={(e) => setCarSearchTerm(e.target.value)}
+                      className="w-full pl-8 pr-3 py-2 bg-zinc-900 border border-zinc-700 rounded-xl text-xs text-white placeholder-zinc-500"
+                    />
+                    <Car className="w-3.5 h-3.5 text-zinc-500 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsAddingCar(true)}
+                  className="w-full sm:w-auto px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-md shadow-red-950/40"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Add New Tesla Model</span>
+                </button>
+              </div>
+
+              {/* Vehicle Inventory List */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {teslaCarListings
+                  .filter((car) => {
+                    if (carFilterModel !== 'all' && car.model !== carFilterModel) return false;
+                    if (!carSearchTerm) return true;
+                    const q = carSearchTerm.toLowerCase();
+                    return (
+                      car.model.toLowerCase().includes(q) ||
+                      car.trim.toLowerCase().includes(q) ||
+                      car.color.toLowerCase().includes(q)
+                    );
+                  })
+                  .map((car) => (
+                    <div
+                      key={car.id}
+                      className="p-4 rounded-2xl bg-zinc-950 border border-zinc-800 space-y-3 flex flex-col justify-between hover:border-zinc-700 transition"
+                    >
+                      <div className="space-y-3">
+                        <div className="relative aspect-[16/10] bg-zinc-900 rounded-xl overflow-hidden">
+                          <img src={car.image} alt={car.model} className="w-full h-full object-cover" />
+                          <div className="absolute top-2 left-2 bg-black/70 backdrop-blur-md px-2 py-0.5 rounded text-[10px] font-bold text-white">
+                            {car.year} {car.model}
+                          </div>
+                          <div className="absolute top-2 right-2">
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                car.inStock ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-500/30' : 'bg-red-950/80 text-red-300 border border-red-500/30'
+                              }`}
+                            >
+                              {car.inStock ? `${car.stockCount} in stock` : 'Out of Stock'}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div>
+                          <h4 className="font-heading font-black text-white text-base truncate">
+                            {car.year} Tesla {car.model}
+                          </h4>
+                          <p className="text-xs text-zinc-400 truncate">{car.trim}</p>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2 text-xs p-2.5 rounded-xl bg-zinc-900/80 border border-zinc-800/80">
+                          <div>
+                            <span className="text-[10px] text-zinc-500 block">Original MSRP</span>
+                            <span className="font-bold text-white">${car.originalPriceUsd.toLocaleString()}</span>
+                          </div>
+                          <div>
+                            <span className="text-[10px] text-zinc-500 block">Sale Price</span>
+                            <span className="font-bold text-red-400">${car.salePriceUsd.toLocaleString()}</span>
+                          </div>
+                          <div>
+                            <span className="text-[10px] text-zinc-500 block">0-60 Acceleration</span>
+                            <span className="font-mono text-zinc-200">{car.zeroToSixty}</span>
+                          </div>
+                          <div>
+                            <span className="text-[10px] text-zinc-500 block">EPA Range</span>
+                            <span className="font-mono text-zinc-200">{car.rangeMiles} mi</span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between text-xs text-zinc-400">
+                          <span>Color: <strong className="text-zinc-200">{car.color}</strong></span>
+                          <span>VIN: <strong className="text-zinc-300 font-mono text-[10px]">{car.vin?.slice(-8) || 'N/A'}</strong></span>
+                        </div>
+                      </div>
+
+                      <div className="pt-2 border-t border-zinc-800 flex items-center justify-between gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            updateTeslaCarListing(car.id, { inStock: !car.inStock });
+                            showToast(`Updated stock status for ${car.model}.`, 'info');
+                          }}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                            car.inStock
+                              ? 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
+                              : 'bg-emerald-600 text-white'
+                          }`}
+                        >
+                          {car.inStock ? 'Mark Out of Stock' : 'Mark In Stock'}
+                        </button>
+
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setEditingCar(car)}
+                            className="p-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-300"
+                            title="Edit Vehicle"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (confirm(`Remove ${car.model} ${car.trim} from the sales catalog?`)) {
+                                deleteTeslaCarListing(car.id);
+                                showToast(`Removed ${car.model} from catalog.`, 'info');
+                              }
+                            }}
+                            className="p-1.5 rounded-lg bg-zinc-900 hover:bg-red-950/80 text-zinc-400 hover:text-red-400"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
+
+          {/* SUB-TAB 2: NATIONWIDE SHIPPING SETTINGS */}
+          {carSalesSubTab === 'shipping' && (
+            <div className="max-w-2xl bg-zinc-950 p-6 rounded-3xl border border-zinc-800 space-y-6">
+              <div className="border-b border-zinc-800 pb-3">
+                <h4 className="font-heading font-black text-lg text-white flex items-center gap-2">
+                  <Truck className="w-5 h-5 text-cyan-400" />
+                  <span>Nationwide Enclosed Carrier Settings</span>
+                </h4>
+                <p className="text-xs text-zinc-400 mt-1">
+                  Configure logistics rates, delivery estimates, carrier partnerships, and member tier exemptions.
+                </p>
+              </div>
+
+              <div className="space-y-4 text-xs">
+                <div>
+                  <label className="text-zinc-300 block mb-1 font-semibold">Standard Flat-Rate Shipping Fee ($ USD)</label>
+                  <input
+                    type="number"
+                    value={localShippingSettings.flatFeeUsd}
+                    onChange={(e) => setLocalShippingSettings({ ...localShippingSettings, flatFeeUsd: Number(e.target.value) })}
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3.5 py-2 text-white font-mono"
+                  />
+                  <span className="text-[11px] text-zinc-500 mt-1 block">
+                    Charged on all standard customer orders. Applies to all lower 48 states.
+                  </span>
+                </div>
+
+                <div>
+                  <label className="text-zinc-300 block mb-1 font-semibold">Estimated Turnaround Delivery Window</label>
+                  <input
+                    type="text"
+                    value={localShippingSettings.estimatedDays}
+                    onChange={(e) => setLocalShippingSettings({ ...localShippingSettings, estimatedDays: e.target.value })}
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3.5 py-2 text-white"
+                    placeholder="3 - 7 Business Days"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-zinc-300 block mb-1 font-semibold">Free Shipping Eligible Membership Tiers</label>
+                  <input
+                    type="text"
+                    value={localShippingSettings.freeShippingEligibleTiers.join(', ')}
+                    onChange={(e) =>
+                      setLocalShippingSettings({
+                        ...localShippingSettings,
+                        freeShippingEligibleTiers: e.target.value.split(',').map((s) => s.trim()).filter(Boolean),
+                      })
+                    }
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3.5 py-2 text-white"
+                    placeholder="Plaid Member, Founders Club"
+                  />
+                  <span className="text-[11px] text-zinc-500 mt-1 block">Comma-separated user tier names.</span>
+                </div>
+
+                <div>
+                  <label className="text-zinc-300 block mb-1 font-semibold">Authorized Enclosed Carrier Partners</label>
+                  <input
+                    type="text"
+                    value={localShippingSettings.carrierPartners.join(', ')}
+                    onChange={(e) =>
+                      setLocalShippingSettings({
+                        ...localShippingSettings,
+                        carrierPartners: e.target.value.split(',').map((s) => s.trim()).filter(Boolean),
+                      })
+                    }
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3.5 py-2 text-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-zinc-300 block mb-1 font-semibold">Carrier Live Tracking Portal URL Prefix</label>
+                  <input
+                    type="text"
+                    value={localShippingSettings.trackingPortalUrl}
+                    onChange={(e) => setLocalShippingSettings({ ...localShippingSettings, trackingPortalUrl: e.target.value })}
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3.5 py-2 text-white font-mono"
+                  />
+                </div>
+
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await updateShippingSettings(localShippingSettings);
+                      showToast('Nationwide shipping settings updated successfully.', 'success');
+                    }}
+                    className="px-6 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-md transition cursor-pointer"
+                  >
+                    Save Shipping Settings
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* SUB-TAB 3: 7-DAY REFUND POLICY SETTINGS */}
+          {carSalesSubTab === 'refund_policy' && (
+            <div className="max-w-2xl bg-zinc-950 p-6 rounded-3xl border border-zinc-800 space-y-6">
+              <div className="border-b border-zinc-800 pb-3">
+                <h4 className="font-heading font-black text-lg text-white flex items-center gap-2">
+                  <ShieldCheck className="w-5 h-5 text-emerald-400" />
+                  <span>7-Day / 1,000-Mile 100% Money-Back Policy Editor</span>
+                </h4>
+                <p className="text-xs text-zinc-400 mt-1">
+                  Edit the terms, evaluation period, mileage allowance, and legal disclosure presented to vehicle buyers.
+                </p>
+              </div>
+
+              <div className="space-y-4 text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="text-zinc-300 block mb-1 font-semibold">Evaluation Days</label>
+                    <input
+                      type="number"
+                      value={localRefundPolicy.trialDays}
+                      onChange={(e) => setLocalRefundPolicy({ ...localRefundPolicy, trialDays: Number(e.target.value) })}
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-zinc-300 block mb-1 font-semibold">Max Evaluation Mileage</label>
+                    <input
+                      type="number"
+                      value={localRefundPolicy.maxMileage}
+                      onChange={(e) => setLocalRefundPolicy({ ...localRefundPolicy, maxMileage: Number(e.target.value) })}
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-zinc-300 block mb-1 font-semibold">Money-Back %</label>
+                    <input
+                      type="number"
+                      value={localRefundPolicy.moneyBackGuaranteePercent}
+                      onChange={(e) => setLocalRefundPolicy({ ...localRefundPolicy, moneyBackGuaranteePercent: Number(e.target.value) })}
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-zinc-300 block mb-1 font-semibold">Refund Policy Terms & Summary Copy</label>
+                  <textarea
+                    rows={4}
+                    value={localRefundPolicy.termsSummary}
+                    onChange={(e) => setLocalRefundPolicy({ ...localRefundPolicy, termsSummary: e.target.value })}
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl p-3 text-white leading-relaxed"
+                  />
+                  <span className="text-[11px] text-zinc-500 mt-1 block">
+                    Rendered to customer before final checkout and printed on on-chain title certificates.
+                  </span>
+                </div>
+
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await updateRefundPolicy(localRefundPolicy);
+                      showToast('Vehicle refund policy settings updated successfully.', 'success');
+                    }}
+                    className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md transition cursor-pointer"
+                  >
+                    Save Refund Policy
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* SUB-TAB 4: CUSTOMER VEHICLE ORDERS */}
+          {carSalesSubTab === 'orders' && (
+            <div className="bg-zinc-950 p-6 rounded-3xl border border-zinc-800 space-y-4">
+              <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+                <h4 className="font-heading font-black text-lg text-white">
+                  Customer Vehicle Orders & Delivery Tracking
+                </h4>
+                <span className="text-xs font-mono text-zinc-400">{vehicleOrders.length} Confirmed Orders</span>
+              </div>
+
+              {vehicleOrders.length === 0 ? (
+                <div className="py-12 text-center text-zinc-500 text-xs space-y-2">
+                  <Truck className="w-10 h-10 mx-auto text-zinc-600" />
+                  <p>No customer vehicle orders have been placed yet.</p>
+                  <p className="text-[11px] text-zinc-600">Orders placed through the customer showroom will be logged here with assigned VIN and carrier tracking.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs text-zinc-300">
+                    <thead className="bg-zinc-900/80 text-zinc-400 text-[11px] uppercase border-b border-zinc-800">
+                      <tr>
+                        <th className="py-3 px-3">Order ID / Date</th>
+                        <th className="py-3 px-3">Customer</th>
+                        <th className="py-3 px-3">Vehicle Details</th>
+                        <th className="py-3 px-3">Assigned VIN</th>
+                        <th className="py-3 px-3">Carrier Tracking</th>
+                        <th className="py-3 px-3">Destination</th>
+                        <th className="py-3 px-3 text-right">Settlement</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-800/60 font-mono">
+                      {vehicleOrders.map((order) => (
+                        <tr key={order.id} className="hover:bg-zinc-900/40">
+                          <td className="py-3 px-3">
+                            <span className="font-bold text-white block">{order.id}</span>
+                            <span className="text-[10px] text-zinc-500">{order.orderedAt.substring(0, 10)}</span>
+                          </td>
+                          <td className="py-3 px-3 font-sans">
+                            <span className="font-semibold text-white block">{order.userName || 'Customer'}</span>
+                            <span className="text-[11px] text-zinc-400">{order.userEmail}</span>
+                          </td>
+                          <td className="py-3 px-3 font-sans">
+                            <span className="font-bold text-red-400 block">{order.vehicleName}</span>
+                            <span className="text-[11px] text-zinc-400">{order.paymentMethod}</span>
+                          </td>
+                          <td className="py-3 px-3 text-cyan-400 font-mono text-[11px]">{order.vinAssigned}</td>
+                          <td className="py-3 px-3 text-emerald-400 font-mono text-[11px]">{order.trackingNumber}</td>
+                          <td className="py-3 px-3 font-sans text-zinc-300">
+                            {order.shippingAddress.city}, {order.shippingAddress.state} {order.shippingAddress.zipCode}
+                          </td>
+                          <td className="py-3 px-3 text-right font-black text-white">
+                            ${order.totalUsd.toLocaleString()} USD
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* EDIT CAR MODAL */}
+          {editingCar && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+              <div className="bg-zinc-950 border border-zinc-800 rounded-3xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto space-y-4 text-xs">
+                <div className="flex justify-between items-center border-b border-zinc-800 pb-3">
+                  <h3 className="font-heading font-black text-base text-white">
+                    Edit {editingCar.model} {editingCar.trim}
+                  </h3>
+                  <button onClick={() => setEditingCar(null)} className="text-zinc-400 hover:text-white">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-zinc-400 block mb-1">Trim Name</label>
+                    <input
+                      type="text"
+                      value={editingCar.trim}
+                      onChange={(e) => setEditingCar({ ...editingCar, trim: e.target.value })}
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-zinc-400 block mb-1">Sale Price ($ USD)</label>
+                      <input
+                        type="number"
+                        value={editingCar.salePriceUsd}
+                        onChange={(e) => setEditingCar({ ...editingCar, salePriceUsd: Number(e.target.value) })}
+                        className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-zinc-400 block mb-1">Stock Count</label>
+                      <input
+                        type="number"
+                        value={editingCar.stockCount}
+                        onChange={(e) => setEditingCar({ ...editingCar, stockCount: Number(e.target.value) })}
+                        className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-zinc-400 block mb-1">Image URL</label>
+                    <input
+                      type="text"
+                      value={editingCar.image}
+                      onChange={(e) => setEditingCar({ ...editingCar, image: e.target.value })}
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-zinc-400 block mb-1">Range (Miles)</label>
+                      <input
+                        type="number"
+                        value={editingCar.rangeMiles}
+                        onChange={(e) => setEditingCar({ ...editingCar, rangeMiles: Number(e.target.value) })}
+                        className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-zinc-400 block mb-1">0-60 Time</label>
+                      <input
+                        type="text"
+                        value={editingCar.zeroToSixty}
+                        onChange={(e) => setEditingCar({ ...editingCar, zeroToSixty: e.target.value })}
+                        className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-zinc-400 block mb-1">Exterior Color</label>
+                    <input
+                      type="text"
+                      value={editingCar.color}
+                      onChange={(e) => setEditingCar({ ...editingCar, color: e.target.value })}
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditingCar(null)}
+                    className="flex-1 py-2.5 rounded-xl bg-zinc-800 text-zinc-300 font-bold"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await updateTeslaCarListing(editingCar.id, editingCar);
+                      setEditingCar(null);
+                      showToast(`Saved changes to ${editingCar.model}.`, 'success');
+                    }}
+                    className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold"
+                  >
+                    Save Changes
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ADD NEW CAR MODAL */}
+          {isAddingCar && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+              <div className="bg-zinc-950 border border-zinc-800 rounded-3xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto space-y-4 text-xs">
+                <div className="flex justify-between items-center border-b border-zinc-800 pb-3">
+                  <h3 className="font-heading font-black text-base text-white">
+                    Add New Tesla Model to Sales Catalog
+                  </h3>
+                  <button onClick={() => setIsAddingCar(false)} className="text-zinc-400 hover:text-white">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-zinc-400 block mb-1">Model</label>
+                      <select
+                        value={newCarForm.model}
+                        onChange={(e) => setNewCarForm({ ...newCarForm, model: e.target.value as any })}
+                        className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white"
+                      >
+                        <option value="Model S">Model S</option>
+                        <option value="Model 3">Model 3</option>
+                        <option value="Model X">Model X</option>
+                        <option value="Model Y">Model Y</option>
+                        <option value="Cybertruck">Cybertruck</option>
+                        <option value="Roadster">Roadster</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-zinc-400 block mb-1">Year</label>
+                      <input
+                        type="number"
+                        value={newCarForm.year}
+                        onChange={(e) => setNewCarForm({ ...newCarForm, year: Number(e.target.value) })}
+                        className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-zinc-400 block mb-1">Trim Name</label>
+                    <input
+                      type="text"
+                      value={newCarForm.trim}
+                      onChange={(e) => setNewCarForm({ ...newCarForm, trim: e.target.value })}
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white"
+                      placeholder="e.g. Plaid Tri-Motor"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-zinc-400 block mb-1">Price ($ USD)</label>
+                      <input
+                        type="number"
+                        value={newCarForm.salePriceUsd}
+                        onChange={(e) =>
+                          setNewCarForm({
+                            ...newCarForm,
+                            salePriceUsd: Number(e.target.value),
+                            originalPriceUsd: Number(e.target.value),
+                          })
+                        }
+                        className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-zinc-400 block mb-1">Stock Units</label>
+                      <input
+                        type="number"
+                        value={newCarForm.stockCount}
+                        onChange={(e) => setNewCarForm({ ...newCarForm, stockCount: Number(e.target.value) })}
+                        className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-zinc-400 block mb-1">Image URL</label>
+                    <input
+                      type="text"
+                      value={newCarForm.image}
+                      onChange={(e) => setNewCarForm({ ...newCarForm, image: e.target.value })}
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-zinc-400 block mb-1">Range (Miles)</label>
+                      <input
+                        type="number"
+                        value={newCarForm.rangeMiles}
+                        onChange={(e) => setNewCarForm({ ...newCarForm, rangeMiles: Number(e.target.value) })}
+                        className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-zinc-400 block mb-1">0-60 Time</label>
+                      <input
+                        type="text"
+                        value={newCarForm.zeroToSixty}
+                        onChange={(e) => setNewCarForm({ ...newCarForm, zeroToSixty: e.target.value })}
+                        className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-zinc-400 block mb-1">Exterior Color</label>
+                    <input
+                      type="text"
+                      value={newCarForm.color}
+                      onChange={(e) => setNewCarForm({ ...newCarForm, color: e.target.value })}
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsAddingCar(false)}
+                    className="flex-1 py-2.5 rounded-xl bg-zinc-800 text-zinc-300 font-bold"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await createTeslaCarListing(newCarForm);
+                      setIsAddingCar(false);
+                      showToast(`Added Tesla ${newCarForm.model} to catalog!`, 'success');
+                    }}
+                    className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold"
+                  >
+                    Create Model Listing
+                  </button>
+                </div>
+              </div>
             </div>
           )}
         </div>

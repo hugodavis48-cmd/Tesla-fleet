@@ -258,13 +258,13 @@ export interface UserInvestment {
 export interface ProductItem {
   id: string;
   name: string;
-  category: 'Wraps & Film' | 'Wheels & Performance' | 'Interior & Yoke' | 'Aero & Carbon' | 'Charging & Tech';
+  category: 'Wraps & Film' | 'Wheels & Performance' | 'Interior & Yoke' | 'Aero & Carbon' | 'Charging & Tech' | 'Vehicle Sales';
   priceUsd: number;
-  rating: number;
-  reviewsCount: number;
+  rating?: number;
+  reviewsCount?: number;
   image: string;
   description: string;
-  compatibility: string;
+  compatibility?: string;
   inStock: boolean;
 }
 

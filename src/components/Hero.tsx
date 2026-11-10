@@ -57,12 +57,20 @@ export const Hero: React.FC<HeroProps> = ({ onNavigate, onOpenDeposit }) => {
           {/* Action CTAs */}
           <div className="flex flex-wrap items-center justify-center gap-3 pt-3">
             <button
-              onClick={() => onNavigate('services')}
-              className="px-6 py-3.5 rounded-2xl bg-gradient-to-r from-red-600 via-red-500 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-heading font-bold text-sm shadow-xl shadow-red-950/50 flex items-center gap-2 transition hover:scale-[1.02]"
+              onClick={() => onNavigate('vehicles')}
+              className="px-6 py-3.5 rounded-2xl bg-gradient-to-r from-red-600 via-rose-600 to-red-600 hover:from-red-500 text-white font-heading font-bold text-sm shadow-xl shadow-red-950/60 flex items-center gap-2 transition hover:scale-[1.02]"
             >
-              <Wrench className="w-4 h-4" />
-              <span>Book Service & Diagnostics</span>
+              <Car className="w-4 h-4 text-white" />
+              <span>Buy Tesla • All Models</span>
               <ArrowRight className="w-4 h-4" />
+            </button>
+
+            <button
+              onClick={() => onNavigate('services')}
+              className="px-6 py-3.5 rounded-2xl bg-zinc-900/90 hover:bg-zinc-800 border border-zinc-700/80 text-white font-heading font-bold text-sm flex items-center gap-2 transition hover:scale-[1.02]"
+            >
+              <Wrench className="w-4 h-4 text-red-400" />
+              <span>Book Service & Fixes</span>
             </button>
 
             <button

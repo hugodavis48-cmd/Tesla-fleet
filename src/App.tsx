@@ -26,6 +26,7 @@ import { AuthModal } from './components/AuthModal';
 import { CartModal } from './components/CartModal';
 import { ReferralHub } from './components/ReferralHub';
 import { SocialConnect } from './components/SocialConnect';
+import { TeslaCarSales } from './components/TeslaCarSales';
 import { CheckCircle2, AlertCircle, Info } from 'lucide-react';
 
 const MainAppContent: React.FC = () => {
@@ -65,6 +66,20 @@ const MainAppContent: React.FC = () => {
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
               onOpenDeposit={() => setIsDepositModalOpen(true)}
+            />
+
+            {/* Tesla Vehicle Sales & Direct Delivery Inventory */}
+            <TeslaCarSales
+              onOpenDeposit={() => setIsDepositModalOpen(true)}
+              onNavigateToDashboard={() => {
+                setActiveTab('dashboard');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              isHomeTeaser={true}
+              onViewAll={() => {
+                setActiveTab('vehicles');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
             />
 
             {/* Custom Studio Wrap Preview Section on Home */}
@@ -108,6 +123,16 @@ const MainAppContent: React.FC = () => {
             <FaqSection />
             <ContactSection />
           </div>
+        )}
+
+        {activeTab === 'vehicles' && (
+          <TeslaCarSales
+            onOpenDeposit={() => setIsDepositModalOpen(true)}
+            onNavigateToDashboard={() => {
+              setActiveTab('dashboard');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+          />
         )}
 
         {activeTab === 'services' && (

@@ -51,6 +51,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   const navLinks = [
     { id: 'home', label: 'Home' },
+    { id: 'vehicles', label: 'Buy Tesla', icon: Car, highlight: true },
     { id: 'services', label: 'Service & Fixes', icon: Wrench },
     { id: 'wraps', label: 'Wrap Studio', icon: Palette },
     { id: 'rentals', label: 'Rentals', icon: Car },
