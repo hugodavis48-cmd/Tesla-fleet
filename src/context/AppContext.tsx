@@ -28,6 +28,8 @@ import {
   VehicleOrder,
   NationwideShippingSettings,
   VehicleRefundPolicySettings,
+  Coupon,
+  OrderCheckpoint,
 } from '../types';
 import {
   CRYPTO_NETWORKS,
@@ -43,6 +45,8 @@ import {
   INITIAL_TESLA_CARS,
   DEFAULT_SHIPPING_SETTINGS,
   DEFAULT_REFUND_POLICY,
+  INITIAL_COUPONS,
+  INITIAL_VEHICLE_ORDERS,
 } from '../data/mockData';
 
 interface AppContextType {
@@ -184,8 +188,31 @@ interface AppContextType {
   placeVehicleOrder: (
     vehicle: TeslaCarListing,
     address: ShippingAddress,
-    paymentMethod?: string
+    paymentMethod?: string,
+    appliedCoupon?: Coupon | null
   ) => Promise<{ success: boolean; orderId?: string; message: string }>;
+  updateVehicleOrderStatus: (
+    orderId: string,
+    status: VehicleOrder['status'],
+    trackingNumber?: string,
+    checkpointNote?: string,
+    carrierName?: string,
+    estimatedDelivery?: string
+  ) => void;
+  // Coupons & Promo Codes Engine
+  coupons: Coupon[];
+  activeCoupon: Coupon | null;
+  claimedCoupons: string[];
+  claimCoupon: (code: string) => void;
+  applyCoupon: (
+    code: string,
+    context?: 'products' | 'vehicles' | 'spins' | 'services'
+  ) => { success: boolean; message: string; discountAmount?: number; freeSpins?: number };
+  removeCoupon: () => void;
+  createCoupon: (coupon: Omit<Coupon, 'id' | 'timesUsed'>) => void;
+  updateCoupon: (id: string, updates: Partial<Coupon>) => void;
+  deleteCoupon: (id: string) => void;
+  toggleCouponActive: (id: string) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -837,7 +864,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Vehicle Orders
   const [vehicleOrders, setVehicleOrders] = useState<VehicleOrder[]>(() => {
     const saved = localStorage.getItem('apex_vehicle_orders');
-    return saved ? JSON.parse(saved) : [];
+    return saved ? JSON.parse(saved) : INITIAL_VEHICLE_ORDERS;
+  });
+
+  // Coupons & Promo Codes state
+  const [coupons, setCoupons] = useState<Coupon[]>(() => {
+    const saved = localStorage.getItem('apex_coupons');
+    return saved ? JSON.parse(saved) : INITIAL_COUPONS;
+  });
+  const [activeCoupon, setActiveCoupon] = useState<Coupon | null>(null);
+  const [claimedCoupons, setClaimedCoupons] = useState<string[]>(() => {
+    const saved = localStorage.getItem('apex_claimed_coupons');
+    return saved ? JSON.parse(saved) : ['CYBER20', 'FREESPINS5'];
   });
 
   // Automated ROI Cron Engine state
@@ -2561,10 +2599,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const placeVehicleOrder = async (
     vehicle: TeslaCarListing,
     address: ShippingAddress,
-    paymentMethod: string = 'vault_balance'
+    paymentMethod: string = 'vault_balance',
+    appliedCoupon: Coupon | null = null
   ): Promise<{ success: boolean; orderId?: string; message: string }> => {
-    const shippingFee = vehicle.nationwideShippingFeeUsd ?? nationwideShippingSettings.flatFeeUsd;
-    const totalUsd = vehicle.salePriceUsd + shippingFee;
+    const shippingFee = appliedCoupon?.discountType === 'free_shipping'
+      ? 0
+      : (vehicle.nationwideShippingFeeUsd ?? nationwideShippingSettings.flatFeeUsd);
+
+    let discount = 0;
+    if (appliedCoupon) {
+      if (appliedCoupon.discountType === 'percentage') {
+        discount = Number(((vehicle.salePriceUsd * appliedCoupon.discountValue) / 100).toFixed(2));
+        if (appliedCoupon.maxDiscountUsd) discount = Math.min(discount, appliedCoupon.maxDiscountUsd);
+      } else if (appliedCoupon.discountType === 'fixed_usd') {
+        discount = appliedCoupon.discountValue;
+      }
+    }
+
+    const totalUsd = Math.max(0, vehicle.salePriceUsd - discount + shippingFee);
 
     if (paymentMethod === 'vault_balance' && balances.usd < totalUsd) {
       showToast(`Insufficient vault balance ($${balances.usd.toFixed(2)}). Total is $${totalUsd.toLocaleString()} USD.`, 'error');
@@ -2593,10 +2645,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       shippingAddress: address,
       status: 'confirmed',
       trackingNumber,
+      carrierName: 'Reliable Carriers Inc. (Enclosed Transporter)',
+      estimatedDelivery: '3 - 5 Business Days',
       refundPolicyAccepted: true,
       orderedAt: new Date().toISOString(),
       vinAssigned,
       paymentMethod,
+      discountAppliedUsd: discount,
+      appliedCouponCode: appliedCoupon?.code,
+      checkpoints: [
+        {
+          id: `chk-${Date.now()}-1`,
+          status: 'confirmed',
+          title: 'Order Confirmed & Payment Verified',
+          location: 'Apex Tesla Hub • Fremont Technology Center',
+          timestamp: new Date().toLocaleString(),
+          note: `Payment verified via ${paymentMethod}. VIN ${vinAssigned} allocated. 7-Day Money-Back Guarantee active.`,
+        },
+      ],
     };
 
     setVehicleOrders((prev) => [newOrder, ...prev]);
@@ -2660,6 +2726,184 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     return { success: true, orderId, message: 'Order confirmed successfully!' };
+  };
+
+  const updateVehicleOrderStatus = (
+    orderId: string,
+    status: VehicleOrder['status'],
+    trackingNumber?: string,
+    checkpointNote?: string,
+    carrierName?: string,
+    estimatedDelivery?: string
+  ) => {
+    setVehicleOrders((prev) => {
+      const updated = prev.map((ord) => {
+        if (ord.id !== orderId) return ord;
+        const newCheckpoint: OrderCheckpoint = {
+          id: `chk-${Date.now()}`,
+          status,
+          title:
+            status === 'carrier_assigned'
+              ? 'Enclosed Carrier & Transporter Assigned'
+              : status === 'in_transit'
+              ? 'In Transit: Highway Carrier Telemetry Active'
+              : status === 'out_for_delivery'
+              ? 'Out for Delivery to Driveway'
+              : status === 'delivered'
+              ? 'Delivered & Handed Over to Customer'
+              : 'Order Status Updated',
+          location: ord.shippingAddress ? `${ord.shippingAddress.city}, ${ord.shippingAddress.state}` : 'Apex Logistics Route',
+          timestamp: new Date().toLocaleString(),
+          note: checkpointNote || `Order updated to ${status.replace('_', ' ').toUpperCase()} by logistics dispatch.`,
+        };
+        return {
+          ...ord,
+          status,
+          trackingNumber: trackingNumber || ord.trackingNumber,
+          carrierName: carrierName || ord.carrierName,
+          estimatedDelivery: estimatedDelivery || ord.estimatedDelivery,
+          checkpoints: [...(ord.checkpoints || []), newCheckpoint],
+        };
+      });
+      localStorage.setItem('apex_vehicle_orders', JSON.stringify(updated));
+      return updated;
+    });
+
+    // Notify customer
+    sendNotification({
+      title: `📦 Order #${orderId} Update: ${status.replace('_', ' ').toUpperCase()}`,
+      message: checkpointNote || `Your Tesla vehicle shipment status is now: ${status.replace('_', ' ').toUpperCase()}. Track live in your dashboard.`,
+      type: 'direct_message',
+      priority: status === 'delivered' ? 'high' : 'normal',
+      targetType: 'user',
+      targetUserId: currentUser?.id || 'usr-apex-001',
+      targetUserName: currentUser?.name || 'Alex Vance',
+      actionUrl: 'dashboard',
+      actionText: 'Track Shipment',
+    });
+
+    showToast(`Order #${orderId} status updated to ${status.replace('_', ' ').toUpperCase()}.`, 'success');
+  };
+
+  // Coupons & Promo Codes Engine
+  const claimCoupon = (code: string) => {
+    const upper = code.trim().toUpperCase();
+    if (!claimedCoupons.includes(upper)) {
+      setClaimedCoupons((prev) => {
+        const next = [...prev, upper];
+        localStorage.setItem('apex_claimed_coupons', JSON.stringify(next));
+        return next;
+      });
+    }
+    navigator.clipboard?.writeText(upper).catch(() => {});
+    showToast(`Coupon code ${upper} copied to clipboard!`, 'success');
+  };
+
+  const applyCoupon = (
+    code: string,
+    context?: 'products' | 'vehicles' | 'spins' | 'services'
+  ): { success: boolean; message: string; discountAmount?: number; freeSpins?: number } => {
+    const upper = code.trim().toUpperCase();
+    const found = coupons.find((c) => c.code.toUpperCase() === upper);
+
+    if (!found) {
+      showToast(`Invalid coupon code: "${code}".`, 'error');
+      return { success: false, message: 'Invalid coupon code' };
+    }
+
+    if (!found.isActive) {
+      showToast(`Coupon "${code}" is currently inactive.`, 'error');
+      return { success: false, message: 'Coupon is inactive' };
+    }
+
+    if (new Date(found.expiresAt).getTime() < Date.now()) {
+      showToast(`Coupon "${code}" has expired.`, 'error');
+      return { success: false, message: 'Coupon expired' };
+    }
+
+    if (found.validFor !== 'all' && context && found.validFor !== context) {
+      showToast(`Coupon "${code}" is only valid for ${found.validFor}.`, 'error');
+      return { success: false, message: `Only valid for ${found.validFor}` };
+    }
+
+    // Free spins
+    if (found.discountType === 'free_spins') {
+      const addedSpins = found.discountValue || 5;
+      setAvailableSpins((prev) => prev + addedSpins);
+      setCoupons((prev) => {
+        const next = prev.map((c) => (c.id === found.id ? { ...c, timesUsed: c.timesUsed + 1 } : c));
+        localStorage.setItem('apex_coupons', JSON.stringify(next));
+        return next;
+      });
+      showToast(`🎁 Claimed ${addedSpins} Free Wheel Spins with code ${upper}!`, 'success');
+      return { success: true, message: `Added ${addedSpins} free spins`, freeSpins: addedSpins };
+    }
+
+    // Set as active coupon
+    setActiveCoupon(found);
+    setCoupons((prev) => {
+      const next = prev.map((c) => (c.id === found.id ? { ...c, timesUsed: c.timesUsed + 1 } : c));
+      localStorage.setItem('apex_coupons', JSON.stringify(next));
+      return next;
+    });
+
+    const desc =
+      found.discountType === 'percentage'
+        ? `${found.discountValue}% OFF`
+        : found.discountType === 'fixed_usd'
+        ? `$${found.discountValue} USD OFF`
+        : 'Free Nationwide Shipping';
+
+    showToast(`⚡ Promo code ${upper} applied: ${desc}!`, 'success');
+    return { success: true, message: `Applied ${desc}`, discountAmount: found.discountValue };
+  };
+
+  const removeCoupon = () => {
+    setActiveCoupon(null);
+    showToast('Promo coupon removed.', 'info');
+  };
+
+  const createCoupon = (couponData: Omit<Coupon, 'id' | 'timesUsed'>) => {
+    const newCoupon: Coupon = {
+      ...couponData,
+      id: `coup-${Date.now().toString(36)}`,
+      code: couponData.code.trim().toUpperCase(),
+      timesUsed: 0,
+    };
+    setCoupons((prev) => {
+      const next = [newCoupon, ...prev];
+      localStorage.setItem('apex_coupons', JSON.stringify(next));
+      return next;
+    });
+    showToast(`Created new promo coupon "${newCoupon.code}".`, 'success');
+  };
+
+  const updateCoupon = (id: string, updates: Partial<Coupon>) => {
+    setCoupons((prev) => {
+      const next = prev.map((c) =>
+        c.id === id ? { ...c, ...updates, code: updates.code ? updates.code.toUpperCase() : c.code } : c
+      );
+      localStorage.setItem('apex_coupons', JSON.stringify(next));
+      return next;
+    });
+    showToast('Coupon updated successfully.', 'success');
+  };
+
+  const deleteCoupon = (id: string) => {
+    setCoupons((prev) => {
+      const next = prev.filter((c) => c.id !== id);
+      localStorage.setItem('apex_coupons', JSON.stringify(next));
+      return next;
+    });
+    showToast('Coupon deleted.', 'info');
+  };
+
+  const toggleCouponActive = (id: string) => {
+    setCoupons((prev) => {
+      const next = prev.map((c) => (c.id === id ? { ...c, isActive: !c.isActive } : c));
+      localStorage.setItem('apex_coupons', JSON.stringify(next));
+      return next;
+    });
   };
 
   return (
@@ -2765,6 +3009,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateRefundPolicy,
         vehicleOrders,
         placeVehicleOrder,
+        updateVehicleOrderStatus,
+        coupons,
+        activeCoupon,
+        claimedCoupons,
+        claimCoupon,
+        applyCoupon,
+        removeCoupon,
+        createCoupon,
+        updateCoupon,
+        deleteCoupon,
+        toggleCouponActive,
       }}
     >
       {children}

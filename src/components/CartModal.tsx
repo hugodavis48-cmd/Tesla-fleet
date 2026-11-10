@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { X, Trash2, ShoppingBag, ArrowRight, ShieldCheck, Plus, Minus } from 'lucide-react';
+import { X, Trash2, ShoppingBag, ArrowRight, ShieldCheck, Plus, Tag, Check, Sparkles } from 'lucide-react';
 
 interface CartModalProps {
   isOpen: boolean;
@@ -9,12 +9,41 @@ interface CartModalProps {
 }
 
 export const CartModal: React.FC<CartModalProps> = ({ isOpen, onClose, onOpenDeposit }) => {
-  const { cart, removeFromCart, addToCart, checkoutCart, balances } = useApp();
+  const { cart, removeFromCart, addToCart, checkoutCart, balances, activeCoupon, applyCoupon, removeCoupon } = useApp();
+  const [couponInput, setCouponInput] = useState('');
+  const [couponError, setCouponError] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
-  const totalUsd = cart.reduce((acc, item) => acc + item.product.priceUsd * item.quantity, 0);
-  const hasSufficientBalance = balances.usd >= totalUsd;
+  const subtotalUsd = cart.reduce((acc, item) => acc + item.product.priceUsd * item.quantity, 0);
+
+  // Calculate coupon discount
+  let discountUsd = 0;
+  if (activeCoupon && (activeCoupon.validFor === 'all' || activeCoupon.validFor === 'products')) {
+    if (activeCoupon.discountType === 'percentage') {
+      discountUsd = (subtotalUsd * activeCoupon.discountValue) / 100;
+      if (activeCoupon.maxDiscountUsd && discountUsd > activeCoupon.maxDiscountUsd) {
+        discountUsd = activeCoupon.maxDiscountUsd;
+      }
+    } else if (activeCoupon.discountType === 'fixed_usd') {
+      discountUsd = Math.min(subtotalUsd, activeCoupon.discountValue);
+    }
+  }
+
+  const finalTotalUsd = Math.max(0, subtotalUsd - discountUsd);
+  const hasSufficientBalance = balances.usd >= finalTotalUsd;
+
+  const handleApplyCoupon = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!couponInput.trim()) return;
+    setCouponError(null);
+    const result = applyCoupon(couponInput.trim(), 'products');
+    if (!result.success) {
+      setCouponError(result.message);
+    } else {
+      setCouponInput('');
+    }
+  };
 
   const handleCheckout = () => {
     if (checkoutCart()) {
@@ -35,7 +64,7 @@ export const CartModal: React.FC<CartModalProps> = ({ isOpen, onClose, onOpenDep
           </button>
         </div>
 
-        <div className="p-6 max-h-[60vh] overflow-y-auto space-y-4">
+        <div className="p-6 max-h-[50vh] overflow-y-auto space-y-3">
           {cart.length === 0 ? (
             <div className="text-center py-10 space-y-2">
               <ShoppingBag className="w-12 h-12 text-zinc-600 mx-auto" />
@@ -77,13 +106,77 @@ export const CartModal: React.FC<CartModalProps> = ({ isOpen, onClose, onOpenDep
 
         {cart.length > 0 && (
           <div className="p-6 bg-zinc-900/90 border-t border-zinc-800 space-y-4">
-            <div className="flex justify-between items-center text-sm">
-              <span className="text-zinc-400">Total Due (Free Shipping):</span>
-              <span className="font-heading font-bold text-xl text-white">${totalUsd.toLocaleString()} USD</span>
+            {/* Promo Code Entry Box */}
+            <div className="space-y-1.5">
+              {activeCoupon ? (
+                <div className="flex items-center justify-between p-2.5 rounded-xl bg-red-950/40 border border-red-500/40 text-xs">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-red-400" />
+                    <div>
+                      <span className="font-mono font-bold text-red-300">{activeCoupon.code}</span>
+                      <span className="text-zinc-400 ml-2">({activeCoupon.title})</span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={removeCoupon}
+                    className="p-1 text-zinc-400 hover:text-white rounded hover:bg-zinc-800"
+                    title="Remove coupon"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <form onSubmit={handleApplyCoupon} className="flex gap-2">
+                  <div className="relative flex-1">
+                    <input
+                      type="text"
+                      value={couponInput}
+                      onChange={(e) => {
+                        setCouponInput(e.target.value.toUpperCase());
+                        setCouponError(null);
+                      }}
+                      placeholder="Enter promo coupon (e.g. CYBER20)"
+                      className="w-full pl-8 pr-3 py-2 bg-zinc-950 border border-zinc-700 rounded-xl text-xs text-white placeholder-zinc-500 uppercase font-mono focus:outline-none focus:border-red-500"
+                    />
+                    <Tag className="w-3.5 h-3.5 text-zinc-500 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                  </div>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white font-bold text-xs transition"
+                  >
+                    Apply
+                  </button>
+                </form>
+              )}
+              {couponError && <p className="text-[11px] text-rose-400 pl-1">{couponError}</p>}
+            </div>
+
+            {/* Price Calculations */}
+            <div className="space-y-1 text-xs">
+              <div className="flex justify-between items-center text-zinc-400">
+                <span>Subtotal:</span>
+                <span className="font-mono text-zinc-200">${subtotalUsd.toLocaleString()} USD</span>
+              </div>
+              {discountUsd > 0 && (
+                <div className="flex justify-between items-center text-emerald-400 font-semibold">
+                  <span>Coupon Discount ({activeCoupon?.code}):</span>
+                  <span className="font-mono">- ${discountUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD</span>
+                </div>
+              )}
+              <div className="flex justify-between items-center text-zinc-400">
+                <span>Nationwide Shipping:</span>
+                <span className="text-emerald-400 font-semibold">FREE ($0.00)</span>
+              </div>
+              <div className="flex justify-between items-center text-sm font-bold pt-2 border-t border-zinc-800">
+                <span className="text-zinc-200">Total Due:</span>
+                <span className="font-heading font-black text-xl text-white">
+                  ${finalTotalUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
+                </span>
+              </div>
             </div>
 
             <div className="flex justify-between items-center text-xs p-2.5 rounded-xl bg-zinc-950 border border-zinc-800">
-              <span className="text-zinc-400">Available Wallet Balance:</span>
+              <span className="text-zinc-400">Available Vault Balance:</span>
               <span className={`font-semibold ${hasSufficientBalance ? 'text-emerald-400' : 'text-amber-400'}`}>
                 ${balances.usd.toFixed(2)} USD
               </span>
@@ -101,7 +194,7 @@ export const CartModal: React.FC<CartModalProps> = ({ isOpen, onClose, onOpenDep
                   <span>Deposit Funds via Crypto (USDT, BTC, XRP, BNB)</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
-                <p className="text-[11px] text-zinc-500 text-center">Short by ${(totalUsd - balances.usd).toFixed(2)} USD</p>
+                <p className="text-[11px] text-zinc-500 text-center">Short by ${(finalTotalUsd - balances.usd).toFixed(2)} USD</p>
               </div>
             ) : (
               <button

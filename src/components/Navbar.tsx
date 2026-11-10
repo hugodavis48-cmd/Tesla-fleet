@@ -21,6 +21,8 @@ import {
   Share2,
   Bell,
   MessageCircle,
+  Tag,
+  Truck,
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -29,6 +31,7 @@ interface NavbarProps {
   onOpenDeposit: () => void;
   onOpenAuth: () => void;
   onOpenCart: () => void;
+  onOpenTracking?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -37,6 +40,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenDeposit,
   onOpenAuth,
   onOpenCart,
+  onOpenTracking,
 }) => {
   const { currentUser, logout, balances, cart, userRole, setRole, adminNotifications } = useApp();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -52,11 +56,12 @@ export const Navbar: React.FC<NavbarProps> = ({
   const navLinks = [
     { id: 'home', label: 'Home' },
     { id: 'vehicles', label: 'Buy Tesla', icon: Car, highlight: true },
+    { id: 'coupons', label: 'Coupons', icon: Tag, highlight: true },
     { id: 'services', label: 'Service & Fixes', icon: Wrench },
     { id: 'wraps', label: 'Wrap Studio', icon: Palette },
     { id: 'rentals', label: 'Rentals', icon: Car },
     { id: 'investment', label: 'Fleet Yield', icon: TrendingUp },
-    { id: 'promotions', label: 'Spin & Win', icon: Gift, highlight: true },
+    { id: 'promotions', label: 'Spin & Win', icon: Gift },
     { id: 'referrals', label: 'Refer & Earn', icon: Users, badge: '+$100' },
     { id: 'social', label: 'Social', icon: Share2 },
     { id: 'shop', label: 'Parts & Store' },
@@ -166,6 +171,18 @@ export const Navbar: React.FC<NavbarProps> = ({
             <span className="hidden lg:inline text-[11px]">WhatsApp</span>
           </a>
 
+          {/* Track Orders Quick Trigger */}
+          {onOpenTracking && (
+            <button
+              onClick={onOpenTracking}
+              className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-cyan-950/40 border border-cyan-500/30 hover:border-cyan-500/60 text-cyan-300 hover:text-cyan-200 text-xs font-semibold transition"
+              title="Track Vehicle & Parts Orders"
+            >
+              <Truck className="w-3.5 h-3.5 text-cyan-400" />
+              <span className="hidden lg:inline text-[11px]">Track Order</span>
+            </button>
+          )}
+
           {/* User Notifications Bell */}
           <button
             onClick={() => handleNavClick('dashboard')}
@@ -248,6 +265,17 @@ export const Navbar: React.FC<NavbarProps> = ({
                   >
                     <LayoutDashboard className="w-3.5 h-3.5 text-red-500" />
                     <span>Personalized Dashboard</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      if (onOpenTracking) onOpenTracking();
+                      setUserDropdownOpen(false);
+                    }}
+                    className="w-full px-4 py-2 text-left text-xs hover:bg-zinc-900 flex items-center gap-2 text-zinc-300 hover:text-white transition"
+                  >
+                    <Truck className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>Track Vehicle & Orders</span>
                   </button>
 
                   <button
@@ -343,6 +371,30 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               + Deposit Crypto
             </button>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 mb-2">
+            {onOpenTracking && (
+              <button
+                onClick={() => {
+                  onOpenTracking();
+                  setMobileMenuOpen(false);
+                }}
+                className="p-2.5 rounded-xl bg-cyan-950/40 border border-cyan-500/30 text-cyan-300 font-semibold text-xs flex items-center justify-center gap-1.5"
+              >
+                <Truck className="w-3.5 h-3.5 text-cyan-400" />
+                <span>Track Orders</span>
+              </button>
+            )}
+            <a
+              href="https://wa.me/18005552739?text=Hi%20Apex%20Tesla%20Hub!%20I%20am%20inquiring%20about%20vehicle%20service%20or%20fleet%20investments."
+              target="_blank"
+              rel="noopener noreferrer"
+              className="p-2.5 rounded-xl bg-emerald-950/40 border border-emerald-500/30 text-emerald-300 font-semibold text-xs flex items-center justify-center gap-1.5"
+            >
+              <MessageCircle className="w-3.5 h-3.5 text-emerald-400" />
+              <span>WhatsApp VIP</span>
+            </a>
           </div>
 
           <div className="grid grid-cols-2 gap-2">

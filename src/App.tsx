@@ -27,6 +27,8 @@ import { CartModal } from './components/CartModal';
 import { ReferralHub } from './components/ReferralHub';
 import { SocialConnect } from './components/SocialConnect';
 import { TeslaCarSales } from './components/TeslaCarSales';
+import { CouponsHub } from './components/CouponsHub';
+import { OrderTrackingModal } from './components/OrderTrackingModal';
 import { CheckCircle2, AlertCircle, Info } from 'lucide-react';
 
 const MainAppContent: React.FC = () => {
@@ -36,6 +38,7 @@ const MainAppContent: React.FC = () => {
   const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isCartModalOpen, setIsCartModalOpen] = useState(false);
+  const [isOrderTrackingOpen, setIsOrderTrackingOpen] = useState(false);
   const [chatbotPrompt, setChatbotPrompt] = useState<string | null>(null);
 
   const handleOpenAiDiagnostics = (query?: string) => {
@@ -45,7 +48,17 @@ const MainAppContent: React.FC = () => {
   return (
     <div className="min-h-screen bg-[#07090e] text-slate-100 flex flex-col selection:bg-red-600 selection:text-white">
       {/* Proof-of-fair Live Winning Ticker Bar */}
-      <LiveWinningTicker />
+      <LiveWinningTicker
+        onNavigateToCoupons={() => {
+          setActiveTab('coupons');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
+        onNavigateToTracking={() => setIsOrderTrackingOpen(true)}
+        onNavigateToInvestment={() => {
+          setActiveTab('investment');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
+      />
 
       {/* Main Navigation Bar */}
       <Navbar
@@ -54,6 +67,7 @@ const MainAppContent: React.FC = () => {
         onOpenDeposit={() => setIsDepositModalOpen(true)}
         onOpenAuth={() => setIsAuthModalOpen(true)}
         onOpenCart={() => setIsCartModalOpen(true)}
+        onOpenTracking={() => setIsOrderTrackingOpen(true)}
       />
 
       {/* Tab routing container */}
@@ -171,6 +185,35 @@ const MainAppContent: React.FC = () => {
           <PromotionsHub onOpenDeposit={() => setIsDepositModalOpen(true)} />
         )}
 
+        {activeTab === 'coupons' && (
+          <CouponsHub
+            onOpenCart={() => setIsCartModalOpen(true)}
+            onNavigateToVehicles={() => {
+              setActiveTab('vehicles');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            onNavigateToPromotions={() => {
+              setActiveTab('promotions');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            onNavigateToServices={() => {
+              setActiveTab('services');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+          />
+        )}
+
+        {activeTab === 'tracking' && (
+          <div className="max-w-4xl mx-auto px-4 py-12 text-center">
+            <button
+              onClick={() => setIsOrderTrackingOpen(true)}
+              className="px-6 py-3 rounded-2xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-sm shadow-xl"
+            >
+              Open Live Order Tracking Portal
+            </button>
+          </div>
+        )}
+
         {activeTab === 'referrals' && (
           <ReferralHub
             onOpenDeposit={() => setIsDepositModalOpen(true)}
@@ -235,6 +278,11 @@ const MainAppContent: React.FC = () => {
         isOpen={isCartModalOpen}
         onClose={() => setIsCartModalOpen(false)}
         onOpenDeposit={() => setIsDepositModalOpen(true)}
+      />
+
+      <OrderTrackingModal
+        isOpen={isOrderTrackingOpen}
+        onClose={() => setIsOrderTrackingOpen(false)}
       />
 
       {/* Global Toast Notification */}

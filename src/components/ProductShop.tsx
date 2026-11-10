@@ -15,6 +15,7 @@ export const ProductShop: React.FC<ProductShopProps> = ({ onOpenCart }) => {
 
   const categories = [
     'All',
+    'Vehicle Sales',
     'Wraps & Film',
     'Wheels & Performance',
     'Interior & Yoke',

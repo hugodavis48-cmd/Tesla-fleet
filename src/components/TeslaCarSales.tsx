@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
-import { TeslaCarListing, ShippingAddress } from '../types';
+import { TeslaCarListing, ShippingAddress, Coupon } from '../types';
 import {
   Car,
   Truck,
@@ -22,6 +22,7 @@ import {
   Check,
   AlertCircle,
   ShoppingBag,
+  Tag,
 } from 'lucide-react';
 
 interface TeslaCarSalesProps {
@@ -46,6 +47,7 @@ export const TeslaCarSales: React.FC<TeslaCarSalesProps> = ({
     currentUser,
     addToCart,
     showToast,
+    coupons,
   } = useApp();
 
   const [selectedModelFilter, setSelectedModelFilter] = useState<string>('all');
@@ -57,6 +59,9 @@ export const TeslaCarSales: React.FC<TeslaCarSalesProps> = ({
 
   // Selected car for checkout / ordering modal
   const [orderingCar, setOrderingCar] = useState<TeslaCarListing | null>(null);
+  const [appliedVehicleCoupon, setAppliedVehicleCoupon] = useState<Coupon | null>(null);
+  const [vehicleCouponInput, setVehicleCouponInput] = useState('');
+  const [vehicleCouponError, setVehicleCouponError] = useState<string | null>(null);
 
   // Order submission form state
   const [shippingAddress, setShippingAddress] = useState<ShippingAddress>({
@@ -133,6 +138,28 @@ export const TeslaCarSales: React.FC<TeslaCarSalesProps> = ({
     setOrderingCar(car);
     setOrderSuccessDetails(null);
     setRefundPolicyAccepted(false);
+    setAppliedVehicleCoupon(null);
+    setVehicleCouponInput('');
+    setVehicleCouponError(null);
+  };
+
+  const handleApplyVehicleCoupon = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!vehicleCouponInput.trim()) return;
+    setVehicleCouponError(null);
+    const code = vehicleCouponInput.trim().toUpperCase();
+    const found = coupons.find((c) => c.code.toUpperCase() === code && c.isActive);
+    if (!found) {
+      setVehicleCouponError('Invalid or expired coupon code.');
+      return;
+    }
+    if (found.validFor !== 'all' && found.validFor !== 'vehicles') {
+      setVehicleCouponError(`Coupon ${found.code} is valid for ${found.validFor}, not vehicle orders.`);
+      return;
+    }
+    setAppliedVehicleCoupon(found);
+    setVehicleCouponInput('');
+    showToast(`Applied coupon ${found.code}: ${found.title}`, 'success');
   };
 
   const handleConfirmOrder = async () => {
@@ -148,8 +175,21 @@ export const TeslaCarSales: React.FC<TeslaCarSalesProps> = ({
       return;
     }
 
-    const shippingFee = isFreeShippingEligible ? 0 : (orderingCar.nationwideShippingFeeUsd || nationwideShippingSettings.flatFeeUsd);
-    const totalDue = orderingCar.salePriceUsd + shippingFee;
+    let shippingFee = isFreeShippingEligible ? 0 : (orderingCar.nationwideShippingFeeUsd || nationwideShippingSettings.flatFeeUsd);
+    let discountUsd = 0;
+    if (appliedVehicleCoupon) {
+      if (appliedVehicleCoupon.discountType === 'free_shipping') {
+        shippingFee = 0;
+      } else if (appliedVehicleCoupon.discountType === 'fixed_usd') {
+        discountUsd = appliedVehicleCoupon.discountValue;
+      } else if (appliedVehicleCoupon.discountType === 'percentage') {
+        discountUsd = (orderingCar.salePriceUsd * appliedVehicleCoupon.discountValue) / 100;
+        if (appliedVehicleCoupon.maxDiscountUsd && discountUsd > appliedVehicleCoupon.maxDiscountUsd) {
+          discountUsd = appliedVehicleCoupon.maxDiscountUsd;
+        }
+      }
+    }
+    const totalDue = Math.max(0, orderingCar.salePriceUsd + shippingFee - discountUsd);
 
     if (paymentMethod === 'vault_balance' && balances.usd < totalDue) {
       showToast(`Insufficient vault balance ($${balances.usd.toFixed(2)} USD). Please deposit or select crypto payment.`, 'error');
@@ -158,7 +198,7 @@ export const TeslaCarSales: React.FC<TeslaCarSalesProps> = ({
 
     setIsSubmittingOrder(true);
     try {
-      const res = await placeVehicleOrder(orderingCar, shippingAddress, paymentMethod);
+      const res = await placeVehicleOrder(orderingCar, shippingAddress, paymentMethod, appliedVehicleCoupon);
       if (res.success && res.orderId) {
         setOrderSuccessDetails({
           orderId: res.orderId,
@@ -912,10 +952,68 @@ export const TeslaCarSales: React.FC<TeslaCarSalesProps> = ({
                     </div>
                   </div>
 
+                  {/* Step 5: Vehicle Promo Code or Voucher */}
+                  <div className="space-y-1.5">
+                    {appliedVehicleCoupon ? (
+                      <div className="flex items-center justify-between p-3 rounded-2xl bg-red-950/40 border border-red-500/40 text-xs">
+                        <div className="flex items-center gap-2">
+                          <Sparkles className="w-4 h-4 text-red-400" />
+                          <div>
+                            <span className="font-mono font-bold text-red-300">{appliedVehicleCoupon.code}</span>
+                            <span className="text-zinc-400 ml-2">({appliedVehicleCoupon.title})</span>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setAppliedVehicleCoupon(null)}
+                          className="p-1 text-zinc-400 hover:text-white rounded hover:bg-zinc-800"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <form onSubmit={handleApplyVehicleCoupon} className="flex gap-2">
+                        <div className="relative flex-1">
+                          <input
+                            type="text"
+                            value={vehicleCouponInput}
+                            onChange={(e) => {
+                              setVehicleCouponInput(e.target.value.toUpperCase());
+                              setVehicleCouponError(null);
+                            }}
+                            placeholder="Promo coupon code (e.g. TESLAPLAID, APEXSHIP)"
+                            className="w-full pl-8 pr-3 py-2 bg-zinc-900 border border-zinc-700 rounded-xl text-xs text-white placeholder-zinc-500 uppercase font-mono focus:outline-none focus:border-red-500"
+                          />
+                          <Tag className="w-3.5 h-3.5 text-zinc-500 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                        </div>
+                        <button
+                          type="submit"
+                          className="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white font-bold text-xs transition"
+                        >
+                          Apply Code
+                        </button>
+                      </form>
+                    )}
+                    {vehicleCouponError && <p className="text-[11px] text-rose-400 pl-1">{vehicleCouponError}</p>}
+                  </div>
+
                   {/* Financial Settlement Breakdown */}
                   {(() => {
-                    const shippingFee = isFreeShippingEligible ? 0 : (orderingCar.nationwideShippingFeeUsd || nationwideShippingSettings.flatFeeUsd);
-                    const totalDue = orderingCar.salePriceUsd + shippingFee;
+                    let shippingFee = isFreeShippingEligible ? 0 : (orderingCar.nationwideShippingFeeUsd || nationwideShippingSettings.flatFeeUsd);
+                    let discountUsd = 0;
+                    if (appliedVehicleCoupon) {
+                      if (appliedVehicleCoupon.discountType === 'free_shipping') {
+                        shippingFee = 0;
+                      } else if (appliedVehicleCoupon.discountType === 'fixed_usd') {
+                        discountUsd = appliedVehicleCoupon.discountValue;
+                      } else if (appliedVehicleCoupon.discountType === 'percentage') {
+                        discountUsd = (orderingCar.salePriceUsd * appliedVehicleCoupon.discountValue) / 100;
+                        if (appliedVehicleCoupon.maxDiscountUsd && discountUsd > appliedVehicleCoupon.maxDiscountUsd) {
+                          discountUsd = appliedVehicleCoupon.maxDiscountUsd;
+                        }
+                      }
+                    }
+                    const totalDue = Math.max(0, orderingCar.salePriceUsd + shippingFee - discountUsd);
                     const hasSufficient = balances.usd >= totalDue;
 
                     return (
@@ -930,6 +1028,12 @@ export const TeslaCarSales: React.FC<TeslaCarSalesProps> = ({
                             {shippingFee === 0 ? '$0.00 (Free Member Delivery)' : `$${shippingFee.toLocaleString()} USD`}
                           </span>
                         </div>
+                        {discountUsd > 0 && (
+                          <div className="flex justify-between text-xs text-emerald-400 font-semibold">
+                            <span>Coupon Discount ({appliedVehicleCoupon?.code}):</span>
+                            <span className="font-mono">- ${discountUsd.toLocaleString()} USD</span>
+                          </div>
+                        )}
                         <div className="flex justify-between text-xs text-zinc-400">
                           <span>Title, Documentation & Temp Registration:</span>
                           <span className="text-emerald-400 font-semibold font-mono">Included ($0.00)</span>

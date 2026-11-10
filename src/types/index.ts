@@ -477,6 +477,15 @@ export interface ShippingAddress {
   deliveryNotes?: string;
 }
 
+export interface OrderCheckpoint {
+  id: string;
+  status: string;
+  title: string;
+  location: string;
+  timestamp: string;
+  note?: string;
+}
+
 export interface VehicleOrder {
   id: string;
   userId: string;
@@ -489,12 +498,17 @@ export interface VehicleOrder {
   totalUsd: number;
   shippingFeeUsd: number;
   shippingAddress: ShippingAddress;
-  status: 'confirmed' | 'carrier_assigned' | 'in_transit' | 'delivered';
+  status: 'confirmed' | 'carrier_assigned' | 'in_transit' | 'out_for_delivery' | 'delivered';
   trackingNumber: string;
+  carrierName?: string;
+  estimatedDelivery?: string;
+  checkpoints?: OrderCheckpoint[];
   refundPolicyAccepted: boolean;
   orderedAt: string;
   vinAssigned: string;
   paymentMethod: string;
+  discountAppliedUsd?: number;
+  appliedCouponCode?: string;
 }
 
 export interface NationwideShippingSettings {
@@ -511,6 +525,23 @@ export interface VehicleRefundPolicySettings {
   moneyBackGuaranteePercent: number;
   inspectionRequired: boolean;
   termsSummary: string;
+}
+
+export interface Coupon {
+  id: string;
+  code: string;
+  title: string;
+  description: string;
+  discountType: 'percentage' | 'fixed_usd' | 'free_spins' | 'free_shipping';
+  discountValue: number;
+  validFor: 'all' | 'products' | 'vehicles' | 'spins' | 'services' | 'wraps';
+  minSpendUsd?: number;
+  maxDiscountUsd?: number;
+  maxUses?: number;
+  timesUsed: number;
+  expiresAt: string;
+  isActive: boolean;
+  badge?: string;
 }
 
 

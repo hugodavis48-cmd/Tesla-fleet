@@ -49,6 +49,8 @@ import {
   Car,
   Truck,
   ShieldCheck,
+  Tag,
+  MapPin,
 } from 'lucide-react';
 import {
   SmtpConfig,
@@ -66,6 +68,7 @@ import {
   NationwideShippingSettings,
   VehicleRefundPolicySettings,
   VehicleOrder,
+  Coupon,
 } from '../types';
 
 const PREBUILT_TEMPLATES: EmailTemplate[] = [
@@ -244,6 +247,12 @@ export const AdminDashboard: React.FC = () => {
     vehicleRefundPolicy,
     updateRefundPolicy,
     vehicleOrders,
+    updateVehicleOrderStatus,
+    coupons,
+    createCoupon,
+    updateCoupon,
+    deleteCoupon,
+    toggleCouponActive,
   } = useApp();
 
   const [activeAdminTab, setActiveAdminTab] = useState<AdminTab>('users_kyc');
@@ -251,10 +260,37 @@ export const AdminDashboard: React.FC = () => {
   const categoryDropdownRef = useRef<HTMLDivElement>(null);
 
   // Tesla Car Sales & Nationwide Logistics Admin State
-  const [carSalesSubTab, setCarSalesSubTab] = useState<'inventory' | 'shipping' | 'refund_policy' | 'orders'>('inventory');
+  const [carSalesSubTab, setCarSalesSubTab] = useState<'inventory' | 'shipping' | 'refund_policy' | 'orders' | 'coupons'>('inventory');
   const [carSearchTerm, setCarSearchTerm] = useState('');
   const [carFilterModel, setCarFilterModel] = useState<string>('all');
   const [editingCar, setEditingCar] = useState<TeslaCarListing | null>(null);
+
+  // Order status update state
+  const [selectedOrderForStatus, setSelectedOrderForStatus] = useState<VehicleOrder | null>(null);
+  const [orderNewStatus, setOrderNewStatus] = useState<VehicleOrder['status']>('in_transit');
+  const [orderTrackingNumber, setOrderTrackingNumber] = useState('');
+  const [orderCarrierName, setOrderCarrierName] = useState('Apex Dedicated Logistics');
+  const [orderEstimatedDelivery, setOrderEstimatedDelivery] = useState('');
+  const [orderCheckpointNote, setOrderCheckpointNote] = useState('');
+
+  // Coupon management state
+  const [couponSearchTerm, setCouponSearchTerm] = useState('');
+  const [isAddingCoupon, setIsAddingCoupon] = useState(false);
+  const [editingCoupon, setEditingCoupon] = useState<Coupon | null>(null);
+  const [couponForm, setCouponForm] = useState<Omit<Coupon, 'id' | 'timesUsed'>>({
+    code: '',
+    title: '',
+    description: '',
+    discountType: 'percentage',
+    discountValue: 15,
+    validFor: 'all',
+    minSpendUsd: 0,
+    maxDiscountUsd: 1000,
+    maxUses: 100,
+    expiresAt: '2026-12-31',
+    isActive: true,
+    badge: 'HOT',
+  });
   const [isAddingCar, setIsAddingCar] = useState(false);
   const [newCarForm, setNewCarForm] = useState<Omit<TeslaCarListing, 'id'>>({
     model: 'Model S',
@@ -2748,7 +2784,20 @@ export const AdminDashboard: React.FC = () => {
                     : 'bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800'
                 }`}
               >
-                Orders ({vehicleOrders.length})
+                Orders & Logistics ({vehicleOrders.length})
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setCarSalesSubTab('coupons')}
+                className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 ${
+                  carSalesSubTab === 'coupons'
+                    ? 'bg-red-600 text-white shadow-md'
+                    : 'bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800'
+                }`}
+              >
+                <Tag className="w-3.5 h-3.5" />
+                <span>Coupons & Deals ({coupons.length})</span>
               </button>
             </div>
           </div>
@@ -3103,42 +3152,275 @@ export const AdminDashboard: React.FC = () => {
                       <tr>
                         <th className="py-3 px-3">Order ID / Date</th>
                         <th className="py-3 px-3">Customer</th>
-                        <th className="py-3 px-3">Vehicle Details</th>
-                        <th className="py-3 px-3">Assigned VIN</th>
-                        <th className="py-3 px-3">Carrier Tracking</th>
+                        <th className="py-3 px-3">Vehicle</th>
+                        <th className="py-3 px-3">Shipping Status</th>
+                        <th className="py-3 px-3">Tracking & Carrier</th>
                         <th className="py-3 px-3">Destination</th>
                         <th className="py-3 px-3 text-right">Settlement</th>
+                        <th className="py-3 px-3 text-center">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-zinc-800/60 font-mono">
-                      {vehicleOrders.map((order) => (
-                        <tr key={order.id} className="hover:bg-zinc-900/40">
-                          <td className="py-3 px-3">
-                            <span className="font-bold text-white block">{order.id}</span>
-                            <span className="text-[10px] text-zinc-500">{order.orderedAt.substring(0, 10)}</span>
-                          </td>
-                          <td className="py-3 px-3 font-sans">
-                            <span className="font-semibold text-white block">{order.userName || 'Customer'}</span>
-                            <span className="text-[11px] text-zinc-400">{order.userEmail}</span>
-                          </td>
-                          <td className="py-3 px-3 font-sans">
-                            <span className="font-bold text-red-400 block">{order.vehicleName}</span>
-                            <span className="text-[11px] text-zinc-400">{order.paymentMethod}</span>
-                          </td>
-                          <td className="py-3 px-3 text-cyan-400 font-mono text-[11px]">{order.vinAssigned}</td>
-                          <td className="py-3 px-3 text-emerald-400 font-mono text-[11px]">{order.trackingNumber}</td>
-                          <td className="py-3 px-3 font-sans text-zinc-300">
-                            {order.shippingAddress.city}, {order.shippingAddress.state} {order.shippingAddress.zipCode}
-                          </td>
-                          <td className="py-3 px-3 text-right font-black text-white">
-                            ${order.totalUsd.toLocaleString()} USD
-                          </td>
-                        </tr>
-                      ))}
+                      {vehicleOrders.map((order) => {
+                        const statusColors: Record<string, string> = {
+                          confirmed: 'bg-cyan-950/80 text-cyan-400 border-cyan-500/40',
+                          carrier_assigned: 'bg-blue-950/80 text-blue-400 border-blue-500/40',
+                          in_transit: 'bg-amber-950/80 text-amber-400 border-amber-500/40',
+                          out_for_delivery: 'bg-purple-950/80 text-purple-400 border-purple-500/40',
+                          delivered: 'bg-emerald-950/80 text-emerald-400 border-emerald-500/40',
+                        };
+
+                        const statusLabels: Record<string, string> = {
+                          confirmed: 'Confirmed (Prep)',
+                          carrier_assigned: 'Carrier Assigned',
+                          in_transit: 'In Transit',
+                          out_for_delivery: 'Out for Delivery',
+                          delivered: 'Delivered & Handover',
+                        };
+
+                        return (
+                          <tr key={order.id} className="hover:bg-zinc-900/40 transition">
+                            <td className="py-3 px-3">
+                              <span className="font-bold text-white block">{order.id}</span>
+                              <span className="text-[10px] text-zinc-500">{order.orderedAt.substring(0, 10)}</span>
+                            </td>
+                            <td className="py-3 px-3 font-sans">
+                              <span className="font-semibold text-white block">{order.userName || 'Customer'}</span>
+                              <span className="text-[11px] text-zinc-400">{order.userEmail}</span>
+                            </td>
+                            <td className="py-3 px-3 font-sans">
+                              <span className="font-bold text-red-400 block">{order.vehicleName}</span>
+                              <span className="text-[10px] text-zinc-500">VIN: {order.vinAssigned}</span>
+                            </td>
+                            <td className="py-3 px-3">
+                              <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold border ${statusColors[order.status] || 'bg-zinc-800 text-zinc-300'}`}>
+                                {statusLabels[order.status] || order.status}
+                              </span>
+                            </td>
+                            <td className="py-3 px-3">
+                              <span className="text-emerald-400 font-mono text-[11px] block">{order.trackingNumber}</span>
+                              <span className="text-[10px] text-zinc-500 font-sans">{order.carrierName || 'Apex Dedicated Logistics'}</span>
+                            </td>
+                            <td className="py-3 px-3 font-sans text-zinc-300">
+                              {order.shippingAddress.city}, {order.shippingAddress.state}
+                            </td>
+                            <td className="py-3 px-3 text-right">
+                              <span className="font-black text-white block">${order.totalUsd.toLocaleString()}</span>
+                              {order.appliedCouponCode && (
+                                <span className="text-[10px] text-emerald-400">Coupon: {order.appliedCouponCode}</span>
+                              )}
+                            </td>
+                            <td className="py-3 px-3 text-center">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedOrderForStatus(order);
+                                  setOrderNewStatus(order.status);
+                                  setOrderTrackingNumber(order.trackingNumber);
+                                  setOrderCarrierName(order.carrierName || 'Apex Dedicated Logistics');
+                                  setOrderEstimatedDelivery(order.estimatedDelivery || '2-4 Business Days');
+                                  setOrderCheckpointNote('');
+                                }}
+                                className="px-2.5 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-cyan-400 hover:text-white font-sans text-[11px] font-semibold flex items-center gap-1 mx-auto transition"
+                              >
+                                <Truck className="w-3.5 h-3.5" />
+                                <span>Modify Status</span>
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* SUB-TAB 5: PROMOTIONAL COUPONS & DISCOUNTS CMS */}
+          {carSalesSubTab === 'coupons' && (
+            <div className="bg-zinc-950 p-6 rounded-3xl border border-zinc-800 space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-800 pb-4">
+                <div>
+                  <h4 className="font-heading font-black text-lg text-white flex items-center gap-2">
+                    <Tag className="w-5 h-5 text-red-500" />
+                    <span>Discount & Free Promotional Coupons CMS</span>
+                  </h4>
+                  <p className="text-xs text-zinc-400 mt-1">
+                    Create, edit, and toggle discount vouchers valid for vehicle purchases, aftermarket parts, spins, or maintenance bay services.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingCoupon(null);
+                    setCouponForm({
+                      code: '',
+                      title: '',
+                      description: '',
+                      discountType: 'percentage',
+                      discountValue: 15,
+                      validFor: 'all',
+                      minSpendUsd: 0,
+                      maxDiscountUsd: 1000,
+                      maxUses: 100,
+                      expiresAt: '2026-12-31',
+                      isActive: true,
+                      badge: 'HOT',
+                    });
+                    setIsAddingCoupon(true);
+                  }}
+                  className="px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-md shadow-red-950/40"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Create New Coupon</span>
+                </button>
+              </div>
+
+              {/* Search & Stats */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                <div className="md:col-span-2 relative">
+                  <input
+                    type="text"
+                    value={couponSearchTerm}
+                    onChange={(e) => setCouponSearchTerm(e.target.value)}
+                    placeholder="Search by coupon code, title, or target category..."
+                    className="w-full pl-9 pr-4 py-2 bg-zinc-900 border border-zinc-700 rounded-xl text-xs text-white placeholder-zinc-500"
+                  />
+                  <Tag className="w-3.5 h-3.5 text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                </div>
+
+                <div className="p-2.5 px-4 rounded-xl bg-zinc-900/80 border border-zinc-800 flex items-center justify-between">
+                  <span className="text-[11px] text-zinc-400">Active Coupons</span>
+                  <span className="font-bold text-sm text-emerald-400 font-mono">
+                    {coupons.filter((c) => c.isActive).length} / {coupons.length}
+                  </span>
+                </div>
+
+                <div className="p-2.5 px-4 rounded-xl bg-zinc-900/80 border border-zinc-800 flex items-center justify-between">
+                  <span className="text-[11px] text-zinc-400">Total Redeemed</span>
+                  <span className="font-bold text-sm text-cyan-400 font-mono">
+                    {coupons.reduce((sum, c) => sum + (c.timesUsed || 0), 0)} times
+                  </span>
+                </div>
+              </div>
+
+              {/* Coupons Table */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs text-zinc-300">
+                  <thead className="bg-zinc-900/80 text-zinc-400 text-[11px] uppercase border-b border-zinc-800">
+                    <tr>
+                      <th className="py-3 px-3">Code & Badge</th>
+                      <th className="py-3 px-3">Offer Title / Description</th>
+                      <th className="py-3 px-3">Discount Value</th>
+                      <th className="py-3 px-3">Valid For</th>
+                      <th className="py-3 px-3">Uses / Limit</th>
+                      <th className="py-3 px-3">Expires</th>
+                      <th className="py-3 px-3 text-center">Status</th>
+                      <th className="py-3 px-3 text-center">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-800/60 font-sans">
+                    {coupons
+                      .filter((c) => {
+                        if (!couponSearchTerm) return true;
+                        const q = couponSearchTerm.toLowerCase();
+                        return c.code.toLowerCase().includes(q) || c.title.toLowerCase().includes(q) || c.validFor.toLowerCase().includes(q);
+                      })
+                      .map((c) => (
+                        <tr key={c.id} className="hover:bg-zinc-900/40 transition">
+                          <td className="py-3 px-3">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-mono font-bold text-white text-xs px-2 py-0.5 bg-zinc-900 rounded border border-zinc-700">
+                                {c.code}
+                              </span>
+                              {c.badge && (
+                                <span className="text-[9px] px-1.5 py-0.2 bg-red-600/30 text-red-300 rounded border border-red-500/40 uppercase font-bold">
+                                  {c.badge}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="py-3 px-3 max-w-xs">
+                            <span className="font-semibold text-white block truncate">{c.title}</span>
+                            <span className="text-[10px] text-zinc-400 block truncate">{c.description}</span>
+                          </td>
+                          <td className="py-3 px-3 font-mono font-bold">
+                            {c.discountType === 'percentage' && <span className="text-yellow-400">{c.discountValue}% OFF</span>}
+                            {c.discountType === 'fixed_usd' && <span className="text-emerald-400">${c.discountValue.toLocaleString()} OFF</span>}
+                            {c.discountType === 'free_spins' && <span className="text-purple-400">+{c.discountValue} FREE SPINS</span>}
+                            {c.discountType === 'free_shipping' && <span className="text-cyan-400">FREE SHIPPING</span>}
+                          </td>
+                          <td className="py-3 px-3">
+                            <span className="capitalize px-2 py-0.5 rounded text-[10px] bg-zinc-900 border border-zinc-800 text-zinc-300">
+                              {c.validFor}
+                            </span>
+                          </td>
+                          <td className="py-3 px-3 font-mono text-[11px]">
+                            <span className="text-white font-bold">{c.timesUsed || 0}</span>
+                            <span className="text-zinc-500"> / {c.maxUses ? c.maxUses : '∞'}</span>
+                          </td>
+                          <td className="py-3 px-3 font-mono text-[11px] text-zinc-400">
+                            {c.expiresAt}
+                          </td>
+                          <td className="py-3 px-3 text-center">
+                            <button
+                              type="button"
+                              onClick={() => toggleCouponActive(c.id)}
+                              className={`px-2.5 py-1 rounded-full text-[10px] font-bold transition ${
+                                c.isActive
+                                  ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-500/40'
+                                  : 'bg-zinc-800 text-zinc-500 border border-zinc-700'
+                              }`}
+                            >
+                              {c.isActive ? 'Active' : 'Disabled'}
+                            </button>
+                          </td>
+                          <td className="py-3 px-3 text-center">
+                            <div className="flex items-center justify-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingCoupon(c);
+                                  setCouponForm({
+                                    code: c.code,
+                                    title: c.title,
+                                    description: c.description,
+                                    discountType: c.discountType,
+                                    discountValue: c.discountValue,
+                                    validFor: c.validFor,
+                                    minSpendUsd: c.minSpendUsd || 0,
+                                    maxDiscountUsd: c.maxDiscountUsd || 0,
+                                    maxUses: c.maxUses || 100,
+                                    expiresAt: c.expiresAt,
+                                    isActive: c.isActive,
+                                    badge: c.badge || '',
+                                  });
+                                }}
+                                className="p-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white"
+                                title="Edit Coupon"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  deleteCoupon(c.id);
+                                  showToast(`Coupon ${c.code} deleted.`, 'info');
+                                }}
+                                className="p-1 rounded bg-zinc-800 hover:bg-red-950/60 text-zinc-400 hover:text-red-400"
+                                title="Delete Coupon"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
 
@@ -3393,6 +3675,352 @@ export const AdminDashboard: React.FC = () => {
                     className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold"
                   >
                     Create Model Listing
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ORDER SHIPPING STATUS & LOGISTICS MODAL */}
+          {selectedOrderForStatus && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
+              <div className="bg-zinc-950 border border-zinc-800 rounded-3xl p-6 max-w-xl w-full max-h-[90vh] overflow-y-auto space-y-5 text-xs text-zinc-100 shadow-2xl">
+                <div className="flex justify-between items-center border-b border-zinc-800 pb-3">
+                  <div className="flex items-center gap-2">
+                    <Truck className="w-5 h-5 text-cyan-400" />
+                    <h3 className="font-heading font-black text-base text-white">
+                      Modify Shipping & Logistics: {selectedOrderForStatus.id}
+                    </h3>
+                  </div>
+                  <button onClick={() => setSelectedOrderForStatus(null)} className="text-zinc-400 hover:text-white">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                {/* Order Summary */}
+                <div className="p-4 rounded-2xl bg-zinc-900/80 border border-zinc-800 space-y-2">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-zinc-400">Vehicle:</span>
+                    <strong className="text-white font-sans">{selectedOrderForStatus.vehicleName}</strong>
+                  </div>
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-zinc-400">Assigned VIN:</span>
+                    <span className="font-mono text-cyan-400">{selectedOrderForStatus.vinAssigned}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-zinc-400">Customer:</span>
+                    <span className="text-zinc-200">{selectedOrderForStatus.userName || 'Customer'} ({selectedOrderForStatus.userEmail})</span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-zinc-400">Destination:</span>
+                    <span className="text-zinc-300">{selectedOrderForStatus.shippingAddress.city}, {selectedOrderForStatus.shippingAddress.state} {selectedOrderForStatus.shippingAddress.zipCode}</span>
+                  </div>
+                </div>
+
+                {/* Controls */}
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-zinc-300 block mb-1 font-semibold">Update Shipping Progress Stage</label>
+                    <select
+                      value={orderNewStatus}
+                      onChange={(e) => setOrderNewStatus(e.target.value as VehicleOrder['status'])}
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2.5 text-white font-semibold text-xs"
+                    >
+                      <option value="confirmed">1. Confirmed (Factory Pre-Transit Prep)</option>
+                      <option value="carrier_assigned">2. Carrier Assigned (Enclosed Transport Staged)</option>
+                      <option value="in_transit">3. In Transit (Interstate Highway Freight)</option>
+                      <option value="out_for_delivery">4. Out for Delivery (Local Driver En Route)</option>
+                      <option value="delivered">5. Delivered & Key Handover Completed</option>
+                    </select>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-zinc-400 block mb-1">Carrier Partner Name</label>
+                      <input
+                        type="text"
+                        value={orderCarrierName}
+                        onChange={(e) => setOrderCarrierName(e.target.value)}
+                        className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white"
+                        placeholder="Apex Dedicated Logistics"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-zinc-400 block mb-1">Tracking Number</label>
+                      <input
+                        type="text"
+                        value={orderTrackingNumber}
+                        onChange={(e) => setOrderTrackingNumber(e.target.value)}
+                        className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono"
+                        placeholder="APX-TRK-XXXXXXXX"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-zinc-400 block mb-1">Estimated Delivery Timeline</label>
+                    <input
+                      type="text"
+                      value={orderEstimatedDelivery}
+                      onChange={(e) => setOrderEstimatedDelivery(e.target.value)}
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white"
+                      placeholder="e.g. Tomorrow by 3:00 PM EST"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-zinc-300 block mb-1 font-semibold">New Checkpoint Transit Log Note</label>
+                    <input
+                      type="text"
+                      value={orderCheckpointNote}
+                      onChange={(e) => setOrderCheckpointNote(e.target.value)}
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white placeholder-zinc-500"
+                      placeholder="e.g. Arrived at regional logistics sorting terminal in Sparks, NV."
+                    />
+                    <span className="text-[10px] text-zinc-500 mt-1 block">
+                      This note will be logged in the public tracking timeline and dispatched to the customer's dashboard inbox.
+                    </span>
+                  </div>
+                </div>
+
+                {/* Existing Checkpoints Preview */}
+                {selectedOrderForStatus.checkpoints && selectedOrderForStatus.checkpoints.length > 0 && (
+                  <div className="space-y-2 pt-2 border-t border-zinc-800">
+                    <span className="text-[11px] text-zinc-400 uppercase font-bold block">Previous Logged Checkpoints</span>
+                    <div className="space-y-1.5 max-h-36 overflow-y-auto">
+                      {selectedOrderForStatus.checkpoints.map((cp) => (
+                        <div key={cp.id} className="p-2 rounded-xl bg-zinc-900/60 border border-zinc-800 text-[11px] flex justify-between items-start">
+                          <div>
+                            <span className="font-bold text-white block">{cp.title}</span>
+                            <span className="text-zinc-400 text-[10px]">{cp.location} {cp.note ? `— ${cp.note}` : ''}</span>
+                          </div>
+                          <span className="text-[10px] font-mono text-zinc-500 shrink-0">{cp.timestamp.substring(11, 16)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedOrderForStatus(null)}
+                    className="flex-1 py-2.5 rounded-xl bg-zinc-800 text-zinc-300 font-bold"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      updateVehicleOrderStatus(
+                        selectedOrderForStatus.id,
+                        orderNewStatus,
+                        orderTrackingNumber,
+                        orderCheckpointNote || `Shipping status updated to ${orderNewStatus}`,
+                        orderCarrierName,
+                        orderEstimatedDelivery
+                      );
+                      setSelectedOrderForStatus(null);
+                      showToast(`Order ${selectedOrderForStatus.id} status updated to ${orderNewStatus}!`, 'success');
+                    }}
+                    className="flex-1 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold flex items-center justify-center gap-1.5 shadow-md shadow-cyan-950/40"
+                  >
+                    <Check className="w-4 h-4" />
+                    <span>Save & Update Shipping</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ADD / EDIT COUPON MODAL */}
+          {(isAddingCoupon || editingCoupon) && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
+              <div className="bg-zinc-950 border border-zinc-800 rounded-3xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto space-y-4 text-xs text-zinc-100 shadow-2xl">
+                <div className="flex justify-between items-center border-b border-zinc-800 pb-3">
+                  <h3 className="font-heading font-black text-base text-white flex items-center gap-2">
+                    <Tag className="w-4 h-4 text-red-500" />
+                    <span>{editingCoupon ? `Edit Coupon: ${editingCoupon.code}` : 'Create New Promotional Coupon'}</span>
+                  </h3>
+                  <button
+                    onClick={() => {
+                      setIsAddingCoupon(false);
+                      setEditingCoupon(null);
+                    }}
+                    className="text-zinc-400 hover:text-white"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-zinc-400 block mb-1">Coupon Code (Uppercase)</label>
+                      <input
+                        type="text"
+                        value={couponForm.code}
+                        onChange={(e) => setCouponForm({ ...couponForm, code: e.target.value.toUpperCase() })}
+                        placeholder="e.g. CYBER20"
+                        className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono uppercase"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-zinc-400 block mb-1">Badge Tag</label>
+                      <input
+                        type="text"
+                        value={couponForm.badge || ''}
+                        onChange={(e) => setCouponForm({ ...couponForm, badge: e.target.value })}
+                        placeholder="HOT, VIP, LIMITED"
+                        className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-zinc-400 block mb-1">Offer Title</label>
+                    <input
+                      type="text"
+                      value={couponForm.title}
+                      onChange={(e) => setCouponForm({ ...couponForm, title: e.target.value })}
+                      placeholder="e.g. 20% Off Ceramic Wraps & Body Armor"
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-semibold"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-zinc-400 block mb-1">Description / Terms</label>
+                    <textarea
+                      rows={2}
+                      value={couponForm.description}
+                      onChange={(e) => setCouponForm({ ...couponForm, description: e.target.value })}
+                      placeholder="Applicable at checkout across all custom wrap bays..."
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-zinc-400 block mb-1">Discount Type</label>
+                      <select
+                        value={couponForm.discountType}
+                        onChange={(e) => setCouponForm({ ...couponForm, discountType: e.target.value as any })}
+                        className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white text-xs"
+                      >
+                        <option value="percentage">Percentage Discount (%)</option>
+                        <option value="fixed_usd">Fixed Amount ($ USD)</option>
+                        <option value="free_spins">Free Spin Credits (+Spins)</option>
+                        <option value="free_shipping">Free Enclosed Shipping</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-zinc-400 block mb-1">
+                        Discount Value {couponForm.discountType === 'percentage' ? '(%)' : couponForm.discountType === 'fixed_usd' ? '($ USD)' : couponForm.discountType === 'free_spins' ? '(Count)' : ''}
+                      </label>
+                      <input
+                        type="number"
+                        value={couponForm.discountValue}
+                        onChange={(e) => setCouponForm({ ...couponForm, discountValue: Number(e.target.value) })}
+                        className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-zinc-400 block mb-1">Valid For Scope</label>
+                      <select
+                        value={couponForm.validFor}
+                        onChange={(e) => setCouponForm({ ...couponForm, validFor: e.target.value as any })}
+                        className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white text-xs capitalize"
+                      >
+                        <option value="all">All Products & Services</option>
+                        <option value="products">Parts & Store Products</option>
+                        <option value="vehicles">Tesla Vehicle Sales</option>
+                        <option value="spins">Wheel Spins & Scratch Cards</option>
+                        <option value="services">Maintenance & Service Bays</option>
+                        <option value="wraps">Custom Studio Wraps</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-zinc-400 block mb-1">Expiration Date</label>
+                      <input
+                        type="date"
+                        value={couponForm.expiresAt}
+                        onChange={(e) => setCouponForm({ ...couponForm, expiresAt: e.target.value })}
+                        className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-zinc-400 block mb-1">Max Usages Allowed</label>
+                      <input
+                        type="number"
+                        value={couponForm.maxUses || 100}
+                        onChange={(e) => setCouponForm({ ...couponForm, maxUses: Number(e.target.value) })}
+                        className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-zinc-400 block mb-1">Max Discount Cap ($ USD)</label>
+                      <input
+                        type="number"
+                        value={couponForm.maxDiscountUsd || 1000}
+                        onChange={(e) => setCouponForm({ ...couponForm, maxDiscountUsd: Number(e.target.value) })}
+                        className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-1">
+                    <input
+                      type="checkbox"
+                      id="couponIsActive"
+                      checked={couponForm.isActive}
+                      onChange={(e) => setCouponForm({ ...couponForm, isActive: e.target.checked })}
+                      className="w-4 h-4 rounded border-zinc-700 text-red-600 accent-red-600"
+                    />
+                    <label htmlFor="couponIsActive" className="text-zinc-300 font-semibold cursor-pointer">
+                      Coupon is Active & Redeemable immediately
+                    </label>
+                  </div>
+                </div>
+
+                <div className="flex gap-2 pt-3 border-t border-zinc-800">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsAddingCoupon(false);
+                      setEditingCoupon(null);
+                    }}
+                    className="flex-1 py-2.5 rounded-xl bg-zinc-800 text-zinc-300 font-bold"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!couponForm.code.trim()) {
+                        showToast('Please enter a coupon code.', 'error');
+                        return;
+                      }
+                      if (editingCoupon) {
+                        updateCoupon(editingCoupon.id, couponForm);
+                        showToast(`Coupon ${couponForm.code} updated!`, 'success');
+                      } else {
+                        createCoupon(couponForm);
+                        showToast(`Created new promo coupon ${couponForm.code}!`, 'success');
+                      }
+                      setIsAddingCoupon(false);
+                      setEditingCoupon(null);
+                    }}
+                    className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold"
+                  >
+                    {editingCoupon ? 'Save Coupon Changes' : 'Publish Promo Coupon'}
                   </button>
                 </div>
               </div>

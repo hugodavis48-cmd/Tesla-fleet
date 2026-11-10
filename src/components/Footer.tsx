@@ -160,7 +160,18 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenDeposit }) => 
             </h4>
             <ul className="space-y-2">
               <li>
-                <button onClick={() => onNavigate('promotions')} className="hover:text-yellow-400 text-yellow-500 font-semibold transition">
+                <button onClick={() => onNavigate('coupons')} className="hover:text-red-400 text-yellow-400 font-bold transition flex items-center gap-1">
+                  <span>Coupons & Deals</span>
+                  <span className="text-[9px] px-1 py-0.2 bg-red-600 text-white rounded font-bold uppercase animate-pulse">HOT</span>
+                </button>
+              </li>
+              <li>
+                <button onClick={() => onNavigate('tracking')} className="hover:text-cyan-400 text-cyan-300 font-semibold transition">
+                  Track Delivery & Orders
+                </button>
+              </li>
+              <li>
+                <button onClick={() => onNavigate('promotions')} className="hover:text-yellow-400 text-zinc-300 font-semibold transition">
                   Spin & Win Wheel (Live)
                 </button>
               </li>
