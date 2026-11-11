@@ -16,6 +16,12 @@ import {
   Coupon,
   VehicleOrder,
   OrderCheckpoint,
+  TeslaStockQuote,
+  FeaturedStockPlan,
+  WithdrawalRequest,
+  WithdrawalSettings,
+  WheelReward,
+  FeatureToggles,
 } from '../types';
 
 export const CRYPTO_NETWORKS: Record<string, CryptoNetworkInfo> = {
@@ -1583,5 +1589,179 @@ export const INITIAL_VEHICLE_ORDERS: VehicleOrder[] = [
     ],
   },
 ];
+
+export const INITIAL_TSLA_QUOTE: TeslaStockQuote = {
+  symbol: 'TSLA',
+  name: 'Tesla, Inc.',
+  exchange: 'NASDAQ',
+  price: 328.45,
+  changeUsd: 12.38,
+  changePercent: 3.92,
+  change24h: 3.92,
+  high24h: 334.80,
+
+  low24h: 319.20,
+  volume: '82.45M',
+  marketCap: '$1.045 Trillion',
+  peRatio: 92.4,
+  week52High: 358.64,
+  week52Low: 138.80,
+  updatedAt: new Date().toISOString(),
+  history: [
+    { time: '09:30', price: 319.50 },
+    { time: '10:00', price: 321.20 },
+    { time: '10:30', price: 323.80 },
+    { time: '11:00', price: 322.40 },
+    { time: '11:30', price: 325.60 },
+    { time: '12:00', price: 324.90 },
+    { time: '12:30', price: 326.75 },
+    { time: '13:00', price: 327.30 },
+    { time: '13:30', price: 326.10 },
+    { time: '14:00', price: 328.20 },
+    { time: '14:30', price: 331.40 },
+    { time: '15:00', price: 330.10 },
+    { time: '15:30', price: 332.50 },
+    { time: '16:00', price: 328.45 },
+  ],
+};
+
+export const INITIAL_FEATURED_STOCK_PLANS: FeaturedStockPlan[] = [
+  {
+    id: 'stock-fast-optimus',
+    title: 'Tesla Cyber-Optimus Fast Yield',
+    ticker: 'TSLA.OPTM',
+    category: 'Autonomous AI',
+    apy: 28.5,
+    durationDays: 7,
+    minInvestmentUsd: 500, // min $500
+    maxInvestmentUsd: 25000,
+    riskLevel: 'Accelerated ROI',
+    dailyYieldPercent: 0.078,
+    totalExpectedRoiPercent: 0.546,
+    description: 'High-frequency short-cycle liquidity pool backed by Tesla humanoid robotics & Gigafactory autonomous tooling expansion.',
+    badge: '7-Day Fast ROI',
+    isActive: true,
+    totalSubscribedUsd: 148000,
+  },
+  {
+    id: 'stock-fast-fsd',
+    title: 'Tesla FSD Autonomy Super-Cycle',
+    ticker: 'TSLA.FSD',
+    category: 'Next-Gen Vehicle',
+    apy: 34.0,
+    durationDays: 14,
+    minInvestmentUsd: 1000, // min >= $500
+    maxInvestmentUsd: 50000,
+    riskLevel: 'Ultra Fast Yield',
+    dailyYieldPercent: 0.093,
+    totalExpectedRoiPercent: 1.304,
+    description: 'Accelerated AI compute staking backed by Tesla Cortex 50,000 H100 cluster operations and Robotaxi fleet subscription revenue.',
+    badge: '14-Day Accelerated',
+    isActive: true,
+    totalSubscribedUsd: 320000,
+  },
+  {
+    id: 'stock-fast-megapack',
+    title: 'Megapack Grid & V4 Supercharger Surge',
+    ticker: 'TSLA.GRID',
+    category: 'Energy Grid',
+    apy: 24.5,
+    durationDays: 21,
+    minInvestmentUsd: 750, // min >= $500
+    maxInvestmentUsd: 75000,
+    riskLevel: 'Balanced Growth',
+    dailyYieldPercent: 0.067,
+    totalExpectedRoiPercent: 1.410,
+    description: 'Direct revenue yield generated from utility-scale Megapack battery installations and high-voltage commercial Supercharging corridors.',
+    badge: 'Popular Fast Yield',
+    isActive: true,
+    totalSubscribedUsd: 215000,
+  },
+  {
+    id: 'stock-fast-founders',
+    title: 'Founders Cyberbeast Tier Staking',
+    ticker: 'TSLA.PLD',
+    category: 'Next-Gen Vehicle',
+    apy: 42.0,
+    durationDays: 30,
+    minInvestmentUsd: 2500, // min >= $500
+    maxInvestmentUsd: 150000,
+    riskLevel: 'Ultra Fast Yield',
+    dailyYieldPercent: 0.115,
+    totalExpectedRoiPercent: 3.452,
+    description: 'Exclusive executive yield allocation tied to high-margin tri-motor Plaid & Cyberbeast flagship deliveries and automated daily compounding.',
+    badge: 'Highest APY',
+    isActive: true,
+    totalSubscribedUsd: 580000,
+  },
+];
+
+export const INITIAL_WHEEL_REWARDS: WheelReward[] = [
+  { id: 'w-1', label: 'Cybertruck Pass', valueUsd: 1500, type: 'pass', color: '#dc2626', textColor: 'white', weight: 3, isActive: true },
+  { id: 'w-2', label: '1,000 USDT', valueUsd: 1000, type: 'crypto', color: '#16a34a', textColor: 'white', weight: 5, isActive: true },
+  { id: 'w-3', label: 'Full Body Wrap', valueUsd: 3800, type: 'service', color: '#0891b2', textColor: 'white', weight: 2, isActive: true },
+  { id: 'w-4', label: '500 Credits', valueUsd: 500, type: 'credits', color: '#eab308', textColor: 'black', weight: 12, isActive: true },
+  { id: 'w-5', label: '100 USDT', valueUsd: 100, type: 'crypto', color: '#2563eb', textColor: 'white', weight: 25, isActive: true },
+  { id: 'w-6', label: 'Supercharge 1k kWh', valueUsd: 350, type: 'service', color: '#9333ea', textColor: 'white', weight: 15, isActive: true },
+  { id: 'w-7', label: 'Gold Card ($1k)', valueUsd: 1000, type: 'pass', color: '#d97706', textColor: 'white', weight: 6, isActive: true },
+  { id: 'w-8', label: '50 Credits', valueUsd: 50, type: 'credits', color: '#475569', textColor: 'white', weight: 32, isActive: true },
+];
+
+export const DEFAULT_WITHDRAWAL_SETTINGS: WithdrawalSettings = {
+  enabled: true,
+  requireMinDeposit: true,
+  minDepositRequiredUsd: 200, // Strictly required $200 deposit
+  minWithdrawalUsd: 50,
+  maxWithdrawalUsd: 100000,
+  feePercent: 0,
+  estimatedProcessingTime: '15 - 45 Minutes',
+};
+
+export const INITIAL_WITHDRAWAL_REQUESTS: WithdrawalRequest[] = [
+  {
+    id: 'wdr-101',
+    userId: 'usr-apex-001',
+    userName: 'Alex Vance',
+    userEmail: 'alex.vance@apex-tesla.io',
+    amountUsd: 850,
+    currency: 'USDT (TRC-20)',
+    destinationAddress: 'TX9k7LpQwNmRtY81Zv3bC4dE9fG6hJ8kL2',
+    network: 'TRC-20',
+    status: 'approved',
+    requestedAt: '2026-11-09T14:20:00.000Z',
+    processedAt: '2026-11-09T14:42:00.000Z',
+    txHash: '0x39a1b8201948ba9281a0293847b819283948b819',
+    feeUsd: 0,
+    netAmountUsd: 850,
+  },
+  {
+    id: 'wdr-102',
+    userId: 'usr-marcus-02',
+    userName: 'Marcus Vance',
+    userEmail: 'marcus.v@tesla-club.org',
+    amountUsd: 1200,
+    currency: 'Bitcoin (BTC)',
+    destinationAddress: 'bc1qteslahub9x84k32m2v7p5y0n1c8r7w6s5d4e3a',
+    network: 'Bitcoin Native (SegWit)',
+    status: 'pending',
+    requestedAt: '2026-11-10T12:15:00.000Z',
+    feeUsd: 0,
+    netAmountUsd: 1200,
+  },
+];
+
+export const DEFAULT_FEATURE_TOGGLES: FeatureToggles = {
+  enableStockTrading: true,
+  enableSpotBuy: true,
+  enableFastRoiStocks: true,
+  enableWithdrawals: true,
+  requireMinDepositForWithdrawal: true,
+  minDepositForWithdrawalUsd: 200,
+  enableSpins: true,
+  enableScratchCards: true,
+  enableVehicleSales: true,
+  enableStakingYield: true,
+};
+
 
 

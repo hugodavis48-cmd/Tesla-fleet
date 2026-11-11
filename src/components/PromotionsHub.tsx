@@ -23,23 +23,33 @@ interface PromotionsHubProps {
 }
 
 export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) => {
-  const { availableSpins, executeSpin, recentWinners, purchaseScratchCard, balances, showToast } = useApp();
+  const {
+    availableSpins,
+    executeSpin,
+    recentWinners,
+    purchaseScratchCard,
+    balances,
+    showToast,
+    spinCostUsd,
+    wheelRewards,
+  } = useApp();
 
   const [isSpinning, setIsSpinning] = useState(false);
   const [wheelRotation, setWheelRotation] = useState(0);
   const [lastWonPrize, setLastWonPrize] = useState<{ prize: string; valueUsd: number } | null>(null);
   const [selectedScratchTier, setSelectedScratchTier] = useState<ScratchCardTier | null>(null);
 
-  // Wheel slice definitions (8 slices: 45deg each)
-  const wheelSlices = [
-    { label: 'Cybertruck Pass', color: '#dc2626', text: 'white' },
-    { label: '1,000 USDT', color: '#16a34a', text: 'white' },
-    { label: 'Full Body Wrap', color: '#0891b2', text: 'white' },
-    { label: '500 Credits', color: '#eab308', text: 'black' },
-    { label: '100 USDT', color: '#2563eb', text: 'white' },
-    { label: 'Supercharge 1k kWh', color: '#9333ea', text: 'white' },
-    { label: 'Gold Card ($1k)', color: '#d97706', text: 'white' },
-    { label: '50 Credits', color: '#475569', text: 'white' },
+  // Dynamic wheel slices from admin-editable rewards
+  const activeRewards = wheelRewards.filter((r) => r.isActive);
+  const wheelSlices = activeRewards.length >= 4 ? activeRewards : [
+    { id: '1', label: 'Cybertruck Pass', color: '#dc2626', textColor: 'white', valueUsd: 1500, type: 'pass', weight: 3, isActive: true },
+    { id: '2', label: '1,000 USDT', color: '#16a34a', textColor: 'white', valueUsd: 1000, type: 'crypto', weight: 5, isActive: true },
+    { id: '3', label: 'Full Body Wrap', color: '#0891b2', textColor: 'white', valueUsd: 3800, type: 'service', weight: 2, isActive: true },
+    { id: '4', label: '500 Credits', color: '#eab308', textColor: 'black', valueUsd: 500, type: 'credits', weight: 12, isActive: true },
+    { id: '5', label: '100 USDT', color: '#2563eb', textColor: 'white', valueUsd: 100, type: 'crypto', weight: 25, isActive: true },
+    { id: '6', label: 'Supercharge 1k kWh', color: '#9333ea', textColor: 'white', valueUsd: 350, type: 'service', weight: 15, isActive: true },
+    { id: '7', label: 'Gold Card ($1k)', color: '#d97706', textColor: 'white', valueUsd: 1000, type: 'pass', weight: 6, isActive: true },
+    { id: '8', label: '50 Credits', color: '#475569', textColor: 'white', valueUsd: 50, type: 'credits', weight: 32, isActive: true },
   ];
 
   // Synthesized mechanical ticking sound for the wheel
@@ -63,8 +73,8 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
 
   const handleSpinClick = () => {
     if (isSpinning) return;
-    if (balances.usd < 25) {
-      showToast('Spin cost is strictly $25 USD per spin (no free spins). Please deposit funds to spin.', 'error');
+    if (balances.usd < spinCostUsd) {
+      showToast(`Spin cost is $${spinCostUsd} USD per spin. Please deposit funds to spin.`, 'error');
       onOpenDeposit();
       return;
     }
@@ -201,10 +211,11 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
                     >
                       <span
                         className="text-[9px] sm:text-[11px] font-heading font-black uppercase tracking-wider drop-shadow-md"
-                        style={{ color: slice.text }}
+                        style={{ color: slice.textColor || '#ffffff' }}
                       >
                         {slice.label}
                       </span>
+
                     </div>
                   );
                 })}
@@ -239,7 +250,7 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
               <div>
                 <span className="text-[11px] text-zinc-400 block font-mono">EXECUTION COST</span>
                 <span className="font-heading font-black text-2xl text-amber-400">
-                  $25.00 <span className="text-xs font-normal text-zinc-300">USD / Spin</span>
+                  ${spinCostUsd.toFixed(2)} <span className="text-xs font-normal text-zinc-300">USD / Spin</span>
                 </span>
               </div>
               <div className="text-right">
@@ -280,7 +291,7 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
               ) : (
                 <>
                   <Coins className="w-5 h-5 text-yellow-300" />
-                  <span>SPIN WHEEL ($25 USD)</span>
+                  <span>SPIN WHEEL (${spinCostUsd} USD)</span>
                 </>
               )}
             </button>

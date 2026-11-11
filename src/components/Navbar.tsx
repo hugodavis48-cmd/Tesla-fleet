@@ -23,12 +23,16 @@ import {
   MessageCircle,
   Tag,
   Truck,
+  ArrowDownLeft,
+  Activity,
+  CreditCard,
 } from 'lucide-react';
 
 interface NavbarProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
   onOpenDeposit: () => void;
+  onOpenWithdraw?: () => void;
   onOpenAuth: () => void;
   onOpenCart: () => void;
   onOpenTracking?: () => void;
@@ -38,11 +42,12 @@ export const Navbar: React.FC<NavbarProps> = ({
   activeTab,
   setActiveTab,
   onOpenDeposit,
+  onOpenWithdraw,
   onOpenAuth,
   onOpenCart,
   onOpenTracking,
 }) => {
-  const { currentUser, logout, balances, cart, userRole, setRole, adminNotifications } = useApp();
+  const { currentUser, logout, balances, cart, userRole, setRole, adminNotifications, tslaQuote, featureToggles } = useApp();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
 
@@ -55,6 +60,14 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   const navLinks = [
     { id: 'home', label: 'Home' },
+    ...(featureToggles.teslaStocksEnabled ? [{
+      id: 'stocks',
+      label: 'TSLA Stocks & Fast ROI',
+      icon: Activity,
+      highlight: true,
+      stockPill: `$${tslaQuote.price.toFixed(1)}`,
+      stockChange: tslaQuote.change24h,
+    }] : []),
     { id: 'vehicles', label: 'Buy Tesla', icon: Car, highlight: true },
     { id: 'coupons', label: 'Coupons', icon: Tag, highlight: true },
     { id: 'services', label: 'Service & Fixes', icon: Wrench },
@@ -69,6 +82,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'faq', label: 'FAQ' },
     { id: 'contact', label: 'Contact' },
   ];
+
 
   const handleNavClick = (id: string) => {
     setActiveTab(id);
@@ -124,7 +138,12 @@ export const Navbar: React.FC<NavbarProps> = ({
               >
                 {link.icon && <link.icon className={`w-3.5 h-3.5 ${link.highlight ? 'text-yellow-400' : link.badge ? 'text-emerald-400' : ''}`} />}
                 <span>{link.label}</span>
-                {link.highlight && (
+                {(link as any).stockPill && (
+                  <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-zinc-900 border border-emerald-500/40 text-emerald-400">
+                    {(link as any).stockPill}
+                  </span>
+                )}
+                {link.highlight && !(link as any).stockPill && (
                   <span className="text-[9px] px-1 py-0.2 bg-red-600 text-white rounded font-bold uppercase animate-pulse">
                     HOT
                   </span>
@@ -141,7 +160,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         {/* Right Action Utilities */}
         <div className="flex items-center gap-2.5 shrink-0">
-          {/* Quick Balance & Deposit button */}
+          {/* Quick Balance & Deposit/Withdraw buttons */}
           <div className="hidden sm:flex items-center bg-zinc-900/90 border border-zinc-800 rounded-xl p-1 pl-3 shadow-inner">
             <div className="mr-2 text-right">
               <span className="text-[10px] text-zinc-400 block -mb-0.5">Vault Balance</span>
@@ -157,7 +176,18 @@ export const Navbar: React.FC<NavbarProps> = ({
               <Plus className="w-3.5 h-3.5" />
               <span>Deposit</span>
             </button>
+            {onOpenWithdraw && (
+              <button
+                onClick={onOpenWithdraw}
+                className="p-1.5 px-2.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 hover:text-white text-xs font-bold flex items-center gap-1 shadow-sm transition ml-1 border border-zinc-700"
+                title="Withdraw Crypto / Bank Wire"
+              >
+                <ArrowDownLeft className="w-3.5 h-3.5 text-red-400" />
+                <span>Withdraw</span>
+              </button>
+            )}
           </div>
+
 
           {/* WhatsApp VIP Concierge Quick Link */}
           <a
@@ -300,6 +330,19 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <span>Crypto Deposit & Wallet</span>
                   </button>
 
+                  {onOpenWithdraw && (
+                    <button
+                      onClick={() => {
+                        onOpenWithdraw();
+                        setUserDropdownOpen(false);
+                      }}
+                      className="w-full px-4 py-2 text-left text-xs hover:bg-zinc-900 flex items-center gap-2 text-zinc-300 hover:text-white transition"
+                    >
+                      <CreditCard className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Request Payout / Withdrawal</span>
+                    </button>
+                  )}
+
                   <button
                     onClick={() => {
                       handleNavClick('referrals');
@@ -355,23 +398,37 @@ export const Navbar: React.FC<NavbarProps> = ({
       {mobileMenuOpen && (
         <div className="xl:hidden border-t border-zinc-800 bg-zinc-950/95 backdrop-blur-xl px-4 py-6 space-y-3 animate-in slide-in-from-top-2">
           {/* Quick Balance Mobile */}
-          <div className="flex items-center justify-between p-3 rounded-xl bg-zinc-900 border border-zinc-800 mb-2">
-            <div>
-              <span className="text-xs text-zinc-400 block">Available Vault Balance</span>
+          <div className="p-3 rounded-xl bg-zinc-900 border border-zinc-800 mb-2 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-zinc-400">Available Vault Balance</span>
               <span className="font-mono font-bold text-sm text-emerald-400">
                 ${balances.usd.toLocaleString('en-US', { minimumFractionDigits: 2 })}
               </span>
             </div>
-            <button
-              onClick={() => {
-                onOpenDeposit();
-                setMobileMenuOpen(false);
-              }}
-              className="py-1.5 px-3 rounded-lg bg-red-600 text-white font-bold text-xs"
-            >
-              + Deposit Crypto
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  onOpenDeposit();
+                  setMobileMenuOpen(false);
+                }}
+                className="py-1.5 px-3 rounded-lg bg-red-600 text-white font-bold text-xs flex-1 text-center"
+              >
+                + Deposit
+              </button>
+              {onOpenWithdraw && (
+                <button
+                  onClick={() => {
+                    onOpenWithdraw();
+                    setMobileMenuOpen(false);
+                  }}
+                  className="py-1.5 px-3 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-200 font-bold text-xs flex-1 text-center"
+                >
+                  Withdraw
+                </button>
+              )}
+            </div>
           </div>
+
 
           <div className="grid grid-cols-2 gap-2 mb-2">
             {onOpenTracking && (

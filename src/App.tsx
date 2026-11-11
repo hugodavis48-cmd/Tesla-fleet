@@ -29,6 +29,9 @@ import { SocialConnect } from './components/SocialConnect';
 import { TeslaCarSales } from './components/TeslaCarSales';
 import { CouponsHub } from './components/CouponsHub';
 import { OrderTrackingModal } from './components/OrderTrackingModal';
+import { WithdrawModal } from './components/WithdrawModal';
+import { TeslaStockHub } from './components/TeslaStockHub';
+import { UnifiedShowcaseDeck } from './components/UnifiedShowcaseDeck';
 import { CheckCircle2, AlertCircle, Info } from 'lucide-react';
 
 const MainAppContent: React.FC = () => {
@@ -36,10 +39,12 @@ const MainAppContent: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<string>('home');
   const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
+  const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isCartModalOpen, setIsCartModalOpen] = useState(false);
   const [isOrderTrackingOpen, setIsOrderTrackingOpen] = useState(false);
   const [chatbotPrompt, setChatbotPrompt] = useState<string | null>(null);
+
 
   const handleOpenAiDiagnostics = (query?: string) => {
     setChatbotPrompt(query || 'Please run a telemetry diagnostics scan on my Tesla high-voltage battery and drive unit.');
@@ -65,6 +70,7 @@ const MainAppContent: React.FC = () => {
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         onOpenDeposit={() => setIsDepositModalOpen(true)}
+        onOpenWithdraw={() => setIsWithdrawModalOpen(true)}
         onOpenAuth={() => setIsAuthModalOpen(true)}
         onOpenCart={() => setIsCartModalOpen(true)}
         onOpenTracking={() => setIsOrderTrackingOpen(true)}
@@ -82,62 +88,37 @@ const MainAppContent: React.FC = () => {
               onOpenDeposit={() => setIsDepositModalOpen(true)}
             />
 
-            {/* Tesla Vehicle Sales & Direct Delivery Inventory */}
-            <TeslaCarSales
-              onOpenDeposit={() => setIsDepositModalOpen(true)}
-              onNavigateToDashboard={() => {
-                setActiveTab('dashboard');
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-              isHomeTeaser={true}
-              onViewAll={() => {
-                setActiveTab('vehicles');
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-            />
-
-            {/* Custom Studio Wrap Preview Section on Home */}
-            <CustomStudio
-              onNavigateToServices={() => {
-                setActiveTab('services');
+            {/* Unified Interactive Showcase Slides (Reduces lengthy page and highlights all products, services & stock yields) */}
+            <UnifiedShowcaseDeck
+              onNavigate={(tab) => {
+                setActiveTab(tab);
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
               onOpenDeposit={() => setIsDepositModalOpen(true)}
+              onOpenCart={() => setIsCartModalOpen(true)}
             />
 
-            {/* Promotions Hub: Spin Wheel & Scratch Cards */}
+            {/* Promotions Hub: Provably Fair Spin Wheel & Scratch Cards */}
             <PromotionsHub onOpenDeposit={() => setIsDepositModalOpen(true)} />
 
-            {/* Tesla Rental Fleet */}
-            <RentalFleet
-              onOpenDeposit={() => setIsDepositModalOpen(true)}
-              onNavigateToDashboard={() => {
-                setActiveTab('dashboard');
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-            />
-
-            {/* Products Listing on Home */}
-            <ProductShop
-              onOpenCart={() => setIsCartModalOpen(true)}
-              onOpenDeposit={() => setIsDepositModalOpen(true)}
-            />
-
-            {/* Vehicle & Supercharger Investment Hub */}
-            <InvestmentHub
-              onOpenDeposit={() => setIsDepositModalOpen(true)}
-              onNavigateToDashboard={() => {
-                setActiveTab('dashboard');
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-            />
-
-            {/* Information Sections */}
+            {/* Information & Trust Sections */}
             <AboutSection />
             <FaqSection />
             <ContactSection />
           </div>
         )}
+
+        {/* Dedicated Tesla Live Stocks, Fast ROI & Spot Hub */}
+        {activeTab === 'stocks' && (
+          <TeslaStockHub
+            onOpenDeposit={() => setIsDepositModalOpen(true)}
+            onNavigateToDashboard={() => {
+              setActiveTab('dashboard');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+          />
+        )}
+
 
         {activeTab === 'vehicles' && (
           <TeslaCarSales
@@ -234,9 +215,11 @@ const MainAppContent: React.FC = () => {
           ) : (
             <Dashboard
               onOpenDeposit={() => setIsDepositModalOpen(true)}
+              onOpenWithdraw={() => setIsWithdrawModalOpen(true)}
               onNavigateToServices={() => setActiveTab('services')}
               onOpenAuth={() => setIsAuthModalOpen(true)}
             />
+
           )
         )}
 
@@ -269,7 +252,17 @@ const MainAppContent: React.FC = () => {
         onClose={() => setIsDepositModalOpen(false)}
       />
 
+      <WithdrawModal
+        isOpen={isWithdrawModalOpen}
+        onClose={() => setIsWithdrawModalOpen(false)}
+        onOpenDeposit={() => {
+          setIsWithdrawModalOpen(false);
+          setIsDepositModalOpen(true);
+        }}
+      />
+
       <AuthModal
+
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
       />

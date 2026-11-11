@@ -544,5 +544,146 @@ export interface Coupon {
   badge?: string;
 }
 
+export interface TeslaStockQuote {
+  symbol: 'TSLA';
+  name: string;
+  exchange: 'NASDAQ';
+  price: number;
+  changeUsd: number;
+  changePercent: number;
+  change24h: number;
+  high24h: number;
+  low24h: number;
+  dayHigh?: number;
+  dayLow?: number;
+  volume: string;
+  marketCap: string;
+  peRatio: number;
+  week52High: number;
+  week52Low: number;
+  updatedAt: string;
+  history: { time: string; price: number }[];
+}
+
+export interface SpotHolding {
+  id: string;
+  userId: string;
+  shares: number;
+  avgBuyPrice: number;
+  totalInvestedUsd: number;
+  currentEquityUsd: number;
+  pnlUsd: number;
+  pnlPercent: number;
+  lastUpdated: string;
+}
+
+export interface FeaturedStockPlan {
+  id: string;
+  title: string;
+  name?: string;
+  ticker: string;
+  category: 'Autonomous AI' | 'Supercharger Network' | 'Energy Grid' | 'Next-Gen Vehicle' | string;
+  tier?: string;
+  apy: number;
+  durationDays: number;
+  lockPeriodDays?: number;
+  minInvestmentUsd: number; // minimum from 500 above
+  maxInvestmentUsd: number;
+  riskLevel: 'Accelerated ROI' | 'Ultra Fast Yield' | 'Balanced Growth' | 'Conservative' | 'Moderate' | 'Aggressive' | string;
+  dailyYieldPercent: number;
+  totalExpectedRoiPercent: number;
+  expectedRoiPercent?: number;
+  accelerationFactor?: string;
+  description: string;
+  badge: string;
+  isActive: boolean;
+  totalSubscribedUsd: number;
+  subscribersCount?: number;
+}
+
+export type WithdrawalMethodType = 'BTC' | 'USDT_TRC20' | 'USDT_ERC20' | 'ETH' | 'BNB' | 'BANK_WIRE';
+
+export interface WithdrawalRequest {
+  id: string;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  amountUsd: number;
+  currency: string;
+  method?: string;
+  destinationAddress: string;
+  network?: string;
+  bankName?: string;
+  accountNumber?: string;
+  routingNumber?: string;
+  accountName?: string;
+  status: 'pending' | 'approved' | 'rejected' | 'processed';
+  requestedAt: string;
+  createdAt?: string;
+  processedAt?: string;
+  txHash?: string;
+  rejectionReason?: string;
+  feeUsd: number;
+  netAmountUsd: number;
+  netPayoutUsd?: number;
+}
+
+export interface WithdrawalSettings {
+  enabled: boolean;
+  withdrawalsEnabled?: boolean;
+  requireMinDeposit: boolean;
+  requireDepositToWithdraw?: boolean;
+  minDepositRequiredUsd: number; // default $200
+  minimumDepositRequiredUsd?: number;
+  minWithdrawalUsd: number;
+  minimumWithdrawalUsd?: number;
+  maxWithdrawalUsd: number;
+  feePercent: number;
+  feePercentage?: number;
+  estimatedProcessingTime: string;
+}
+
+export interface WheelReward {
+  id: string;
+  label: string;
+  text?: string;
+  valueUsd: number;
+  value?: number;
+  type: 'credits' | 'crypto' | 'service' | 'merch' | 'pass' | 'usd' | 'coupon' | 'points' | 'free_spin';
+  color: string;
+  textColor: string;
+  weight: number;
+  probabilityWeight?: number;
+  isActive: boolean;
+}
+
+
+
+export interface FeatureToggles {
+  enableStockTrading: boolean;
+  enableSpotBuy: boolean;
+  enableFastRoiStocks: boolean;
+  enableWithdrawals: boolean;
+  requireMinDepositForWithdrawal: boolean;
+  minDepositForWithdrawalUsd: number;
+  enableSpins: boolean;
+  enableScratchCards: boolean;
+  enableVehicleSales: boolean;
+  enableStakingYield: boolean;
+
+  // Extended aliases for streamlined components
+  teslaStocksEnabled?: boolean;
+  spotTradingEnabled?: boolean;
+  fastRoiPlansEnabled?: boolean;
+  withdrawalsEnabled?: boolean;
+  requireDepositForWithdrawal?: boolean;
+  spinWheelEnabled?: boolean;
+  scratchCardsEnabled?: boolean;
+  vehicleSalesEnabled?: boolean;
+  investmentsEnabled?: boolean;
+}
+
+
+
 
 

@@ -51,6 +51,11 @@ import {
   ShieldCheck,
   Tag,
   MapPin,
+  Coins,
+  ToggleLeft,
+  ToggleRight,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import {
   SmtpConfig,
@@ -69,6 +74,12 @@ import {
   VehicleRefundPolicySettings,
   VehicleOrder,
   Coupon,
+  TeslaStockQuote,
+  FeaturedStockPlan,
+  WithdrawalRequest,
+  WithdrawalSettings,
+  WheelReward,
+  FeatureToggles,
 } from '../types';
 
 const PREBUILT_TEMPLATES: EmailTemplate[] = [
@@ -182,6 +193,10 @@ Stay optimal all season long with Apex Tesla Hub.`,
 type AdminTab =
   | 'users_kyc'
   | 'investment_mgmt'
+  | 'withdrawals_mgmt'
+  | 'stocks_mgmt'
+  | 'spins_cms'
+  | 'feature_switches'
   | 'notifications_hub'
   | 'car_sales'
   | 'site_editor'
@@ -253,6 +268,29 @@ export const AdminDashboard: React.FC = () => {
     updateCoupon,
     deleteCoupon,
     toggleCouponActive,
+    // Stocks & Spot CMS
+    tslaQuote,
+    updateStockQuote,
+    featuredStockPlans,
+    createFeaturedStockPlan,
+    updateFeaturedStockPlan,
+    deleteFeaturedStockPlan,
+    // Withdrawals & Eligibility Rules
+    withdrawalSettings,
+    updateWithdrawalSettings,
+    withdrawalRequests,
+    processWithdrawalRequest,
+    // Spins & Rewards CMS
+    spinCostUsd,
+    updateSpinCost,
+    wheelRewards,
+    updateWheelRewards,
+    updateWheelReward,
+    addWheelReward,
+    deleteWheelReward,
+    // Platform Feature Switches
+    featureToggles,
+    updateFeatureToggles,
   } = useApp();
 
   const [activeAdminTab, setActiveAdminTab] = useState<AdminTab>('users_kyc');
@@ -440,6 +478,62 @@ export const AdminDashboard: React.FC = () => {
     enableCryptoDeposits: true,
   });
 
+  // Withdrawals Management State
+  const [withdrawalTxInputs, setWithdrawalTxInputs] = useState<Record<string, string>>({});
+  const [withdrawalRejectInputs, setWithdrawalRejectInputs] = useState<Record<string, string>>({});
+  const [withdrawalFilterStatus, setWithdrawalFilterStatus] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
+
+  // Tesla Stocks & Fast-ROI CMS State
+  const [stockQuoteEditForm, setStockQuoteEditForm] = useState({
+    price: tslaQuote.price,
+    change24h: tslaQuote.change24h,
+    dayHigh: tslaQuote.dayHigh,
+    dayLow: tslaQuote.dayLow,
+    volume: tslaQuote.volume,
+  });
+  const [editingStockPlan, setEditingStockPlan] = useState<FeaturedStockPlan | null>(null);
+  const [isAddingStockPlan, setIsAddingStockPlan] = useState(false);
+  const [stockPlanForm, setStockPlanForm] = useState<Omit<FeaturedStockPlan, 'id' | 'subscribersCount'>>({
+    title: 'Cyber-Optimus Accelerated Fleet Pool',
+    name: 'Cyber-Optimus Accelerated Fleet Pool',
+    ticker: 'TSLA-CYBER',
+    category: 'Autonomous AI',
+    tier: 'Cyber-Optimus',
+    badge: 'ACCELERATED 28.5%',
+    description: 'Autonomous Robotaxi and Optimus Bot robotics production allocation. 14-day cycle with direct profit share.',
+    minInvestmentUsd: 500,
+    maxInvestmentUsd: 25000,
+    apy: 28.5,
+    durationDays: 14,
+    dailyYieldPercent: 2.03,
+    totalExpectedRoiPercent: 28.5,
+    totalSubscribedUsd: 0,
+    expectedRoiPercent: 28.5,
+    lockPeriodDays: 14,
+    riskLevel: 'Moderate',
+    accelerationFactor: '2.5x Standard TSLA',
+    isActive: true,
+  });
+
+  // Spins CMS State
+  const [localSpinCost, setLocalSpinCost] = useState<number>(spinCostUsd);
+  const [editingReward, setEditingReward] = useState<WheelReward | null>(null);
+  const [isAddingReward, setIsAddingReward] = useState(false);
+  const [newRewardForm, setNewRewardForm] = useState<Omit<WheelReward, 'id'>>({
+    label: '$100 Vault Credit',
+    text: '$100',
+    valueUsd: 100,
+    value: 100,
+    type: 'usd',
+    color: '#06b6d4',
+    textColor: '#ffffff',
+    weight: 8,
+    probabilityWeight: 8,
+    isActive: true,
+  });
+
+
+
   // Close dropdown on outside click
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -499,6 +593,38 @@ export const AdminDashboard: React.FC = () => {
       description: 'Configure SMTP relays, test delivery with diagnostics & send campaigns',
       icon: Mail,
       badge: 'PHP/SMTP',
+    },
+    {
+      id: 'withdrawals_mgmt' as const,
+      label: 'User Withdrawals & $200 Deposit Rule',
+      shortLabel: 'Withdrawals & AML',
+      description: 'Review pending payouts, approve on-chain tx hashes & configure minimum $200 deposit policy',
+      icon: CreditCard,
+      badge: `${withdrawalRequests.filter((r) => r.status === 'pending').length} Pending`,
+    },
+    {
+      id: 'stocks_mgmt' as const,
+      label: 'Tesla Live Stocks & Fast ROI CMS',
+      shortLabel: 'Tesla Stocks & Fast ROI',
+      description: 'Manage TSLA live quote, base prices, spot trading & high-yield accelerated stock plans',
+      icon: Activity,
+      badge: `${featuredStockPlans.length} Plans`,
+    },
+    {
+      id: 'spins_cms' as const,
+      label: 'Spins Rewards & Spin Cost CMS',
+      shortLabel: 'Spins & Rewards',
+      description: 'Set execution spin cost ($USD/credits), customize wheel prizes, colors and probability weights',
+      icon: Coins,
+      badge: `$${spinCostUsd} / Spin`,
+    },
+    {
+      id: 'feature_switches' as const,
+      label: 'Platform Feature Switches & Toggles',
+      shortLabel: 'Feature Toggles',
+      description: 'Master on/off toggles for stocks, withdrawals, spins, scratch cards & vehicle sales',
+      icon: Sliders,
+      badge: 'Live Switches',
     },
     {
       id: 'fleet_ops' as const,
@@ -4174,6 +4300,1006 @@ export const AdminDashboard: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* 7. User Withdrawals & $200 Deposit Rule Management */}
+      {activeAdminTab === 'withdrawals_mgmt' && (
+        <div className="space-y-6">
+          {/* Policy & AML Thresholds Card */}
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 sm:p-6 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-800 pb-4">
+              <div>
+                <h3 className="text-lg font-heading font-black text-white flex items-center gap-2">
+                  <CreditCard className="w-5 h-5 text-red-500" />
+                  Withdrawal Gateways & AML Anti-Fraud Policy
+                </h3>
+                <p className="text-xs text-zinc-400 mt-1">
+                  Enforce strict anti-money-laundering policies, minimum user deposit hurdles, and review on-chain payouts.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${withdrawalSettings.withdrawalsEnabled ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20'}`}>
+                  {withdrawalSettings.withdrawalsEnabled ? 'Withdrawals ACTIVE' : 'Withdrawals PAUSED'}
+                </span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-2">
+              <div className="p-4 rounded-xl bg-zinc-950 border border-zinc-800 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-zinc-300">Min Deposit Requirement</label>
+                  <button
+                    onClick={() => {
+                      updateWithdrawalSettings({ requireDepositToWithdraw: !withdrawalSettings.requireDepositToWithdraw });
+                      showToast(withdrawalSettings.requireDepositToWithdraw ? 'Deposit requirement disabled' : 'Deposit requirement ENABLED');
+                    }}
+                    className={`text-xl ${withdrawalSettings.requireDepositToWithdraw ? 'text-emerald-400' : 'text-zinc-600'}`}
+                  >
+                    {withdrawalSettings.requireDepositToWithdraw ? <ToggleRight className="w-7 h-7" /> : <ToggleLeft className="w-7 h-7" />}
+                  </button>
+                </div>
+                <p className="text-[11px] text-zinc-400">
+                  {withdrawalSettings.requireDepositToWithdraw 
+                    ? 'Users must deposit min $200 before withdrawing. Otherwise, reject alert is shown.' 
+                    : 'Disabled: Any user can request withdrawal without previous deposit.'}
+                </p>
+              </div>
+
+              <div className="p-4 rounded-xl bg-zinc-950 border border-zinc-800 space-y-2">
+                <label className="text-xs font-bold text-zinc-300">Min Deposit Required ($USD)</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-2.5 text-zinc-500 text-sm">$</span>
+                  <input
+                    type="number"
+                    value={withdrawalSettings.minimumDepositRequiredUsd}
+                    onChange={(e) => updateWithdrawalSettings({ minimumDepositRequiredUsd: Math.max(0, Number(e.target.value)) })}
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-lg pl-7 pr-3 py-2 text-sm text-white font-mono focus:border-red-500 focus:outline-none"
+                  />
+                </div>
+                <p className="text-[11px] text-zinc-500">Default requirement is $200.00</p>
+              </div>
+
+              <div className="p-4 rounded-xl bg-zinc-950 border border-zinc-800 space-y-2">
+                <label className="text-xs font-bold text-zinc-300">Minimum Payout ($USD)</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-2.5 text-zinc-500 text-sm">$</span>
+                  <input
+                    type="number"
+                    value={withdrawalSettings.minimumWithdrawalUsd}
+                    onChange={(e) => updateWithdrawalSettings({ minimumWithdrawalUsd: Math.max(10, Number(e.target.value)) })}
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-lg pl-7 pr-3 py-2 text-sm text-white font-mono focus:border-red-500 focus:outline-none"
+                  />
+                </div>
+                <p className="text-[11px] text-zinc-500">Min withdrawal allowed per transaction</p>
+              </div>
+
+              <div className="p-4 rounded-xl bg-zinc-950 border border-zinc-800 space-y-2">
+                <label className="text-xs font-bold text-zinc-300">Withdrawal Processing Fee (%)</label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    value={withdrawalSettings.feePercentage}
+                    onChange={(e) => updateWithdrawalSettings({ feePercentage: Math.max(0, Number(e.target.value)) })}
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white font-mono focus:border-red-500 focus:outline-none"
+                  />
+                  <span className="absolute right-3 top-2.5 text-zinc-500 text-sm">%</span>
+                </div>
+                <p className="text-[11px] text-zinc-500">0% for promotional zero-fee window</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Withdrawal Requests List */}
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 sm:p-6 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h4 className="text-base font-heading font-black text-white flex items-center gap-2">
+                  <Activity className="w-4 h-4 text-emerald-400" />
+                  Payout Requests ({withdrawalRequests.length} Total)
+                </h4>
+                <p className="text-xs text-zinc-400">Review pending withdrawals, verify destination wallet / bank account, and enter blockchain transaction hash.</p>
+              </div>
+              <div className="flex items-center gap-2">
+                {(['all', 'pending', 'approved', 'rejected'] as const).map((status) => (
+                  <button
+                    key={status}
+                    onClick={() => setWithdrawalFilterStatus(status)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold capitalize transition-all ${
+                      withdrawalFilterStatus === status
+                        ? 'bg-red-600 text-white'
+                        : 'bg-zinc-800 text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    {status}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-zinc-800 text-zinc-400 font-mono">
+                    <th className="pb-3 font-semibold">REQUEST ID / TIME</th>
+                    <th className="pb-3 font-semibold">USER</th>
+                    <th className="pb-3 font-semibold">METHOD & ADDRESS</th>
+                    <th className="pb-3 font-semibold">AMOUNT</th>
+                    <th className="pb-3 font-semibold">USER DEPOSITS</th>
+                    <th className="pb-3 font-semibold">STATUS</th>
+                    <th className="pb-3 font-semibold text-right">ACTION</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-800/60 font-mono">
+                  {withdrawalRequests
+                    .filter((r) => withdrawalFilterStatus === 'all' || r.status === withdrawalFilterStatus)
+                    .map((req) => {
+                      const user = allUsers.find((u) => u.id === req.userId);
+                      const userDeposit = (user?.totalDepositedUsd ?? (req.userId === currentUser?.id ? currentUser?.totalDepositedUsd : 0)) || 0;
+                      const minDepositReq = withdrawalSettings.minDepositRequiredUsd ?? withdrawalSettings.minimumDepositRequiredUsd ?? 200;
+                      const isEligible = userDeposit >= minDepositReq;
+
+                      return (
+                        <tr key={req.id} className="hover:bg-zinc-800/30 transition-colors">
+                          <td className="py-3 pr-2">
+                            <span className="font-bold text-white block">{req.id}</span>
+                            <span className="text-[10px] text-zinc-500">{new Date(req.createdAt || req.requestedAt).toLocaleString()}</span>
+                          </td>
+                          <td className="py-3 pr-2">
+                            <span className="text-white font-medium block">{req.userName}</span>
+                            <span className="text-[10px] text-zinc-500">{req.userEmail}</span>
+                          </td>
+                          <td className="py-3 pr-2">
+                            <span className="px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 font-bold text-[10px] uppercase inline-block mb-1">
+                              {req.method || req.currency}
+                            </span>
+                            <p className="text-[11px] text-zinc-400 max-w-xs truncate" title={req.destinationAddress}>
+                              {req.destinationAddress}
+                            </p>
+                          </td>
+                          <td className="py-3 pr-2">
+                            <span className="text-emerald-400 font-bold block">${req.amountUsd.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                            <span className="text-[10px] text-zinc-500">Net: ${(req.netPayoutUsd ?? req.netAmountUsd).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                          </td>
+                          <td className="py-3 pr-2">
+                            {isEligible ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-bold">
+                                <CheckCircle className="w-3 h-3" />
+                                Deposited: ${userDeposit}
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px] font-bold">
+                                <AlertTriangle className="w-3 h-3" />
+                                ${userDeposit} / ${minDepositReq}
+                              </span>
+                            )}
+                          </td>
+
+                          <td className="py-3 pr-2">
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase inline-block ${
+                                req.status === 'approved'
+                                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                  : req.status === 'rejected'
+                                  ? 'bg-red-500/10 text-red-400 border border-red-500/20'
+                                  : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                              }`}
+                            >
+                              {req.status}
+                            </span>
+                            {req.txHash && (
+                              <span className="block text-[10px] text-zinc-500 mt-1 truncate max-w-xs" title={req.txHash}>
+                                TX: {req.txHash}
+                              </span>
+                            )}
+                            {req.rejectionReason && (
+                              <span className="block text-[10px] text-red-400 mt-1 max-w-xs">
+                                Note: {req.rejectionReason}
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3 text-right">
+                            {req.status === 'pending' ? (
+                              <div className="flex flex-col items-end gap-1.5">
+                                <div className="flex items-center gap-1">
+                                  <input
+                                    type="text"
+                                    placeholder="Tx Hash (0x...)"
+                                    value={withdrawalTxInputs[req.id] || ''}
+                                    onChange={(e) => setWithdrawalTxInputs({ ...withdrawalTxInputs, [req.id]: e.target.value })}
+                                    className="bg-zinc-950 border border-zinc-700 rounded px-2 py-1 text-[11px] text-white w-28 focus:border-emerald-500 focus:outline-none"
+                                  />
+                                  <button
+                                    onClick={() => {
+                                      const tx = withdrawalTxInputs[req.id] || `0x${Math.random().toString(16).substring(2, 10)}${Math.random().toString(16).substring(2, 10)}`;
+                                      processWithdrawalRequest(req.id, 'approved', tx);
+                                    }}
+                                    className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-[10px] font-bold"
+                                  >
+                                    Approve
+                                  </button>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <input
+                                    type="text"
+                                    placeholder="Reject reason..."
+                                    value={withdrawalRejectInputs[req.id] || ''}
+                                    onChange={(e) => setWithdrawalRejectInputs({ ...withdrawalRejectInputs, [req.id]: e.target.value })}
+                                    className="bg-zinc-950 border border-zinc-700 rounded px-2 py-1 text-[11px] text-white w-28 focus:border-red-500 focus:outline-none"
+                                  />
+                                  <button
+                                    onClick={() => {
+                                      const reason = withdrawalRejectInputs[req.id] || 'Minimum deposit requirement not met. Please complete deposit of $200.';
+                                      processWithdrawalRequest(req.id, 'rejected', undefined, reason);
+                                    }}
+                                    className="px-2.5 py-1 bg-red-600 hover:bg-red-500 text-white rounded text-[10px] font-bold"
+                                  >
+                                    Reject
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <span className="text-[10px] text-zinc-500">Processed</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 8. Tesla Live Stocks & Fast ROI CMS */}
+      {activeAdminTab === 'stocks_mgmt' && (
+        <div className="space-y-6">
+          {/* TSLA Live Quote Controller */}
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 sm:p-6 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-800 pb-4">
+              <div>
+                <h3 className="text-lg font-heading font-black text-white flex items-center gap-2">
+                  <Activity className="w-5 h-5 text-red-500" />
+                  NASDAQ: TSLA Live Stock Pricing Engine
+                </h3>
+                <p className="text-xs text-zinc-400 mt-1">
+                  Control the live Tesla stock baseline quote, simulated market variance range, and 24h market metrics.
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="px-3 py-1 bg-zinc-800 rounded-lg text-xs font-mono text-zinc-300">
+                  Current: <strong className="text-white">${tslaQuote.price.toFixed(2)}</strong> ({tslaQuote.change24h >= 0 ? '+' : ''}{tslaQuote.change24h.toFixed(2)}%)
+                </span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 pt-2">
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-zinc-300">Base Price ($USD)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={stockQuoteEditForm.price}
+                  onChange={(e) => setStockQuoteEditForm({ ...stockQuoteEditForm, price: Number(e.target.value) })}
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-white font-mono focus:border-red-500 focus:outline-none"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-zinc-300">24h Change (%)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={stockQuoteEditForm.change24h}
+                  onChange={(e) => setStockQuoteEditForm({ ...stockQuoteEditForm, change24h: Number(e.target.value) })}
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-white font-mono focus:border-red-500 focus:outline-none"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-zinc-300">Day High ($)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={stockQuoteEditForm.dayHigh}
+                  onChange={(e) => setStockQuoteEditForm({ ...stockQuoteEditForm, dayHigh: Number(e.target.value) })}
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-white font-mono focus:border-red-500 focus:outline-none"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-zinc-300">Day Low ($)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={stockQuoteEditForm.dayLow}
+                  onChange={(e) => setStockQuoteEditForm({ ...stockQuoteEditForm, dayLow: Number(e.target.value) })}
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-white font-mono focus:border-red-500 focus:outline-none"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-zinc-300">Volume</label>
+                <input
+                  type="text"
+                  value={stockQuoteEditForm.volume}
+                  onChange={(e) => setStockQuoteEditForm({ ...stockQuoteEditForm, volume: e.target.value })}
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-white font-mono focus:border-red-500 focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <button
+                onClick={() => {
+                  updateStockQuote(stockQuoteEditForm);
+                  showToast('Tesla live stock quote updated successfully!');
+                }}
+                className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-2"
+              >
+                <Check className="w-4 h-4" />
+                Apply TSLA Quote Update
+              </button>
+            </div>
+          </div>
+
+          {/* Featured Fast-ROI Stock Plans Manager */}
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 sm:p-6 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-800 pb-4">
+              <div>
+                <h4 className="text-base font-heading font-black text-white flex items-center gap-2">
+                  <Flame className="w-4 h-4 text-amber-500" />
+                  Featured Stocks Buy For Faster ROI Plans (Min $500 Enforced)
+                </h4>
+                <p className="text-xs text-zinc-400 mt-0.5">
+                  High-yield accelerated stock packages with guaranteed minimum entry from $500 and above.
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setIsAddingStockPlan(true);
+                  setEditingStockPlan(null);
+                }}
+                className="px-3.5 py-2 bg-amber-500 hover:bg-amber-400 text-black rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all"
+              >
+                <Plus className="w-4 h-4" />
+                Add Accelerated Stock Plan
+              </button>
+            </div>
+
+            {/* Plans List Table */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-zinc-800 text-zinc-400 font-mono">
+                    <th className="pb-3 font-semibold">PLAN / TIER</th>
+                    <th className="pb-3 font-semibold">EXPECTED ROI</th>
+                    <th className="pb-3 font-semibold">CYCLE DURATION</th>
+                    <th className="pb-3 font-semibold">ENTRY RANGE</th>
+                    <th className="pb-3 font-semibold">ACCELERATION</th>
+                    <th className="pb-3 font-semibold">STATUS</th>
+                    <th className="pb-3 font-semibold text-right">ACTIONS</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-800/60 font-mono">
+                  {featuredStockPlans.map((plan) => (
+                    <tr key={plan.id} className="hover:bg-zinc-800/30 transition-colors">
+                      <td className="py-3 pr-2">
+                        <span className="font-bold text-white block">{plan.name}</span>
+                        <span className="text-[10px] text-zinc-400">{plan.badge}</span>
+                      </td>
+                      <td className="py-3 pr-2">
+                        <span className="text-emerald-400 font-black text-sm">+{plan.expectedRoiPercent}%</span>
+                      </td>
+                      <td className="py-3 pr-2">
+                        <span className="text-zinc-300">{plan.lockPeriodDays} Days</span>
+                      </td>
+                      <td className="py-3 pr-2">
+                        <span className="text-white font-bold">${plan.minInvestmentUsd.toLocaleString()}</span>
+                        <span className="text-zinc-500 text-[10px] block">up to ${plan.maxInvestmentUsd.toLocaleString()}</span>
+                      </td>
+                      <td className="py-3 pr-2">
+                        <span className="px-2 py-0.5 rounded bg-zinc-800 text-amber-400 text-[10px] font-bold">
+                          {plan.accelerationFactor}
+                        </span>
+                      </td>
+                      <td className="py-3 pr-2">
+                        <button
+                          onClick={() => updateFeaturedStockPlan(plan.id, { isActive: !plan.isActive })}
+                          className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase transition-all ${
+                            plan.isActive
+                              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                              : 'bg-zinc-800 text-zinc-500'
+                          }`}
+                        >
+                          {plan.isActive ? 'Active' : 'Disabled'}
+                        </button>
+                      </td>
+                      <td className="py-3 text-right space-x-2">
+                        <button
+                          onClick={() => {
+                            setEditingStockPlan(plan);
+                            setStockPlanForm({
+                              title: plan.title || plan.name || 'Accelerated Stock Plan',
+                              name: plan.name || plan.title || 'Accelerated Stock Plan',
+                              ticker: plan.ticker || 'TSLA',
+                              category: plan.category || 'Autonomous AI',
+                              tier: plan.tier || 'Cyber-Optimus',
+                              badge: plan.badge,
+                              description: plan.description,
+                              minInvestmentUsd: plan.minInvestmentUsd,
+                              maxInvestmentUsd: plan.maxInvestmentUsd,
+                              apy: plan.apy ?? plan.expectedRoiPercent ?? 28.5,
+                              durationDays: plan.durationDays ?? plan.lockPeriodDays ?? 14,
+                              dailyYieldPercent: plan.dailyYieldPercent ?? 2.0,
+                              totalExpectedRoiPercent: plan.totalExpectedRoiPercent ?? plan.expectedRoiPercent ?? 28.5,
+                              totalSubscribedUsd: plan.totalSubscribedUsd ?? 0,
+                              expectedRoiPercent: plan.expectedRoiPercent ?? plan.totalExpectedRoiPercent ?? 28.5,
+                              lockPeriodDays: plan.lockPeriodDays ?? plan.durationDays ?? 14,
+                              riskLevel: plan.riskLevel,
+                              accelerationFactor: plan.accelerationFactor || '2.0x Standard',
+                              isActive: plan.isActive,
+                            });
+                            setIsAddingStockPlan(true);
+
+                          }}
+                          className="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white inline-block"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (window.confirm(`Delete plan ${plan.name}?`)) {
+                              deleteFeaturedStockPlan(plan.id);
+                            }
+                          }}
+                          className="p-1.5 rounded-lg bg-zinc-800 hover:bg-red-600/30 text-zinc-400 hover:text-red-400 inline-block"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Add / Edit Stock Plan Modal */}
+            {isAddingStockPlan && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+                <div className="bg-zinc-950 border border-zinc-800 rounded-2xl p-6 w-full max-w-xl space-y-4 max-h-[90vh] overflow-y-auto">
+                  <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+                    <h3 className="font-heading font-black text-white text-base">
+                      {editingStockPlan ? 'Edit Fast-ROI Stock Plan' : 'Create Accelerated Fast-ROI Plan'}
+                    </h3>
+                    <button
+                      onClick={() => {
+                        setIsAddingStockPlan(false);
+                        setEditingStockPlan(null);
+                      }}
+                      className="text-zinc-400 hover:text-white"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    <div className="space-y-1">
+                      <label className="text-zinc-300 font-bold">Plan Name</label>
+                      <input
+                        type="text"
+                        value={stockPlanForm.name}
+                        onChange={(e) => setStockPlanForm({ ...stockPlanForm, name: e.target.value })}
+                        className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-white"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-zinc-300 font-bold">Badge Text</label>
+                      <input
+                        type="text"
+                        value={stockPlanForm.badge}
+                        onChange={(e) => setStockPlanForm({ ...stockPlanForm, badge: e.target.value })}
+                        className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-white"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-zinc-300 font-bold">Min Investment ($USD - Min 500)</label>
+                      <input
+                        type="number"
+                        min="500"
+                        value={stockPlanForm.minInvestmentUsd}
+                        onChange={(e) => setStockPlanForm({ ...stockPlanForm, minInvestmentUsd: Math.max(500, Number(e.target.value)) })}
+                        className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-white font-mono"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-zinc-300 font-bold">Max Investment ($USD)</label>
+                      <input
+                        type="number"
+                        value={stockPlanForm.maxInvestmentUsd}
+                        onChange={(e) => setStockPlanForm({ ...stockPlanForm, maxInvestmentUsd: Number(e.target.value) })}
+                        className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-white font-mono"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-zinc-300 font-bold">Expected ROI (%)</label>
+                      <input
+                        type="number"
+                        step="0.5"
+                        value={stockPlanForm.expectedRoiPercent}
+                        onChange={(e) => setStockPlanForm({ ...stockPlanForm, expectedRoiPercent: Number(e.target.value) })}
+                        className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-emerald-400 font-bold font-mono"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-zinc-300 font-bold">Cycle Duration (Days)</label>
+                      <input
+                        type="number"
+                        value={stockPlanForm.lockPeriodDays}
+                        onChange={(e) => setStockPlanForm({ ...stockPlanForm, lockPeriodDays: Number(e.target.value) })}
+                        className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-white font-mono"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-zinc-300 font-bold">Acceleration Factor</label>
+                      <input
+                        type="text"
+                        value={stockPlanForm.accelerationFactor}
+                        onChange={(e) => setStockPlanForm({ ...stockPlanForm, accelerationFactor: e.target.value })}
+                        className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-white"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-zinc-300 font-bold">Risk Level</label>
+                      <select
+                        value={stockPlanForm.riskLevel}
+                        onChange={(e) => setStockPlanForm({ ...stockPlanForm, riskLevel: e.target.value as any })}
+                        className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-white"
+                      >
+                        <option value="Conservative">Conservative</option>
+                        <option value="Moderate">Moderate</option>
+                        <option value="Aggressive">Aggressive</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1 text-xs">
+                    <label className="text-zinc-300 font-bold">Description</label>
+                    <textarea
+                      rows={2}
+                      value={stockPlanForm.description}
+                      onChange={(e) => setStockPlanForm({ ...stockPlanForm, description: e.target.value })}
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-white"
+                    />
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-2">
+                    <button
+                      onClick={() => {
+                        setIsAddingStockPlan(false);
+                        setEditingStockPlan(null);
+                      }}
+                      className="px-4 py-2 bg-zinc-800 text-zinc-300 hover:text-white rounded-xl text-xs font-bold"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (editingStockPlan) {
+                          updateFeaturedStockPlan(editingStockPlan.id, stockPlanForm);
+                          showToast('Plan updated successfully');
+                        } else {
+                          createFeaturedStockPlan(stockPlanForm);
+                          showToast('Plan created successfully');
+                        }
+                        setIsAddingStockPlan(false);
+                        setEditingStockPlan(null);
+                      }}
+                      className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-black rounded-xl text-xs font-bold"
+                    >
+                      {editingStockPlan ? 'Save Changes' : 'Create Plan'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 9. Spins Rewards & Spin Cost CMS */}
+      {activeAdminTab === 'spins_cms' && (
+        <div className="space-y-6">
+          {/* Spin Cost Settings Card */}
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 sm:p-6 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-800 pb-4">
+              <div>
+                <h3 className="text-lg font-heading font-black text-white flex items-center gap-2">
+                  <Coins className="w-5 h-5 text-amber-500" />
+                  Spin Wheel Price & Reward Probabilities CMS
+                </h3>
+                <p className="text-xs text-zinc-400 mt-1">
+                  Adjust the cost per spin in USD and configure every wheel slice reward, value, and probability weight.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-zinc-400">Current Cost:</span>
+                <span className="px-3 py-1 bg-amber-500/10 border border-amber-500/20 text-amber-400 font-mono font-bold rounded-lg text-sm">
+                  ${spinCostUsd} / Spin
+                </span>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-end gap-3 pt-2">
+              <div className="w-full sm:w-64 space-y-1">
+                <label className="text-xs font-bold text-zinc-300">Execution Cost Per Spin ($USD)</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-2.5 text-zinc-500 text-sm">$</span>
+                  <input
+                    type="number"
+                    min="1"
+                    value={localSpinCost}
+                    onChange={(e) => setLocalSpinCost(Math.max(1, Number(e.target.value)))}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg pl-7 pr-3 py-2 text-sm text-white font-mono focus:border-amber-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  updateSpinCost(localSpinCost);
+                  showToast(`Spin cost updated to $${localSpinCost} USD!`);
+                }}
+                className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-black rounded-xl text-xs font-bold transition-all flex items-center gap-1.5"
+              >
+                <Check className="w-4 h-4" />
+                Save Spin Cost
+              </button>
+            </div>
+          </div>
+
+          {/* Wheel Slices Rewards List */}
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 sm:p-6 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-800 pb-4">
+              <div>
+                <h4 className="text-base font-heading font-black text-white flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-amber-400" />
+                  Wheel Reward Slices ({wheelRewards.length} Configured)
+                </h4>
+                <p className="text-xs text-zinc-400">
+                  Each prize has a visual slice color, reward value, and probability weight. Total weights determine likelihood.
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setIsAddingReward(true);
+                  setEditingReward(null);
+                }}
+                className="px-3.5 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5"
+              >
+                <Plus className="w-4 h-4" />
+                Add Wheel Prize Slice
+              </button>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-zinc-800 text-zinc-400 font-mono">
+                    <th className="pb-3 font-semibold">COLOR</th>
+                    <th className="pb-3 font-semibold">PRIZE LABEL</th>
+                    <th className="pb-3 font-semibold">TYPE</th>
+                    <th className="pb-3 font-semibold">REWARD VALUE</th>
+                    <th className="pb-3 font-semibold">PROBABILITY WEIGHT</th>
+                    <th className="pb-3 font-semibold">ACTIVE</th>
+                    <th className="pb-3 font-semibold text-right">ACTION</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-800/60 font-mono">
+                  {wheelRewards.map((reward) => (
+                    <tr key={reward.id} className="hover:bg-zinc-800/30 transition-colors">
+                      <td className="py-3 pr-2">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="w-5 h-5 rounded-full border border-white/20 shadow-sm"
+                            style={{ backgroundColor: reward.color }}
+                          />
+                          <span className="text-[10px] text-zinc-500">{reward.color}</span>
+                        </div>
+                      </td>
+                      <td className="py-3 pr-2 font-bold text-white">
+                        {reward.label}
+                      </td>
+                      <td className="py-3 pr-2">
+                        <span className="px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 uppercase text-[10px] font-bold">
+                          {reward.type}
+                        </span>
+                      </td>
+                      <td className="py-3 pr-2 font-bold text-emerald-400">
+                        {reward.type === 'usd' ? `$${reward.value}` : reward.value}
+                      </td>
+                      <td className="py-3 pr-2 text-zinc-300">
+                        {reward.probabilityWeight} pts
+                      </td>
+                      <td className="py-3 pr-2">
+                        <button
+                          onClick={() => updateWheelReward(reward.id, { isActive: !reward.isActive })}
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            reward.isActive ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-zinc-800 text-zinc-500'
+                          }`}
+                        >
+                          {reward.isActive ? 'Active' : 'Disabled'}
+                        </button>
+                      </td>
+                      <td className="py-3 text-right space-x-2">
+                        <button
+                          onClick={() => {
+                            setEditingReward(reward);
+                            setNewRewardForm({
+                              label: reward.label,
+                              text: reward.text || reward.label,
+                              valueUsd: reward.valueUsd ?? reward.value ?? 100,
+                              value: reward.value ?? reward.valueUsd ?? 100,
+                              type: reward.type,
+                              color: reward.color,
+                              textColor: reward.textColor || '#ffffff',
+                              weight: reward.weight ?? reward.probabilityWeight ?? 8,
+                              probabilityWeight: reward.probabilityWeight ?? reward.weight ?? 8,
+                              isActive: reward.isActive,
+                            });
+                            setIsAddingReward(true);
+
+                          }}
+                          className="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 inline-block"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (window.confirm(`Delete reward ${reward.label}?`)) {
+                              deleteWheelReward(reward.id);
+                            }
+                          }}
+                          className="p-1.5 rounded-lg bg-zinc-800 hover:bg-red-600/30 text-zinc-400 hover:text-red-400 inline-block"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Add / Edit Reward Modal */}
+            {isAddingReward && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+                <div className="bg-zinc-950 border border-zinc-800 rounded-2xl p-6 w-full max-w-md space-y-4">
+                  <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+                    <h3 className="font-heading font-black text-white text-base">
+                      {editingReward ? 'Edit Wheel Reward' : 'Add Wheel Prize Slice'}
+                    </h3>
+                    <button
+                      onClick={() => {
+                        setIsAddingReward(false);
+                        setEditingReward(null);
+                      }}
+                      className="text-zinc-400 hover:text-white"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+
+                  <div className="space-y-3 text-xs">
+                    <div>
+                      <label className="text-zinc-300 font-bold block mb-1">Prize Label</label>
+                      <input
+                        type="text"
+                        value={newRewardForm.label}
+                        onChange={(e) => setNewRewardForm({ ...newRewardForm, label: e.target.value })}
+                        className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-white"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-zinc-300 font-bold block mb-1">Type</label>
+                        <select
+                          value={newRewardForm.type}
+                          onChange={(e) => setNewRewardForm({ ...newRewardForm, type: e.target.value as any })}
+                          className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-white"
+                        >
+                          <option value="usd">USD Cash</option>
+                          <option value="coupon">Discount Coupon</option>
+                          <option value="points">Points / XP</option>
+                          <option value="free_spin">Free Spin</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-zinc-300 font-bold block mb-1">Reward Value</label>
+                        <input
+                          type="number"
+                          value={newRewardForm.value}
+                          onChange={(e) => setNewRewardForm({ ...newRewardForm, value: Number(e.target.value) })}
+                          className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-white font-mono"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-zinc-300 font-bold block mb-1">Slice Hex Color</label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="color"
+                            value={newRewardForm.color}
+                            onChange={(e) => setNewRewardForm({ ...newRewardForm, color: e.target.value })}
+                            className="w-8 h-8 rounded border-0 cursor-pointer bg-transparent"
+                          />
+                          <input
+                            type="text"
+                            value={newRewardForm.color}
+                            onChange={(e) => setNewRewardForm({ ...newRewardForm, color: e.target.value })}
+                            className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2 py-1 text-white font-mono text-xs"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-zinc-300 font-bold block mb-1">Weight (Probability)</label>
+                        <input
+                          type="number"
+                          min="1"
+                          value={newRewardForm.probabilityWeight}
+                          onChange={(e) => setNewRewardForm({ ...newRewardForm, probabilityWeight: Math.max(1, Number(e.target.value)) })}
+                          className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-white font-mono"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-2">
+                    <button
+                      onClick={() => {
+                        setIsAddingReward(false);
+                        setEditingReward(null);
+                      }}
+                      className="px-4 py-2 bg-zinc-800 text-zinc-300 rounded-xl text-xs font-bold"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (editingReward) {
+                          updateWheelReward(editingReward.id, newRewardForm);
+                          showToast('Reward updated successfully');
+                        } else {
+                          addWheelReward(newRewardForm);
+                          showToast('New reward added');
+                        }
+                        setIsAddingReward(false);
+                        setEditingReward(null);
+                      }}
+                      className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-black rounded-xl text-xs font-bold"
+                    >
+                      {editingReward ? 'Save Reward' : 'Add Slice'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 10. Platform Feature Switches & Toggles */}
+      {activeAdminTab === 'feature_switches' && (
+        <div className="space-y-6">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 sm:p-6 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-800 pb-4">
+              <div>
+                <h3 className="text-lg font-heading font-black text-white flex items-center gap-2">
+                  <Sliders className="w-5 h-5 text-red-500" />
+                  Platform Master Feature Switches & Control Toggles
+                </h3>
+                <p className="text-xs text-zinc-400 mt-1">
+                  Dynamically activate or deactivate functional modules across user navigation, landing pages, and APIs in real-time.
+                </p>
+              </div>
+              <span className="px-3 py-1 bg-zinc-800 rounded-lg text-xs font-mono text-emerald-400 font-bold">
+                Live State Synchronized
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-2">
+              {[
+                {
+                  key: 'teslaStocksEnabled' as const,
+                  label: 'Tesla Live Stocks & Market Data',
+                  desc: 'Displays real-time TSLA stock charts, price fluctuations, and NASDAQ stats across navigation and tabs.',
+                  icon: TrendingUp,
+                },
+                {
+                  key: 'spotTradingEnabled' as const,
+                  label: 'Spot Buy Direct TSLA Shares ($500+ Min)',
+                  desc: 'Permits users to execute spot share purchases with $500 minimum capital requirement.',
+                  icon: DollarSign,
+                },
+                {
+                  key: 'fastRoiPlansEnabled' as const,
+                  label: 'Featured Fast-ROI Stock Plans',
+                  desc: 'Accelerated 14-45 day stock allocation packages offering higher APY returns.',
+                  icon: Flame,
+                },
+                {
+                  key: 'withdrawalsEnabled' as const,
+                  label: 'User Payouts & Withdrawals',
+                  desc: 'Allows users to request crypto or bank payouts from their cash balances.',
+                  icon: CreditCard,
+                },
+                {
+                  key: 'requireDepositForWithdrawal' as const,
+                  label: 'Enforce $200 Minimum Deposit Before Withdrawal',
+                  desc: 'Crucial rule: Users without completed $200 deposit receive clear withdrawal rejection alert.',
+                  icon: ShieldCheck,
+                },
+                {
+                  key: 'spinWheelEnabled' as const,
+                  label: 'Lucky Spin Wheel Hub',
+                  desc: 'Interactive provably fair wheel module with customizable slice prizes.',
+                  icon: Coins,
+                },
+                {
+                  key: 'scratchCardsEnabled' as const,
+                  label: 'Scratch Card Foils & Jackpots',
+                  desc: 'Instant foil reveals with $8,000 jackpot potential.',
+                  icon: Sparkles,
+                },
+                {
+                  key: 'vehicleSalesEnabled' as const,
+                  label: 'Tesla Direct Vehicle Sales & Shipping',
+                  desc: 'MSRP inventory sales with nationwide door delivery and 7-day guarantee.',
+                  icon: Car,
+                },
+                {
+                  key: 'investmentsEnabled' as const,
+                  label: 'Supercharger & Fleet Yield Pools',
+                  desc: 'Staking pools for vehicle rentals and charging infrastructure APY.',
+                  icon: Activity,
+                },
+              ].map((sw) => {
+                const isEnabled = featureToggles[sw.key];
+                const IconComponent = sw.icon;
+
+                return (
+                  <div
+                    key={sw.key}
+                    className="p-4 rounded-xl bg-zinc-950 border border-zinc-800 space-y-3 flex flex-col justify-between"
+                  >
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <IconComponent className={`w-4 h-4 ${isEnabled ? 'text-red-500' : 'text-zinc-600'}`} />
+                          <h4 className="text-xs font-bold text-white">{sw.label}</h4>
+                        </div>
+                        <button
+                          onClick={() => {
+                            updateFeatureToggles({ [sw.key]: !isEnabled });
+                            showToast(`${sw.label} ${!isEnabled ? 'ENABLED' : 'DISABLED'}`);
+                          }}
+                          className={`text-xl transition-colors ${isEnabled ? 'text-emerald-400' : 'text-zinc-600'}`}
+                        >
+                          {isEnabled ? <ToggleRight className="w-8 h-8" /> : <ToggleLeft className="w-8 h-8" />}
+                        </button>
+                      </div>
+                      <p className="text-[11px] text-zinc-400 leading-relaxed">{sw.desc}</p>
+                    </div>
+
+                    <div className="pt-2 border-t border-zinc-900 flex items-center justify-between text-[10px] font-mono">
+                      <span className="text-zinc-500">Status:</span>
+                      <span className={isEnabled ? 'text-emerald-400 font-bold' : 'text-zinc-500 font-bold'}>
+                        {isEnabled ? 'ACTIVE / VISIBLE' : 'DISABLED / HIDDEN'}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
 
       {/* KYC Dossier Modal - Responsive for all screens */}
       {selectedUserForKyc && (

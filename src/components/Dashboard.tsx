@@ -40,9 +40,11 @@ import { NotificationInbox } from './NotificationInbox';
 
 interface DashboardProps {
   onOpenDeposit: () => void;
+  onOpenWithdraw?: () => void;
   onNavigateToServices: () => void;
   onOpenAuth: () => void;
 }
+
 
 const PRESET_AVATARS = [
   {
@@ -81,9 +83,11 @@ const PRESET_AVATARS = [
 
 export const Dashboard: React.FC<DashboardProps> = ({
   onOpenDeposit,
+  onOpenWithdraw,
   onNavigateToServices,
   onOpenAuth,
 }) => {
+
   const {
     currentUser,
     balances,
@@ -913,20 +917,32 @@ export const Dashboard: React.FC<DashboardProps> = ({
             ))}
           </div>
 
-          {/* Deposit Trigger Banner */}
+          {/* Deposit & Withdraw Trigger Banner */}
           <div className="p-6 rounded-3xl bg-gradient-to-r from-red-950/40 via-zinc-900 to-zinc-950 border border-red-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <h4 className="font-heading font-bold text-lg text-white">Make a Direct Deposit</h4>
-              <p className="text-xs text-zinc-400">Instant funding via XRP, USDT (TRC/ERC), BNB, and BTC with 0% platform fee.</p>
+              <h4 className="font-heading font-bold text-lg text-white">Vault Fundings & Payouts</h4>
+              <p className="text-xs text-zinc-400">Instant funding via XRP, USDT, BNB, BTC, or request secure payout to your external wallet.</p>
             </div>
-            <button
-              onClick={onOpenDeposit}
-              className="px-6 py-3 rounded-2xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 text-white font-heading font-bold text-xs shadow-lg shadow-red-950/50 flex items-center gap-2 shrink-0 transition cursor-pointer"
-            >
-              <Zap className="w-4 h-4" />
-              <span>Launch Deposit Gateway</span>
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={onOpenDeposit}
+                className="px-5 py-3 rounded-2xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 text-white font-heading font-bold text-xs shadow-lg shadow-red-950/50 flex items-center gap-2 shrink-0 transition cursor-pointer"
+              >
+                <Zap className="w-4 h-4" />
+                <span>Launch Deposit Gateway</span>
+              </button>
+              {onOpenWithdraw && (
+                <button
+                  onClick={onOpenWithdraw}
+                  className="px-5 py-3 rounded-2xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-white font-heading font-bold text-xs flex items-center gap-2 shrink-0 transition cursor-pointer"
+                >
+                  <ArrowDownLeft className="w-4 h-4 text-red-400" />
+                  <span>Withdraw Payout</span>
+                </button>
+              )}
+            </div>
           </div>
+
 
           {/* Summary of Transactions Ledger Table with Filtering */}
           <div className="rounded-3xl border border-zinc-800 bg-zinc-950 p-6 space-y-4 shadow-xl">

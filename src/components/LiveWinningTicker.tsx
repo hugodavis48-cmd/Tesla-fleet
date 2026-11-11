@@ -4,47 +4,56 @@ import {
   Trophy,
   Sparkles,
   ShieldCheck,
-  User,
   ChevronLeft,
   ChevronRight,
   Tag,
   Truck,
   TrendingUp,
+  DollarSign,
   Copy,
   Check,
+  Zap,
+  ArrowUpRight,
 } from 'lucide-react';
 
 interface LiveWinningTickerProps {
   onNavigateToCoupons?: () => void;
   onNavigateToTracking?: () => void;
   onNavigateToInvestment?: () => void;
+  onNavigateToStocks?: () => void;
+  onNavigateToPromotions?: () => void;
 }
 
 export const LiveWinningTicker: React.FC<LiveWinningTickerProps> = ({
   onNavigateToCoupons,
   onNavigateToTracking,
   onNavigateToInvestment,
+  onNavigateToStocks,
+  onNavigateToPromotions,
 }) => {
-  const { recentWinners, coupons, claimCoupon } = useApp();
+  const { recentWinners, coupons, claimCoupon, tslaQuote, userInvestments } = useApp();
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
   const activePromoCoupon = coupons.find((c) => c.isActive && c.code === 'CYBER20') || coupons[0];
 
+  // Combined multiple display feeds
   const slides = [
+    { id: 'stocks', type: 'stocks' },
+    { id: 'roi_wins', type: 'roi_wins' },
     { id: 'winners', type: 'winners' },
+    { id: 'settlements', type: 'settlements' },
     { id: 'coupons', type: 'coupons' },
     { id: 'shipping', type: 'shipping' },
-    { id: 'yield', type: 'yield' },
   ];
 
-  // Auto-advance slider every 4.5 seconds
+  // Auto-advance slider every 4 seconds
   useEffect(() => {
     if (isPaused) return;
     const interval = setInterval(() => {
       setCurrentSlide((prev) => (prev + 1) % slides.length);
-    }, 4500);
+    }, 4200);
     return () => clearInterval(interval);
   }, [isPaused, slides.length]);
 
@@ -58,35 +67,89 @@ export const LiveWinningTicker: React.FC<LiveWinningTickerProps> = ({
     <div
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
-      className="bg-gradient-to-r from-red-950 via-zinc-950 to-zinc-900 border-b border-red-500/30 text-xs py-2 px-3 sm:px-6 relative z-30 select-none overflow-hidden transition-all duration-300"
+      className="bg-gradient-to-r from-zinc-950 via-zinc-900 to-zinc-950 border-b border-red-500/30 text-xs py-2 px-3 sm:px-6 relative z-30 select-none overflow-hidden transition-all duration-300"
     >
       <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
         {/* Left Slider Arrow Controls */}
         <div className="flex items-center gap-1 shrink-0">
           <button
             onClick={() => setCurrentSlide((prev) => (prev - 1 + slides.length) % slides.length)}
-            className="p-1 rounded-md bg-zinc-900/80 hover:bg-zinc-800 text-zinc-400 hover:text-white transition"
+            className="p-1 rounded-md bg-zinc-900/90 hover:bg-zinc-800 text-zinc-400 hover:text-white transition"
             aria-label="Previous notification"
           >
             <ChevronLeft className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={() => setCurrentSlide((prev) => (prev + 1) % slides.length)}
-            className="p-1 rounded-md bg-zinc-900/80 hover:bg-zinc-800 text-zinc-400 hover:text-white transition"
+            className="p-1 rounded-md bg-zinc-900/90 hover:bg-zinc-800 text-zinc-400 hover:text-white transition"
             aria-label="Next notification"
           >
             <ChevronRight className="w-3.5 h-3.5" />
           </button>
         </div>
 
-        {/* Central Dynamic Sliding Display Area */}
+        {/* Central Dynamic Sliding Display Area (Combined Multiple Display) */}
         <div className="flex-1 min-w-0 flex items-center justify-center overflow-hidden">
-          {/* SLIDE 0: PROVABLY FAIR WINNERS */}
+          {/* FEED 0: LIVE TESLA STOCK TICKER & SPOT BUY ALERT */}
           {currentSlide === 0 && (
+            <div className="flex items-center gap-2.5 truncate animate-in fade-in slide-in-from-right-4 duration-300">
+              <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-cyan-600/20 text-cyan-300 border border-cyan-500/30 text-[10px] font-bold uppercase shrink-0">
+                <Zap className="w-3 h-3 text-cyan-400 inline" />
+                <span>TSLA Stock Live</span>
+              </span>
+
+              <span className="text-zinc-200 truncate flex items-center gap-2">
+                <strong>NASDAQ: TSLA</strong>
+                <span className="font-mono font-bold text-white">${tslaQuote.price.toFixed(2)}</span>
+                <span className="text-emerald-400 font-mono text-[11px] font-bold flex items-center">
+                  <ArrowUpRight className="w-3 h-3" />
+                  <span>+{tslaQuote.changePercent}%</span>
+                </span>
+                <span className="text-zinc-400 hidden sm:inline">• Spot Buy & Fast ROI Active (Min $500)</span>
+              </span>
+
+              {onNavigateToStocks && (
+                <button
+                  onClick={onNavigateToStocks}
+                  className="shrink-0 px-2 py-0.5 rounded bg-cyan-950/80 border border-cyan-500/40 text-cyan-300 hover:text-white text-[10px] font-bold hidden sm:block transition"
+                >
+                  Trade TSLA
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* FEED 1: COMBINED INVESTMENT ROI WINS & DAILY CRON PAYOUTS */}
+          {currentSlide === 1 && (
+            <div className="flex items-center gap-2.5 truncate animate-in fade-in slide-in-from-right-4 duration-300">
+              <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-600/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold uppercase shrink-0">
+                <TrendingUp className="w-3 h-3 text-emerald-400 inline" />
+                <span>ROI Win Payout</span>
+              </span>
+
+              <span className="text-zinc-300 truncate">
+                <strong className="text-white">Alex V.</strong> received{' '}
+                <strong className="text-emerald-400 font-mono">+$71.03 USD</strong> daily dividend payout from{' '}
+                <span className="text-cyan-300">Robotaxi Fleet Staking Pool (18.5% APY)</span>
+              </span>
+
+              {onNavigateToInvestment && (
+                <button
+                  onClick={onNavigateToInvestment}
+                  className="shrink-0 px-2 py-0.5 rounded bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 hover:text-white text-[10px] font-bold hidden sm:block transition"
+                >
+                  View Yields
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* FEED 2: LIVE PROVABLY FAIR WINNERS (SPINS & SCRATCH CARDS) */}
+          {currentSlide === 2 && (
             <div className="flex items-center gap-2.5 truncate animate-in fade-in slide-in-from-right-4 duration-300">
               <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-red-600/20 text-red-400 border border-red-500/30 text-[10px] font-bold uppercase shrink-0">
                 <Trophy className="w-3 h-3 text-yellow-400 inline" />
-                <span>Live Winners</span>
+                <span>Promotion Winner</span>
               </span>
 
               {recentWinners.slice(0, 1).map((winner) => (
@@ -102,7 +165,7 @@ export const LiveWinningTicker: React.FC<LiveWinningTickerProps> = ({
                     />
                   </div>
                   <strong className="text-white font-medium truncate">{winner.username}</strong>
-                  <span className="text-zinc-400 hidden sm:inline">just claimed</span>
+                  <span className="text-zinc-400 hidden sm:inline">won</span>
                   <span className="font-bold text-yellow-400 flex items-center gap-1 shrink-0">
                     <Sparkles className="w-3 h-3" />
                     <span>{winner.prize}</span>
@@ -113,11 +176,44 @@ export const LiveWinningTicker: React.FC<LiveWinningTickerProps> = ({
                   </span>
                 </div>
               ))}
+
+              {onNavigateToPromotions && (
+                <button
+                  onClick={onNavigateToPromotions}
+                  className="shrink-0 px-2 py-0.5 rounded bg-red-950/80 border border-red-500/40 text-red-300 hover:text-white text-[10px] font-bold hidden sm:block transition"
+                >
+                  Spin Wheel
+                </button>
+              )}
             </div>
           )}
 
-          {/* SLIDE 1: ACTIVE FLASH COUPON */}
-          {currentSlide === 1 && (
+          {/* FEED 3: MATURITY PLAN AUTO-SETTLEMENTS */}
+          {currentSlide === 3 && (
+            <div className="flex items-center gap-2.5 truncate animate-in fade-in slide-in-from-right-4 duration-300">
+              <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-600/20 text-purple-300 border border-purple-500/30 text-[10px] font-bold uppercase shrink-0">
+                <DollarSign className="w-3 h-3 text-purple-400 inline" />
+                <span>Auto-Settlement</span>
+              </span>
+
+              <span className="text-zinc-300 truncate">
+                Mega-Node Plan #inv-alex-plaid reached 100% maturity:{' '}
+                <strong className="text-purple-300 font-mono">$8,241.64 USD</strong> capital & yield returned to user vault
+              </span>
+
+              {onNavigateToInvestment && (
+                <button
+                  onClick={onNavigateToInvestment}
+                  className="shrink-0 px-2 py-0.5 rounded bg-purple-950/80 border border-purple-500/40 text-purple-300 hover:text-white text-[10px] font-bold hidden sm:block transition"
+                >
+                  Compound APY
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* FEED 4: ACTIVE FLASH PROMO COUPONS */}
+          {currentSlide === 4 && (
             <div className="flex items-center gap-2.5 truncate animate-in fade-in slide-in-from-right-4 duration-300">
               <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-300 border border-yellow-500/30 text-[10px] font-bold uppercase shrink-0">
                 <Tag className="w-3 h-3 text-yellow-400 inline" />
@@ -125,7 +221,7 @@ export const LiveWinningTicker: React.FC<LiveWinningTickerProps> = ({
               </span>
 
               <span className="text-zinc-200 truncate">
-                Use code <strong className="text-yellow-400 font-mono font-bold">{activePromoCoupon?.code || 'CYBER20'}</strong> for 20% off all wraps & carbon accessories!
+                Use code <strong className="text-yellow-400 font-mono font-bold">{activePromoCoupon?.code || 'CYBER20'}</strong> for 20% off all wraps, accessories & parts!
               </span>
 
               <button
@@ -147,8 +243,8 @@ export const LiveWinningTicker: React.FC<LiveWinningTickerProps> = ({
             </div>
           )}
 
-          {/* SLIDE 2: NATIONWIDE ENCLOSED LOGISTICS */}
-          {currentSlide === 2 && (
+          {/* FEED 5: NATIONWIDE SHIPPING & DELIVERY DISPATCHES */}
+          {currentSlide === 5 && (
             <div className="flex items-center gap-2.5 truncate animate-in fade-in slide-in-from-right-4 duration-300">
               <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-cyan-600/20 text-cyan-300 border border-cyan-500/30 text-[10px] font-bold uppercase shrink-0">
                 <Truck className="w-3 h-3 text-cyan-400 inline" />
@@ -156,7 +252,7 @@ export const LiveWinningTicker: React.FC<LiveWinningTickerProps> = ({
               </span>
 
               <span className="text-zinc-300 truncate">
-                Climate-controlled enclosed carriers to all 50 US States • Free for Plaid Members • 7-Day Money-Back Guarantee
+                Enclosed Carrier: 2026 Model S Plaid dispatched to Austin, TX • 7-Day Money-Back Guarantee
               </span>
 
               {onNavigateToTracking && (
@@ -165,29 +261,6 @@ export const LiveWinningTicker: React.FC<LiveWinningTickerProps> = ({
                   className="shrink-0 px-2 py-0.5 rounded bg-cyan-950/80 border border-cyan-500/40 text-cyan-300 hover:text-white text-[10px] font-bold hidden sm:block transition"
                 >
                   Track Order
-                </button>
-              )}
-            </div>
-          )}
-
-          {/* SLIDE 3: FLEET YIELD SURGE */}
-          {currentSlide === 3 && (
-            <div className="flex items-center gap-2.5 truncate animate-in fade-in slide-in-from-right-4 duration-300">
-              <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-600/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold uppercase shrink-0">
-                <TrendingUp className="w-3 h-3 text-emerald-400 inline" />
-                <span>Yield Surge</span>
-              </span>
-
-              <span className="text-zinc-300 truncate">
-                Megawatt Supercharger Node Staking Pool active: <strong className="text-emerald-400">22.0% APY</strong> with automated 60-second Cron distributions
-              </span>
-
-              {onNavigateToInvestment && (
-                <button
-                  onClick={onNavigateToInvestment}
-                  className="shrink-0 px-2 py-0.5 rounded bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 hover:text-white text-[10px] font-bold hidden sm:block transition"
-                >
-                  Stake Now
                 </button>
               )}
             </div>
@@ -209,13 +282,13 @@ export const LiveWinningTicker: React.FC<LiveWinningTickerProps> = ({
             ))}
           </div>
 
-          {onNavigateToCoupons && (
+          {onNavigateToStocks && (
             <button
-              onClick={onNavigateToCoupons}
-              className="hidden lg:flex items-center gap-1 text-[11px] text-zinc-400 hover:text-yellow-400 transition ml-1"
+              onClick={onNavigateToStocks}
+              className="hidden lg:flex items-center gap-1 text-[11px] text-zinc-400 hover:text-cyan-400 transition ml-1"
             >
-              <Tag className="w-3 h-3" />
-              <span>All Coupons</span>
+              <Zap className="w-3 h-3" />
+              <span>TSLA Hub</span>
             </button>
           )}
         </div>

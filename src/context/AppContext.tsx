@@ -30,6 +30,13 @@ import {
   VehicleRefundPolicySettings,
   Coupon,
   OrderCheckpoint,
+  TeslaStockQuote,
+  SpotHolding,
+  FeaturedStockPlan,
+  WithdrawalRequest,
+  WithdrawalSettings,
+  WheelReward,
+  FeatureToggles,
 } from '../types';
 import {
   CRYPTO_NETWORKS,
@@ -47,6 +54,12 @@ import {
   DEFAULT_REFUND_POLICY,
   INITIAL_COUPONS,
   INITIAL_VEHICLE_ORDERS,
+  INITIAL_TSLA_QUOTE,
+  INITIAL_FEATURED_STOCK_PLANS,
+  INITIAL_WHEEL_REWARDS,
+  DEFAULT_WITHDRAWAL_SETTINGS,
+  INITIAL_WITHDRAWAL_REQUESTS,
+  DEFAULT_FEATURE_TOGGLES,
 } from '../data/mockData';
 
 interface AppContextType {
@@ -213,6 +226,45 @@ interface AppContextType {
   updateCoupon: (id: string, updates: Partial<Coupon>) => void;
   deleteCoupon: (id: string) => void;
   toggleCouponActive: (id: string) => void;
+  // Tesla Stocks & Spot Trading
+  tslaQuote: TeslaStockQuote;
+  updateStockQuote: (quote: Partial<TeslaStockQuote>) => void;
+  featuredStockPlans: FeaturedStockPlan[];
+  createFeaturedStockPlan: (plan: Omit<FeaturedStockPlan, 'id' | 'totalSubscribedUsd'>) => void;
+  updateFeaturedStockPlan: (id: string, updates: Partial<FeaturedStockPlan>) => void;
+  deleteFeaturedStockPlan: (id: string) => void;
+  userSpotHolding: SpotHolding;
+  buySpotStock: (usdAmount: number) => boolean;
+  sellSpotStock: (sharesToSell: number) => boolean;
+  investInFeaturedStock: (planId: string, amountUsd: number) => boolean;
+  // Withdrawals & Eligibility Rules
+  withdrawalSettings: WithdrawalSettings;
+  updateWithdrawalSettings: (settings: Partial<WithdrawalSettings>) => void;
+  withdrawalRequests: WithdrawalRequest[];
+  requestWithdrawal: (
+    amountUsd: number,
+    currency: string,
+    destinationAddress: string,
+    details?: any
+  ) => Promise<{ success: boolean; message: string }>;
+  processWithdrawalRequest: (
+    id: string,
+    status: 'approved' | 'rejected',
+    txHash?: string,
+    rejectionReason?: string
+  ) => void;
+  isEligibleForWithdrawal: (user: User | null) => { eligible: boolean; totalDeposited: number; required: number; reason?: string };
+  setUserDepositedForDemo: (amountUsd: number) => void;
+  // Spins & Promotion CMS
+  wheelRewards: WheelReward[];
+  updateWheelRewards: (rewards: WheelReward[]) => void;
+  updateWheelReward: (id: string, updates: Partial<WheelReward>) => void;
+  addWheelReward: (reward: Omit<WheelReward, 'id'>) => void;
+  deleteWheelReward: (id: string) => void;
+  updateSpinCost: (costUsd: number) => void;
+  // Feature Toggles (Global Function Switches)
+  featureToggles: FeatureToggles;
+  updateFeatureToggles: (toggles: Partial<FeatureToggles>) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -236,6 +288,8 @@ const DEFAULT_USER: User = {
   referralCode: 'APEX-ALEX-99',
   referralEarningsUsd: 350.0,
   referralCount: 3,
+  totalDepositedUsd: 0, // Starts at 0 to test rejection alert without deposit!
+  totalWithdrawnUsd: 0,
   kycStatus: 'verified',
   kycData: {
     legalName: 'Alexander Marcus Vance',
@@ -323,11 +377,10 @@ const DEFAULT_USER: User = {
   lastActiveAt: 'Active now',
   lastVisitedPath: '/dashboard',
   accountStatus: 'active',
-  totalDepositedUsd: 7450.0,
-  totalWithdrawnUsd: 1200.0,
   ipAddress: '192.168.1.104',
   deviceInfo: 'Chrome 131 on macOS Sonoma',
 };
+
 
 const INITIAL_USERS: User[] = [
   DEFAULT_USER,
@@ -766,7 +819,54 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const [availableSpins, setAvailableSpins] = useState<number>(0);
-  const spinCostUsd = 25;
+  const [spinCostUsd, setSpinCostUsd] = useState<number>(() => {
+    const saved = localStorage.getItem('apex_spin_cost');
+    return saved ? Number(saved) : 25;
+  });
+
+  const [wheelRewards, setWheelRewards] = useState<WheelReward[]>(() => {
+    const saved = localStorage.getItem('apex_wheel_rewards');
+    return saved ? JSON.parse(saved) : INITIAL_WHEEL_REWARDS;
+  });
+
+  const [tslaQuote, setTslaQuote] = useState<TeslaStockQuote>(INITIAL_TSLA_QUOTE);
+
+  const [featuredStockPlans, setFeaturedStockPlans] = useState<FeaturedStockPlan[]>(() => {
+    const saved = localStorage.getItem('apex_featured_stock_plans');
+    return saved ? JSON.parse(saved) : INITIAL_FEATURED_STOCK_PLANS;
+  });
+
+  const [userSpotHolding, setUserSpotHolding] = useState<SpotHolding>(() => {
+    const saved = localStorage.getItem('apex_spot_holding');
+    return saved
+      ? JSON.parse(saved)
+      : {
+          id: 'spot-alex-01',
+          userId: 'usr-apex-001',
+          shares: 5.25,
+          avgBuyPrice: 312.40,
+          totalInvestedUsd: 1640.10,
+          currentEquityUsd: Number((5.25 * INITIAL_TSLA_QUOTE.price).toFixed(2)),
+          pnlUsd: Number(((5.25 * INITIAL_TSLA_QUOTE.price) - 1640.10).toFixed(2)),
+          pnlPercent: Number(((((5.25 * INITIAL_TSLA_QUOTE.price) - 1640.10) / 1640.10) * 100).toFixed(2)),
+          lastUpdated: new Date().toISOString(),
+        };
+  });
+
+  const [withdrawalSettings, setWithdrawalSettings] = useState<WithdrawalSettings>(() => {
+    const saved = localStorage.getItem('apex_withdrawal_settings');
+    return saved ? JSON.parse(saved) : DEFAULT_WITHDRAWAL_SETTINGS;
+  });
+
+  const [withdrawalRequests, setWithdrawalRequests] = useState<WithdrawalRequest[]>(() => {
+    const saved = localStorage.getItem('apex_withdrawal_requests');
+    return saved ? JSON.parse(saved) : INITIAL_WITHDRAWAL_REQUESTS;
+  });
+
+  const [featureToggles, setFeatureToggles] = useState<FeatureToggles>(() => {
+    const saved = localStorage.getItem('apex_feature_toggles');
+    return saved ? JSON.parse(saved) : DEFAULT_FEATURE_TOGGLES;
+  });
 
   const [allUsers, setAllUsers] = useState<User[]>(() => {
     const saved = localStorage.getItem('apex_all_users');
@@ -972,6 +1072,85 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     localStorage.setItem('apex_vehicle_orders', JSON.stringify(vehicleOrders));
   }, [vehicleOrders]);
+
+  useEffect(() => {
+    localStorage.setItem('apex_spin_cost', spinCostUsd.toString());
+  }, [spinCostUsd]);
+
+  useEffect(() => {
+    localStorage.setItem('apex_wheel_rewards', JSON.stringify(wheelRewards));
+  }, [wheelRewards]);
+
+  useEffect(() => {
+    localStorage.setItem('apex_featured_stock_plans', JSON.stringify(featuredStockPlans));
+  }, [featuredStockPlans]);
+
+  useEffect(() => {
+    localStorage.setItem('apex_spot_holding', JSON.stringify(userSpotHolding));
+  }, [userSpotHolding]);
+
+  useEffect(() => {
+    localStorage.setItem('apex_withdrawal_settings', JSON.stringify(withdrawalSettings));
+  }, [withdrawalSettings]);
+
+  useEffect(() => {
+    localStorage.setItem('apex_withdrawal_requests', JSON.stringify(withdrawalRequests));
+  }, [withdrawalRequests]);
+
+  useEffect(() => {
+    localStorage.setItem('apex_feature_toggles', JSON.stringify(featureToggles));
+  }, [featureToggles]);
+
+  // Live TSLA stock price fluctuation (simulating real-time NASDAQ market updates)
+  useEffect(() => {
+    const stockInterval = setInterval(() => {
+      setTslaQuote((prev) => {
+        const delta = Number(((Math.random() - 0.47) * 0.40).toFixed(2));
+        const newPrice = Math.max(120, Number((prev.price + delta).toFixed(2)));
+        const baseOpen = 316.07;
+        const changeUsd = Number((newPrice - baseOpen).toFixed(2));
+        const changePercent = Number(((changeUsd / baseOpen) * 100).toFixed(2));
+        const high24h = Math.max(prev.high24h, newPrice);
+        const low24h = Math.min(prev.low24h, newPrice);
+        const nowStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+
+        const newHistory = [...prev.history];
+        if (newHistory.length > 0) {
+          newHistory[newHistory.length - 1] = { time: nowStr, price: newPrice };
+        }
+
+        return {
+          ...prev,
+          price: newPrice,
+          changeUsd,
+          changePercent,
+          high24h,
+          low24h,
+          updatedAt: new Date().toISOString(),
+          history: newHistory,
+        };
+      });
+    }, 6000);
+    return () => clearInterval(stockInterval);
+  }, []);
+
+  // Update spot holdings whenever TSLA price shifts
+  useEffect(() => {
+    setUserSpotHolding((prev) => {
+      if (prev.shares <= 0) return prev;
+      const currentEquity = Number((prev.shares * tslaQuote.price).toFixed(2));
+      const pnlUsd = Number((currentEquity - prev.totalInvestedUsd).toFixed(2));
+      const pnlPercent = prev.totalInvestedUsd > 0 ? Number(((pnlUsd / prev.totalInvestedUsd) * 100).toFixed(2)) : 0;
+      return {
+        ...prev,
+        currentEquityUsd: currentEquity,
+        pnlUsd,
+        pnlPercent,
+        lastUpdated: new Date().toISOString(),
+      };
+    });
+  }, [tslaQuote.price]);
+
 
   // Hydrate with server data on mount
   useEffect(() => {
@@ -1512,6 +1691,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
 
     setTransactions((prev) => [newTx, ...prev]);
+
+    // Update user's total deposited metric for withdrawal eligibility rule ($200 minimum)
+    if (currentUser) {
+      const updatedTotal = Number(((currentUser.totalDepositedUsd || 0) + usdValue).toFixed(2));
+      const updatedUser: User = { ...currentUser, totalDepositedUsd: updatedTotal };
+      setCurrentUser(updatedUser);
+      setAllUsers((prevUsers) =>
+        prevUsers.map((u) => (u.id === currentUser.id ? { ...u, totalDepositedUsd: updatedTotal } : u))
+      );
+    }
+
     showToast(`Deposit of ${amount} ${currency} (~$${Math.round(usdValue).toLocaleString()}) credited to your vault!`, 'success');
     return newTx;
   };
@@ -2311,9 +2501,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { success: true, message: `Dispatched to ${recipientList.length} subscribers` };
   };
 
-  // Paid Spin Only — Strictly costs $25 per spin, No Free Spins!
+  // Paid Spin — Configurable spinCostUsd and admin-editable wheel slice rewards
   const executeSpin = (): { prize: string; valueUsd: number; type: string } => {
-    const cost = 25;
+    if (!featureToggles.enableSpins) {
+      throw new Error('Promotional spins are currently disabled by platform administrator.');
+    }
+
+    const cost = spinCostUsd;
     if (balances.usd < cost) {
       throw new Error(`Paid spin requires $${cost} USD. Insufficient wallet balance ($${balances.usd.toFixed(2)}). Please make a deposit.`);
     }
@@ -2334,18 +2528,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
     setTransactions((prev) => [costTx, ...prev]);
 
-    const wheelOutcomes = [
-      { prize: 'Tesla Cybertruck 48-Hour VIP Rental Pass', valueUsd: 598, type: 'Rental Pass' },
-      { prize: '1,000 USDT Instant Cash', valueUsd: 1000, type: 'USDT' },
-      { prize: 'Full Body Vinyl Wrap ($3,500 Voucher)', valueUsd: 3500, type: 'Wrap Voucher' },
-      { prize: '500 Apex Platform Credits', valueUsd: 500, type: 'Credits' },
-      { prize: '100 USDT Instant Bonus', valueUsd: 100, type: 'USDT' },
-      { prize: '1,000 kWh Free Supercharger Pass', valueUsd: 350, type: 'Supercharging' },
-      { prize: 'Gold Plaid Card Voucher', valueUsd: 1000, type: 'Card Voucher' },
-      { prize: '50 Apex Credits', valueUsd: 50, type: 'Credits' },
-    ];
+    // Filter active slices and select based on probability weight
+    const activeSlices = wheelRewards.filter((r) => r.isActive);
+    const validSlices = activeSlices.length > 0 ? activeSlices : INITIAL_WHEEL_REWARDS;
+    const totalWeight = validSlices.reduce((acc, s) => acc + (s.weight || 1), 0);
+    let randomVal = Math.random() * totalWeight;
+    let selectedSlice = validSlices[0];
 
-    const won = wheelOutcomes[Math.floor(Math.random() * wheelOutcomes.length)];
+    for (const slice of validSlices) {
+      randomVal -= (slice.weight || 1);
+      if (randomVal <= 0) {
+        selectedSlice = slice;
+        break;
+      }
+    }
+
+    const won = {
+      prize: selectedSlice.label,
+      valueUsd: selectedSlice.valueUsd,
+      type: selectedSlice.type,
+    };
 
     if (won.valueUsd > 0) {
       setBalances((prev) => ({ ...prev, usd: prev.usd + won.valueUsd }));
@@ -2378,6 +2580,429 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setRecentWinners((prev) => [winRecord, ...prev]);
 
     return won;
+  };
+
+  // ==========================================
+  // TESLA LIVE STOCKS & SPOT / FAST ROI METHODS
+  // ==========================================
+
+  const updateStockQuote = (quoteUpdates: Partial<TeslaStockQuote>) => {
+    setTslaQuote((prev) => ({ ...prev, ...quoteUpdates, updatedAt: new Date().toISOString() }));
+    showToast('Tesla ($TSLA) stock quote updated!', 'success');
+  };
+
+  const createFeaturedStockPlan = (plan: Omit<FeaturedStockPlan, 'id' | 'totalSubscribedUsd'>) => {
+    const minInv = Math.max(500, plan.minInvestmentUsd || 500);
+    const newPlan: FeaturedStockPlan = {
+      ...plan,
+      id: `stock-plan-${Date.now()}`,
+      minInvestmentUsd: minInv,
+      totalSubscribedUsd: 0,
+    };
+    setFeaturedStockPlans((prev) => [newPlan, ...prev]);
+    showToast(`Created new featured stock plan: ${newPlan.title}!`, 'success');
+  };
+
+  const updateFeaturedStockPlan = (id: string, updates: Partial<FeaturedStockPlan>) => {
+    setFeaturedStockPlans((prev) =>
+      prev.map((p) => {
+        if (p.id !== id) return p;
+        const minInv = updates.minInvestmentUsd !== undefined ? Math.max(500, updates.minInvestmentUsd) : p.minInvestmentUsd;
+        return { ...p, ...updates, minInvestmentUsd: minInv };
+      })
+    );
+    showToast('Featured stock plan updated successfully!', 'success');
+  };
+
+  const deleteFeaturedStockPlan = (id: string) => {
+    setFeaturedStockPlans((prev) => prev.filter((p) => p.id !== id));
+    showToast('Featured stock plan removed.', 'info');
+  };
+
+  // Buy Direct Tesla Stock Shares (Spot Buy - strictly minimum $500)
+  const buySpotStock = (usdAmount: number): boolean => {
+    if (!featureToggles.enableStockTrading || !featureToggles.enableSpotBuy) {
+      showToast('Tesla stock spot buying is currently disabled by administrator.', 'error');
+      return false;
+    }
+    if (usdAmount < 500) {
+      showToast('Minimum Tesla Stock spot investment is $500.00 USD and above.', 'error');
+      return false;
+    }
+    if (balances.usd < usdAmount) {
+      showToast(`Insufficient vault balance ($${balances.usd.toFixed(2)}). Please deposit funds to buy TSLA stock.`, 'error');
+      return false;
+    }
+
+    const currentPrice = tslaQuote.price;
+    const sharesBought = Number((usdAmount / currentPrice).toFixed(4));
+
+    // Deduct vault balance
+    setBalances((prev) => ({ ...prev, usd: prev.usd - usdAmount }));
+
+    // Record spot holding
+    setUserSpotHolding((prev) => {
+      const newShares = Number((prev.shares + sharesBought).toFixed(4));
+      const newInvested = Number((prev.totalInvestedUsd + usdAmount).toFixed(2));
+      const newAvg = Number((newInvested / newShares).toFixed(2));
+      const currentEquity = Number((newShares * currentPrice).toFixed(2));
+      const pnl = Number((currentEquity - newInvested).toFixed(2));
+      const pnlPct = Number(((pnl / newInvested) * 100).toFixed(2));
+      return {
+        id: prev.id || `spot-${Date.now()}`,
+        userId: currentUser?.id || 'usr-apex-001',
+        shares: newShares,
+        avgBuyPrice: newAvg,
+        totalInvestedUsd: newInvested,
+        currentEquityUsd: currentEquity,
+        pnlUsd: pnl,
+        pnlPercent: pnlPct,
+        lastUpdated: new Date().toISOString(),
+      };
+    });
+
+    const tx: Transaction = {
+      id: `tx-tsla-spot-${Date.now()}`,
+      type: 'investment_deposit',
+      currency: 'USD',
+      amount: usdAmount,
+      usdEquivalent: usdAmount,
+      timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
+      status: 'completed',
+      txHash: `0x${Math.random().toString(16).substring(2, 12)}...spot`,
+      description: `Spot Purchased ${sharesBought.toFixed(3)} TSLA Shares @ $${currentPrice.toFixed(2)}/share`,
+    };
+    setTransactions((prev) => [tx, ...prev]);
+
+    showToast(`Successfully purchased ${sharesBought.toFixed(3)} TSLA shares for $${usdAmount.toLocaleString()} USD!`, 'success');
+    return true;
+  };
+
+  // Sell / Liquidate Spot Stock back to USD Vault Balance
+  const sellSpotStock = (sharesToSell: number): boolean => {
+    if (sharesToSell <= 0 || sharesToSell > userSpotHolding.shares) {
+      showToast(`Invalid shares amount. Available: ${userSpotHolding.shares.toFixed(4)} TSLA`, 'error');
+      return false;
+    }
+
+    const proceeds = Number((sharesToSell * tslaQuote.price).toFixed(2));
+    setBalances((prev) => ({ ...prev, usd: prev.usd + proceeds }));
+
+    setUserSpotHolding((prev) => {
+      const remainingShares = Math.max(0, Number((prev.shares - sharesToSell).toFixed(4)));
+      const remainingInvested = remainingShares > 0 ? Number((prev.avgBuyPrice * remainingShares).toFixed(2)) : 0;
+      const currentEquity = Number((remainingShares * tslaQuote.price).toFixed(2));
+      const pnl = remainingInvested > 0 ? Number((currentEquity - remainingInvested).toFixed(2)) : 0;
+      const pnlPct = remainingInvested > 0 ? Number(((pnl / remainingInvested) * 100).toFixed(2)) : 0;
+      return {
+        ...prev,
+        shares: remainingShares,
+        totalInvestedUsd: remainingInvested,
+        currentEquityUsd: currentEquity,
+        pnlUsd: pnl,
+        pnlPercent: pnlPct,
+        lastUpdated: new Date().toISOString(),
+      };
+    });
+
+    const tx: Transaction = {
+      id: `tx-tsla-sell-${Date.now()}`,
+      type: 'dividend_claim',
+      currency: 'USD',
+      amount: proceeds,
+      usdEquivalent: proceeds,
+      timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
+      status: 'completed',
+      txHash: `0x${Math.random().toString(16).substring(2, 12)}...sell`,
+      description: `Liquidated ${sharesToSell.toFixed(3)} TSLA Spot Shares @ $${tslaQuote.price.toFixed(2)}`,
+    };
+    setTransactions((prev) => [tx, ...prev]);
+
+    showToast(`Liquidated ${sharesToSell.toFixed(3)} TSLA shares. +$${proceeds.toLocaleString(undefined, { minimumFractionDigits: 2 })} credited to vault!`, 'success');
+    return true;
+  };
+
+  // Invest in Featured Stock for Faster ROI (min $500 and above!)
+  const investInFeaturedStock = (planId: string, amountUsd: number): boolean => {
+    if (!featureToggles.enableFastRoiStocks) {
+      showToast('Featured Fast-ROI stock plans are currently disabled by administrator.', 'error');
+      return false;
+    }
+    const plan = featuredStockPlans.find((p) => p.id === planId);
+    if (!plan) {
+      showToast('Featured stock plan not found.', 'error');
+      return false;
+    }
+    const minRequired = Math.max(500, plan.minInvestmentUsd || 500);
+    if (amountUsd < minRequired) {
+      showToast(`Minimum investment for ${plan.title} is $${minRequired.toLocaleString()} USD ($500+ required).`, 'error');
+      return false;
+    }
+    if (balances.usd < amountUsd) {
+      showToast(`Insufficient vault balance ($${balances.usd.toFixed(2)}). Please deposit funds to invest.`, 'error');
+      return false;
+    }
+
+    setBalances((prev) => ({ ...prev, usd: prev.usd - amountUsd }));
+
+    const dailyRoiUsd = (amountUsd * (plan.apy / 100)) / 365;
+    const totalExpectedRoiUsd = dailyRoiUsd * plan.durationDays;
+    const invId = `inv-stock-${Date.now()}`;
+
+    const newInv: UserInvestment = {
+      id: invId,
+      userId: currentUser?.id || 'usr-apex-001',
+      poolId: plan.id,
+      poolTitle: `${plan.title} (${plan.ticker})`,
+      amountInvestedUsd: amountUsd,
+      investedAt: new Date().toISOString().replace('T', ' ').substring(0, 16),
+      earnedDividendsUsd: 0,
+      apy: plan.apy,
+      nextPayoutHours: 24,
+      status: 'running',
+      durationDays: plan.durationDays,
+      daysElapsed: 0,
+      startDate: new Date().toISOString(),
+      maturityDate: new Date(Date.now() + plan.durationDays * 86400000).toISOString(),
+      totalExpectedRoiUsd: Number(totalExpectedRoiUsd.toFixed(2)),
+      dailyRoiRate: Number(dailyRoiUsd.toFixed(2)),
+      txHash: `0x${Math.random().toString(16).substring(2, 14)}`,
+    };
+
+    setUserInvestments((prev) => [newInv, ...prev]);
+
+    setFeaturedStockPlans((prev) =>
+      prev.map((p) => (p.id === planId ? { ...p, totalSubscribedUsd: p.totalSubscribedUsd + amountUsd } : p))
+    );
+
+    const tx: Transaction = {
+      id: `tx-stock-yield-${Date.now()}`,
+      type: 'investment_deposit',
+      currency: 'USD',
+      amount: amountUsd,
+      usdEquivalent: amountUsd,
+      timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
+      status: 'completed',
+      txHash: newInv.txHash || '0x...',
+      description: `Invested $${amountUsd.toLocaleString()} in ${plan.title} (${plan.apy}% APY, ${plan.durationDays}-Day Fast ROI)`,
+    };
+    setTransactions((prev) => [tx, ...prev]);
+
+    showToast(`Invested $${amountUsd.toLocaleString()} in ${plan.title}! Fast ROI: +$${totalExpectedRoiUsd.toFixed(2)} USD`, 'success');
+    return true;
+  };
+
+  // ==========================================
+  // USER WITHDRAWALS & MINIMUM $200 DEPOSIT RULE
+  // ==========================================
+
+  const isEligibleForWithdrawal = (user: User | null): { eligible: boolean; totalDeposited: number; required: number; reason?: string } => {
+    if (!user) {
+      return {
+        eligible: false,
+        totalDeposited: 0,
+        required: withdrawalSettings.minDepositRequiredUsd,
+        reason: 'Please log in to initiate withdrawals.',
+      };
+    }
+
+    // If admin disabled minimum deposit rule
+    if (!withdrawalSettings.requireMinDeposit || !featureToggles.requireMinDepositForWithdrawal) {
+      return { eligible: true, totalDeposited: user.totalDepositedUsd || 0, required: 0 };
+    }
+
+    const depositTxsSum = transactions
+      .filter((t) => t.type === 'deposit' && (t.status === 'completed' || t.status === 'confirming'))
+      .reduce((acc, t) => acc + (t.usdEquivalent || t.amount || 0), 0);
+
+    const totalDeposited = Math.max(user.totalDepositedUsd || 0, depositTxsSum);
+    const required = withdrawalSettings.minDepositRequiredUsd;
+
+    if (totalDeposited < required) {
+      return {
+        eligible: false,
+        totalDeposited,
+        required,
+        reason: `Withdrawal Request Rejected: Anti-Money Laundering & Security Policy requires a minimum completed deposit of at least $${required.toLocaleString()} USD before initiating any cash-out withdrawals. Your current verified deposits: $${totalDeposited.toFixed(2)} / $${required.toFixed(2)} USD. Please deposit funds first to verify your withdrawal destination and activate withdrawal access.`,
+      };
+    }
+
+    return { eligible: true, totalDeposited, required };
+  };
+
+  const setUserDepositedForDemo = (amountUsd: number) => {
+    if (currentUser) {
+      const updatedUser: User = { ...currentUser, totalDepositedUsd: amountUsd };
+      setCurrentUser(updatedUser);
+      setAllUsers((prevUsers) =>
+        prevUsers.map((u) => (u.id === currentUser.id ? { ...u, totalDepositedUsd: amountUsd } : u))
+      );
+      showToast(
+        amountUsd >= 200
+          ? `Demo Profile: Set total deposits to $${amountUsd} USD (Withdrawals UNLOCKED).`
+          : `Demo Profile: Set total deposits to $${amountUsd} USD (Withdrawals REJECTED).`,
+        'info'
+      );
+    }
+  };
+
+  const updateWithdrawalSettings = (settingsUpdates: Partial<WithdrawalSettings>) => {
+    setWithdrawalSettings((prev) => ({ ...prev, ...settingsUpdates }));
+    showToast('Withdrawal settings updated successfully!', 'success');
+  };
+
+  const requestWithdrawal = async (
+    amountUsd: number,
+    currency: string,
+    destinationAddress: string,
+    details?: any
+  ): Promise<{ success: boolean; message: string }> => {
+    if (!featureToggles.enableWithdrawals || !withdrawalSettings.enabled) {
+      const msg = 'Withdrawals are temporarily disabled by the platform administrator.';
+      showToast(msg, 'error');
+      return { success: false, message: msg };
+    }
+
+    const eligibility = isEligibleForWithdrawal(currentUser);
+    if (!eligibility.eligible) {
+      const msg = eligibility.reason || 'You must complete a minimum deposit of $200 before withdrawing.';
+      showToast(msg, 'error');
+      return { success: false, message: msg };
+    }
+
+    if (amountUsd < withdrawalSettings.minWithdrawalUsd) {
+      const msg = `Minimum withdrawal amount is $${withdrawalSettings.minWithdrawalUsd} USD.`;
+      showToast(msg, 'error');
+      return { success: false, message: msg };
+    }
+
+    if (amountUsd > balances.usd) {
+      const msg = `Insufficient vault balance. Available: $${balances.usd.toFixed(2)} USD.`;
+      showToast(msg, 'error');
+      return { success: false, message: msg };
+    }
+
+    const feeUsd = Number(((amountUsd * withdrawalSettings.feePercent) / 100).toFixed(2));
+    const netAmountUsd = Number((amountUsd - feeUsd).toFixed(2));
+
+    // Deduct from balance
+    setBalances((prev) => ({ ...prev, usd: prev.usd - amountUsd }));
+
+    const reqId = `wdr-${Date.now()}`;
+    const newReq: WithdrawalRequest = {
+      id: reqId,
+      userId: currentUser?.id || 'usr-apex-001',
+      userName: currentUser?.name || 'Alex Vance',
+      userEmail: currentUser?.email || 'alex.vance@apex-tesla.io',
+      amountUsd,
+      currency,
+      destinationAddress,
+      network: details?.network,
+      bankName: details?.bankName,
+      accountNumber: details?.accountNumber,
+      routingNumber: details?.routingNumber,
+      accountName: details?.accountName,
+      status: 'pending',
+      requestedAt: new Date().toISOString(),
+      feeUsd,
+      netAmountUsd,
+    };
+
+    setWithdrawalRequests((prev) => [newReq, ...prev]);
+
+    const tx: Transaction = {
+      id: `tx-wdr-${Date.now()}`,
+      type: 'service_payment',
+      currency: 'USD',
+      amount: amountUsd,
+      usdEquivalent: amountUsd,
+      timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
+      status: 'pending',
+      txHash: `0x${Math.random().toString(16).substring(2, 10)}...wdr`,
+      description: `Withdrawal Request: $${amountUsd.toLocaleString()} USD via ${currency}`,
+    };
+    setTransactions((prev) => [tx, ...prev]);
+
+    showToast(`Withdrawal of $${amountUsd.toLocaleString()} USD submitted! Estimated processing: ${withdrawalSettings.estimatedProcessingTime}`, 'success');
+    return { success: true, message: 'Withdrawal submitted successfully.' };
+  };
+
+  const processWithdrawalRequest = (
+    id: string,
+    status: 'approved' | 'rejected',
+    txHash?: string,
+    rejectionReason?: string
+  ) => {
+    const targetReq = withdrawalRequests.find((r) => r.id === id);
+    if (!targetReq) return;
+
+    setWithdrawalRequests((prev) =>
+      prev.map((r) => {
+        if (r.id !== id) return r;
+        return {
+          ...r,
+          status,
+          processedAt: new Date().toISOString(),
+          txHash: txHash || (status === 'approved' ? `0x${Math.random().toString(16).substring(2, 14)}...settled` : undefined),
+          rejectionReason: rejectionReason,
+        };
+      })
+    );
+
+    if (status === 'rejected') {
+      // Refund user balance
+      setBalances((prev) => ({ ...prev, usd: prev.usd + targetReq.amountUsd }));
+      showToast(`Withdrawal #${id} rejected. $${targetReq.amountUsd} refunded to user vault.`, 'info');
+    } else {
+      showToast(`Withdrawal #${id} approved and dispatched!`, 'success');
+    }
+  };
+
+  // ==========================================
+  // SPINS & WHEEL REWARDS CMS
+  // ==========================================
+
+  const updateSpinCost = (costUsd: number) => {
+    const cleanCost = Math.max(1, costUsd);
+    setSpinCostUsd(cleanCost);
+    showToast(`Wheel spin cost updated to $${cleanCost} USD!`, 'success');
+  };
+
+  const updateWheelRewards = (rewards: WheelReward[]) => {
+    setWheelRewards(rewards);
+    showToast('Wheel prizes and weights updated successfully!', 'success');
+  };
+
+  const updateWheelReward = (id: string, updates: Partial<WheelReward>) => {
+    setWheelRewards((prev) => prev.map((r) => (r.id === id ? { ...r, ...updates } : r)));
+    showToast('Wheel reward slice updated.', 'success');
+  };
+
+  const addWheelReward = (reward: Omit<WheelReward, 'id'>) => {
+    const newSlice: WheelReward = {
+      ...reward,
+      id: `w-${Date.now()}`,
+    };
+    setWheelRewards((prev) => [...prev, newSlice]);
+    showToast(`Added new wheel prize: ${newSlice.label}!`, 'success');
+  };
+
+  const deleteWheelReward = (id: string) => {
+    if (wheelRewards.length <= 4) {
+      showToast('Wheel requires at least 4 prize slices.', 'error');
+      return;
+    }
+    setWheelRewards((prev) => prev.filter((r) => r.id !== id));
+    showToast('Wheel prize slice removed.', 'info');
+  };
+
+  // ==========================================
+  // GLOBAL PLATFORM FEATURE TOGGLES
+  // ==========================================
+
+  const updateFeatureToggles = (toggleUpdates: Partial<FeatureToggles>) => {
+    setFeatureToggles((prev) => ({ ...prev, ...toggleUpdates }));
+    showToast('Platform feature switches updated successfully!', 'success');
   };
 
   const purchaseScratchCard = (tier: ScratchCardTier): boolean => {
@@ -3020,6 +3645,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateCoupon,
         deleteCoupon,
         toggleCouponActive,
+        // Tesla Stocks & Spot Trading
+        tslaQuote,
+        updateStockQuote,
+        featuredStockPlans,
+        createFeaturedStockPlan,
+        updateFeaturedStockPlan,
+        deleteFeaturedStockPlan,
+        userSpotHolding,
+        buySpotStock,
+        sellSpotStock,
+        investInFeaturedStock,
+        // User Withdrawals & Eligibility Rules
+        withdrawalSettings,
+        updateWithdrawalSettings,
+        withdrawalRequests,
+        requestWithdrawal,
+        processWithdrawalRequest,
+        isEligibleForWithdrawal,
+        setUserDepositedForDemo,
+        // Spins & Promotion CMS
+        wheelRewards,
+        updateWheelRewards,
+
+        updateWheelReward,
+        addWheelReward,
+        deleteWheelReward,
+        updateSpinCost,
+        // Feature Toggles (Global Function Switches)
+        featureToggles,
+        updateFeatureToggles,
       }}
     >
       {children}
