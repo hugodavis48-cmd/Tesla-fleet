@@ -58,7 +58,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   const { theme, toggleTheme, isLight } = useTheme();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
-  const [langDropdownOpen, setLangDropdownOpen] = useState(false);
 
   const totalCartCount = cart.reduce((acc, item) => acc + item.quantity, 0);
   const unreadNotificationsCount = adminNotifications.filter((n) => {
@@ -71,7 +70,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'home', label: t('nav.home', 'Home') },
     ...(featureToggles.teslaStocksEnabled ? [{
       id: 'stocks',
-      label: t('nav.stocks', 'TSLA Stocks & Fast ROI'),
+      label: t('nav.stocks', 'TSLA Stocks'),
       icon: Activity,
       highlight: true,
       stockPill: `$${tslaQuote.price.toFixed(1)}`,
@@ -79,19 +78,18 @@ export const Navbar: React.FC<NavbarProps> = ({
     }] : []),
     { id: 'vehicles', label: t('nav.vehicles', 'Buy Tesla'), icon: Car, highlight: true },
     { id: 'coupons', label: t('nav.coupons', 'Coupons'), icon: Tag, highlight: true },
-    { id: 'services', label: t('nav.services', 'Service & Fixes'), icon: Wrench },
-    { id: 'wraps', label: t('nav.wraps', 'Wrap Studio'), icon: Palette },
+    { id: 'services', label: t('nav.services', 'Service'), icon: Wrench },
+    { id: 'wraps', label: t('nav.wraps', 'Wraps'), icon: Palette },
     { id: 'rentals', label: t('nav.rentals', 'Rentals'), icon: Car },
     { id: 'investment', label: t('nav.investment', 'Fleet Yield'), icon: TrendingUp },
     { id: 'promotions', label: t('nav.promotions', 'Spin & Win'), icon: Gift },
-    { id: 'referrals', label: t('nav.referrals', 'Refer & Earn'), icon: Users, badge: '+$100' },
+    { id: 'referrals', label: t('nav.referrals', 'Referrals'), icon: Users, badge: '+$100' },
     { id: 'social', label: t('nav.social', 'Social'), icon: Share2 },
-    { id: 'shop', label: t('nav.shop', 'Parts & Store') },
+    { id: 'shop', label: t('nav.shop', 'Store') },
     { id: 'about', label: t('nav.about', 'About') },
     { id: 'faq', label: t('nav.faq', 'FAQ') },
     { id: 'contact', label: t('nav.contact', 'Contact') },
   ];
-
 
   const handleNavClick = (id: string) => {
     setActiveTab(id);
@@ -100,11 +98,11 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <header className="sticky top-0 z-40 bg-zinc-950/85 backdrop-blur-xl border-b border-zinc-800/80">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-4">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-3 xl:gap-4">
         {/* Brand Logo */}
         <button
           onClick={() => handleNavClick('home')}
-          className="flex items-center gap-3 text-left group shrink-0"
+          className="flex items-center gap-2.5 sm:gap-3 text-left group shrink-0"
         >
           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-600 via-rose-600 to-red-800 p-0.5 shadow-lg shadow-red-900/40 group-hover:scale-105 transition">
             <div className="w-full h-full bg-zinc-950 rounded-[10px] flex items-center justify-center">
@@ -128,14 +126,14 @@ export const Navbar: React.FC<NavbarProps> = ({
         </button>
 
         {/* Desktop Navigation */}
-        <nav className="hidden xl:flex items-center gap-1">
+        <nav className="hidden xl:flex items-center gap-0.5 2xl:gap-1">
           {navLinks.map((link) => {
             const active = activeTab === link.id;
             return (
               <button
                 key={link.id}
                 onClick={() => handleNavClick(link.id)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold tracking-wide transition flex items-center gap-1.5 ${
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold tracking-wide transition flex items-center gap-1 shrink-0 ${
                   active
                     ? 'text-white bg-red-600/20 border border-red-500/40'
                     : link.highlight
@@ -169,72 +167,6 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         {/* Right Action Utilities */}
         <div className="flex items-center gap-2.5 shrink-0">
-          {/* Global Language Switcher */}
-          <div className="relative">
-            <button
-              onClick={() => setLangDropdownOpen(!langDropdownOpen)}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-zinc-900/90 border border-zinc-800 hover:border-zinc-700 text-zinc-300 hover:text-white text-xs font-medium transition shadow-sm"
-              title="Change Language"
-            >
-              <Globe className="w-3.5 h-3.5 text-zinc-400" />
-              <span>{currentLanguageOption.flag}</span>
-              <span className="uppercase font-mono text-[11px] font-bold">{currentLanguageOption.code}</span>
-              <ChevronDown className="w-3 h-3 text-zinc-500" />
-            </button>
-
-            {langDropdownOpen && (
-              <div
-                className="absolute right-0 mt-2 w-48 rounded-2xl bg-zinc-950 border border-zinc-800 shadow-2xl py-1.5 z-50 text-zinc-200 animate-in fade-in slide-in-from-top-2"
-                onMouseLeave={() => setLangDropdownOpen(false)}
-              >
-                <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-zinc-500 border-b border-zinc-800">
-                  Select Language
-                </div>
-                {languages.map((lang) => {
-                  const isSelected = lang.code === currentLanguageOption.code;
-                  return (
-                    <button
-                      key={lang.code}
-                      onClick={() => {
-                        setLanguage(lang.code);
-                        setLangDropdownOpen(false);
-                      }}
-                      className={`w-full px-3 py-2 text-left text-xs flex items-center justify-between hover:bg-zinc-900 transition ${
-                        isSelected ? 'bg-red-950/30 text-white font-semibold' : 'text-zinc-300'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className="text-base">{lang.flag}</span>
-                        <span>{lang.name}</span>
-                      </div>
-                      {isSelected && <Check className="w-3.5 h-3.5 text-red-400" />}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* High-Contrast Light / Dark Theme Toggle */}
-          <button
-            onClick={toggleTheme}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-zinc-900/90 border border-zinc-800 hover:border-zinc-700 text-zinc-300 hover:text-white text-xs font-semibold transition shadow-sm cursor-pointer"
-            title={isLight ? 'Switch to Dark Theme' : 'Switch to High-Contrast Light Theme'}
-            aria-label="Toggle theme"
-          >
-            {isLight ? (
-              <>
-                <Moon className="w-3.5 h-3.5 text-indigo-500 fill-indigo-500/20" />
-                <span className="hidden md:inline text-[11px] font-mono font-bold">Dark</span>
-              </>
-            ) : (
-              <>
-                <Sun className="w-3.5 h-3.5 text-amber-400 fill-amber-400/20" />
-                <span className="hidden md:inline text-[11px] font-mono font-bold">Light</span>
-              </>
-            )}
-          </button>
-
           {/* Quick Balance & Deposit/Withdraw buttons */}
           <div className="hidden sm:flex items-center bg-zinc-900/90 border border-zinc-800 rounded-xl p-1 pl-3 shadow-inner">
             <div className="mr-2 text-right">
@@ -263,58 +195,17 @@ export const Navbar: React.FC<NavbarProps> = ({
             )}
           </div>
 
-
           {/* WhatsApp VIP Concierge Quick Link */}
           <a
             href="https://wa.me/18005552739?text=Hi%20Apex%20Tesla%20Hub!%20I%20am%20inquiring%20about%20vehicle%20service%20or%20fleet%20investments."
             target="_blank"
             rel="noopener noreferrer"
-            className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-emerald-950/40 border border-emerald-500/30 hover:border-emerald-500/60 text-emerald-300 hover:text-emerald-200 text-xs font-semibold transition"
+            className="hidden lg:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-emerald-950/40 border border-emerald-500/30 hover:border-emerald-500/60 text-emerald-300 hover:text-emerald-200 text-xs font-semibold transition"
             title="Chat with WhatsApp VIP Concierge"
           >
             <MessageCircle className="w-3.5 h-3.5 text-emerald-400" />
-            <span className="hidden lg:inline text-[11px]">WhatsApp</span>
+            <span className="text-[11px]">WhatsApp</span>
           </a>
-
-          {/* Track Orders Quick Trigger */}
-          {onOpenTracking && (
-            <button
-              onClick={onOpenTracking}
-              className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-cyan-950/40 border border-cyan-500/30 hover:border-cyan-500/60 text-cyan-300 hover:text-cyan-200 text-xs font-semibold transition"
-              title="Track Vehicle & Parts Orders"
-            >
-              <Truck className="w-3.5 h-3.5 text-cyan-400" />
-              <span className="hidden lg:inline text-[11px]">Track Order</span>
-            </button>
-          )}
-
-          {/* User Notifications Bell */}
-          <button
-            onClick={() => handleNavClick('dashboard')}
-            className="relative p-2 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-300 hover:text-white hover:border-zinc-700 transition"
-            title="User Notifications & Investment Dashboard"
-          >
-            <Bell className="w-4 h-4" />
-            {unreadNotificationsCount > 0 && (
-              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-600 text-white text-[9px] font-bold flex items-center justify-center animate-pulse">
-                {unreadNotificationsCount}
-              </span>
-            )}
-          </button>
-
-          {/* Cart Icon */}
-          <button
-            onClick={onOpenCart}
-            className="relative p-2 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-300 hover:text-white hover:border-zinc-700 transition"
-            title="Cart"
-          >
-            <ShoppingBag className="w-4 h-4" />
-            {totalCartCount > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-600 text-white text-[10px] font-bold flex items-center justify-center animate-bounce">
-                {totalCartCount}
-              </span>
-            )}
-          </button>
 
           {/* Role switcher toggle (Customer vs Admin) */}
           <button
@@ -330,12 +221,13 @@ export const Navbar: React.FC<NavbarProps> = ({
             <span>{userRole === 'admin' ? 'Admin Ops' : 'Customer'}</span>
           </button>
 
-          {/* User Account / Dashboard profile */}
-          {currentUser ? (
-            <div className="relative">
+          {/* User Account / Menu Dropdown (Both Authenticated & Guest with Cart, Notifications, Theme & Language) */}
+          <div className="relative">
+            {currentUser ? (
               <button
                 onClick={() => setUserDropdownOpen(!userDropdownOpen)}
-                className="flex items-center gap-2 p-1.5 pr-2.5 rounded-xl bg-zinc-900 border border-zinc-800 hover:border-zinc-700 transition"
+                className="relative flex items-center gap-2 p-1.5 pr-2.5 rounded-xl bg-zinc-900 border border-zinc-800 hover:border-zinc-700 transition"
+                aria-label="User account and settings menu"
               >
                 <img
                   src={currentUser.avatar}
@@ -346,118 +238,253 @@ export const Navbar: React.FC<NavbarProps> = ({
                   {currentUser.name}
                 </span>
                 <ChevronDown className="w-3.5 h-3.5 text-zinc-400" />
+                {(totalCartCount > 0 || unreadNotificationsCount > 0) && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-600 text-white text-[9px] font-bold flex items-center justify-center animate-pulse">
+                    {totalCartCount + unreadNotificationsCount}
+                  </span>
+                )}
               </button>
+            ) : (
+              <button
+                onClick={() => setUserDropdownOpen(!userDropdownOpen)}
+                className="relative flex items-center gap-1.5 px-3 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 text-zinc-200 text-xs font-semibold shadow-sm transition"
+                aria-label="Account, cart, and preferences menu"
+              >
+                <User className="w-3.5 h-3.5 text-red-500" />
+                <span>Menu</span>
+                <ChevronDown className="w-3.5 h-3.5 text-zinc-400" />
+                {(totalCartCount > 0 || unreadNotificationsCount > 0) && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-600 text-white text-[9px] font-bold flex items-center justify-center animate-pulse">
+                    {totalCartCount + unreadNotificationsCount}
+                  </span>
+                )}
+              </button>
+            )}
 
-              {userDropdownOpen && (
+            {userDropdownOpen && (
+              <>
+                {/* Backdrop dismiss */}
                 <div
-                  className="absolute right-0 mt-2 w-56 rounded-2xl bg-zinc-950 border border-zinc-800 shadow-2xl py-2 z-50 text-zinc-200 animate-in fade-in slide-in-from-top-2"
-                  onMouseLeave={() => setUserDropdownOpen(false)}
+                  className="fixed inset-0 z-40"
+                  onClick={() => setUserDropdownOpen(false)}
+                />
+
+                <div
+                  className="absolute right-0 mt-2 w-72 rounded-2xl bg-zinc-950/98 backdrop-blur-2xl border border-zinc-800 shadow-2xl py-2 z-50 text-zinc-200 animate-in fade-in slide-in-from-top-2"
                 >
-                  <div className="px-4 py-2 border-b border-zinc-800">
-                    <p className="text-xs font-bold text-white truncate">{currentUser.name}</p>
-                    <p className="text-[11px] text-zinc-400 truncate">{currentUser.email}</p>
-                    <span className="inline-block mt-1 text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-red-600/20 text-red-400 border border-red-500/30">
-                      {currentUser.tier}
-                    </span>
-                  </div>
-
-                  <button
-                    onClick={() => {
-                      handleNavClick('dashboard');
-                      setUserDropdownOpen(false);
-                    }}
-                    className="w-full px-4 py-2 text-left text-xs hover:bg-zinc-900 flex items-center gap-2 text-zinc-300 hover:text-white transition"
-                  >
-                    <LayoutDashboard className="w-3.5 h-3.5 text-red-500" />
-                    <span>Personalized Dashboard</span>
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      if (onOpenTracking) onOpenTracking();
-                      setUserDropdownOpen(false);
-                    }}
-                    className="w-full px-4 py-2 text-left text-xs hover:bg-zinc-900 flex items-center gap-2 text-zinc-300 hover:text-white transition"
-                  >
-                    <Truck className="w-3.5 h-3.5 text-cyan-400" />
-                    <span>Track Vehicle & Orders</span>
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      handleNavClick('dashboard');
-                      setUserDropdownOpen(false);
-                    }}
-                    className="w-full px-4 py-2 text-left text-xs hover:bg-zinc-900 flex items-center gap-2 text-zinc-300 hover:text-white transition"
-                  >
-                    <Wrench className="w-3.5 h-3.5 text-red-500" />
-                    <span>Service History & Tracker</span>
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      onOpenDeposit();
-                      setUserDropdownOpen(false);
-                    }}
-                    className="w-full px-4 py-2 text-left text-xs hover:bg-zinc-900 flex items-center gap-2 text-zinc-300 hover:text-white transition"
-                  >
-                    <Wallet className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Crypto Deposit & Wallet</span>
-                  </button>
-
-                  {onOpenWithdraw && (
-                    <button
-                      onClick={() => {
-                        onOpenWithdraw();
-                        setUserDropdownOpen(false);
-                      }}
-                      className="w-full px-4 py-2 text-left text-xs hover:bg-zinc-900 flex items-center gap-2 text-zinc-300 hover:text-white transition"
-                    >
-                      <CreditCard className="w-3.5 h-3.5 text-amber-400" />
-                      <span>Request Payout / Withdrawal</span>
-                    </button>
+                  {/* User Profile Header or Guest Sign-in */}
+                  {currentUser ? (
+                    <div className="px-4 py-2.5 border-b border-zinc-800">
+                      <p className="text-xs font-bold text-white truncate">{currentUser.name}</p>
+                      <p className="text-[11px] text-zinc-400 truncate">{currentUser.email}</p>
+                      <span className="inline-block mt-1 text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-red-600/20 text-red-400 border border-red-500/30">
+                        {currentUser.tier} Member
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="px-4 py-3 border-b border-zinc-800">
+                      <p className="text-xs font-bold text-white mb-2">Welcome to Apex Tesla Hub</p>
+                      <button
+                        onClick={() => {
+                          onOpenAuth();
+                          setUserDropdownOpen(false);
+                        }}
+                        className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 text-white text-xs font-bold shadow-lg shadow-red-950/40 flex items-center justify-center gap-1.5 transition"
+                      >
+                        <User className="w-3.5 h-3.5" />
+                        <span>Sign In / Register</span>
+                      </button>
+                    </div>
                   )}
 
-                  <button
-                    onClick={() => {
-                      handleNavClick('referrals');
-                      setUserDropdownOpen(false);
-                    }}
-                    className="w-full px-4 py-2 text-left text-xs hover:bg-zinc-900 flex items-center justify-between text-zinc-300 hover:text-white transition"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Users className="w-3.5 h-3.5 text-emerald-400" />
-                      <span>Refer & Earn</span>
+                  {/* Quick Functional Actions: Cart & Notifications */}
+                  <div className="px-2 py-1.5 border-b border-zinc-800 space-y-1">
+                    <button
+                      onClick={() => {
+                        onOpenCart();
+                        setUserDropdownOpen(false);
+                      }}
+                      className="w-full px-3 py-2 rounded-xl text-left text-xs hover:bg-zinc-900 flex items-center justify-between text-zinc-200 transition"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <ShoppingBag className="w-4 h-4 text-red-500" />
+                        <span className="font-medium">Shopping Cart</span>
+                      </div>
+                      {totalCartCount > 0 ? (
+                        <span className="px-2 py-0.5 rounded-full bg-red-600 text-white text-[10px] font-bold animate-pulse">
+                          {totalCartCount} items
+                        </span>
+                      ) : (
+                        <span className="text-[11px] text-zinc-500">0 items</span>
+                      )}
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        handleNavClick('dashboard');
+                        setUserDropdownOpen(false);
+                      }}
+                      className="w-full px-3 py-2 rounded-xl text-left text-xs hover:bg-zinc-900 flex items-center justify-between text-zinc-200 transition"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <Bell className="w-4 h-4 text-amber-400" />
+                        <span className="font-medium">Notifications & Alerts</span>
+                      </div>
+                      {unreadNotificationsCount > 0 ? (
+                        <span className="px-2 py-0.5 rounded-full bg-red-600 text-white text-[10px] font-bold animate-pulse">
+                          {unreadNotificationsCount} new
+                        </span>
+                      ) : (
+                        <span className="text-[11px] text-zinc-500">All read</span>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Core Navigation Items */}
+                  <div className="px-2 py-1.5 border-b border-zinc-800 space-y-0.5">
+                    {currentUser && (
+                      <button
+                        onClick={() => {
+                          handleNavClick('dashboard');
+                          setUserDropdownOpen(false);
+                        }}
+                        className="w-full px-3 py-2 rounded-xl text-left text-xs hover:bg-zinc-900 flex items-center gap-2.5 text-zinc-300 hover:text-white transition"
+                      >
+                        <LayoutDashboard className="w-4 h-4 text-red-500" />
+                        <span>Personalized Dashboard</span>
+                      </button>
+                    )}
+
+                    {onOpenTracking && (
+                      <button
+                        onClick={() => {
+                          onOpenTracking();
+                          setUserDropdownOpen(false);
+                        }}
+                        className="w-full px-3 py-2 rounded-xl text-left text-xs hover:bg-zinc-900 flex items-center gap-2.5 text-zinc-300 hover:text-white transition"
+                      >
+                        <Truck className="w-4 h-4 text-cyan-400" />
+                        <span>Track Vehicle & Orders</span>
+                      </button>
+                    )}
+
+                    <button
+                      onClick={() => {
+                        onOpenDeposit();
+                        setUserDropdownOpen(false);
+                      }}
+                      className="w-full px-3 py-2 rounded-xl text-left text-xs hover:bg-zinc-900 flex items-center gap-2.5 text-zinc-300 hover:text-white transition"
+                    >
+                      <Wallet className="w-4 h-4 text-emerald-400" />
+                      <span>Crypto Deposit & Wallet</span>
+                    </button>
+
+                    {currentUser && onOpenWithdraw && (
+                      <button
+                        onClick={() => {
+                          onOpenWithdraw();
+                          setUserDropdownOpen(false);
+                        }}
+                        className="w-full px-3 py-2 rounded-xl text-left text-xs hover:bg-zinc-900 flex items-center gap-2.5 text-zinc-300 hover:text-white transition"
+                      >
+                        <CreditCard className="w-4 h-4 text-amber-400" />
+                        <span>Request Payout / Withdrawal</span>
+                      </button>
+                    )}
+
+                    <button
+                      onClick={() => {
+                        handleNavClick('referrals');
+                        setUserDropdownOpen(false);
+                      }}
+                      className="w-full px-3 py-2 rounded-xl text-left text-xs hover:bg-zinc-900 flex items-center justify-between text-zinc-300 hover:text-white transition"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <Users className="w-4 h-4 text-emerald-400" />
+                        <span>Refer & Earn</span>
+                      </div>
+                      <span className="text-[10px] font-bold text-emerald-400 bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-500/30">
+                        +$100
+                      </span>
+                    </button>
+                  </div>
+
+                  {/* Preferences: Theme Toggle & Language Selector */}
+                  <div className="px-3 py-2.5 border-b border-zinc-800 space-y-2">
+                    {/* Theme Switcher Toggle */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-xs text-zinc-300">
+                        {isLight ? (
+                          <Sun className="w-4 h-4 text-amber-400" />
+                        ) : (
+                          <Moon className="w-4 h-4 text-indigo-400" />
+                        )}
+                        <span className="font-medium">Theme</span>
+                      </div>
+                      <button
+                        onClick={toggleTheme}
+                        className="px-2.5 py-1 rounded-lg bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-xs font-semibold text-zinc-200 hover:text-white flex items-center gap-1.5 transition"
+                      >
+                        <span>{isLight ? 'Light Mode' : 'Dark Mode'}</span>
+                        <span className="text-[10px] text-zinc-500">Toggle</span>
+                      </button>
                     </div>
-                    <span className="text-[10px] font-bold text-emerald-400 bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-500/30">
-                      +$100
-                    </span>
-                  </button>
 
-                  <div className="my-1 border-t border-zinc-800" />
+                    {/* Language Switcher Selector */}
+                    <div>
+                      <div className="flex items-center gap-2 text-xs text-zinc-300 mb-1.5">
+                        <Globe className="w-4 h-4 text-cyan-400" />
+                        <span className="font-medium">Language</span>
+                        <span className="text-[10px] text-zinc-500 uppercase">({currentLanguageOption.code})</span>
+                      </div>
+                      <div className="grid grid-cols-4 gap-1">
+                        {languages.map((lang) => {
+                          const isSelected = lang.code === currentLanguageOption.code;
+                          return (
+                            <button
+                              key={lang.code}
+                              onClick={() => {
+                                setLanguage(lang.code);
+                              }}
+                              className={`py-1 px-1.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1 border transition ${
+                                isSelected
+                                  ? 'bg-red-600/30 border-red-500 text-white'
+                                  : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white'
+                              }`}
+                              title={lang.name}
+                            >
+                              <span>{lang.flag}</span>
+                              <span className="uppercase text-[10px] font-mono">{lang.code}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
 
-                  <button
-                    onClick={() => {
-                      logout();
-                      setUserDropdownOpen(false);
-                    }}
-                    className="w-full px-4 py-2 text-left text-xs hover:bg-red-950/40 text-red-400 flex items-center gap-2 transition"
-                  >
-                    <LogOut className="w-3.5 h-3.5" />
-                    <span>Sign Out</span>
-                  </button>
+                  {/* Sign Out or VIP Link */}
+                  {currentUser ? (
+                    <div className="px-2 pt-1">
+                      <button
+                        onClick={() => {
+                          logout();
+                          setUserDropdownOpen(false);
+                        }}
+                        className="w-full px-3 py-2 text-left text-xs rounded-xl hover:bg-red-950/40 text-red-400 flex items-center gap-2 transition"
+                      >
+                        <LogOut className="w-3.5 h-3.5" />
+                        <span>Sign Out</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="px-3 pt-2 text-[11px] text-zinc-500 text-center">
+                      Need help? <a href="https://wa.me/18005552739" target="_blank" rel="noopener noreferrer" className="text-emerald-400 hover:underline">Chat VIP WhatsApp</a>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          ) : (
-            <button
-              onClick={onOpenAuth}
-              className="px-4 py-2 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 text-white text-xs font-bold shadow-lg shadow-red-950/40 flex items-center gap-1.5 transition"
-            >
-              <User className="w-3.5 h-3.5" />
-              <span>Sign In / Up</span>
-            </button>
-          )}
+              </>
+            )}
+          </div>
 
           {/* Mobile menu burger */}
           <button
@@ -504,6 +531,49 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
           </div>
 
+
+          {/* Mobile Cart & Notifications Quick Actions */}
+          <div className="grid grid-cols-2 gap-2 mb-2">
+            <button
+              onClick={() => {
+                onOpenCart();
+                setMobileMenuOpen(false);
+              }}
+              className="p-2.5 rounded-xl bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-zinc-200 font-semibold text-xs flex items-center justify-between transition"
+            >
+              <div className="flex items-center gap-2">
+                <ShoppingBag className="w-4 h-4 text-red-500" />
+                <span>Cart</span>
+              </div>
+              {totalCartCount > 0 ? (
+                <span className="px-1.5 py-0.5 rounded-full bg-red-600 text-white text-[10px] font-bold animate-pulse">
+                  {totalCartCount}
+                </span>
+              ) : (
+                <span className="text-[10px] text-zinc-500">0</span>
+              )}
+            </button>
+
+            <button
+              onClick={() => {
+                handleNavClick('dashboard');
+                setMobileMenuOpen(false);
+              }}
+              className="p-2.5 rounded-xl bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-zinc-200 font-semibold text-xs flex items-center justify-between transition"
+            >
+              <div className="flex items-center gap-2">
+                <Bell className="w-4 h-4 text-amber-400" />
+                <span>Alerts</span>
+              </div>
+              {unreadNotificationsCount > 0 ? (
+                <span className="px-1.5 py-0.5 rounded-full bg-red-600 text-white text-[10px] font-bold animate-pulse">
+                  {unreadNotificationsCount}
+                </span>
+              ) : (
+                <span className="text-[10px] text-zinc-500">0</span>
+              )}
+            </button>
+          </div>
 
           <div className="grid grid-cols-2 gap-2 mb-2">
             {onOpenTracking && (
