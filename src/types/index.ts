@@ -683,6 +683,30 @@ export interface FeatureToggles {
   investmentsEnabled?: boolean;
 }
 
+export interface AutoCryptoGateway {
+
+  id: string;
+  name: string;
+  network: 'TRC20' | 'ERC20' | 'BTC' | 'ETH' | 'BEP20' | 'XRPL';
+  currency: 'USDT' | 'BTC' | 'ETH' | 'BNB' | 'XRP';
+  symbol: string;
+  receivingAddress: string;
+  rpcEndpoint: string;
+  webhookSecret: string;
+  requiredConfirmations: number;
+  minDepositUsd: number;
+  maxDepositUsd: number;
+  feePercent: number;
+  autoCreditEnabled: boolean;
+  autoPayoutEnabled: boolean;
+  status: 'active' | 'testing' | 'disabled';
+  lastPingSuccess?: boolean;
+  lastPingAt?: string;
+  totalProcessedUsd: number;
+  totalTransactionsCount: number;
+}
+
+
 
 
 

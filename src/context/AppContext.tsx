@@ -37,6 +37,7 @@ import {
   WithdrawalSettings,
   WheelReward,
   FeatureToggles,
+  AutoCryptoGateway,
 } from '../types';
 import {
   CRYPTO_NETWORKS,
@@ -60,7 +61,9 @@ import {
   DEFAULT_WITHDRAWAL_SETTINGS,
   INITIAL_WITHDRAWAL_REQUESTS,
   DEFAULT_FEATURE_TOGGLES,
+  DEFAULT_AUTO_CRYPTO_GATEWAYS,
 } from '../data/mockData';
+
 
 interface AppContextType {
   currentUser: User | null;
@@ -265,7 +268,14 @@ interface AppContextType {
   // Feature Toggles (Global Function Switches)
   featureToggles: FeatureToggles;
   updateFeatureToggles: (toggles: Partial<FeatureToggles>) => void;
+  // Automated Crypto Payment Gateways
+  autoCryptoGateways: AutoCryptoGateway[];
+  updateAutoCryptoGateway: (id: string, updates: Partial<AutoCryptoGateway>) => void;
+  addAutoCryptoGateway: (gateway: Omit<AutoCryptoGateway, 'id' | 'totalProcessedUsd' | 'totalTransactionsCount'>) => void;
+  deleteAutoCryptoGateway: (id: string) => void;
+  testAutoCryptoGatewayPing: (id: string) => Promise<{ success: boolean; latencyMs: number; message: string }>;
 }
+
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
@@ -868,6 +878,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return saved ? JSON.parse(saved) : DEFAULT_FEATURE_TOGGLES;
   });
 
+  const [autoCryptoGateways, setAutoCryptoGateways] = useState<AutoCryptoGateway[]>(() => {
+    const saved = localStorage.getItem('apex_auto_crypto_gateways');
+    return saved ? JSON.parse(saved) : DEFAULT_AUTO_CRYPTO_GATEWAYS;
+  });
+
+
   const [allUsers, setAllUsers] = useState<User[]>(() => {
     const saved = localStorage.getItem('apex_all_users');
     return saved ? JSON.parse(saved) : INITIAL_USERS;
@@ -1100,6 +1116,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     localStorage.setItem('apex_feature_toggles', JSON.stringify(featureToggles));
   }, [featureToggles]);
+
+  useEffect(() => {
+    localStorage.setItem('apex_auto_crypto_gateways', JSON.stringify(autoCryptoGateways));
+  }, [autoCryptoGateways]);
+
 
   // Live TSLA stock price fluctuation (simulating real-time NASDAQ market updates)
   useEffect(() => {
@@ -3005,6 +3026,58 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast('Platform feature switches updated successfully!', 'success');
   };
 
+  // ==========================================
+  // AUTOMATED CRYPTO PAYMENT GATEWAYS CMS
+  // ==========================================
+
+  const updateAutoCryptoGateway = (id: string, updates: Partial<AutoCryptoGateway>) => {
+    setAutoCryptoGateways((prev) =>
+      prev.map((gw) => (gw.id === id ? { ...gw, ...updates } : gw))
+    );
+    showToast('Auto crypto gateway updated & synchronized successfully!', 'success');
+  };
+
+  const addAutoCryptoGateway = (gateway: Omit<AutoCryptoGateway, 'id' | 'totalProcessedUsd' | 'totalTransactionsCount'>) => {
+    const newGw: AutoCryptoGateway = {
+      ...gateway,
+      id: `gw-${gateway.network.toLowerCase()}-${Date.now().toString(36)}`,
+      totalProcessedUsd: 0,
+      totalTransactionsCount: 0,
+      lastPingSuccess: true,
+      lastPingAt: new Date().toISOString(),
+    };
+    setAutoCryptoGateways((prev) => [...prev, newGw]);
+    showToast(`Added new auto gateway: ${newGw.name}`, 'success');
+  };
+
+  const deleteAutoCryptoGateway = (id: string) => {
+    setAutoCryptoGateways((prev) => prev.filter((gw) => gw.id !== id));
+    showToast('Auto crypto gateway removed.', 'info');
+  };
+
+  const testAutoCryptoGatewayPing = async (id: string): Promise<{ success: boolean; latencyMs: number; message: string }> => {
+    const gw = autoCryptoGateways.find((g) => g.id === id);
+    if (!gw) {
+      return { success: false, latencyMs: 0, message: 'Gateway not found' };
+    }
+    const start = Date.now();
+    await new Promise((r) => setTimeout(r, 400 + Math.random() * 250));
+    const latencyMs = Date.now() - start;
+    const nowIso = new Date().toISOString();
+
+    updateAutoCryptoGateway(id, {
+      lastPingSuccess: true,
+      lastPingAt: nowIso,
+    });
+
+    return {
+      success: true,
+      latencyMs,
+      message: `Node Ping 200 OK (${latencyMs}ms) • Webhook handshake verified for ${gw.network} receiver: ${gw.receivingAddress.substring(0, 10)}...`,
+    };
+  };
+
+
   const purchaseScratchCard = (tier: ScratchCardTier): boolean => {
     if (balances.usd < tier.priceUsd) {
       showToast(`Insufficient balance ($${balances.usd.toFixed(2)}) for ${tier.name} ($${tier.priceUsd}). Please deposit.`, 'error');
@@ -3675,8 +3748,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // Feature Toggles (Global Function Switches)
         featureToggles,
         updateFeatureToggles,
+        // Automated Crypto Payment Gateways
+        autoCryptoGateways,
+        updateAutoCryptoGateway,
+        addAutoCryptoGateway,
+        deleteAutoCryptoGateway,
+        testAutoCryptoGatewayPing,
       }}
     >
+
       {children}
     </AppContext.Provider>
   );

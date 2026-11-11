@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { useLanguage } from '../context/LanguageContext';
+import { useTheme } from '../context/ThemeContext';
 import {
   Zap,
   Wallet,
@@ -26,6 +28,10 @@ import {
   ArrowDownLeft,
   Activity,
   CreditCard,
+  Globe,
+  Check,
+  Sun,
+  Moon,
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -48,8 +54,11 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenTracking,
 }) => {
   const { currentUser, logout, balances, cart, userRole, setRole, adminNotifications, tslaQuote, featureToggles } = useApp();
+  const { currentLanguageOption, setLanguage, languages, t } = useLanguage();
+  const { theme, toggleTheme, isLight } = useTheme();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
+  const [langDropdownOpen, setLangDropdownOpen] = useState(false);
 
   const totalCartCount = cart.reduce((acc, item) => acc + item.quantity, 0);
   const unreadNotificationsCount = adminNotifications.filter((n) => {
@@ -59,28 +68,28 @@ export const Navbar: React.FC<NavbarProps> = ({
   }).length;
 
   const navLinks = [
-    { id: 'home', label: 'Home' },
+    { id: 'home', label: t('nav.home', 'Home') },
     ...(featureToggles.teslaStocksEnabled ? [{
       id: 'stocks',
-      label: 'TSLA Stocks & Fast ROI',
+      label: t('nav.stocks', 'TSLA Stocks & Fast ROI'),
       icon: Activity,
       highlight: true,
       stockPill: `$${tslaQuote.price.toFixed(1)}`,
       stockChange: tslaQuote.change24h,
     }] : []),
-    { id: 'vehicles', label: 'Buy Tesla', icon: Car, highlight: true },
-    { id: 'coupons', label: 'Coupons', icon: Tag, highlight: true },
-    { id: 'services', label: 'Service & Fixes', icon: Wrench },
-    { id: 'wraps', label: 'Wrap Studio', icon: Palette },
-    { id: 'rentals', label: 'Rentals', icon: Car },
-    { id: 'investment', label: 'Fleet Yield', icon: TrendingUp },
-    { id: 'promotions', label: 'Spin & Win', icon: Gift },
-    { id: 'referrals', label: 'Refer & Earn', icon: Users, badge: '+$100' },
-    { id: 'social', label: 'Social', icon: Share2 },
-    { id: 'shop', label: 'Parts & Store' },
-    { id: 'about', label: 'About' },
-    { id: 'faq', label: 'FAQ' },
-    { id: 'contact', label: 'Contact' },
+    { id: 'vehicles', label: t('nav.vehicles', 'Buy Tesla'), icon: Car, highlight: true },
+    { id: 'coupons', label: t('nav.coupons', 'Coupons'), icon: Tag, highlight: true },
+    { id: 'services', label: t('nav.services', 'Service & Fixes'), icon: Wrench },
+    { id: 'wraps', label: t('nav.wraps', 'Wrap Studio'), icon: Palette },
+    { id: 'rentals', label: t('nav.rentals', 'Rentals'), icon: Car },
+    { id: 'investment', label: t('nav.investment', 'Fleet Yield'), icon: TrendingUp },
+    { id: 'promotions', label: t('nav.promotions', 'Spin & Win'), icon: Gift },
+    { id: 'referrals', label: t('nav.referrals', 'Refer & Earn'), icon: Users, badge: '+$100' },
+    { id: 'social', label: t('nav.social', 'Social'), icon: Share2 },
+    { id: 'shop', label: t('nav.shop', 'Parts & Store') },
+    { id: 'about', label: t('nav.about', 'About') },
+    { id: 'faq', label: t('nav.faq', 'FAQ') },
+    { id: 'contact', label: t('nav.contact', 'Contact') },
   ];
 
 
@@ -160,10 +169,76 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         {/* Right Action Utilities */}
         <div className="flex items-center gap-2.5 shrink-0">
+          {/* Global Language Switcher */}
+          <div className="relative">
+            <button
+              onClick={() => setLangDropdownOpen(!langDropdownOpen)}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-zinc-900/90 border border-zinc-800 hover:border-zinc-700 text-zinc-300 hover:text-white text-xs font-medium transition shadow-sm"
+              title="Change Language"
+            >
+              <Globe className="w-3.5 h-3.5 text-zinc-400" />
+              <span>{currentLanguageOption.flag}</span>
+              <span className="uppercase font-mono text-[11px] font-bold">{currentLanguageOption.code}</span>
+              <ChevronDown className="w-3 h-3 text-zinc-500" />
+            </button>
+
+            {langDropdownOpen && (
+              <div
+                className="absolute right-0 mt-2 w-48 rounded-2xl bg-zinc-950 border border-zinc-800 shadow-2xl py-1.5 z-50 text-zinc-200 animate-in fade-in slide-in-from-top-2"
+                onMouseLeave={() => setLangDropdownOpen(false)}
+              >
+                <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-zinc-500 border-b border-zinc-800">
+                  Select Language
+                </div>
+                {languages.map((lang) => {
+                  const isSelected = lang.code === currentLanguageOption.code;
+                  return (
+                    <button
+                      key={lang.code}
+                      onClick={() => {
+                        setLanguage(lang.code);
+                        setLangDropdownOpen(false);
+                      }}
+                      className={`w-full px-3 py-2 text-left text-xs flex items-center justify-between hover:bg-zinc-900 transition ${
+                        isSelected ? 'bg-red-950/30 text-white font-semibold' : 'text-zinc-300'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">{lang.flag}</span>
+                        <span>{lang.name}</span>
+                      </div>
+                      {isSelected && <Check className="w-3.5 h-3.5 text-red-400" />}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* High-Contrast Light / Dark Theme Toggle */}
+          <button
+            onClick={toggleTheme}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-zinc-900/90 border border-zinc-800 hover:border-zinc-700 text-zinc-300 hover:text-white text-xs font-semibold transition shadow-sm cursor-pointer"
+            title={isLight ? 'Switch to Dark Theme' : 'Switch to High-Contrast Light Theme'}
+            aria-label="Toggle theme"
+          >
+            {isLight ? (
+              <>
+                <Moon className="w-3.5 h-3.5 text-indigo-500 fill-indigo-500/20" />
+                <span className="hidden md:inline text-[11px] font-mono font-bold">Dark</span>
+              </>
+            ) : (
+              <>
+                <Sun className="w-3.5 h-3.5 text-amber-400 fill-amber-400/20" />
+                <span className="hidden md:inline text-[11px] font-mono font-bold">Light</span>
+              </>
+            )}
+          </button>
+
           {/* Quick Balance & Deposit/Withdraw buttons */}
           <div className="hidden sm:flex items-center bg-zinc-900/90 border border-zinc-800 rounded-xl p-1 pl-3 shadow-inner">
             <div className="mr-2 text-right">
-              <span className="text-[10px] text-zinc-400 block -mb-0.5">Vault Balance</span>
+              <span className="text-[10px] text-zinc-400 block -mb-0.5">{t('nav.vaultBalance', 'Vault Balance')}</span>
               <span className="font-mono font-bold text-xs text-emerald-400">
                 ${balances.usd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </span>
@@ -174,7 +249,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               title="Deposit Crypto / USD"
             >
               <Plus className="w-3.5 h-3.5" />
-              <span>Deposit</span>
+              <span>{t('nav.deposit', 'Deposit')}</span>
             </button>
             {onOpenWithdraw && (
               <button
@@ -183,7 +258,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 title="Withdraw Crypto / Bank Wire"
               >
                 <ArrowDownLeft className="w-3.5 h-3.5 text-red-400" />
-                <span>Withdraw</span>
+                <span>{t('nav.withdraw', 'Withdraw')}</span>
               </button>
             )}
           </div>
@@ -471,13 +546,60 @@ export const Navbar: React.FC<NavbarProps> = ({
             ))}
           </div>
 
-          <div className="pt-2 border-t border-zinc-800 flex justify-between items-center text-xs">
+          {/* Mobile Language Switcher */}
+          <div className="p-2.5 rounded-xl bg-zinc-900 border border-zinc-800">
+            <div className="flex items-center gap-1.5 text-[11px] font-semibold text-zinc-400 mb-2">
+              <Globe className="w-3.5 h-3.5 text-red-500" />
+              <span>Language / Idioma / 语言 / 言語</span>
+            </div>
+            <div className="grid grid-cols-4 gap-1.5">
+              {languages.map((lang) => {
+                const isSelected = lang.code === currentLanguageOption.code;
+                return (
+                  <button
+                    key={lang.code}
+                    onClick={() => setLanguage(lang.code)}
+                    className={`py-1.5 px-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1 border transition ${
+                      isSelected
+                        ? 'bg-red-600/30 border-red-500 text-white'
+                        : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    <span>{lang.flag}</span>
+                    <span className="uppercase text-[10px] font-mono">{lang.code}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Mobile Theme Switcher */}
+          <div className="pt-2 border-t border-zinc-800">
+            <button
+              onClick={toggleTheme}
+              className="w-full p-2.5 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-300 flex items-center justify-center gap-2 cursor-pointer font-semibold text-xs"
+            >
+              {isLight ? (
+                <>
+                  <Moon className="w-4 h-4 text-indigo-400" />
+                  <span>Theme: High-Contrast Light (Click to switch to Dark)</span>
+                </>
+              ) : (
+                <>
+                  <Sun className="w-4 h-4 text-amber-400" />
+                  <span>Theme: Dark Mode (Click to switch to Light)</span>
+                </>
+              )}
+            </button>
+          </div>
+
+          <div className="pt-1 flex justify-between items-center text-xs">
             <button
               onClick={() => {
                 setRole(userRole === 'admin' ? 'customer' : 'admin');
                 setMobileMenuOpen(false);
               }}
-              className="p-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-300 flex items-center gap-1.5"
+              className="p-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-300 flex items-center gap-1.5 cursor-pointer"
             >
               <Shield className="w-3.5 h-3.5" />
               <span>Role: {userRole}</span>
@@ -489,7 +611,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   handleNavClick('dashboard');
                   setMobileMenuOpen(false);
                 }}
-                className="p-2 rounded-lg bg-red-600 text-white font-bold"
+                className="p-2 rounded-lg bg-red-600 text-white font-bold cursor-pointer"
               >
                 Go to Dashboard
               </button>
@@ -499,7 +621,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   onOpenAuth();
                   setMobileMenuOpen(false);
                 }}
-                className="p-2 rounded-lg bg-red-600 text-white font-bold"
+                className="p-2 rounded-lg bg-red-600 text-white font-bold cursor-pointer"
               >
                 Sign In / Register
               </button>

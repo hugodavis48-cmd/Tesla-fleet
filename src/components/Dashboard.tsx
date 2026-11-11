@@ -32,11 +32,16 @@ import {
   TrendingUp,
   Bell,
   BellRing,
+  Activity,
+  Flame,
+  DollarSign,
+  Clock,
 } from 'lucide-react';
-import { TeslaVehicle, ServiceBooking, UserKycData } from '../types';
+import { TeslaVehicle, ServiceBooking, UserKycData, FeaturedStockPlan } from '../types';
 import { ReferralHub } from './ReferralHub';
 import { UserInvestmentBoard } from './UserInvestmentBoard';
 import { NotificationInbox } from './NotificationInbox';
+import { RoiGrowthChart } from './RoiGrowthChart';
 
 interface DashboardProps {
   onOpenDeposit: () => void;
@@ -105,11 +110,24 @@ export const Dashboard: React.FC<DashboardProps> = ({
     submitKyc,
     logout,
     showToast,
+    tslaQuote,
+    userSpotHolding,
+    featuredStockPlans,
+    buySpotStock,
+    sellSpotStock,
+    investInFeaturedStock,
+    featureToggles,
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<
-    'garage' | 'services' | 'history' | 'wallet' | 'investments' | 'notifications' | 'kyc' | 'referrals' | 'security'
+    'garage' | 'stocks' | 'services' | 'history' | 'wallet' | 'investments' | 'notifications' | 'kyc' | 'referrals' | 'security'
   >('garage');
+
+  // Stock trading states in user dashboard
+  const [spotBuyAmount, setSpotBuyAmount] = useState<string>('500');
+  const [spotSellShares, setSpotSellShares] = useState<string>('1');
+  const [selectedPlanForInvest, setSelectedPlanForInvest] = useState<FeaturedStockPlan | null>(null);
+  const [investPlanAmount, setInvestPlanAmount] = useState<string>('500');
 
   const unreadNotificationsCount = adminNotifications.filter((n) => {
     const isTarget =
@@ -493,6 +511,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
       <div className="flex items-center gap-2 border-b border-zinc-800 pb-2 overflow-x-auto">
         {[
           { id: 'garage', label: 'My Digital Garage', count: vehicles.length, icon: Car },
+          { id: 'stocks', label: 'TSLA Stocks & Fast ROI', icon: Activity, badge: `$${tslaQuote.price.toFixed(1)}` },
           { id: 'investments', label: 'Fleet Investments & ROI', count: userInvestments.filter(i => !i.userId || i.userId === currentUser.id).length, icon: TrendingUp, badge: 'ROI' },
           { id: 'notifications', label: 'Notifications', count: unreadNotificationsCount > 0 ? unreadNotificationsCount : undefined, icon: BellRing, badge: unreadNotificationsCount > 0 ? `${unreadNotificationsCount} NEW` : undefined },
           { id: 'services', label: 'Active Repairs', count: activeBookings.length, icon: Wrench },
@@ -539,6 +558,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
       {/* Tab 1: Digital Garage */}
       {activeTab === 'garage' && (
         <div className="space-y-6">
+          {/* Visual Recharts ROI Growth & Compounding Chart */}
+          <RoiGrowthChart
+            onOpenDeposit={onOpenDeposit}
+            onNavigateToStake={onNavigateToServices}
+          />
+
           <div className="flex justify-between items-center">
             <div>
               <h3 className="font-heading font-bold text-xl text-white">Registered Tesla Fleet</h3>
@@ -1377,6 +1402,438 @@ export const Dashboard: React.FC<DashboardProps> = ({
       {/* Tab: Referrals & Invites */}
       {activeTab === 'referrals' && (
         <ReferralHub onOpenDeposit={onOpenDeposit} onOpenAuth={onOpenAuth} />
+      )}
+
+      {/* Tab: Tesla Stocks & Fast ROI Dashboard Display */}
+      {activeTab === 'stocks' && (
+        <div className="space-y-6 animate-in fade-in duration-300">
+          {/* Header & Live NASDAQ TSLA Bar */}
+          <div className="p-6 rounded-3xl bg-zinc-950 border border-zinc-800 shadow-xl relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-600/10 rounded-full blur-3xl pointer-events-none" />
+            
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 text-[10px] font-mono font-bold flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                    LIVE NASDAQ TICKER
+                  </span>
+                  <span className="text-zinc-500 text-xs font-mono">• NYSE / NASDAQ REGULATED</span>
+                </div>
+                <h3 className="font-heading font-black text-2xl sm:text-3xl text-white flex items-center gap-2">
+                  <span>TESLA, INC.</span>
+                  <span className="font-mono text-emerald-400 font-extrabold text-xl">(TSLA)</span>
+                </h3>
+                <p className="text-xs text-zinc-400 max-w-xl">
+                  Trade spot Tesla shares directly or subscribe to institutional Fast-ROI yield plans backed by Autonomous Robotaxi fleet expansion and Gigafactory infrastructure.
+                </p>
+              </div>
+
+              {/* Live Ticker Metrics Pill */}
+              <div className="flex flex-wrap items-center gap-4 bg-zinc-900/90 border border-zinc-800 p-4 rounded-2xl">
+                <div>
+                  <span className="text-[10px] text-zinc-500 block font-mono">SPOT PRICE</span>
+                  <span className="font-heading font-black text-2xl text-white font-mono">
+                    ${tslaQuote.price.toFixed(2)}
+                  </span>
+                </div>
+                <div className="h-8 w-px bg-zinc-800" />
+                <div>
+                  <span className="text-[10px] text-zinc-500 block font-mono">24H CHANGE</span>
+                  <span className={`font-mono font-bold text-sm flex items-center gap-0.5 ${
+                    tslaQuote.change24h >= 0 ? 'text-emerald-400' : 'text-red-400'
+                  }`}>
+                    {tslaQuote.change24h >= 0 ? '+' : ''}{tslaQuote.change24h.toFixed(2)}%
+                  </span>
+                </div>
+                <div className="h-8 w-px bg-zinc-800 hidden sm:block" />
+                <div className="hidden sm:block">
+                  <span className="text-[10px] text-zinc-500 block font-mono">24H RANGE</span>
+                  <span className="font-mono text-xs text-zinc-300">
+                    ${tslaQuote.low24h.toFixed(1)} - ${tslaQuote.high24h.toFixed(1)}
+                  </span>
+                </div>
+                <div className="h-8 w-px bg-zinc-800 hidden sm:block" />
+                <div className="hidden sm:block">
+                  <span className="text-[10px] text-zinc-500 block font-mono">MARKET CAP</span>
+                  <span className="font-mono text-xs text-zinc-300">{tslaQuote.marketCap}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* User Spot Holding & Portfolio Summary */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Holdings Card */}
+            <div className="lg:col-span-2 p-6 rounded-3xl bg-zinc-950 border border-zinc-800 space-y-6">
+              <div className="flex items-center justify-between border-b border-zinc-800/80 pb-4">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                    <Activity className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="font-heading font-bold text-lg text-white">Your TSLA Spot Portfolio</h4>
+                    <span className="text-xs text-zinc-400">Directly custody spot shares held in Apex Vault</span>
+                  </div>
+                </div>
+                <span className="text-[11px] font-mono text-zinc-400">
+                  Updated: {userSpotHolding.lastUpdated}
+                </span>
+              </div>
+
+              {/* Stats Grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div className="p-4 rounded-2xl bg-zinc-900/70 border border-zinc-800">
+                  <span className="text-[10px] text-zinc-500 uppercase font-mono block">Current Equity</span>
+                  <span className="font-heading font-bold text-xl text-emerald-400 font-mono">
+                    ${userSpotHolding.currentEquityUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </div>
+                <div className="p-4 rounded-2xl bg-zinc-900/70 border border-zinc-800">
+                  <span className="text-[10px] text-zinc-500 uppercase font-mono block">Shares Owned</span>
+                  <span className="font-heading font-bold text-xl text-white font-mono">
+                    {userSpotHolding.shares.toFixed(4)}
+                  </span>
+                </div>
+                <div className="p-4 rounded-2xl bg-zinc-900/70 border border-zinc-800">
+                  <span className="text-[10px] text-zinc-500 uppercase font-mono block">Avg Cost</span>
+                  <span className="font-heading font-bold text-xl text-zinc-300 font-mono">
+                    ${userSpotHolding.avgBuyPrice.toFixed(2)}
+                  </span>
+                </div>
+                <div className="p-4 rounded-2xl bg-zinc-900/70 border border-zinc-800">
+                  <span className="text-[10px] text-zinc-500 uppercase font-mono block">Unrealized P&L</span>
+                  <span className={`font-heading font-bold text-xl font-mono ${
+                    userSpotHolding.pnlUsd >= 0 ? 'text-emerald-400' : 'text-red-400'
+                  }`}>
+                    {userSpotHolding.pnlUsd >= 0 ? '+' : ''}${userSpotHolding.pnlUsd.toFixed(2)}
+                    <span className="text-xs block font-normal">
+                      ({userSpotHolding.pnlPercent >= 0 ? '+' : ''}{userSpotHolding.pnlPercent.toFixed(2)}%)
+                    </span>
+                  </span>
+                </div>
+              </div>
+
+              {/* Spot Buy / Sell Quick Terminal */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                {/* Spot Buy Box (Min $500) */}
+                <div className="p-4 rounded-2xl bg-zinc-900/50 border border-zinc-800 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                      <Plus className="w-3.5 h-3.5 text-emerald-400" />
+                      Buy TSLA Spot (Min $500)
+                    </span>
+                    <span className="text-[10px] text-zinc-400 font-mono">
+                      Vault: ${balances.usd.toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="relative">
+                    <DollarSign className="w-4 h-4 text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="number"
+                      min={500}
+                      step={50}
+                      value={spotBuyAmount}
+                      onChange={(e) => setSpotBuyAmount(e.target.value)}
+                      placeholder="Amount in USD (min 500)"
+                      className="w-full bg-zinc-950 border border-zinc-700 rounded-xl py-2 pl-9 pr-3 text-xs text-white font-mono focus:border-emerald-500 outline-none"
+                    />
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] text-zinc-400 font-mono">
+                    <span>Est. Shares:</span>
+                    <span className="text-emerald-400 font-bold">
+                      {tslaQuote.price > 0 ? (Number(spotBuyAmount || 0) / tslaQuote.price).toFixed(4) : 0} TSLA
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => {
+                      const amt = Number(spotBuyAmount);
+                      if (amt < 500) {
+                        showToast('Minimum spot investment is $500.', 'error');
+                        return;
+                      }
+                      if (balances.usd < amt) {
+                        showToast(`Insufficient vault balance ($${balances.usd.toFixed(2)}). Please deposit first.`, 'error');
+                        onOpenDeposit();
+                        return;
+                      }
+                      const ok = buySpotStock(amt);
+                      if (ok) {
+                        setSpotBuyAmount('500');
+                      }
+                    }}
+                    className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition shadow-lg shadow-emerald-950/40 cursor-pointer"
+                  >
+                    Execute Buy Spot
+                  </button>
+                </div>
+
+                {/* Spot Sell Box */}
+                <div className="p-4 rounded-2xl bg-zinc-900/50 border border-zinc-800 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                      <ArrowDownLeft className="w-3.5 h-3.5 text-red-400" />
+                      Sell TSLA Spot Shares
+                    </span>
+                    <span className="text-[10px] text-zinc-400 font-mono">
+                      Available: {userSpotHolding.shares.toFixed(4)} TSLA
+                    </span>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      min={0.01}
+                      max={userSpotHolding.shares}
+                      step={0.1}
+                      value={spotSellShares}
+                      onChange={(e) => setSpotSellShares(e.target.value)}
+                      placeholder="Shares to liquidate"
+                      className="w-full bg-zinc-950 border border-zinc-700 rounded-xl py-2 px-3 text-xs text-white font-mono focus:border-red-500 outline-none"
+                    />
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] text-zinc-400 font-mono">
+                    <span>Est. Payout to Vault:</span>
+                    <span className="text-white font-bold">
+                      ${(Number(spotSellShares || 0) * tslaQuote.price).toFixed(2)} USD
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => {
+                      const sh = Number(spotSellShares);
+                      if (sh <= 0 || sh > userSpotHolding.shares) {
+                        showToast('Invalid shares amount to liquidate.', 'error');
+                        return;
+                      }
+                      const ok = sellSpotStock(sh);
+                      if (ok) {
+                        setSpotSellShares('1');
+                      }
+                    }}
+                    disabled={userSpotHolding.shares <= 0}
+                    className="w-full py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 hover:text-white border border-zinc-700 text-xs font-bold transition disabled:opacity-50 cursor-pointer"
+                  >
+                    Liquidate to USD
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Actions & Fast-ROI Highlights */}
+            <div className="p-6 rounded-3xl bg-zinc-950 border border-zinc-800 flex flex-col justify-between space-y-6">
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                    <Flame className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="font-heading font-bold text-lg text-white">Fast ROI Programs</h4>
+                    <span className="text-xs text-zinc-400">Institutional Yield & Dividends</span>
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-gradient-to-br from-amber-950/30 to-red-950/30 border border-amber-500/30 space-y-2">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-amber-300 font-bold uppercase font-mono">Accelerated Yield</span>
+                    <span className="px-2 py-0.5 rounded bg-amber-500/30 text-amber-200 text-[10px] font-bold">MIN $500</span>
+                  </div>
+                  <p className="text-xs text-zinc-300 leading-relaxed">
+                    Earn up to <strong className="text-emerald-400">54.0% APY</strong> with daily compounding dividend accrual directly into your Vault Balance.
+                  </p>
+                </div>
+
+                <div className="space-y-2 text-xs text-zinc-400">
+                  <div className="flex items-center justify-between py-1 border-b border-zinc-800">
+                    <span>Minimum Entry:</span>
+                    <span className="text-white font-mono font-bold">$500.00 USD</span>
+                  </div>
+                  <div className="flex items-center justify-between py-1 border-b border-zinc-800">
+                    <span>Dividend Frequency:</span>
+                    <span className="text-emerald-400 font-mono font-bold">Daily Auto-Credit</span>
+                  </div>
+                  <div className="flex items-center justify-between py-1 border-b border-zinc-800">
+                    <span>Principal Return:</span>
+                    <span className="text-white font-mono font-bold">100% on Maturity</span>
+                  </div>
+                </div>
+              </div>
+
+              <button
+                onClick={onOpenDeposit}
+                className="w-full py-3 rounded-2xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-red-950/40 cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Deposit Crypto to Fund TSLA</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Featured Stock Plans Catalog */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="font-heading font-bold text-xl text-white">Featured Fast-ROI Stock Plans</h4>
+                <p className="text-xs text-zinc-400">Select an accelerated growth contract with direct dividend payouts (Minimum $500+)</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {featuredStockPlans.map((plan) => (
+                <div
+                  key={plan.id}
+                  className="rounded-3xl border border-zinc-800 bg-zinc-950 p-6 space-y-5 hover:border-emerald-500/50 transition shadow-xl relative flex flex-col justify-between"
+                >
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-zinc-900 border border-zinc-700 text-zinc-300">
+                        {plan.category}
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                        {plan.badge}
+                      </span>
+                    </div>
+
+                    <h5 className="font-heading font-black text-lg text-white">
+                      {plan.title}
+                    </h5>
+
+                    <p className="text-xs text-zinc-400 leading-relaxed">
+                      {plan.description}
+                    </p>
+
+                    <div className="grid grid-cols-2 gap-3 p-3 rounded-2xl bg-zinc-900/60 border border-zinc-800 text-center font-mono">
+                      <div>
+                        <span className="text-[10px] text-zinc-500 block">EST. APY</span>
+                        <span className="text-emerald-400 font-bold text-lg">{plan.apy}%</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-zinc-500 block">TERM</span>
+                        <span className="text-white font-bold text-lg">{plan.durationDays} Days</span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5 text-xs font-mono text-zinc-400">
+                      <div className="flex justify-between">
+                        <span>Daily Yield:</span>
+                        <span className="text-emerald-400 font-bold">~{plan.dailyYieldPercent}% / day</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Min Investment:</span>
+                        <span className="text-white font-bold">${plan.minInvestmentUsd.toLocaleString()}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      setSelectedPlanForInvest(plan);
+                      setInvestPlanAmount(String(plan.minInvestmentUsd || 500));
+                    }}
+                    className="w-full py-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/40 transition cursor-pointer"
+                  >
+                    <TrendingUp className="w-4 h-4" />
+                    <span>Subscribe • Fast ROI</span>
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal for Subscribing to Featured Fast-ROI Stock Plan */}
+      {selectedPlanForInvest && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
+          <div className="relative w-full max-w-md bg-zinc-950 border border-zinc-800 rounded-3xl p-6 sm:p-8 space-y-5 text-zinc-100 shadow-2xl animate-in zoom-in-95">
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="w-5 h-5 text-emerald-400" />
+                <h3 className="font-heading font-black text-xl text-white">Subscribe Fast ROI</h3>
+              </div>
+              <button
+                onClick={() => setSelectedPlanForInvest(null)}
+                className="p-1 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-zinc-900/80 border border-zinc-800 space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="font-heading font-bold text-white text-sm">{selectedPlanForInvest.title}</span>
+                <span className="text-xs font-mono font-bold text-emerald-400">{selectedPlanForInvest.apy}% APY</span>
+              </div>
+              <p className="text-xs text-zinc-400">{selectedPlanForInvest.description}</p>
+              <div className="flex justify-between text-xs text-zinc-400 font-mono pt-1">
+                <span>Duration: <strong>{selectedPlanForInvest.durationDays} Days</strong></span>
+                <span>Minimum: <strong>${selectedPlanForInvest.minInvestmentUsd}</strong></span>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-zinc-300 block">Investment Amount (USD)</label>
+              <div className="relative">
+                <DollarSign className="w-4 h-4 text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="number"
+                  min={selectedPlanForInvest.minInvestmentUsd || 500}
+                  step={50}
+                  value={investPlanAmount}
+                  onChange={(e) => setInvestPlanAmount(e.target.value)}
+                  className="w-full bg-zinc-900 border border-zinc-700 rounded-xl py-2.5 pl-9 pr-3 text-sm text-white font-mono focus:border-emerald-500 outline-none"
+                />
+              </div>
+              <span className="text-[11px] text-zinc-400 font-mono block">
+                Vault Balance: <strong className="text-emerald-400">${balances.usd.toFixed(2)} USD</strong>
+              </span>
+            </div>
+
+            {/* Return Calculator */}
+            <div className="p-4 rounded-2xl bg-emerald-950/30 border border-emerald-500/30 space-y-1 text-xs font-mono">
+              <div className="flex justify-between text-zinc-300">
+                <span>Estimated Total Dividends:</span>
+                <span className="text-emerald-400 font-bold">
+                  +${((Number(investPlanAmount || 0) * (selectedPlanForInvest.apy / 100) * (selectedPlanForInvest.durationDays / 365))).toFixed(2)}
+                </span>
+              </div>
+              <div className="flex justify-between text-zinc-300">
+                <span>Principal Returned at Maturity:</span>
+                <span className="text-white font-bold">${Number(investPlanAmount || 0).toFixed(2)}</span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setSelectedPlanForInvest(null)}
+                className="flex-1 py-3 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 text-xs font-bold cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const amt = Number(investPlanAmount);
+                  if (amt < (selectedPlanForInvest.minInvestmentUsd || 500)) {
+                    showToast(`Minimum investment for this plan is $${selectedPlanForInvest.minInvestmentUsd || 500}.`, 'error');
+                    return;
+                  }
+                  if (balances.usd < amt) {
+                    showToast(`Insufficient vault balance ($${balances.usd.toFixed(2)}). Please deposit crypto first.`, 'error');
+                    onOpenDeposit();
+                    return;
+                  }
+                  const ok = investInFeaturedStock(selectedPlanForInvest.id, amt);
+                  if (ok) {
+                    setSelectedPlanForInvest(null);
+                  }
+                }}
+                className="flex-1 py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 text-white text-xs font-bold shadow-lg shadow-emerald-950/40 cursor-pointer"
+              >
+                Confirm Investment
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Tab: Fleet Investments & ROI Dashboard Board */}

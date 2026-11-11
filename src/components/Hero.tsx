@@ -1,5 +1,6 @@
 import React from 'react';
 import { useApp } from '../context/AppContext';
+import { useLanguage } from '../context/LanguageContext';
 import {
   Wrench,
   Palette,
@@ -23,6 +24,7 @@ interface HeroProps {
 
 export const Hero: React.FC<HeroProps> = ({ onNavigate, onOpenDeposit }) => {
   const { tslaQuote, featureToggles } = useApp();
+  const { t } = useLanguage();
 
   return (
     <section className="relative overflow-hidden pt-8 pb-16 lg:pt-14 lg:pb-24 border-b border-zinc-800/80">
@@ -38,7 +40,7 @@ export const Hero: React.FC<HeroProps> = ({ onNavigate, onOpenDeposit }) => {
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
             </span>
-            <span className="text-white font-mono uppercase">APEX TESLA ECOSYSTEM 2026</span>
+            <span className="text-white font-mono uppercase">{t('hero.badge', 'APEX TESLA ECOSYSTEM 2026')}</span>
             <span className="text-zinc-500">•</span>
             <span className="text-red-400">Mobile Ranger & Center Bays Active</span>
           </div>
@@ -68,11 +70,11 @@ export const Hero: React.FC<HeroProps> = ({ onNavigate, onOpenDeposit }) => {
         {/* Hero Headline */}
         <div className="text-center max-w-4xl mx-auto space-y-4">
           <h1 className="font-heading font-black text-4xl sm:text-6xl lg:text-7xl tracking-tight text-white uppercase leading-[1.08]">
-            THE ULTIMATE <span className="text-transparent bg-clip-text bg-gradient-to-r from-red-500 via-rose-500 to-amber-500">TESLA VEHICLE</span> HUB
+            {t('hero.title', 'THE ULTIMATE TESLA VEHICLE HUB')}
           </h1>
 
           <p className="text-zinc-400 text-sm sm:text-lg max-w-2xl mx-auto font-normal leading-relaxed">
-            Certified maintenance & diagnostics, bespoke vinyl color wraps, high-downforce custom accessories, exotic fleet rentals, and decentralized vehicle yield pools with seamless crypto funding (BTC, USDT, XRP, BNB).
+            {t('hero.subtitle', 'Certified maintenance & diagnostics, bespoke vinyl color wraps, high-downforce custom accessories, exotic fleet rentals, and decentralized vehicle yield pools with seamless crypto funding.')}
           </p>
 
           {/* Action CTAs */}
@@ -83,7 +85,7 @@ export const Hero: React.FC<HeroProps> = ({ onNavigate, onOpenDeposit }) => {
                 className="px-6 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-500 text-white font-heading font-bold text-sm shadow-xl shadow-emerald-950/60 flex items-center gap-2 transition hover:scale-[1.02]"
               >
                 <TrendingUp className="w-4 h-4 text-emerald-200" />
-                <span>Trade TSLA • Fast ROI & Spot</span>
+                <span>{t('hero.exploreStocks', 'Trade TSLA • Fast ROI & Spot')}</span>
                 <Flame className="w-4 h-4 text-amber-300" />
               </button>
             )}
@@ -93,7 +95,7 @@ export const Hero: React.FC<HeroProps> = ({ onNavigate, onOpenDeposit }) => {
               className="px-6 py-3.5 rounded-2xl bg-gradient-to-r from-red-600 via-rose-600 to-red-600 hover:from-red-500 text-white font-heading font-bold text-sm shadow-xl shadow-red-950/60 flex items-center gap-2 transition hover:scale-[1.02]"
             >
               <Car className="w-4 h-4 text-white" />
-              <span>Buy Tesla • All Models</span>
+              <span>{t('hero.buyTesla', 'Buy Tesla • All Models')}</span>
               <ArrowRight className="w-4 h-4" />
             </button>
 
@@ -102,7 +104,7 @@ export const Hero: React.FC<HeroProps> = ({ onNavigate, onOpenDeposit }) => {
               className="px-6 py-3.5 rounded-2xl bg-zinc-900/90 hover:bg-zinc-800 border border-zinc-700/80 text-white font-heading font-bold text-sm flex items-center gap-2 transition hover:scale-[1.02]"
             >
               <Wrench className="w-4 h-4 text-red-400" />
-              <span>Book Service & Fixes</span>
+              <span>{t('hero.bookService', 'Book Service & Fixes')}</span>
             </button>
 
             <button
@@ -118,7 +120,7 @@ export const Hero: React.FC<HeroProps> = ({ onNavigate, onOpenDeposit }) => {
               className="px-6 py-3.5 rounded-2xl bg-gradient-to-r from-yellow-500/20 to-amber-600/20 hover:from-yellow-500/30 hover:to-amber-600/30 border border-yellow-500/40 text-yellow-300 font-heading font-bold text-sm flex items-center gap-2 transition hover:scale-[1.02]"
             >
               <Sparkles className="w-4 h-4 text-yellow-400" />
-              <span>Spin & Win Rewards</span>
+              <span>{t('hero.spinWin', 'Spin & Win Rewards')}</span>
             </button>
           </div>
 

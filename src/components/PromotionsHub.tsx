@@ -16,6 +16,9 @@ import {
   CheckCircle2,
   RefreshCw,
   Coins,
+  ChevronLeft,
+  ChevronRight,
+  SlidersHorizontal,
 } from 'lucide-react';
 
 interface PromotionsHubProps {
@@ -38,6 +41,8 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
   const [wheelRotation, setWheelRotation] = useState(0);
   const [lastWonPrize, setLastWonPrize] = useState<{ prize: string; valueUsd: number } | null>(null);
   const [selectedScratchTier, setSelectedScratchTier] = useState<ScratchCardTier | null>(null);
+  const [activeSlideIndex, setActiveSlideIndex] = useState(0);
+  const scratchSliderRef = useRef<HTMLDivElement>(null);
 
   // Dynamic wheel slices from admin-editable rewards
   const activeRewards = wheelRewards.filter((r) => r.isActive);
@@ -316,72 +321,171 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
               SCRATCH & WIN JACKPOTS
             </h3>
             <p className="text-xs text-zinc-400 max-w-xl">
-              Instant gratification. Scratch off the metallic foil with your mouse or finger to uncover cash vault jackpots, body wraps, and crypto rewards.
+              Instant gratification. Slide through tiers and scratch off the metallic foil with your mouse or finger to uncover cash vault jackpots, body wraps, and crypto rewards.
             </p>
           </div>
 
-          <div className="text-right">
-            <span className="text-xs text-zinc-400 block">Your Wallet Balance:</span>
-            <span className="font-heading font-bold text-lg text-emerald-400">
-              ${balances.usd.toFixed(2)} USD
-            </span>
+          {/* Slider Controls & Wallet Balance */}
+          <div className="flex flex-col sm:items-end gap-2">
+            <div className="text-right">
+              <span className="text-xs text-zinc-400 block">Your Wallet Balance:</span>
+              <span className="font-heading font-bold text-lg text-emerald-400">
+                ${balances.usd.toFixed(2)} USD
+              </span>
+            </div>
+
+            {/* Slider Navigation Arrows */}
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-mono text-zinc-400 mr-1">
+                <strong className="text-amber-400">{activeSlideIndex + 1}</strong> of {SCRATCH_CARD_TIERS.length}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  const newIdx = Math.max(0, activeSlideIndex - 1);
+                  setActiveSlideIndex(newIdx);
+                  if (scratchSliderRef.current) {
+                    const card = scratchSliderRef.current.children[newIdx] as HTMLElement;
+                    if (card) {
+                      card.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'start' });
+                    }
+                  }
+                }}
+                disabled={activeSlideIndex === 0}
+                className="p-2 rounded-xl bg-zinc-900 border border-zinc-700 hover:border-amber-500 text-zinc-300 hover:text-white disabled:opacity-40 transition cursor-pointer"
+                title="Previous Scratch Card"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const newIdx = Math.min(SCRATCH_CARD_TIERS.length - 1, activeSlideIndex + 1);
+                  setActiveSlideIndex(newIdx);
+                  if (scratchSliderRef.current) {
+                    const card = scratchSliderRef.current.children[newIdx] as HTMLElement;
+                    if (card) {
+                      card.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'start' });
+                    }
+                  }
+                }}
+                disabled={activeSlideIndex === SCRATCH_CARD_TIERS.length - 1}
+                className="p-2 rounded-xl bg-zinc-900 border border-zinc-700 hover:border-amber-500 text-zinc-300 hover:text-white disabled:opacity-40 transition cursor-pointer"
+                title="Next Scratch Card"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Scratch Card Tiers Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {SCRATCH_CARD_TIERS.map((tier) => (
-            <div
-              key={tier.id}
-              className="rounded-3xl border border-zinc-800 bg-zinc-950 p-6 flex flex-col justify-between hover:border-yellow-500/50 shadow-xl transition-all group"
-            >
-              <div className="space-y-4">
-                {/* Header card badge */}
-                <div className={`p-4 rounded-2xl bg-gradient-to-r ${tier.gradient} text-white shadow-md`}>
-                  <div className="flex justify-between items-start">
-                    <span className="text-[10px] uppercase font-mono font-bold tracking-wider opacity-90">
-                      Apex Scratch Card
-                    </span>
-                    <Trophy className="w-4 h-4 text-yellow-300" />
-                  </div>
-                  <h4 className="font-heading font-black text-lg mt-1">{tier.name}</h4>
-                  <div className="mt-2 text-right">
-                    <span className="text-[10px] block opacity-80">MAX JACKPOT</span>
-                    <span className="font-heading font-black text-2xl text-yellow-300">
-                      ${tier.maxPrizeUsd.toLocaleString()}
-                    </span>
-                  </div>
-                </div>
-
-                <p className="text-xs text-zinc-400 leading-relaxed min-h-[36px]">
-                  {tier.description}
-                </p>
-
-                {/* Possible wins list */}
-                <div className="space-y-1 text-[11px] text-zinc-400 border-t border-zinc-800/80 pt-3">
-                  <span className="text-[10px] uppercase font-mono text-zinc-500 block mb-1">
-                    Top Prize Payouts:
-                  </span>
-                  {tier.possiblePrizes.slice(0, 3).map((p, i) => (
-                    <div key={i} className="flex justify-between">
-                      <span>{p.label}</span>
-                      <span className="text-yellow-400 font-mono font-semibold">+${p.amountUsd}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="pt-6">
-                <button
-                  onClick={() => handleBuyScratchCard(tier)}
-                  className="w-full py-3.5 rounded-2xl bg-zinc-900 group-hover:bg-gradient-to-r group-hover:from-yellow-500 group-hover:to-amber-600 border border-zinc-700 group-hover:border-transparent text-white group-hover:text-black font-heading font-bold text-xs flex items-center justify-center gap-2 transition duration-200 shadow-md"
+        {/* Modern Interactive Scratch Card Slider / Carousel */}
+        <div className="relative">
+          <div
+            ref={scratchSliderRef}
+            onScroll={(e) => {
+              const el = e.currentTarget;
+              const scrollLeft = el.scrollLeft;
+              const itemWidth = el.scrollWidth / SCRATCH_CARD_TIERS.length;
+              const idx = Math.round(scrollLeft / itemWidth);
+              if (idx !== activeSlideIndex && idx >= 0 && idx < SCRATCH_CARD_TIERS.length) {
+                setActiveSlideIndex(idx);
+              }
+            }}
+            className="flex gap-6 overflow-x-auto pb-4 pt-1 snap-x snap-mandatory scroll-smooth no-scrollbar scrollbar-none"
+            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+          >
+            {SCRATCH_CARD_TIERS.map((tier, idx) => {
+              const isCurrent = idx === activeSlideIndex;
+              return (
+                <div
+                  key={tier.id}
+                  onClick={() => setActiveSlideIndex(idx)}
+                  className={`w-[290px] sm:w-[320px] lg:w-[340px] shrink-0 snap-start rounded-3xl border bg-zinc-950 p-6 flex flex-col justify-between shadow-2xl transition-all duration-300 group ${
+                    isCurrent
+                      ? 'border-amber-500/80 ring-2 ring-amber-500/20 scale-[1.01]'
+                      : 'border-zinc-800 hover:border-zinc-700 opacity-90'
+                  }`}
                 >
-                  <Coins className="w-4 h-4" />
-                  <span>Buy & Scratch for ${tier.priceUsd}</span>
-                </button>
-              </div>
-            </div>
-          ))}
+                  <div className="space-y-4">
+                    {/* Header card badge */}
+                    <div className={`p-4 rounded-2xl bg-gradient-to-r ${tier.gradient} text-white shadow-lg relative overflow-hidden`}>
+                      <div className="flex justify-between items-start relative z-10">
+                        <span className="text-[10px] uppercase font-mono font-bold tracking-wider opacity-90">
+                          Apex Scratch Card
+                        </span>
+                        <Trophy className="w-4 h-4 text-yellow-300" />
+                      </div>
+                      <h4 className="font-heading font-black text-xl mt-1 relative z-10">{tier.name}</h4>
+                      <div className="mt-2 text-right relative z-10">
+                        <span className="text-[10px] block opacity-80 font-mono">MAX JACKPOT</span>
+                        <span className="font-heading font-black text-2xl text-yellow-300">
+                          ${tier.maxPrizeUsd.toLocaleString()}
+                        </span>
+                      </div>
+                      {/* Subtle pattern overlay */}
+                      <div className="absolute inset-0 bg-white/5 opacity-40 mix-blend-overlay pointer-events-none" />
+                    </div>
+
+                    <p className="text-xs text-zinc-400 leading-relaxed min-h-[36px]">
+                      {tier.description}
+                    </p>
+
+                    {/* Possible wins list */}
+                    <div className="space-y-1.5 text-[11px] text-zinc-400 border-t border-zinc-800/80 pt-3">
+                      <span className="text-[10px] uppercase font-mono text-zinc-500 block mb-1">
+                        Top Prize Payouts:
+                      </span>
+                      {tier.possiblePrizes.slice(0, 3).map((p, i) => (
+                        <div key={i} className="flex justify-between items-center py-0.5">
+                          <span>{p.label}</span>
+                          <span className="text-yellow-400 font-mono font-semibold">+${p.amountUsd}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="pt-6">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleBuyScratchCard(tier);
+                      }}
+                      className="w-full py-3.5 rounded-2xl bg-zinc-900 group-hover:bg-gradient-to-r group-hover:from-yellow-500 group-hover:to-amber-600 border border-zinc-700 group-hover:border-transparent text-white group-hover:text-black font-heading font-bold text-xs flex items-center justify-center gap-2 transition duration-200 shadow-md cursor-pointer"
+                    >
+                      <Coins className="w-4 h-4" />
+                      <span>Buy & Scratch for ${tier.priceUsd}</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Slider Pagination Dots */}
+          <div className="flex items-center justify-center gap-2 pt-4">
+            {SCRATCH_CARD_TIERS.map((tier, idx) => (
+              <button
+                key={tier.id}
+                onClick={() => {
+                  setActiveSlideIndex(idx);
+                  if (scratchSliderRef.current) {
+                    const card = scratchSliderRef.current.children[idx] as HTMLElement;
+                    if (card) {
+                      card.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'start' });
+                    }
+                  }
+                }}
+                className={`h-2 rounded-full transition-all cursor-pointer ${
+                  activeSlideIndex === idx
+                    ? 'w-8 bg-amber-400 shadow-sm shadow-amber-400/50'
+                    : 'w-2 bg-zinc-700 hover:bg-zinc-500'
+                }`}
+                title={`Go to ${tier.name}`}
+              />
+            ))}
+          </div>
         </div>
       </div>
 

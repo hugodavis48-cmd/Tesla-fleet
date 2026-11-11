@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { UserInvestment } from '../types';
+import { RoiGrowthChart } from './RoiGrowthChart';
 import {
   TrendingUp,
   Clock,
@@ -174,6 +175,12 @@ export const UserInvestmentBoard: React.FC<UserInvestmentBoardProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Visual Recharts ROI Growth & Compounding Chart */}
+      <RoiGrowthChart
+        onOpenDeposit={onOpenDeposit}
+        onNavigateToStake={onNavigateToStake}
+      />
 
       {/* Tabs and Controls Bar */}
       <div className="p-4 rounded-3xl bg-zinc-950 border border-zinc-800 flex flex-col sm:flex-row items-center justify-between gap-4">

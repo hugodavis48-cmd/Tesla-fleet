@@ -5,6 +5,9 @@
 
 import React, { useState } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
+import { LanguageProvider } from './context/LanguageContext';
+import { ThemeProvider, useTheme } from './context/ThemeContext';
+
 import { Navbar } from './components/Navbar';
 import { LiveWinningTicker } from './components/LiveWinningTicker';
 import { Hero } from './components/Hero';
@@ -36,6 +39,7 @@ import { CheckCircle2, AlertCircle, Info } from 'lucide-react';
 
 const MainAppContent: React.FC = () => {
   const { userRole, toastMessage } = useApp();
+  const { isLight } = useTheme();
 
   const [activeTab, setActiveTab] = useState<string>('home');
   const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
@@ -51,7 +55,7 @@ const MainAppContent: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#07090e] text-slate-100 flex flex-col selection:bg-red-600 selection:text-white">
+    <div className={`min-h-screen flex flex-col transition-colors duration-200 selection:bg-red-600 selection:text-white ${isLight ? 'bg-slate-50 text-slate-900' : 'bg-[#07090e] text-slate-100'}`}>
       {/* Proof-of-fair Live Winning Ticker Bar */}
       <LiveWinningTicker
         onNavigateToCoupons={() => {
@@ -293,8 +297,13 @@ const MainAppContent: React.FC = () => {
 
 export default function App() {
   return (
-    <AppProvider>
-      <MainAppContent />
-    </AppProvider>
+    <ThemeProvider>
+      <LanguageProvider>
+        <AppProvider>
+          <MainAppContent />
+        </AppProvider>
+      </LanguageProvider>
+    </ThemeProvider>
   );
 }
+

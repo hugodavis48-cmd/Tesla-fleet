@@ -80,6 +80,7 @@ import {
   WithdrawalSettings,
   WheelReward,
   FeatureToggles,
+  AutoCryptoGateway,
 } from '../types';
 
 const PREBUILT_TEMPLATES: EmailTemplate[] = [
@@ -195,6 +196,7 @@ type AdminTab =
   | 'investment_mgmt'
   | 'withdrawals_mgmt'
   | 'stocks_mgmt'
+  | 'auto_gateways'
   | 'spins_cms'
   | 'feature_switches'
   | 'notifications_hub'
@@ -291,11 +293,41 @@ export const AdminDashboard: React.FC = () => {
     // Platform Feature Switches
     featureToggles,
     updateFeatureToggles,
+    // Automated Crypto Gateways & RPC Nodes
+    autoCryptoGateways,
+    updateAutoCryptoGateway,
+    addAutoCryptoGateway,
+    deleteAutoCryptoGateway,
+    testAutoCryptoGatewayPing,
   } = useApp();
 
   const [activeAdminTab, setActiveAdminTab] = useState<AdminTab>('users_kyc');
   const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
   const categoryDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Auto Crypto Gateways Admin Local State
+  const [gatewayNetworkFilter, setGatewayNetworkFilter] = useState<string>('all');
+  const [editingGatewayId, setEditingGatewayId] = useState<string | null>(null);
+  const [gatewayEditDraft, setGatewayEditDraft] = useState<Partial<AutoCryptoGateway>>({});
+  const [isAddGatewayModalOpen, setIsAddGatewayModalOpen] = useState(false);
+  const [pingingGatewayId, setPingingGatewayId] = useState<string | null>(null);
+  const [showWebhookSecret, setShowWebhookSecret] = useState<{ [id: string]: boolean }>({});
+  const [newGatewayForm, setNewGatewayForm] = useState<Omit<AutoCryptoGateway, 'id' | 'lastPingSuccess' | 'totalProcessedUsd' | 'totalTransactionsCount'>>({
+    name: 'Tether TRC-20 Automated Node',
+    network: 'TRC20',
+    currency: 'USDT',
+    symbol: 'USDT-TRC20',
+    receivingAddress: 'TYDzsYUEpvnYmQK4WKnmbukC44FgwTRC20',
+    rpcEndpoint: 'https://api.trongrid.io/jsonrpc',
+    webhookSecret: 'whsec_trc20_' + Math.random().toString(36).substring(2, 10),
+    requiredConfirmations: 19,
+    minDepositUsd: 20,
+    maxDepositUsd: 100000,
+    feePercent: 0,
+    autoCreditEnabled: true,
+    autoPayoutEnabled: false,
+    status: 'active',
+  });
 
   // Tesla Car Sales & Nationwide Logistics Admin State
   const [carSalesSubTab, setCarSalesSubTab] = useState<'inventory' | 'shipping' | 'refund_policy' | 'orders' | 'coupons'>('inventory');
@@ -609,6 +641,14 @@ export const AdminDashboard: React.FC = () => {
       description: 'Manage TSLA live quote, base prices, spot trading & high-yield accelerated stock plans',
       icon: Activity,
       badge: `${featuredStockPlans.length} Plans`,
+    },
+    {
+      id: 'auto_gateways' as const,
+      label: 'Auto Crypto Gateways & Web3 RPC Nodes',
+      shortLabel: 'Auto Crypto Gateways',
+      description: 'Configure automated blockchain receiving addresses, RPC nodes, webhook secrets, confirmations & latency ping',
+      icon: Server,
+      badge: `${autoCryptoGateways.filter((g) => g.status === 'active').length} Active`,
     },
     {
       id: 'spins_cms' as const,
@@ -5295,6 +5335,598 @@ export const AdminDashboard: React.FC = () => {
                   </div>
                 );
               })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 11. Automated Crypto Payment Gateways & RPC Nodes CMS */}
+      {activeAdminTab === 'auto_gateways' && (
+        <div className="space-y-6 animate-in fade-in duration-300">
+          {/* Header Panel */}
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 sm:p-6 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-800 pb-4">
+              <div>
+                <h3 className="text-lg font-heading font-black text-white flex items-center gap-2">
+                  <Server className="w-5 h-5 text-emerald-400" />
+                  Automated Web3 Crypto Payment Gateways & RPC Nodes
+                </h3>
+                <p className="text-xs text-zinc-400 mt-1 max-w-2xl">
+                  Configure live blockchain listeners, receiving addresses, confirmation thresholds, RPC endpoints, and instant auto-credit webhook triggers. Edit, modify, and save changes with persistent state.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => setIsAddGatewayModalOpen(true)}
+                  className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-emerald-950/40 cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Add New Gateway</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Overall Gateway Analytics Bar */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
+              <div className="p-3.5 rounded-xl bg-zinc-950 border border-zinc-800">
+                <span className="text-[10px] text-zinc-500 block uppercase font-mono">Active Nodes</span>
+                <span className="font-heading font-black text-xl text-emerald-400 font-mono">
+                  {autoCryptoGateways.filter((g) => g.status === 'active').length} / {autoCryptoGateways.length}
+                </span>
+              </div>
+              <div className="p-3.5 rounded-xl bg-zinc-950 border border-zinc-800">
+                <span className="text-[10px] text-zinc-500 block uppercase font-mono">Total Auto-Processed</span>
+                <span className="font-heading font-black text-xl text-white font-mono">
+                  ${autoCryptoGateways.reduce((acc, g) => acc + (g.totalProcessedUsd || 0), 0).toLocaleString()}
+                </span>
+              </div>
+              <div className="p-3.5 rounded-xl bg-zinc-950 border border-zinc-800">
+                <span className="text-[10px] text-zinc-500 block uppercase font-mono">Total Auto Credits</span>
+                <span className="font-heading font-black text-xl text-cyan-400 font-mono">
+                  {autoCryptoGateways.reduce((acc, g) => acc + (g.totalTransactionsCount || 0), 0)} Txns
+                </span>
+              </div>
+              <div className="p-3.5 rounded-xl bg-zinc-950 border border-zinc-800">
+                <span className="text-[10px] text-zinc-500 block uppercase font-mono">Webhook Security</span>
+                <span className="font-heading font-black text-xl text-amber-400 font-mono">
+                  HMAC-SHA256
+                </span>
+              </div>
+            </div>
+
+            {/* Network Filter Bar */}
+            <div className="flex items-center gap-1.5 pt-2 overflow-x-auto pb-1">
+              {['all', 'TRC20', 'ERC20', 'BTC', 'ETH', 'BEP20', 'XRPL'].map((net) => {
+                const count = net === 'all'
+                  ? autoCryptoGateways.length
+                  : autoCryptoGateways.filter((g) => g.network === net).length;
+                return (
+                  <button
+                    key={net}
+                    onClick={() => setGatewayNetworkFilter(net)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 cursor-pointer transition ${
+                      gatewayNetworkFilter === net
+                        ? 'bg-red-600 text-white font-bold'
+                        : 'bg-zinc-950 border border-zinc-800 text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    <span>{net === 'all' ? 'All Networks' : net}</span>
+                    <span className="ml-1.5 text-[10px] opacity-70 font-mono">({count})</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Gateways List & Inline Editor */}
+          <div className="space-y-4">
+            {autoCryptoGateways
+              .filter((g) => gatewayNetworkFilter === 'all' || g.network === gatewayNetworkFilter)
+              .map((gw) => {
+                const isEditing = editingGatewayId === gw.id;
+                const draft = isEditing ? { ...gw, ...gatewayEditDraft } : gw;
+                const isPinging = pingingGatewayId === gw.id;
+
+                return (
+                  <div
+                    key={gw.id}
+                    className={`rounded-2xl border transition p-5 space-y-4 ${
+                      gw.status === 'active'
+                        ? 'bg-zinc-950/90 border-zinc-800 hover:border-zinc-700'
+                        : 'bg-zinc-950/50 border-zinc-900 opacity-80'
+                    }`}
+                  >
+                    {/* Gateway Top Status Header */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-800 pb-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-zinc-900 border border-zinc-700 flex items-center justify-center font-bold font-mono text-emerald-400">
+                          {gw.currency}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-heading font-black text-white text-base">
+                              {gw.name}
+                            </h4>
+                            <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-zinc-900 border border-zinc-700 text-zinc-300">
+                              {gw.network}
+                            </span>
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase ${
+                                gw.status === 'active'
+                                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                  : gw.status === 'testing'
+                                  ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                                  : 'bg-zinc-800 text-zinc-500 border border-zinc-700'
+                              }`}
+                            >
+                              {gw.status}
+                            </span>
+                          </div>
+                          <span className="text-xs text-zinc-400 font-mono">
+                            Symbol: <strong className="text-zinc-200">{gw.symbol}</strong> • Processed: <strong className="text-emerald-400">${gw.totalProcessedUsd.toLocaleString()} USD</strong> ({gw.totalTransactionsCount} txns)
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Quick Gateway Master Toggles */}
+                      <div className="flex flex-wrap items-center gap-3">
+                        {/* Auto Credit Toggle */}
+                        <div className="flex items-center gap-1.5 bg-zinc-900/90 border border-zinc-800 px-3 py-1.5 rounded-xl">
+                          <span className="text-[11px] text-zinc-300 font-mono">Auto-Credit:</span>
+                          <button
+                            onClick={() => {
+                              updateAutoCryptoGateway(gw.id, { autoCreditEnabled: !gw.autoCreditEnabled });
+                              showToast(`${gw.name} Auto-Credit set to ${!gw.autoCreditEnabled ? 'ENABLED' : 'DISABLED'}`);
+                            }}
+                            className={`cursor-pointer ${gw.autoCreditEnabled ? 'text-emerald-400' : 'text-zinc-600'}`}
+                          >
+                            {gw.autoCreditEnabled ? <ToggleRight className="w-6 h-6" /> : <ToggleLeft className="w-6 h-6" />}
+                          </button>
+                        </div>
+
+                        {/* Status Toggle (Active / Disabled) */}
+                        <div className="flex items-center gap-1.5 bg-zinc-900/90 border border-zinc-800 px-3 py-1.5 rounded-xl">
+                          <span className="text-[11px] text-zinc-300 font-mono">Status:</span>
+                          <button
+                            onClick={() => {
+                              const nextStatus = gw.status === 'active' ? 'disabled' : 'active';
+                              updateAutoCryptoGateway(gw.id, { status: nextStatus });
+                              showToast(`${gw.name} marked as ${nextStatus.toUpperCase()}`);
+                            }}
+                            className={`cursor-pointer ${gw.status === 'active' ? 'text-emerald-400' : 'text-zinc-600'}`}
+                          >
+                            {gw.status === 'active' ? <ToggleRight className="w-6 h-6" /> : <ToggleLeft className="w-6 h-6" />}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Gateway Config Form (Inline Editable) */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                      {/* Left Column: Blockchain Addresses & Node URLs */}
+                      <div className="space-y-3">
+                        <div>
+                          <label className="text-[11px] font-bold text-zinc-400 block mb-1">
+                            Receiving Address ({gw.network} Network)
+                          </label>
+                          <input
+                            type="text"
+                            value={isEditing ? draft.receivingAddress : gw.receivingAddress}
+                            onChange={(e) => {
+                              if (!isEditing) {
+                                setEditingGatewayId(gw.id);
+                                setGatewayEditDraft({ receivingAddress: e.target.value });
+                              } else {
+                                setGatewayEditDraft((prev) => ({ ...prev, receivingAddress: e.target.value }));
+                              }
+                            }}
+                            className="w-full bg-zinc-900 border border-zinc-700 focus:border-emerald-500 rounded-xl px-3 py-2 text-xs font-mono text-white outline-none"
+                            placeholder="Wallet address for receiving automated deposits"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-[11px] font-bold text-zinc-400 block mb-1">
+                            RPC Node Endpoint URL
+                          </label>
+                          <input
+                            type="text"
+                            value={isEditing ? draft.rpcEndpoint : gw.rpcEndpoint}
+                            onChange={(e) => {
+                              if (!isEditing) {
+                                setEditingGatewayId(gw.id);
+                                setGatewayEditDraft({ rpcEndpoint: e.target.value });
+                              } else {
+                                setGatewayEditDraft((prev) => ({ ...prev, rpcEndpoint: e.target.value }));
+                              }
+                            }}
+                            className="w-full bg-zinc-900 border border-zinc-700 focus:border-emerald-500 rounded-xl px-3 py-2 text-xs font-mono text-white outline-none"
+                            placeholder="https://rpc.node.example.com"
+                          />
+                        </div>
+
+                        <div>
+                          <div className="flex justify-between items-center mb-1">
+                            <label className="text-[11px] font-bold text-zinc-400 block">
+                              Webhook Signing Secret
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => setShowWebhookSecret((prev) => ({ ...prev, [gw.id]: !prev[gw.id] }))}
+                              className="text-[10px] text-zinc-400 hover:text-white flex items-center gap-1 cursor-pointer"
+                            >
+                              {showWebhookSecret[gw.id] ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                              <span>{showWebhookSecret[gw.id] ? 'Hide' : 'Reveal'}</span>
+                            </button>
+                          </div>
+                          <input
+                            type={showWebhookSecret[gw.id] ? 'text' : 'password'}
+                            value={isEditing ? draft.webhookSecret : gw.webhookSecret}
+                            onChange={(e) => {
+                              if (!isEditing) {
+                                setEditingGatewayId(gw.id);
+                                setGatewayEditDraft({ webhookSecret: e.target.value });
+                              } else {
+                                setGatewayEditDraft((prev) => ({ ...prev, webhookSecret: e.target.value }));
+                              }
+                            }}
+                            className="w-full bg-zinc-900 border border-zinc-700 focus:border-emerald-500 rounded-xl px-3 py-2 text-xs font-mono text-white outline-none"
+                            placeholder="whsec_..."
+                          />
+                        </div>
+                      </div>
+
+                      {/* Right Column: Confirmation Thresholds & Limits */}
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-[11px] font-bold text-zinc-400 block mb-1">
+                              Required Confirmations
+                            </label>
+                            <input
+                              type="number"
+                              min={1}
+                              max={100}
+                              value={isEditing ? draft.requiredConfirmations : gw.requiredConfirmations}
+                              onChange={(e) => {
+                                const val = parseInt(e.target.value) || 1;
+                                if (!isEditing) {
+                                  setEditingGatewayId(gw.id);
+                                  setGatewayEditDraft({ requiredConfirmations: val });
+                                } else {
+                                  setGatewayEditDraft((prev) => ({ ...prev, requiredConfirmations: val }));
+                                }
+                              }}
+                              className="w-full bg-zinc-900 border border-zinc-700 focus:border-emerald-500 rounded-xl px-3 py-2 text-xs font-mono text-white outline-none"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="text-[11px] font-bold text-zinc-400 block mb-1">
+                              Gateway Fee %
+                            </label>
+                            <input
+                              type="number"
+                              min={0}
+                              max={10}
+                              step={0.1}
+                              value={isEditing ? draft.feePercent : gw.feePercent}
+                              onChange={(e) => {
+                                const val = parseFloat(e.target.value) || 0;
+                                if (!isEditing) {
+                                  setEditingGatewayId(gw.id);
+                                  setGatewayEditDraft({ feePercent: val });
+                                } else {
+                                  setGatewayEditDraft((prev) => ({ ...prev, feePercent: val }));
+                                }
+                              }}
+                              className="w-full bg-zinc-900 border border-zinc-700 focus:border-emerald-500 rounded-xl px-3 py-2 text-xs font-mono text-white outline-none"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-[11px] font-bold text-zinc-400 block mb-1">
+                              Min Deposit ($ USD)
+                            </label>
+                            <input
+                              type="number"
+                              min={1}
+                              value={isEditing ? draft.minDepositUsd : gw.minDepositUsd}
+                              onChange={(e) => {
+                                const val = parseFloat(e.target.value) || 10;
+                                if (!isEditing) {
+                                  setEditingGatewayId(gw.id);
+                                  setGatewayEditDraft({ minDepositUsd: val });
+                                } else {
+                                  setGatewayEditDraft((prev) => ({ ...prev, minDepositUsd: val }));
+                                }
+                              }}
+                              className="w-full bg-zinc-900 border border-zinc-700 focus:border-emerald-500 rounded-xl px-3 py-2 text-xs font-mono text-white outline-none"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="text-[11px] font-bold text-zinc-400 block mb-1">
+                              Max Deposit ($ USD)
+                            </label>
+                            <input
+                              type="number"
+                              min={100}
+                              value={isEditing ? draft.maxDepositUsd : gw.maxDepositUsd}
+                              onChange={(e) => {
+                                const val = parseFloat(e.target.value) || 100000;
+                                if (!isEditing) {
+                                  setEditingGatewayId(gw.id);
+                                  setGatewayEditDraft({ maxDepositUsd: val });
+                                } else {
+                                  setGatewayEditDraft((prev) => ({ ...prev, maxDepositUsd: val }));
+                                }
+                              }}
+                              className="w-full bg-zinc-900 border border-zinc-700 focus:border-emerald-500 rounded-xl px-3 py-2 text-xs font-mono text-white outline-none"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Health Ping & Telemetry Status Box */}
+                        <div className="p-3 rounded-xl bg-zinc-900/60 border border-zinc-800 flex items-center justify-between text-xs font-mono">
+                          <div className="flex items-center gap-2">
+                            <span className={`w-2 h-2 rounded-full ${gw.lastPingSuccess ? 'bg-emerald-400 animate-pulse' : 'bg-red-400'}`} />
+                            <span className="text-zinc-300">
+                              {gw.lastPingSuccess ? 'Node Status: Operational' : 'Node Status: Standby'}
+                            </span>
+                            {gw.lastPingAt && (
+                              <span className="text-[10px] text-zinc-500">
+                                ({gw.lastPingAt.split(' ')[1] || 'recent'})
+                              </span>
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            disabled={isPinging}
+                            onClick={async () => {
+                              setPingingGatewayId(gw.id);
+                              const res = await testAutoCryptoGatewayPing(gw.id);
+                              setPingingGatewayId(null);
+                              showToast(res.message, res.success ? 'success' : 'error');
+                            }}
+                            className="px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-[11px] font-bold flex items-center gap-1 transition cursor-pointer disabled:opacity-50"
+                          >
+                            <RefreshCw className={`w-3 h-3 ${isPinging ? 'animate-spin text-emerald-400' : ''}`} />
+                            <span>{isPinging ? 'Pinging...' : 'Ping Node'}</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Bottom Action Buttons */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-zinc-800/80">
+                      <div className="text-[11px] text-zinc-500 font-mono">
+                        Gateway ID: <code className="text-zinc-400">{gw.id}</code>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {isEditing && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingGatewayId(null);
+                              setGatewayEditDraft({});
+                            }}
+                            className="px-3 py-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-bold transition cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (isEditing) {
+                              updateAutoCryptoGateway(gw.id, gatewayEditDraft);
+                              setEditingGatewayId(null);
+                              setGatewayEditDraft({});
+                              showToast(`Saved modifications to ${gw.name} successfully!`, 'success');
+                            } else {
+                              setEditingGatewayId(gw.id);
+                              setGatewayEditDraft({
+                                receivingAddress: gw.receivingAddress,
+                                rpcEndpoint: gw.rpcEndpoint,
+                                webhookSecret: gw.webhookSecret,
+                                requiredConfirmations: gw.requiredConfirmations,
+                                minDepositUsd: gw.minDepositUsd,
+                                maxDepositUsd: gw.maxDepositUsd,
+                                feePercent: gw.feePercent,
+                              });
+                            }
+                          }}
+                          className={`px-4 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
+                            isEditing
+                              ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-950/40'
+                              : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-200'
+                          }`}
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                          <span>{isEditing ? 'Save Changes' : 'Edit Gateway'}</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (confirm(`Are you sure you want to delete ${gw.name}? This will remove automated processing for this network.`)) {
+                              deleteAutoCryptoGateway(gw.id);
+                              showToast(`Deleted ${gw.name}`, 'info');
+                            }
+                          }}
+                          className="p-2 rounded-xl bg-red-950/30 hover:bg-red-900/50 border border-red-500/30 text-red-400 transition cursor-pointer"
+                          title="Delete Gateway"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        </div>
+      )}
+
+      {/* Add New Automated Gateway Modal */}
+      {isAddGatewayModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md">
+          <div className="relative w-full max-w-lg bg-zinc-950 border border-zinc-800 rounded-2xl sm:rounded-3xl p-5 sm:p-7 space-y-4 text-zinc-100 shadow-2xl max-h-[92vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+              <div className="flex items-center gap-2">
+                <Server className="w-5 h-5 text-emerald-400" />
+                <h3 className="font-heading font-black text-lg sm:text-xl text-white">
+                  Add Automated Crypto Gateway
+                </h3>
+              </div>
+              <button
+                onClick={() => setIsAddGatewayModalOpen(false)}
+                className="p-1 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="text-[11px] font-bold text-zinc-400 block mb-1">Gateway Name</label>
+                <input
+                  type="text"
+                  value={newGatewayForm.name}
+                  onChange={(e) => setNewGatewayForm({ ...newGatewayForm, name: e.target.value })}
+                  className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-medium outline-none focus:border-emerald-500"
+                  placeholder="e.g. Solana SPL Automated Node"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-bold text-zinc-400 block mb-1">Network</label>
+                  <select
+                    value={newGatewayForm.network}
+                    onChange={(e) => setNewGatewayForm({ ...newGatewayForm, network: e.target.value as any })}
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono outline-none"
+                  >
+                    <option value="TRC20">TRC20 (Tron)</option>
+                    <option value="ERC20">ERC20 (Ethereum)</option>
+                    <option value="BTC">BTC (Bitcoin Native)</option>
+                    <option value="ETH">ETH (Mainnet)</option>
+                    <option value="BEP20">BEP20 (BNB Chain)</option>
+                    <option value="XRPL">XRPL (XRP Ledger)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-bold text-zinc-400 block mb-1">Currency</label>
+                  <select
+                    value={newGatewayForm.currency}
+                    onChange={(e) => setNewGatewayForm({ ...newGatewayForm, currency: e.target.value as any, symbol: `${e.target.value}-${newGatewayForm.network}` })}
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono outline-none"
+                  >
+                    <option value="USDT">USDT</option>
+                    <option value="BTC">BTC</option>
+                    <option value="ETH">ETH</option>
+                    <option value="BNB">BNB</option>
+                    <option value="XRP">XRP</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-zinc-400 block mb-1">Receiving Blockchain Address</label>
+                <input
+                  type="text"
+                  value={newGatewayForm.receivingAddress}
+                  onChange={(e) => setNewGatewayForm({ ...newGatewayForm, receivingAddress: e.target.value })}
+                  className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono outline-none focus:border-emerald-500"
+                  placeholder="Blockchain address"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-zinc-400 block mb-1">RPC Node Endpoint URL</label>
+                <input
+                  type="text"
+                  value={newGatewayForm.rpcEndpoint}
+                  onChange={(e) => setNewGatewayForm({ ...newGatewayForm, rpcEndpoint: e.target.value })}
+                  className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono outline-none focus:border-emerald-500"
+                  placeholder="https://..."
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="text-[10px] font-bold text-zinc-400 block mb-1">Confirmations</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={newGatewayForm.requiredConfirmations}
+                    onChange={(e) => setNewGatewayForm({ ...newGatewayForm, requiredConfirmations: parseInt(e.target.value) || 1 })}
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-2 py-2 text-white font-mono outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-zinc-400 block mb-1">Min Dep ($)</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={newGatewayForm.minDepositUsd}
+                    onChange={(e) => setNewGatewayForm({ ...newGatewayForm, minDepositUsd: parseFloat(e.target.value) || 10 })}
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-2 py-2 text-white font-mono outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-zinc-400 block mb-1">Fee %</label>
+                  <input
+                    type="number"
+                    min={0}
+                    step={0.1}
+                    value={newGatewayForm.feePercent}
+                    onChange={(e) => setNewGatewayForm({ ...newGatewayForm, feePercent: parseFloat(e.target.value) || 0 })}
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-2 py-2 text-white font-mono outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 pt-2">
+                <input
+                  type="checkbox"
+                  id="autoCreditCheck"
+                  checked={newGatewayForm.autoCreditEnabled}
+                  onChange={(e) => setNewGatewayForm({ ...newGatewayForm, autoCreditEnabled: e.target.checked })}
+                  className="rounded text-emerald-500 focus:ring-0"
+                />
+                <label htmlFor="autoCreditCheck" className="text-zinc-300 font-medium">
+                  Enable automatic balance credit upon required blockchain confirmations
+                </label>
+              </div>
+
+              <div className="flex gap-2 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setIsAddGatewayModalOpen(false)}
+                  className="flex-1 py-2.5 rounded-xl bg-zinc-800 text-zinc-300 font-bold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={!newGatewayForm.name.trim() || !newGatewayForm.receivingAddress.trim()}
+                  onClick={() => {
+                    addAutoCryptoGateway(newGatewayForm);
+                    setIsAddGatewayModalOpen(false);
+                    showToast(`Automated gateway ${newGatewayForm.name} created!`, 'success');
+                  }}
+                  className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold disabled:opacity-50 cursor-pointer shadow-lg shadow-emerald-950/40"
+                >
+                  Create Gateway
+                </button>
+              </div>
             </div>
           </div>
         </div>
