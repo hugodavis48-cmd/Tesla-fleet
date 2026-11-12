@@ -8,7 +8,7 @@ interface FooterProps {
 }
 
 export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenDeposit }) => {
-  const { navigationMenus, sitePages, siteSettings, socialLinks } = useApp();
+  const { currentUser, navigationMenus, sitePages, siteSettings, socialLinks } = useApp();
   const [modalContent, setModalContent] = useState<{ title: string; body: string } | null>(null);
 
   const openLegalModal = (title: string, body: string) => {
@@ -185,11 +185,13 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenDeposit }) => 
                   Terms of Service
                 </button>
               </li>
-              <li>
-                <button onClick={() => onNavigate('admin')} className="hover:text-amber-400 text-amber-400 font-bold font-mono transition">
-                  Executive Admin Suite ⚙️
-                </button>
-              </li>
+              {currentUser?.role === 'admin' && (
+                <li>
+                  <button onClick={() => onNavigate('admin')} className="hover:text-amber-400 text-amber-400 font-bold font-mono transition">
+                    Executive Admin Suite (/admin)
+                  </button>
+                </li>
+              )}
             </ul>
           </div>
         </div>

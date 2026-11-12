@@ -7,6 +7,7 @@ import {
   User as UserIcon,
   Phone,
   ShieldCheck,
+  Shield,
   ArrowRight,
   Gift,
   Sparkles,
@@ -16,16 +17,23 @@ import {
   Check,
   AlertCircle,
   Loader2,
+  Copy,
 } from 'lucide-react';
 
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
   initialMode?: 'login' | 'register';
+  onNavigateToAdmin?: () => void;
 }
 
-export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMode = 'login' }) => {
-  const { login, register } = useApp();
+export const AuthModal: React.FC<AuthModalProps> = ({
+  isOpen,
+  onClose,
+  initialMode = 'login',
+  onNavigateToAdmin,
+}) => {
+  const { login, register, signUpWithGoogle } = useApp();
   const [mode, setMode] = useState<'login' | 'register'>(initialMode);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -35,6 +43,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
   const [preferredCenter, setPreferredCenter] = useState('Apex Fremont Technology Center');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const [referralCode, setReferralCode] = useState(() => {
@@ -45,7 +54,23 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
     return '';
   });
 
+  const [copiedField, setCopiedField] = useState<'email' | 'password' | 'admin_email' | 'admin_password' | null>(null);
+
   if (!isOpen) return null;
+
+  const DEMO_CUSTOMER_EMAIL = 'alex.vance@apex-tesla.io';
+  const DEMO_CUSTOMER_PASS = 'TeslaPlaid2026!';
+  const DEMO_ADMIN_EMAIL = 'admin.ops@apex-tesla.io';
+  const DEMO_ADMIN_PASS = 'AdminTesla2026!';
+
+  const handleCopyDemo = (
+    field: 'email' | 'password' | 'admin_email' | 'admin_password',
+    value: string
+  ) => {
+    navigator.clipboard.writeText(value).catch(() => {});
+    setCopiedField(field);
+    setTimeout(() => setCopiedField(null), 1800);
+  };
 
   // Password strength check
   const isLengthValid = password.length >= 8;
@@ -66,7 +91,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
       if (success) {
         onClose();
       } else {
-        setErrorMessage('Invalid credentials. Check your email and password, or use one-click demo login below.');
+        setErrorMessage('Invalid customer credentials or restricted account. Check your details or use the Public Demo User credentials below.');
       }
     } else {
       if (!name.trim() || !email.trim()) {
@@ -97,16 +122,33 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
     }
   };
 
-  const handleDemoAccount = async (role: 'customer' | 'admin') => {
+  const handleDemoCustomerLogin = async () => {
     setIsLoading(true);
     setErrorMessage(null);
-    if (role === 'admin') {
-      await login('admin.ops@apex-tesla.io', 'AdminTesla2026!');
-    } else {
-      await login('alex.vance@apex-tesla.io', 'TeslaPlaid2026!');
-    }
+    const ok = await login(DEMO_CUSTOMER_EMAIL, DEMO_CUSTOMER_PASS);
     setIsLoading(false);
-    onClose();
+    if (ok) {
+      onClose();
+    }
+  };
+
+  const handleFillDemoCustomer = () => {
+    setMode('login');
+    setEmail(DEMO_CUSTOMER_EMAIL);
+    setPassword(DEMO_CUSTOMER_PASS);
+    setErrorMessage(null);
+  };
+
+  const handleGoogleAuth = async () => {
+    setErrorMessage(null);
+    setIsGoogleLoading(true);
+    const result = await signUpWithGoogle(referralCode);
+    setIsGoogleLoading(false);
+    if (result.success) {
+      onClose();
+    } else if (result.error) {
+      setErrorMessage(result.error);
+    }
   };
 
   return (
@@ -172,6 +214,53 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
         )}
 
         <form onSubmit={handleSubmit} className="p-6 pt-3 space-y-4 overflow-y-auto">
+          {/* Google Social Sign-Up / Sign-In */}
+          <div className="space-y-3">
+            <button
+              type="button"
+              onClick={handleGoogleAuth}
+              disabled={isLoading || isGoogleLoading}
+              className="w-full py-2.5 px-4 rounded-xl bg-white hover:bg-zinc-100 text-zinc-900 font-semibold text-sm shadow-md flex items-center justify-center gap-2.5 transition disabled:opacity-50 cursor-pointer border border-zinc-200"
+            >
+              {isGoogleLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin text-zinc-700" />
+                  <span>Connecting to Google...</span>
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" aria-hidden="true">
+                    <path
+                      fill="#4285F4"
+                      d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17Z"
+                    />
+                    <path
+                      fill="#34A853"
+                      d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.11-6.72-4.96H1.29v3.14C3.26 21.3 7.31 24 12 24Z"
+                    />
+                    <path
+                      fill="#FBBC05"
+                      d="M5.28 14.24c-.24-.72-.38-1.49-.38-2.24s.14-1.52.38-2.24V6.62H1.29C.47 8.24 0 10.06 0 12s.47 3.76 1.29 5.38l3.99-3.14Z"
+                    />
+                    <path
+                      fill="#EA4335"
+                      d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.29 6.62l3.99 3.14c.95-2.85 3.6-4.96 6.72-4.96Z"
+                    />
+                  </svg>
+                  <span>{mode === 'register' ? 'Sign up with Google' : 'Continue with Google'}</span>
+                </>
+              )}
+            </button>
+
+            <div className="flex items-center gap-3">
+              <div className="h-px flex-1 bg-zinc-800" />
+              <span className="text-[10px] uppercase tracking-wider font-mono text-zinc-500">
+                or continue with email
+              </span>
+              <div className="h-px flex-1 bg-zinc-800" />
+            </div>
+          </div>
+
           {mode === 'register' && (
             <div>
               <label className="text-xs font-medium text-zinc-300 block mb-1">Full Legal Name</label>
@@ -358,39 +447,117 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMo
             )}
           </button>
 
-          <div className="pt-2 border-t border-zinc-800 text-center">
-            <p className="text-[11px] text-zinc-400 mb-2 font-mono">
-              Quick Test: Click to sign in with pre-configured demo credentials
-            </p>
-            <div className="flex gap-2">
+          {/* Public Demo Customer Access Card */}
+          <div className="pt-3 border-t border-zinc-800 space-y-2.5">
+            <div className="p-3 rounded-2xl bg-zinc-900/90 border border-zinc-700/80 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <p className="text-xs font-bold text-white flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Public Demo User Account</span>
+                  </p>
+                  <p className="text-[10px] text-zinc-400">
+                    Use these public customer credentials to explore the dashboard, wallet, fleet & orders
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleFillDemoCustomer}
+                  className="text-[10px] font-semibold px-2 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 shrink-0 cursor-pointer"
+                >
+                  Auto-Fill
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] font-mono">
+                <div className="flex items-center justify-between gap-1.5 px-2.5 py-1.5 rounded-lg bg-zinc-950 border border-zinc-800">
+                  <span className="text-zinc-300 truncate">{DEMO_CUSTOMER_EMAIL}</span>
+                  <button
+                    type="button"
+                    onClick={() => handleCopyDemo('email', DEMO_CUSTOMER_EMAIL)}
+                    className="text-zinc-400 hover:text-white shrink-0 cursor-pointer"
+                    title="Copy demo email"
+                  >
+                    {copiedField === 'email' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+                <div className="flex items-center justify-between gap-1.5 px-2.5 py-1.5 rounded-lg bg-zinc-950 border border-zinc-800">
+                  <span className="text-zinc-300 truncate">{DEMO_CUSTOMER_PASS}</span>
+                  <button
+                    type="button"
+                    onClick={() => handleCopyDemo('password', DEMO_CUSTOMER_PASS)}
+                    className="text-zinc-400 hover:text-white shrink-0 cursor-pointer"
+                    title="Copy demo password"
+                  >
+                    {copiedField === 'password' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+              </div>
+
               <button
                 type="button"
-                onClick={() => handleDemoAccount('customer')}
-                className="flex-1 py-2 px-2 rounded-xl bg-zinc-900 border border-zinc-700/80 hover:border-red-500/50 hover:bg-zinc-800 text-zinc-200 text-xs font-medium transition text-left flex items-center justify-between"
+                onClick={handleDemoCustomerLogin}
+                disabled={isLoading || isGoogleLoading}
+                className="w-full py-2 px-3 rounded-xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 hover:border-red-500/50 text-white text-xs font-bold transition flex items-center justify-between cursor-pointer"
               >
-                <div>
-                  <div className="font-bold text-white text-xs">Customer (Alex)</div>
-                  <div className="text-[10px] text-zinc-400 font-mono">alex.vance@apex-tesla.io</div>
-                </div>
-                <ArrowRight className="w-3.5 h-3.5 text-zinc-400" />
+                <span>Instant Sign In as Demo Customer (Alex Vance)</span>
+                <ArrowRight className="w-3.5 h-3.5 text-red-400" />
               </button>
-              <button
-                type="button"
-                onClick={() => handleDemoAccount('admin')}
-                className="flex-1 py-2 px-2 rounded-xl bg-zinc-900 border border-zinc-700/80 hover:border-red-500/50 hover:bg-zinc-800 text-zinc-200 text-xs font-medium transition text-left flex items-center justify-between"
-              >
+            </div>
+
+            {/* Admin Demo Login Details Card (links cleanly to separated /admin URL) */}
+            <div className="p-3 rounded-2xl bg-zinc-900/90 border border-amber-500/30 space-y-2">
+              <div className="flex items-center justify-between gap-2">
                 <div>
-                  <div className="font-bold text-white text-xs">Admin Fleet Ops</div>
-                  <div className="text-[10px] text-zinc-400 font-mono">admin.ops@apex-tesla.io</div>
+                  <p className="text-xs font-bold text-white flex items-center gap-1.5">
+                    <Shield className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Admin Demo Login Details</span>
+                  </p>
+                  <p className="text-[10px] text-zinc-400">
+                    Executive admin accounts authenticate on the dedicated <code className="text-amber-300">/admin</code> URL
+                  </p>
                 </div>
-                <ArrowRight className="w-3.5 h-3.5 text-zinc-400" />
-              </button>
+                {onNavigateToAdmin && (
+                  <button
+                    type="button"
+                    onClick={onNavigateToAdmin}
+                    className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/40 shrink-0 cursor-pointer"
+                  >
+                    Open /admin
+                  </button>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] font-mono">
+                <div className="flex items-center justify-between gap-1.5 px-2.5 py-1.5 rounded-lg bg-zinc-950 border border-zinc-800">
+                  <span className="text-zinc-200 truncate">{DEMO_ADMIN_EMAIL}</span>
+                  <button
+                    type="button"
+                    onClick={() => handleCopyDemo('admin_email', DEMO_ADMIN_EMAIL)}
+                    className="text-zinc-400 hover:text-white shrink-0 cursor-pointer"
+                    title="Copy admin email"
+                  >
+                    {copiedField === 'admin_email' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+                <div className="flex items-center justify-between gap-1.5 px-2.5 py-1.5 rounded-lg bg-zinc-950 border border-zinc-800">
+                  <span className="text-zinc-200 truncate">{DEMO_ADMIN_PASS}</span>
+                  <button
+                    type="button"
+                    onClick={() => handleCopyDemo('admin_password', DEMO_ADMIN_PASS)}
+                    className="text-zinc-400 hover:text-white shrink-0 cursor-pointer"
+                    title="Copy admin password"
+                  >
+                    {copiedField === 'admin_password' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
 
           <div className="flex items-center justify-center gap-1.5 text-[11px] text-zinc-500 pt-1 font-mono">
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-            <span>scrypt Salted Hashing • Ephemeral Session Tokens • 2FA Ready</span>
+            <span>scrypt Salted Hashing • Customer Portal • 2FA Ready</span>
           </div>
         </form>
       </div>

@@ -1,0 +1,134 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Authenticated customer profile synchronized from Google Social Sign-Up or Apex Tesla Hub authentication.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Firebase Auth UID matching the document ID.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "name": {
+          "type": "string",
+          "description": "Display name of the customer.",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "Verified email address.",
+          "minLength": 3,
+          "maxLength": 200
+        },
+        "avatar": {
+          "type": "string",
+          "description": "Profile avatar URL.",
+          "minLength": 0,
+          "maxLength": 500
+        },
+        "authProvider": {
+          "type": "string",
+          "description": "Authentication provider identifier.",
+          "enum": ["google.com", "password"]
+        },
+        "role": {
+          "type": "string",
+          "description": "User role fixed to customer for client registrations.",
+          "enum": ["customer"]
+        },
+        "referralCode": {
+          "type": "string",
+          "description": "Unique referral code assigned to the customer.",
+          "minLength": 3,
+          "maxLength": 32,
+          "pattern": "^[A-Z0-9_\\-]+$"
+        },
+        "bio": {
+          "type": "string",
+          "description": "Short owner biography.",
+          "minLength": 0,
+          "maxLength": 500
+        },
+        "location": {
+          "type": "string",
+          "description": "City or regional hub.",
+          "minLength": 0,
+          "maxLength": 120
+        },
+        "preferredServiceCenter": {
+          "type": "string",
+          "description": "Preferred Apex Tesla service center.",
+          "minLength": 0,
+          "maxLength": 160
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the profile was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of the last profile update."
+        }
+      },
+      "required": [
+        "uid",
+        "name",
+        "email",
+        "authProvider",
+        "role",
+        "referralCode",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "AdminRecord": {
+      "title": "AdminRecord",
+      "description": "Server-provisioned administrator marker document for RBAC verification.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Firebase Auth UID of the administrator.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "Verified administrator email.",
+          "minLength": 3,
+          "maxLength": 200
+        },
+        "adminRoleLabel": {
+          "type": "string",
+          "description": "Administrator title.",
+          "minLength": 1,
+          "maxLength": 100
+        }
+      },
+      "required": ["uid", "email", "adminRoleLabel"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": {
+        "$ref": "#/entities/UserProfile"
+      },
+      "description": "Owner-isolated customer profile documents synced on Google Social Sign-Up."
+    },
+    "/admins/{adminId}": {
+      "schema": {
+        "$ref": "#/entities/AdminRecord"
+      },
+      "description": "Read-only administrator allowlist markers managed by backend/super-admin."
+    }
+  }
+}

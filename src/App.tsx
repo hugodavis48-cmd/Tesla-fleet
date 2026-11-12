@@ -19,6 +19,7 @@ import { PromotionsHub } from './components/PromotionsHub';
 import { ProductShop } from './components/ProductShop';
 import { Dashboard } from './components/Dashboard';
 import { AdminDashboard } from './components/AdminDashboard';
+import { AdminLoginPage } from './components/AdminLoginPage';
 import { AboutSection } from './components/AboutSection';
 import { FaqSection } from './components/FaqSection';
 import { ContactSection } from './components/ContactSection';
@@ -39,11 +40,17 @@ import { PromoBannersPage } from './components/PromoBannersPage';
 import { CustomPageView } from './components/CustomPageView';
 import { CheckCircle2, AlertCircle, Info, AlertTriangle } from 'lucide-react';
 
+const isPathAdmin = () => {
+  if (typeof window === 'undefined') return false;
+  const cleanPath = window.location.pathname.replace(/\/+$/, '');
+  return cleanPath === '/admin' || window.location.hash === '#/admin';
+};
+
 const MainAppContent: React.FC = () => {
-  const { userRole, toastMessage, sitePages, siteSettings } = useApp();
+  const { currentUser, userRole, toastMessage, sitePages, siteSettings } = useApp();
   const { isLight } = useTheme();
 
-  const [activeTab, setActiveTab] = useState<string>('home');
+  const [activeTab, setActiveTabState] = useState<string>(() => (isPathAdmin() ? 'admin' : 'home'));
   const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
   const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -51,6 +58,24 @@ const MainAppContent: React.FC = () => {
   const [isOrderTrackingOpen, setIsOrderTrackingOpen] = useState(false);
   const [chatbotPrompt, setChatbotPrompt] = useState<string | null>(null);
 
+  const setActiveTab = React.useCallback((tab: string) => {
+    setActiveTabState(tab);
+    if (typeof window !== 'undefined') {
+      const targetUrl = tab === 'admin' ? '/admin' : '/';
+      const currentClean = window.location.pathname.replace(/\/+$/, '') || '/';
+      if (currentClean !== targetUrl) {
+        window.history.pushState({ tab }, '', targetUrl);
+      }
+    }
+  }, []);
+
+  React.useEffect(() => {
+    const onPopState = () => {
+      setActiveTabState(isPathAdmin() ? 'admin' : 'home');
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
 
   const handleOpenAiDiagnostics = (query?: string) => {
     setChatbotPrompt(query || 'Please run a telemetry diagnostics scan on my Tesla high-voltage battery and drive unit.');
@@ -66,7 +91,7 @@ const MainAppContent: React.FC = () => {
     };
     window.addEventListener('apex:navigate', handler);
     return () => window.removeEventListener('apex:navigate', handler);
-  }, []);
+  }, [setActiveTab]);
 
   const BUILTIN_TABS = new Set([
     'home',
@@ -285,20 +310,21 @@ const MainAppContent: React.FC = () => {
         )}
 
         {activeTab === 'dashboard' && (
-          userRole === 'admin' ? (
-            <AdminDashboard />
-          ) : (
-            <Dashboard
-              onOpenDeposit={() => setIsDepositModalOpen(true)}
-              onOpenWithdraw={() => setIsWithdrawModalOpen(true)}
-              onNavigateToServices={() => setActiveTab('services')}
-              onOpenAuth={() => setIsAuthModalOpen(true)}
-            />
-
-          )
+          <Dashboard
+            onOpenDeposit={() => setIsDepositModalOpen(true)}
+            onOpenWithdraw={() => setIsWithdrawModalOpen(true)}
+            onNavigateToServices={() => setActiveTab('services')}
+            onOpenAuth={() => setIsAuthModalOpen(true)}
+          />
         )}
 
-        {activeTab === 'admin' && <AdminDashboard />}
+        {activeTab === 'admin' && (
+          currentUser?.role === 'admin' ? (
+            <AdminDashboard />
+          ) : (
+            <AdminLoginPage onReturnHome={() => setActiveTab('home')} />
+          )
+        )}
         {activeTab === 'social' && <SocialConnect />}
 
         {activeTab === 'about' && <AboutSection />}
@@ -347,9 +373,13 @@ const MainAppContent: React.FC = () => {
       />
 
       <AuthModal
-
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
+        onNavigateToAdmin={() => {
+          setIsAuthModalOpen(false);
+          setActiveTab('admin');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
       />
 
       <CartModal

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
@@ -13,6 +13,8 @@ import {
   Plus,
   LogOut,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   LayoutDashboard,
   Gift,
   Wrench,
@@ -29,7 +31,6 @@ import {
   Activity,
   CreditCard,
   Globe,
-  Check,
   Sun,
   Moon,
   Megaphone,
@@ -59,8 +60,6 @@ export const Navbar: React.FC<NavbarProps> = ({
     logout,
     balances,
     cart,
-    userRole,
-    setRole,
     adminNotifications,
     tslaQuote,
     featureToggles,
@@ -73,6 +72,15 @@ export const Navbar: React.FC<NavbarProps> = ({
   const { isLight, toggleTheme } = useTheme();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
+  const desktopNavRef = useRef<HTMLElement>(null);
+  const mobileBarRef = useRef<HTMLDivElement>(null);
+  const dropdownPagesRef = useRef<HTMLDivElement>(null);
+  const mobileDrawerPagesRef = useRef<HTMLDivElement>(null);
+
+  const [canSlideDesktopLeft, setCanSlideDesktopLeft] = useState(false);
+  const [canSlideDesktopRight, setCanSlideDesktopRight] = useState(true);
+  const [canSlideMobileBarLeft, setCanSlideMobileBarLeft] = useState(false);
+  const [canSlideMobileBarRight, setCanSlideMobileBarRight] = useState(true);
 
   const totalCartCount = cart.reduce((acc, item) => acc + item.quantity, 0);
   const unreadNotificationsCount = adminNotifications.filter((n) => {
@@ -107,8 +115,16 @@ export const Navbar: React.FC<NavbarProps> = ({
       stockPill: m.targetTab === 'stocks' ? `$${tslaQuote.price.toFixed(1)}` : undefined,
     }));
 
+  const dropdownMenuLinks = navigationMenus
+    .filter((m) => m.location === 'dropdown' && m.isVisible)
+    .sort((a, b) => a.order - b.order);
+
+  const mobileOnlyLinks = navigationMenus
+    .filter((m) => m.location === 'mobile_only' && m.isVisible)
+    .sort((a, b) => a.order - b.order);
+
   const customNavbarPages = sitePages
-    .filter((p) => !p.isSystem && (p.isPublished ?? p.published) && (p.displayLocation === 'navbar' || p.displayLocation === 'both'))
+    .filter((p) => !p.isSystem && (p.isPublished ?? p.published) && p.displayLocation !== 'hidden')
     .filter((p) => !primaryMenuLinks.some((m) => m.id === p.slug))
     .sort((a, b) => a.order - b.order)
     .map((p) => ({
@@ -120,15 +136,19 @@ export const Navbar: React.FC<NavbarProps> = ({
       stockPill: undefined as string | undefined,
     }));
 
-  const navLinks = [...primaryMenuLinks, ...customNavbarPages];
+  // Combine all accessible pages so every page is reachable via the slidable menu
+  const extraDropdownAsNav = dropdownMenuLinks
+    .filter((m) => !primaryMenuLinks.some((p) => p.id === m.targetTab))
+    .map((m) => ({
+      id: m.targetTab,
+      label: m.label,
+      icon: m.iconName ? iconMap[m.iconName] : Megaphone,
+      highlight: m.highlight,
+      badge: m.badge,
+      stockPill: undefined as string | undefined,
+    }));
 
-  const dropdownMenuLinks = navigationMenus
-    .filter((m) => m.location === 'dropdown' && m.isVisible)
-    .sort((a, b) => a.order - b.order);
-
-  const mobileOnlyLinks = navigationMenus
-    .filter((m) => m.location === 'mobile_only' && m.isVisible)
-    .sort((a, b) => a.order - b.order);
+  const navLinks = [...primaryMenuLinks, ...extraDropdownAsNav, ...customNavbarPages];
 
   const whatsappChannel = socialLinks.find((s) => s.platform === 'whatsapp' && s.enabled);
   const whatsappUrl =
@@ -142,6 +162,33 @@ export const Navbar: React.FC<NavbarProps> = ({
   const handleNavClick = (id: string) => {
     setActiveTab(id);
     setMobileMenuOpen(false);
+  };
+
+  const updateSlideButtons = useCallback(() => {
+    const desk = desktopNavRef.current;
+    if (desk) {
+      setCanSlideDesktopLeft(desk.scrollLeft > 4);
+      setCanSlideDesktopRight(desk.scrollLeft + desk.clientWidth < desk.scrollWidth - 4);
+    }
+    const mob = mobileBarRef.current;
+    if (mob) {
+      setCanSlideMobileBarLeft(mob.scrollLeft > 4);
+      setCanSlideMobileBarRight(mob.scrollLeft + mob.clientWidth < mob.scrollWidth - 4);
+    }
+  }, []);
+
+  useEffect(() => {
+    updateSlideButtons();
+    window.addEventListener('resize', updateSlideButtons);
+    return () => window.removeEventListener('resize', updateSlideButtons);
+  }, [updateSlideButtons, navLinks.length]);
+
+  const slideContainer = (ref: React.RefObject<HTMLElement | null>, direction: 'left' | 'right', step = 240) => {
+    if (!ref.current) return;
+    ref.current.scrollBy({
+      left: direction === 'left' ? -step : step,
+      behavior: 'smooth',
+    });
   };
 
   return (
@@ -177,45 +224,82 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
         </button>
 
-        {/* Desktop Navigation */}
-        <nav className="hidden xl:flex items-center gap-0.5 2xl:gap-1">
-          {navLinks.map((link) => {
-            const active = activeTab === link.id;
-            return (
-              <button
-                key={link.id}
-                onClick={() => handleNavClick(link.id)}
-                className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold tracking-wide transition flex items-center gap-1 shrink-0 ${
-                  active
-                    ? 'text-white bg-red-600/20 border border-red-500/40'
-                    : link.highlight
-                    ? 'text-yellow-400 hover:text-yellow-300 hover:bg-yellow-500/10'
-                    : link.badge
-                    ? 'text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10'
-                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900'
-                }`}
-              >
-                {link.icon && <link.icon className={`w-3.5 h-3.5 ${link.highlight ? 'text-yellow-400' : link.badge ? 'text-emerald-400' : ''}`} />}
-                <span>{link.label}</span>
-                {(link as any).stockPill && (
-                  <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-zinc-900 border border-emerald-500/40 text-emerald-400">
-                    {(link as any).stockPill}
-                  </span>
-                )}
-                {link.highlight && !(link as any).stockPill && (
-                  <span className="text-[9px] px-1 py-0.2 bg-red-600 text-white rounded font-bold uppercase animate-pulse">
-                    HOT
-                  </span>
-                )}
-                {link.badge && (
-                  <span className="text-[9px] px-1 py-0.2 bg-emerald-600 text-white rounded font-bold">
-                    {link.badge}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </nav>
+        {/* Slidable Desktop Navigation Track */}
+        <div className="hidden xl:flex flex-1 min-w-0 items-center gap-1">
+          <button
+            type="button"
+            onClick={() => slideContainer(desktopNavRef, 'left')}
+            disabled={!canSlideDesktopLeft}
+            aria-label="Slide pages left"
+            className={`p-1.5 rounded-lg border transition shrink-0 cursor-pointer ${
+              canSlideDesktopLeft
+                ? 'bg-zinc-900 border-zinc-700 text-zinc-200 hover:text-white hover:border-red-500/50'
+                : 'bg-zinc-950 border-zinc-800/60 text-zinc-600 opacity-50 cursor-default'
+            }`}
+          >
+            <ChevronLeft className="w-3.5 h-3.5" />
+          </button>
+
+          <nav
+            ref={desktopNavRef}
+            onScroll={updateSlideButtons}
+            className="flex-1 min-w-0 flex items-center gap-1 overflow-x-auto scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden py-1"
+          >
+            {navLinks.map((link) => {
+              const active = activeTab === link.id;
+              return (
+                <button
+                  key={link.id}
+                  onClick={(e) => {
+                    e.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                    handleNavClick(link.id);
+                  }}
+                  className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold tracking-wide transition flex items-center gap-1 shrink-0 whitespace-nowrap cursor-pointer ${
+                    active
+                      ? 'text-white bg-red-600/20 border border-red-500/40'
+                      : link.highlight
+                      ? 'text-yellow-400 hover:text-yellow-300 hover:bg-yellow-500/10'
+                      : link.badge
+                      ? 'text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10'
+                      : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900'
+                  }`}
+                >
+                  {link.icon && <link.icon className={`w-3.5 h-3.5 ${link.highlight ? 'text-yellow-400' : link.badge ? 'text-emerald-400' : ''}`} />}
+                  <span>{link.label}</span>
+                  {(link as any).stockPill && (
+                    <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-zinc-900 border border-emerald-500/40 text-emerald-400">
+                      {(link as any).stockPill}
+                    </span>
+                  )}
+                  {link.highlight && !(link as any).stockPill && (
+                    <span className="text-[9px] px-1 py-0.2 bg-red-600 text-white rounded font-bold uppercase animate-pulse">
+                      HOT
+                    </span>
+                  )}
+                  {link.badge && (
+                    <span className="text-[9px] px-1 py-0.2 bg-emerald-600 text-white rounded font-bold">
+                      {link.badge}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </nav>
+
+          <button
+            type="button"
+            onClick={() => slideContainer(desktopNavRef, 'right')}
+            disabled={!canSlideDesktopRight}
+            aria-label="Slide pages right"
+            className={`p-1.5 rounded-lg border transition shrink-0 cursor-pointer ${
+              canSlideDesktopRight
+                ? 'bg-zinc-900 border-zinc-700 text-zinc-200 hover:text-white hover:border-red-500/50'
+                : 'bg-zinc-950 border-zinc-800/60 text-zinc-600 opacity-50 cursor-default'
+            }`}
+          >
+            <ChevronRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
 
         {/* Right Action Utilities */}
         <div className="flex items-center gap-2.5 shrink-0">
@@ -261,19 +345,21 @@ export const Navbar: React.FC<NavbarProps> = ({
             </a>
           )}
 
-          {/* Role switcher toggle (Customer vs Admin) */}
-          <button
-            onClick={() => setRole(userRole === 'admin' ? 'customer' : 'admin')}
-            className={`hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-[11px] font-semibold transition ${
-              userRole === 'admin'
-                ? 'bg-amber-950/40 border-amber-500/40 text-amber-300'
-                : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-zinc-200'
-            }`}
-            title="Switch between Customer view and Admin view"
-          >
-            <Shield className="w-3.5 h-3.5" />
-            <span>{userRole === 'admin' ? 'Admin Ops' : 'Customer'}</span>
-          </button>
+          {/* Dedicated Admin Suite shortcut — visible ONLY to authenticated administrators */}
+          {currentUser?.role === 'admin' && (
+            <button
+              onClick={() => handleNavClick('admin')}
+              className={`hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-[11px] font-semibold transition ${
+                activeTab === 'admin'
+                  ? 'bg-amber-500 text-black border-amber-400 font-bold'
+                  : 'bg-amber-950/40 border-amber-500/40 text-amber-300 hover:bg-amber-900/40'
+              }`}
+              title="Open Restricted Executive Admin Suite (/admin)"
+            >
+              <Shield className="w-3.5 h-3.5" />
+              <span>Admin Suite</span>
+            </button>
+          )}
 
           {/* User Account / Menu Dropdown (Both Authenticated & Guest with Cart, Notifications, Theme & Language) */}
           <div className="relative">
@@ -324,15 +410,31 @@ export const Navbar: React.FC<NavbarProps> = ({
                 />
 
                 <div
-                  className="absolute right-0 mt-2 w-72 rounded-2xl bg-zinc-950/98 backdrop-blur-2xl border border-zinc-800 shadow-2xl py-2 z-50 text-zinc-200 animate-in fade-in slide-in-from-top-2"
+                  className="absolute right-0 mt-2 w-72 sm:w-80 max-h-[82vh] overflow-y-auto rounded-2xl bg-zinc-950/98 backdrop-blur-2xl border border-zinc-800 shadow-2xl py-2 z-50 text-zinc-200 animate-in fade-in slide-in-from-top-2"
                 >
                   {/* User Profile Header or Guest Sign-in */}
                   {currentUser ? (
-                    <div className="px-4 py-2.5 border-b border-zinc-800">
-                      <p className="text-xs font-bold text-white truncate">{currentUser.name}</p>
-                      <p className="text-[11px] text-zinc-400 truncate">{currentUser.email}</p>
-                      <span className="inline-block mt-1 text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-red-600/20 text-red-400 border border-red-500/30">
-                        {currentUser.tier} Member
+                    <div className="px-4 py-2.5 border-b border-zinc-800 space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-white truncate">{currentUser.name}</p>
+                          <p className="text-[11px] text-zinc-400 truncate">{currentUser.email}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            logout();
+                            setUserDropdownOpen(false);
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-red-950/60 hover:bg-red-900/70 border border-red-500/40 text-red-300 hover:text-white text-[10px] font-bold flex items-center gap-1 shrink-0 transition cursor-pointer"
+                          title="Log out of your account"
+                        >
+                          <LogOut className="w-3 h-3" />
+                          <span>Log Out</span>
+                        </button>
+                      </div>
+                      <span className="inline-block text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-red-600/20 text-red-400 border border-red-500/30">
+                        {currentUser.role === 'admin' ? currentUser.adminRoleLabel || 'Administrator' : `${currentUser.tier} Member`}
                       </span>
                     </div>
                   ) : (
@@ -350,6 +452,59 @@ export const Navbar: React.FC<NavbarProps> = ({
                       </button>
                     </div>
                   )}
+
+                  {/* Slidable Pages Explorer inside User Menu */}
+                  <div className="px-3 py-2 border-b border-zinc-800 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-mono uppercase tracking-wider text-zinc-400 font-bold">
+                        Browse Pages ({navLinks.length})
+                      </span>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => slideContainer(dropdownPagesRef, 'left', 180)}
+                          className="p-1 rounded-md bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 cursor-pointer"
+                          aria-label="Slide dropdown pages left"
+                        >
+                          <ChevronLeft className="w-3 h-3" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => slideContainer(dropdownPagesRef, 'right', 180)}
+                          className="p-1 rounded-md bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 cursor-pointer"
+                          aria-label="Slide dropdown pages right"
+                        >
+                          <ChevronRight className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </div>
+                    <div
+                      ref={dropdownPagesRef}
+                      className="flex items-center gap-1.5 overflow-x-auto scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden pb-0.5"
+                    >
+                      {navLinks.map((link) => {
+                        const active = activeTab === link.id;
+                        return (
+                          <button
+                            key={`drop-${link.id}`}
+                            type="button"
+                            onClick={() => {
+                              handleNavClick(link.id);
+                              setUserDropdownOpen(false);
+                            }}
+                            className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold flex items-center gap-1 shrink-0 whitespace-nowrap border transition cursor-pointer ${
+                              active
+                                ? 'bg-red-600/25 border-red-500/50 text-white'
+                                : 'bg-zinc-900 border-zinc-800 text-zinc-300 hover:text-white hover:border-zinc-700'
+                            }`}
+                          >
+                            {link.icon && <link.icon className="w-3 h-3 text-red-400" />}
+                            <span>{link.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
 
                   {/* Quick Functional Actions: Cart & Notifications */}
                   <div className="px-2 py-1.5 border-b border-zinc-800 space-y-1">
@@ -396,18 +551,23 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                   {/* Core Navigation Items */}
                   <div className="px-2 py-1.5 border-b border-zinc-800 space-y-0.5">
-                    {currentUser && (
-                      <button
-                        onClick={() => {
-                          handleNavClick('dashboard');
-                          setUserDropdownOpen(false);
-                        }}
-                        className="w-full px-3 py-2 rounded-xl text-left text-xs hover:bg-zinc-900 flex items-center gap-2.5 text-zinc-300 hover:text-white transition"
-                      >
+                    <button
+                      onClick={() => {
+                        handleNavClick('dashboard');
+                        setUserDropdownOpen(false);
+                      }}
+                      className="w-full px-3 py-2 rounded-xl text-left text-xs hover:bg-zinc-900 flex items-center justify-between text-zinc-200 hover:text-white transition"
+                    >
+                      <div className="flex items-center gap-2.5">
                         <LayoutDashboard className="w-4 h-4 text-red-500" />
-                        <span>Personalized Dashboard</span>
-                      </button>
-                    )}
+                        <span>User Dashboard</span>
+                      </div>
+                      {!currentUser && (
+                        <span className="text-[9px] font-mono uppercase px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400">
+                          Preview
+                        </span>
+                      )}
+                    </button>
 
                     {onOpenTracking && (
                       <button
@@ -433,7 +593,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       <span>Crypto Deposit & Wallet</span>
                     </button>
 
-                    {currentUser && onOpenWithdraw && (
+                    {onOpenWithdraw && (
                       <button
                         onClick={() => {
                           onOpenWithdraw();
@@ -542,16 +702,19 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                   {/* Sign Out or VIP Link */}
                   {currentUser ? (
-                    <div className="px-2 pt-1">
+                    <div className="px-2 pt-1.5 pb-1">
                       <button
                         onClick={() => {
                           logout();
                           setUserDropdownOpen(false);
                         }}
-                        className="w-full px-3 py-2 text-left text-xs rounded-xl hover:bg-red-950/40 text-red-400 flex items-center gap-2 transition"
+                        className="w-full px-3 py-2.5 text-left text-xs font-bold rounded-xl bg-red-950/30 hover:bg-red-950/60 border border-red-500/30 text-red-300 hover:text-white flex items-center justify-between transition cursor-pointer"
                       >
-                        <LogOut className="w-3.5 h-3.5" />
-                        <span>Sign Out</span>
+                        <span className="flex items-center gap-2">
+                          <LogOut className="w-4 h-4 text-red-400" />
+                          <span>Log Out</span>
+                        </span>
+                        <span className="text-[10px] font-mono text-red-400/80">End Session</span>
                       </button>
                     </div>
                   ) : (
@@ -574,9 +737,68 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
       </div>
 
+      {/* Tablet & Mobile Slidable Pages Strip (Always Accessible Under Header) */}
+      <div className="xl:hidden border-t border-zinc-900 bg-zinc-950/90 px-2 sm:px-4 py-1.5 flex items-center gap-1.5">
+        <button
+          type="button"
+          onClick={() => slideContainer(mobileBarRef, 'left', 200)}
+          disabled={!canSlideMobileBarLeft}
+          aria-label="Slide pages left"
+          className={`p-1 rounded-lg border shrink-0 transition cursor-pointer ${
+            canSlideMobileBarLeft
+              ? 'bg-zinc-900 border-zinc-700 text-zinc-200'
+              : 'bg-zinc-950 border-zinc-800/60 text-zinc-600 opacity-45 cursor-default'
+          }`}
+        >
+          <ChevronLeft className="w-3.5 h-3.5" />
+        </button>
+        <div
+          ref={mobileBarRef}
+          onScroll={updateSlideButtons}
+          className="flex-1 min-w-0 flex items-center gap-1.5 overflow-x-auto scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
+          {navLinks.map((link) => {
+            const active = activeTab === link.id;
+            return (
+              <button
+                key={`mob-rail-${link.id}`}
+                type="button"
+                onClick={(e) => {
+                  e.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                  handleNavClick(link.id);
+                }}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 shrink-0 whitespace-nowrap border transition cursor-pointer ${
+                  active
+                    ? 'text-white bg-red-600/25 border-red-500/50'
+                    : link.highlight
+                    ? 'text-yellow-400 border-yellow-500/20 bg-zinc-900/70'
+                    : 'text-zinc-300 border-zinc-800 bg-zinc-900/60 hover:text-white'
+                }`}
+              >
+                {link.icon && <link.icon className="w-3 h-3" />}
+                <span>{link.label}</span>
+              </button>
+            );
+          })}
+        </div>
+        <button
+          type="button"
+          onClick={() => slideContainer(mobileBarRef, 'right', 200)}
+          disabled={!canSlideMobileBarRight}
+          aria-label="Slide pages right"
+          className={`p-1 rounded-lg border shrink-0 transition cursor-pointer ${
+            canSlideMobileBarRight
+              ? 'bg-zinc-900 border-zinc-700 text-zinc-200'
+              : 'bg-zinc-950 border-zinc-800/60 text-zinc-600 opacity-45 cursor-default'
+          }`}
+        >
+          <ChevronRight className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
       {/* Mobile Drawer */}
       {mobileMenuOpen && (
-        <div className="xl:hidden border-t border-zinc-800 bg-zinc-950/95 backdrop-blur-xl px-4 py-6 space-y-3 animate-in slide-in-from-top-2">
+        <div className="xl:hidden border-t border-zinc-800 bg-zinc-950/95 backdrop-blur-xl px-4 py-5 space-y-3 max-h-[calc(100vh-7.5rem)] overflow-y-auto animate-in slide-in-from-top-2">
           {/* Quick Balance Mobile */}
           <div className="p-3 rounded-xl bg-zinc-900 border border-zinc-800 mb-2 space-y-2">
             <div className="flex items-center justify-between">
@@ -677,38 +899,68 @@ export const Navbar: React.FC<NavbarProps> = ({
             </a>
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
-            {navLinks.map((link) => (
-              <button
-                key={link.id}
-                onClick={() => handleNavClick(link.id)}
-                className={`p-3 rounded-xl text-left text-xs font-semibold flex items-center gap-2 border ${
-                  activeTab === link.id
-                    ? 'bg-red-600/20 border-red-500/50 text-white'
-                    : 'bg-zinc-900/60 border-zinc-800 text-zinc-300'
-                }`}
-              >
-                {link.icon && <link.icon className="w-4 h-4 text-red-500" />}
-                <span>{link.label}</span>
-              </button>
-            ))}
-            {[...dropdownMenuLinks, ...mobileOnlyLinks].map((m) => {
-              const MobIcon = (m.iconName && iconMap[m.iconName]) || Megaphone;
-              return (
+          {/* Slidable Pages Slider inside Mobile Menu */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between px-0.5">
+              <span className="text-[11px] font-mono uppercase tracking-wider text-zinc-400 font-bold">
+                All Platform Pages (Slide)
+              </span>
+              <div className="flex items-center gap-1">
                 <button
-                  key={m.id}
-                  onClick={() => handleNavClick(m.targetTab)}
-                  className={`p-3 rounded-xl text-left text-xs font-semibold flex items-center gap-2 border ${
-                    activeTab === m.targetTab
+                  type="button"
+                  onClick={() => slideContainer(mobileDrawerPagesRef, 'left', 220)}
+                  className="p-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-300 hover:text-white cursor-pointer"
+                  aria-label="Slide mobile drawer pages left"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => slideContainer(mobileDrawerPagesRef, 'right', 220)}
+                  className="p-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-300 hover:text-white cursor-pointer"
+                  aria-label="Slide mobile drawer pages right"
+                >
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+
+            <div
+              ref={mobileDrawerPagesRef}
+              className="flex items-stretch gap-2 overflow-x-auto scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden pb-1"
+            >
+              {navLinks.map((link) => (
+                <button
+                  key={link.id}
+                  onClick={() => handleNavClick(link.id)}
+                  className={`px-3.5 py-2.5 rounded-xl text-left text-xs font-semibold flex items-center gap-2 border shrink-0 whitespace-nowrap ${
+                    activeTab === link.id
                       ? 'bg-red-600/20 border-red-500/50 text-white'
                       : 'bg-zinc-900/60 border-zinc-800 text-zinc-300'
                   }`}
                 >
-                  <MobIcon className="w-4 h-4 text-amber-400" />
-                  <span>{m.label}</span>
+                  {link.icon && <link.icon className="w-4 h-4 text-red-500" />}
+                  <span>{link.label}</span>
                 </button>
-              );
-            })}
+              ))}
+              {mobileOnlyLinks.map((m) => {
+                const MobIcon = (m.iconName && iconMap[m.iconName]) || Megaphone;
+                return (
+                  <button
+                    key={m.id}
+                    onClick={() => handleNavClick(m.targetTab)}
+                    className={`px-3.5 py-2.5 rounded-xl text-left text-xs font-semibold flex items-center gap-2 border shrink-0 whitespace-nowrap ${
+                      activeTab === m.targetTab
+                        ? 'bg-red-600/20 border-red-500/50 text-white'
+                        : 'bg-zinc-900/60 border-zinc-800 text-zinc-300'
+                    }`}
+                  >
+                    <MobIcon className="w-4 h-4 text-amber-400" />
+                    <span>{m.label}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           {/* Mobile Language Switcher */}
@@ -758,38 +1010,67 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
           </div>
 
-          <div className="pt-1 flex justify-between items-center text-xs">
-            <button
-              onClick={() => {
-                setRole(userRole === 'admin' ? 'customer' : 'admin');
-                setMobileMenuOpen(false);
-              }}
-              className="p-2 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-300 flex items-center gap-1.5 cursor-pointer"
-            >
-              <Shield className="w-3.5 h-3.5" />
-              <span>Role: {userRole}</span>
-            </button>
-
-            {currentUser ? (
+          <div className="pt-1 flex justify-between items-center gap-2 text-xs">
+            {currentUser?.role === 'admin' ? (
               <button
                 onClick={() => {
-                  handleNavClick('dashboard');
+                  handleNavClick('admin');
                   setMobileMenuOpen(false);
                 }}
-                className="p-2 rounded-lg bg-red-600 text-white font-bold cursor-pointer"
+                className="p-2 rounded-lg bg-amber-950/50 border border-amber-500/40 text-amber-300 font-semibold flex items-center gap-1.5 cursor-pointer"
               >
-                Go to Dashboard
+                <Shield className="w-3.5 h-3.5" />
+                <span>Admin Suite</span>
               </button>
             ) : (
-              <button
-                onClick={() => {
-                  onOpenAuth();
-                  setMobileMenuOpen(false);
-                }}
-                className="p-2 rounded-lg bg-red-600 text-white font-bold cursor-pointer"
-              >
-                Sign In / Register
-              </button>
+              <span className="text-[11px] text-zinc-500 font-mono">
+                {currentUser ? `Member: ${currentUser.tier}` : 'Public Customer Access'}
+              </span>
+            )}
+
+            {currentUser ? (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    handleNavClick('dashboard');
+                    setMobileMenuOpen(false);
+                  }}
+                  className="px-3 py-2 rounded-lg bg-red-600 text-white font-bold cursor-pointer"
+                >
+                  Dashboard
+                </button>
+                <button
+                  onClick={() => {
+                    logout();
+                    setMobileMenuOpen(false);
+                  }}
+                  className="px-3 py-2 rounded-lg bg-red-950/60 border border-red-500/40 text-red-300 font-bold flex items-center gap-1 cursor-pointer"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span>Log Out</span>
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    handleNavClick('dashboard');
+                    setMobileMenuOpen(false);
+                  }}
+                  className="px-3 py-2 rounded-lg bg-zinc-800 border border-zinc-700 text-white font-semibold cursor-pointer"
+                >
+                  Dashboard
+                </button>
+                <button
+                  onClick={() => {
+                    onOpenAuth();
+                    setMobileMenuOpen(false);
+                  }}
+                  className="px-3 py-2 rounded-lg bg-red-600 text-white font-bold cursor-pointer"
+                >
+                  Sign In
+                </button>
+              </div>
             )}
           </div>
         </div>

@@ -1,4 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { signInWithPopup, signOut } from 'firebase/auth';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { auth, db, googleProvider, handleFirestoreError, OperationType } from '../lib/firebase';
 import {
   CryptoCurrency,
   ProductItem,
@@ -44,6 +47,7 @@ import {
   NavigationMenuItem,
   SiteSettings,
   CronDispatchedEmail,
+  AdminPrivilege,
 } from '../types';
 import {
   CRYPTO_NETWORKS,
@@ -94,6 +98,7 @@ interface AppContextType {
   sessionToken: string | null;
   activeSession: UserSession | null;
   login: (email: string, password?: string) => Promise<boolean>;
+  adminLogin: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   register: (
     name: string,
     email: string,
@@ -104,7 +109,28 @@ interface AppContextType {
     location?: string,
     preferredServiceCenter?: string
   ) => Promise<boolean>;
+  signUpWithGoogle: (
+    referralCodeInput?: string
+  ) => Promise<{ success: boolean; isNewUser?: boolean; error?: string }>;
   logout: () => void;
+  // Admin Team & Privilege Management (RBAC)
+  adminsList: User[];
+  fetchAdmins: () => Promise<void>;
+  createAdminAccount: (payload: {
+    name: string;
+    email: string;
+    password: string;
+    adminRoleLabel: string;
+    adminPrivileges: AdminPrivilege[];
+    location?: string;
+    phone?: string;
+  }) => Promise<{ success: boolean; error?: string }>;
+  updateAdminPrivileges: (
+    adminId: string,
+    payload: { adminRoleLabel?: string; adminPrivileges: AdminPrivilege[] }
+  ) => Promise<{ success: boolean; error?: string }>;
+  deleteAdminAccount: (adminId: string) => Promise<{ success: boolean; error?: string }>;
+  hasAdminPrivilege: (privilege: AdminPrivilege) => boolean;
   updateProfile: (profileData: {
     name?: string;
     phone?: string;
@@ -850,6 +876,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const saved = localStorage.getItem('apex_user');
     return saved ? JSON.parse(saved) : DEFAULT_USER;
   });
+  const [adminsList, setAdminsList] = useState<User[]>([]);
 
   const [balances, setBalances] = useState<WalletBalances>(() => {
     const saved = localStorage.getItem('apex_balances');
@@ -1482,8 +1509,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         Authorization: `Bearer ${token}`,
       },
     })
-      .then((res) => {
-        if (!res.ok) throw new Error('Session invalid');
+      .then(async (res) => {
+        if (res.status === 401) {
+          // If an admin session expired or was revoked, force re-authentication at /admin
+          setCurrentUser((prev) => (prev?.role === 'admin' ? null : prev));
+          throw new Error('Session invalid');
+        }
+        if (!res.ok) throw new Error('Session check failed');
         return res.json();
       })
       .then((data) => {
@@ -1492,9 +1524,43 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       })
       .catch((_err) => {
-        // Fallback gracefully keeps local state if server is momentarily restarting
+        // Fallback gracefully keeps customer local demo state if server is momentarily restarting
       });
   }, [sessionToken]);
+
+  const hasAdminPrivilege = (privilege: AdminPrivilege): boolean => {
+    if (!currentUser || currentUser.role !== 'admin') return false;
+    const privs = currentUser.adminPrivileges || [];
+    if (privs.includes('super_admin')) return true;
+    return privs.includes(privilege);
+  };
+
+  const fetchAdmins = async () => {
+    if (!sessionToken || currentUser?.role !== 'admin') return;
+    try {
+      const res = await fetch('/api/auth/admins', {
+        headers: {
+          Authorization: `Bearer ${sessionToken}`,
+        },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.admins)) {
+          setAdminsList(data.admins);
+        }
+      }
+    } catch {
+      // ignore transient errors
+    }
+  };
+
+  useEffect(() => {
+    if (currentUser?.role === 'admin' && sessionToken) {
+      fetchAdmins();
+    } else {
+      setAdminsList([]);
+    }
+  }, [currentUser?.id, currentUser?.role, sessionToken]);
 
   const showToast = (text: string, type: 'success' | 'info' | 'error' = 'success') => {
     setToastMessage({ text, type });
@@ -1510,7 +1576,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email,
-          password: password || (email === 'admin.ops@apex-tesla.io' ? 'AdminTesla2026!' : 'TeslaPlaid2026!'),
+          password: password || 'TeslaPlaid2026!',
         }),
       });
 
@@ -1526,15 +1592,147 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       showToast(data.message || `Welcome back, ${data.user.name}!`, 'success');
       return true;
     } catch {
-      // Local fallback for offline/development resilience
+      if (email.trim().toLowerCase().includes('admin')) {
+        showToast('Admin accounts must sign in at /admin.', 'error');
+        return false;
+      }
+      // Local fallback for customer demo resilience
       const user: User = {
         ...DEFAULT_USER,
         email,
+        role: 'customer',
         name: email.split('@')[0].toUpperCase(),
       };
       setCurrentUser(user);
       showToast(`Signed in to session for ${user.name}`);
       return true;
+    }
+  };
+
+  const adminLogin = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const res = await fetch('/api/auth/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim(), password }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        const errMsg = data.error || 'Administrator authentication failed.';
+        showToast(errMsg, 'error');
+        return { success: false, error: errMsg };
+      }
+
+      setSessionToken(data.token);
+      localStorage.setItem('apex_session_token', data.token);
+      setCurrentUser(data.user);
+      showToast(data.message || `Admin console unlocked for ${data.user.name}.`, 'success');
+      return { success: true };
+    } catch {
+      const errMsg = 'Unable to reach authentication server. Please verify the backend is running.';
+      showToast(errMsg, 'error');
+      return { success: false, error: errMsg };
+    }
+  };
+
+  const createAdminAccount = async (payload: {
+    name: string;
+    email: string;
+    password: string;
+    adminRoleLabel: string;
+    adminPrivileges: AdminPrivilege[];
+    location?: string;
+    phone?: string;
+  }): Promise<{ success: boolean; error?: string }> => {
+    if (!sessionToken || currentUser?.role !== 'admin') {
+      return { success: false, error: 'Admin session required.' };
+    }
+    try {
+      const res = await fetch('/api/auth/admins', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${sessionToken}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showToast(data.error || 'Failed to create admin account.', 'error');
+        return { success: false, error: data.error || 'Failed to create admin account.' };
+      }
+      if (data.admin) {
+        setAdminsList((prev) => [data.admin, ...prev]);
+      }
+      showToast(data.message || 'New administrator account created!', 'success');
+      return { success: true };
+    } catch {
+      const err = 'Network error creating administrator account.';
+      showToast(err, 'error');
+      return { success: false, error: err };
+    }
+  };
+
+  const updateAdminPrivileges = async (
+    adminId: string,
+    payload: { adminRoleLabel?: string; adminPrivileges: AdminPrivilege[] }
+  ): Promise<{ success: boolean; error?: string }> => {
+    if (!sessionToken || currentUser?.role !== 'admin') {
+      return { success: false, error: 'Admin session required.' };
+    }
+    try {
+      const res = await fetch(`/api/auth/admins/${encodeURIComponent(adminId)}/privileges`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${sessionToken}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showToast(data.error || 'Failed to update admin privileges.', 'error');
+        return { success: false, error: data.error || 'Failed to update admin privileges.' };
+      }
+      if (data.admin) {
+        setAdminsList((prev) => prev.map((a) => (a.id === adminId ? data.admin : a)));
+        if (currentUser?.id === adminId) {
+          setCurrentUser(data.admin);
+        }
+      }
+      showToast(data.message || 'Administrator privileges updated!', 'success');
+      return { success: true };
+    } catch {
+      const err = 'Network error updating privileges.';
+      showToast(err, 'error');
+      return { success: false, error: err };
+    }
+  };
+
+  const deleteAdminAccount = async (adminId: string): Promise<{ success: boolean; error?: string }> => {
+    if (!sessionToken || currentUser?.role !== 'admin') {
+      return { success: false, error: 'Admin session required.' };
+    }
+    try {
+      const res = await fetch(`/api/auth/admins/${encodeURIComponent(adminId)}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${sessionToken}`,
+        },
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showToast(data.error || 'Failed to delete admin.', 'error');
+        return { success: false, error: data.error || 'Failed to delete admin.' };
+      }
+      setAdminsList((prev) => prev.filter((a) => a.id !== adminId));
+      showToast(data.message || 'Administrator access revoked.', 'info');
+      return { success: true };
+    } catch {
+      const err = 'Network error revoking admin.';
+      showToast(err, 'error');
+      return { success: false, error: err };
     }
   };
 
@@ -1627,6 +1825,138 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setCurrentUser(fallbackUser);
       setAvailableSpins(initialSpins);
       return true;
+    }
+  };
+
+  const signUpWithGoogle = async (
+    referralCodeInput?: string
+  ): Promise<{ success: boolean; isNewUser?: boolean; error?: string }> => {
+    const cleanRef = referralCodeInput?.trim().toUpperCase();
+    const isReferred = !!cleanRef;
+    const welcomeCredit = isReferred ? 25 : 0;
+    const initialSpins = isReferred ? 5 : 3;
+
+    try {
+      const credential = await signInWithPopup(auth, googleProvider);
+      const fbUser = credential.user;
+      const idToken = await fbUser.getIdToken();
+
+      const res = await fetch('/api/auth/google', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          idToken,
+          referralCode: cleanRef,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        await signOut(auth).catch(() => {});
+        const errMsg = data.error || 'Google authentication failed.';
+        showToast(errMsg, 'error');
+        return { success: false, error: errMsg };
+      }
+
+      // Sync verified user profile to Firestore under owner-isolated /users/{uid}
+      const userDocPath = `users/${fbUser.uid}`;
+      const userDocRef = doc(db, 'users', fbUser.uid);
+      let existingSnap;
+      try {
+        existingSnap = await getDoc(userDocRef);
+      } catch (err) {
+        handleFirestoreError(err, OperationType.GET, userDocPath);
+      }
+
+      const safeReferralCode =
+        (data.user?.referralCode || `APEX-GGL-${fbUser.uid.substring(0, 6).toUpperCase()}`)
+          .toUpperCase()
+          .replace(/[^A-Z0-9_-]/g, '')
+          .substring(0, 32);
+
+      try {
+        if (!existingSnap.exists()) {
+          await setDoc(userDocRef, {
+            uid: fbUser.uid,
+            name: (data.user?.name || fbUser.displayName || 'Tesla Member').substring(0, 120),
+            email: (data.user?.email || fbUser.email || '').substring(0, 200),
+            avatar: (data.user?.avatar || fbUser.photoURL || '').substring(0, 500),
+            authProvider: 'google.com',
+            role: 'customer',
+            referralCode: safeReferralCode,
+            bio: (data.user?.bio || 'Verified Google Member & Apex Tesla Hub Enthusiast.').substring(0, 500),
+            location: (data.user?.location || 'California, USA').substring(0, 120),
+            preferredServiceCenter: (
+              data.user?.preferredServiceCenter || 'Apex Fremont Technology Center'
+            ).substring(0, 160),
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          });
+        } else {
+          await setDoc(
+            userDocRef,
+            {
+              name: (data.user?.name || fbUser.displayName || 'Tesla Member').substring(0, 120),
+              avatar: (data.user?.avatar || fbUser.photoURL || '').substring(0, 500),
+              updatedAt: serverTimestamp(),
+            },
+            { merge: true }
+          );
+        }
+      } catch (err) {
+        handleFirestoreError(err, OperationType.WRITE, userDocPath);
+      }
+
+      setSessionToken(data.token);
+      localStorage.setItem('apex_session_token', data.token);
+      setCurrentUser(data.user);
+
+      if (data.isNewUser) {
+        if (welcomeCredit > 0) {
+          setBalances((prev) => ({ ...prev, usd: prev.usd + welcomeCredit }));
+          const newTx: Transaction = {
+            id: `tx-ggl-welcome-${Date.now()}`,
+            type: 'referral_credit',
+            currency: 'USD',
+            amount: welcomeCredit,
+            usdEquivalent: welcomeCredit,
+            timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
+            status: 'completed',
+            txHash: `0x${Math.random().toString(16).substring(2, 10)}...gglw`,
+            description: `Google Social Sign-Up Referral Bonus (${cleanRef}: +$25 USD & 5 Spins)`,
+          };
+          setTransactions((prev) => [newTx, ...prev]);
+          showToast(
+            `Google account created with code ${cleanRef}! +$25 Credit & 5 Free Spins unlocked!`,
+            'success'
+          );
+        } else {
+          showToast(
+            `Welcome to Apex Tesla Hub, ${data.user.name}! Enjoy 3 complimentary wheel spins.`,
+            'success'
+          );
+        }
+        setAvailableSpins(initialSpins);
+      } else {
+        showToast(data.message || `Signed in with Google as ${data.user.name}!`, 'success');
+      }
+
+      return { success: true, isNewUser: Boolean(data.isNewUser) };
+    } catch (error: any) {
+      const code = error?.code || '';
+      if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
+        const msg = 'Google sign-in popup was closed before completing authentication.';
+        showToast(msg, 'info');
+        return { success: false, error: msg };
+      }
+      if (code === 'auth/popup-blocked') {
+        const msg = 'Popups were blocked by your browser. Please allow popups and try again.';
+        showToast(msg, 'error');
+        return { success: false, error: msg };
+      }
+      const msg = error instanceof Error ? error.message : 'Google sign-up failed. Please try again.';
+      showToast(msg, 'error');
+      return { success: false, error: msg };
     }
   };
 
@@ -1758,6 +2088,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // Ignore network errors on logout
     }
 
+    await signOut(auth).catch(() => {});
     localStorage.removeItem('apex_session_token');
     localStorage.removeItem('apex_user');
     setSessionToken(null);
@@ -1852,9 +2183,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const setRole = (role: UserRole) => {
-    if (currentUser) {
-      setCurrentUser({ ...currentUser, role });
-      showToast(`Switched active mode to ${role === 'admin' ? 'Executive Operations Admin' : 'Customer Account'}.`, 'info');
+    // Disallow unauthenticated or customer self-elevation to admin
+    if (role === 'admin' && currentUser?.role !== 'admin') {
+      showToast('Administrator privileges require verified authentication at /admin.', 'error');
+      return;
+    }
+    if (currentUser && currentUser.role === 'admin') {
+      showToast(`Active admin session: ${currentUser.adminRoleLabel || 'Administrator'}.`, 'info');
     }
   };
 
@@ -4160,8 +4495,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         sessionToken,
         activeSession: currentUser?.activeSession || null,
         login,
+        adminLogin,
         register,
+        signUpWithGoogle,
         logout,
+        adminsList,
+        fetchAdmins,
+        createAdminAccount,
+        updateAdminPrivileges,
+        deleteAdminAccount,
+        hasAdminPrivilege,
         updateProfile,
         changePassword,
         terminateOtherSessions,

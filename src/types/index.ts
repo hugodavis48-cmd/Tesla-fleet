@@ -1,5 +1,16 @@
 export type UserRole = 'customer' | 'admin';
 
+export type AdminPrivilege =
+  | 'super_admin'
+  | 'manage_admins'
+  | 'manage_users'
+  | 'manage_investments'
+  | 'manage_cars_store'
+  | 'manage_withdrawals'
+  | 'manage_site_cms'
+  | 'manage_marketing'
+  | 'manage_fleet_ops';
+
 export interface UserSession {
   id: string;
   token: string;
@@ -15,6 +26,8 @@ export interface User {
   name: string;
   email: string;
   role: UserRole;
+  adminRoleLabel?: string;
+  adminPrivileges?: AdminPrivilege[];
   avatar: string;
   bio?: string;
   location?: string;

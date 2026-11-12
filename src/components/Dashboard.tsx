@@ -196,25 +196,31 @@ export const Dashboard: React.FC<DashboardProps> = ({
   // Transaction filter
   const [txFilter, setTxFilter] = useState<'all' | 'deposit' | 'service_payment' | 'referral_credit' | 'promotion_win'>('all');
 
-  if (!currentUser) {
-    return (
-      <div className="py-20 px-4 text-center max-w-lg mx-auto space-y-4">
-        <div className="w-16 h-16 rounded-3xl bg-red-600/20 text-red-500 border border-red-500/30 flex items-center justify-center mx-auto">
-          <Lock className="w-8 h-8" />
-        </div>
-        <h2 className="font-heading font-black text-3xl text-white">PERSONALIZED DASHBOARD</h2>
-        <p className="text-zinc-400 text-sm">
-          Sign up or log in to access your digital Tesla garage, live service bay telematics, crypto payment wallet, and fleet investment rewards.
-        </p>
-        <button
-          onClick={onOpenAuth}
-          className="px-6 py-3.5 rounded-2xl bg-red-600 hover:bg-red-500 text-white font-bold text-sm shadow-xl shadow-red-950/50 transition cursor-pointer"
-        >
-          Sign In / Create Account
-        </button>
-      </div>
-    );
-  }
+  // Safe preview identity so signed-out users can still explore the User Dashboard
+  const isGuestView = !currentUser;
+  const displayUser = currentUser || {
+    id: 'usr-apex-001',
+    name: 'Guest Explorer (Preview)',
+    email: 'guest.preview@apex-tesla.io',
+    role: 'customer' as const,
+    avatar: PRESET_AVATARS[0].url,
+    bio: 'Previewing Apex Tesla Hub digital garage, fleet investments, service bays, TSLA stocks, and wallet analytics.',
+    location: 'Fremont, CA',
+    preferredServiceCenter: 'Apex Fremont Technology Center',
+    phone: '+1 (555) 837-5290',
+    walletAddress: '0x9E218C4FaB06A4dD23c945b9E52aF3eA48972',
+    twoFactorEnabled: false,
+    pinSet: false,
+    memberSince: 'Public Preview',
+    tier: 'Plaid Member' as const,
+    referralCode: 'APEX-ALEX-99',
+    referralEarningsUsd: 350,
+    referralCount: 3,
+    referredUsers: [],
+    kycStatus: 'unverified' as const,
+    kycData: undefined,
+    activeSession: undefined,
+  };
 
   const handleCreateVehicle = (e: React.FormEvent) => {
     e.preventDefault();
@@ -224,6 +230,11 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
   const handleSavePin = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!currentUser) {
+      showToast('Please sign in to configure a transaction PIN.', 'info');
+      onOpenAuth();
+      return;
+    }
     if (newPinInput.length !== 4) {
       showToast('PIN must be exactly 4 digits.', 'error');
       return;
@@ -235,6 +246,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
   const handleUpdateProfileSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!currentUser) {
+      showToast('Please sign in to save profile changes.', 'info');
+      setShowEditProfileModal(false);
+      onOpenAuth();
+      return;
+    }
     await updateProfile({
       name: editName,
       phone: editPhone,
@@ -246,6 +263,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
   };
 
   const handleSaveAvatar = async () => {
+    if (!currentUser) {
+      showToast('Please sign in to update your avatar.', 'info');
+      setShowAvatarModal(false);
+      onOpenAuth();
+      return;
+    }
     setIsSavingAvatar(true);
     await updateProfile({ avatar: selectedAvatarUrl });
     setIsSavingAvatar(false);
@@ -274,6 +297,11 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
   const handleKycSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!currentUser) {
+      showToast('Please sign in to submit KYC verification documents.', 'info');
+      onOpenAuth();
+      return;
+    }
     if (!kycForm.legalName || !kycForm.idNumber) {
       showToast('Please provide your full legal name and government ID number.', 'error');
       return;
@@ -289,6 +317,11 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
   const handleChangePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!currentUser) {
+      showToast('Please sign in to manage account password security.', 'info');
+      onOpenAuth();
+      return;
+    }
     setPasswordStatus(null);
     if (!currentPassword || !newPassword) {
       setPasswordStatus('Please fill in all password fields.');
@@ -357,10 +390,36 @@ export const Dashboard: React.FC<DashboardProps> = ({
     (b) => b.status === 'Ready for Pickup / Complete'
   );
 
-  const kycStatus = currentUser.kycStatus || 'unverified';
+  const kycStatus = displayUser.kycStatus || 'unverified';
 
   return (
     <div className="py-10 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto space-y-8">
+      {/* Guest Preview Mode Banner (Non-blocking for Signed-Out Visitors) */}
+      {isGuestView && (
+        <div className="p-4 rounded-2xl bg-gradient-to-r from-red-950/60 via-zinc-900 to-zinc-950 border border-red-500/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg">
+          <div className="flex items-start sm:items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-red-600/20 border border-red-500/40 flex items-center justify-center text-red-400 shrink-0">
+              <Zap className="w-4 h-4" />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-white">
+                Public Guest Dashboard Preview — Signed Out Mode
+              </p>
+              <p className="text-[11px] text-zinc-400">
+                Browse the digital garage, live TSLA stock ROI, fleet investments, services, and vault layout freely. Sign in to save personal profile changes.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onOpenAuth}
+            className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold shrink-0 shadow-md transition cursor-pointer"
+          >
+            Sign In / Demo User
+          </button>
+        </div>
+      )}
+
       {/* User Header Profile Card with Editable Avatar & Bio */}
       <div className="p-6 sm:p-8 rounded-3xl bg-zinc-950 border border-zinc-800 shadow-2xl relative overflow-hidden">
         <div className="absolute top-0 right-0 w-96 h-96 bg-red-600/5 rounded-full blur-3xl -z-10 pointer-events-none" />
@@ -370,26 +429,26 @@ export const Dashboard: React.FC<DashboardProps> = ({
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5">
             <div className="relative group cursor-pointer" onClick={() => setShowAvatarModal(true)}>
               <img
-                src={currentUser.avatar}
-                alt={currentUser.name}
+                src={displayUser.avatar}
+                alt={displayUser.name}
                 className="w-20 h-20 rounded-2xl object-cover border-2 border-red-500/50 shadow-xl group-hover:opacity-85 transition"
               />
               <div className="absolute inset-0 bg-black/60 rounded-2xl opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center transition text-[10px] text-white font-mono font-bold">
                 <Camera className="w-5 h-5 text-red-400 mb-0.5" />
                 <span>EDIT</span>
               </div>
-              <span className="absolute -bottom-1 -right-1 px-2 py-0.5 rounded-full bg-emerald-500 text-black text-[9px] font-mono font-bold shadow-md">
-                ONLINE
+              <span className={`absolute -bottom-1 -right-1 px-2 py-0.5 rounded-full text-black text-[9px] font-mono font-bold shadow-md ${isGuestView ? 'bg-amber-400' : 'bg-emerald-500'}`}>
+                {isGuestView ? 'PREVIEW' : 'ONLINE'}
               </span>
             </div>
 
             <div className="space-y-1">
               <div className="flex flex-wrap items-center gap-2">
                 <h2 className="font-heading font-black text-2xl sm:text-3xl text-white tracking-tight">
-                  {currentUser.name}
+                  {displayUser.name}
                 </h2>
                 <span className="px-2.5 py-0.5 rounded-full bg-red-600/20 text-red-400 border border-red-500/30 text-[10px] font-mono uppercase font-bold">
-                  {currentUser.tier}
+                  {displayUser.tier}
                 </span>
 
                 {/* KYC Status Pill in Header */}
@@ -410,32 +469,32 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 </button>
               </div>
 
-              <p className="text-xs text-zinc-400 font-mono">{currentUser.email}</p>
+              <p className="text-xs text-zinc-400 font-mono">{displayUser.email}</p>
 
               {/* Bio Details */}
               <p className="text-xs text-zinc-300 max-w-xl pt-1 leading-relaxed">
-                {currentUser.bio || 'Tesla owner & enthusiast. Passionate about zero-emission performance.'}
+                {displayUser.bio || 'Tesla owner & enthusiast. Passionate about zero-emission performance.'}
               </p>
 
               {/* Location, Service Center, Phone */}
               <div className="flex flex-wrap items-center gap-y-1.5 gap-x-4 text-[11px] text-zinc-400 pt-2 font-mono">
                 <span className="flex items-center gap-1 text-zinc-300">
                   <MapPin className="w-3.5 h-3.5 text-red-400" />
-                  {currentUser.location || 'Fremont, CA'}
+                  {displayUser.location || 'Fremont, CA'}
                 </span>
                 <span className="flex items-center gap-1 text-zinc-300">
                   <Building className="w-3.5 h-3.5 text-red-400" />
-                  {currentUser.preferredServiceCenter || 'Apex Fremont Technology Center'}
+                  {displayUser.preferredServiceCenter || 'Apex Fremont Technology Center'}
                 </span>
-                {currentUser.phone && (
+                {displayUser.phone && (
                   <span className="flex items-center gap-1 text-zinc-400">
                     <Smartphone className="w-3.5 h-3.5 text-zinc-500" />
-                    {currentUser.phone}
+                    {displayUser.phone}
                   </span>
                 )}
                 <span className="flex items-center gap-1 text-zinc-400">
                   <Calendar className="w-3.5 h-3.5 text-zinc-500" />
-                  Member since {currentUser.memberSince}
+                  Member since {displayUser.memberSince}
                 </span>
               </div>
             </div>
@@ -461,11 +520,11 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
               <button
                 onClick={() => {
-                  setEditName(currentUser.name);
-                  setEditPhone(currentUser.phone || '');
-                  setEditBio(currentUser.bio || '');
-                  setEditLocation(currentUser.location || 'Fremont, CA');
-                  setEditCenter(currentUser.preferredServiceCenter || 'Apex Fremont Technology Center');
+                  setEditName(displayUser.name);
+                  setEditPhone(displayUser.phone || '');
+                  setEditBio(displayUser.bio || '');
+                  setEditLocation(displayUser.location || 'Fremont, CA');
+                  setEditCenter(displayUser.preferredServiceCenter || 'Apex Fremont Technology Center');
                   setShowEditProfileModal(true);
                 }}
                 className="px-3.5 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-200 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
@@ -495,13 +554,23 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 <span>Deposit</span>
               </button>
 
-              <button
-                onClick={logout}
-                title="Log Out"
-                className="p-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-400 hover:text-white transition cursor-pointer"
-              >
-                <LogOut className="w-4 h-4" />
-              </button>
+              {currentUser ? (
+                <button
+                  onClick={logout}
+                  title="Log Out"
+                  className="p-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-400 hover:text-white transition cursor-pointer"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              ) : (
+                <button
+                  onClick={onOpenAuth}
+                  title="Sign In"
+                  className="px-3 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-white text-xs font-bold transition cursor-pointer"
+                >
+                  Sign In
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -512,13 +581,13 @@ export const Dashboard: React.FC<DashboardProps> = ({
         {[
           { id: 'garage', label: 'My Digital Garage', count: vehicles.length, icon: Car },
           { id: 'stocks', label: 'TSLA Stocks & Fast ROI', icon: Activity, badge: `$${tslaQuote.price.toFixed(1)}` },
-          { id: 'investments', label: 'Fleet Investments & ROI', count: userInvestments.filter(i => !i.userId || i.userId === currentUser.id).length, icon: TrendingUp, badge: 'ROI' },
+          { id: 'investments', label: 'Fleet Investments & ROI', count: userInvestments.filter(i => !i.userId || i.userId === displayUser.id).length, icon: TrendingUp, badge: 'ROI' },
           { id: 'notifications', label: 'Notifications', count: unreadNotificationsCount > 0 ? unreadNotificationsCount : undefined, icon: BellRing, badge: unreadNotificationsCount > 0 ? `${unreadNotificationsCount} NEW` : undefined },
           { id: 'services', label: 'Active Repairs', count: activeBookings.length, icon: Wrench },
           { id: 'history', label: 'Past Service History', count: pastBookings.length, icon: History },
           { id: 'wallet', label: 'Transaction Summary & Vault', count: transactions.length, icon: Wallet },
           { id: 'kyc', label: 'KYC & Limits', icon: BadgeCheck, badge: kycStatus === 'verified' ? 'TIER 2' : kycStatus === 'in_review' ? 'REVIEW' : 'VERIFY' },
-          { id: 'referrals', label: 'Invite & Earn', count: currentUser.referralCount || 0, icon: Users, badge: '+$100' },
+          { id: 'referrals', label: 'Invite & Earn', count: displayUser.referralCount || 0, icon: Users, badge: '+$100' },
           { id: 'security', label: 'Security & Sessions', icon: Shield },
         ].map((tab) => {
           const active = activeTab === tab.id;
@@ -1106,11 +1175,11 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 </div>
                 <div className="p-3 rounded-xl bg-zinc-950/70 border border-zinc-800">
                   <span className="text-[10px] text-zinc-500 block">VERIFIED ID TYPE</span>
-                  <span className="text-white font-bold capitalize">{currentUser.kycData?.idType?.replace('_', ' ') || 'Government Passport'}</span>
+                  <span className="text-white font-bold capitalize">{displayUser.kycData?.idType?.replace('_', ' ') || 'Government Passport'}</span>
                 </div>
                 <div className="p-3 rounded-xl bg-zinc-950/70 border border-zinc-800">
                   <span className="text-[10px] text-zinc-500 block">CERTIFIED ON</span>
-                  <span className="text-white font-bold">{currentUser.kycData?.verifiedAt || 'Active'}</span>
+                  <span className="text-white font-bold">{displayUser.kycData?.verifiedAt || 'Active'}</span>
                 </div>
               </div>
             </div>
@@ -1122,10 +1191,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
               <div className="space-y-1 text-xs">
                 <h4 className="font-heading font-bold text-sm text-white">Verification Documents Under Compliance Review</h4>
                 <p className="text-zinc-300 leading-relaxed">
-                  Our compliance desk is currently reviewing your submitted {currentUser.kycData?.idType || 'government ID'}. Typical processing window is 15 to 45 minutes during operational hours.
+                  Our compliance desk is currently reviewing your submitted {displayUser.kycData?.idType || 'government ID'}. Typical processing window is 15 to 45 minutes during operational hours.
                 </p>
                 <div className="text-[10px] font-mono text-zinc-400 pt-1">
-                  Submitted: {currentUser.kycData?.submittedAt || 'Today'} • Tracking ID: KYC-TSLA-{currentUser.id.slice(-4)}
+                  Submitted: {displayUser.kycData?.submittedAt || 'Today'} • Tracking ID: KYC-TSLA-{displayUser.id.slice(-4)}
                 </div>
               </div>
             </div>
@@ -1269,7 +1338,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 <div>
                   <h4 className="font-heading font-bold text-base text-white">Current Active Session</h4>
                   <p className="text-xs text-zinc-400">
-                    Device: {currentUser.activeSession?.device || 'Chrome on macOS (Current Device)'} • IP: {currentUser.activeSession?.ip || '192.168.1.104'}
+                    Device: {displayUser.activeSession?.device || 'Browser Preview Session'} • IP: {displayUser.activeSession?.ip || '192.168.1.104'}
                   </p>
                 </div>
               </div>
@@ -1277,10 +1346,17 @@ export const Dashboard: React.FC<DashboardProps> = ({
               <div className="flex items-center gap-2">
                 <span className="px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 text-[10px] font-mono font-bold flex items-center gap-1">
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                  LIVE ACTIVE
+                  {isGuestView ? 'GUEST PREVIEW' : 'LIVE ACTIVE'}
                 </span>
                 <button
-                  onClick={terminateOtherSessions}
+                  onClick={() => {
+                    if (!currentUser) {
+                      showToast('Sign in to manage and terminate active sessions.', 'info');
+                      onOpenAuth();
+                    } else {
+                      terminateOtherSessions();
+                    }
+                  }}
                   className="px-3.5 py-1.5 rounded-xl bg-red-600/20 hover:bg-red-600/40 text-red-400 border border-red-500/30 text-xs font-semibold transition cursor-pointer"
                 >
                   Terminate Other Sessions
@@ -1357,18 +1433,25 @@ export const Dashboard: React.FC<DashboardProps> = ({
               </div>
 
               <div className="flex items-center justify-between pt-2">
-                <span className={`text-xs font-bold ${currentUser.twoFactorEnabled ? 'text-emerald-400' : 'text-zinc-500'}`}>
-                  Status: {currentUser.twoFactorEnabled ? 'ENABLED' : 'DISABLED'}
+                <span className={`text-xs font-bold ${displayUser.twoFactorEnabled ? 'text-emerald-400' : 'text-zinc-500'}`}>
+                  Status: {displayUser.twoFactorEnabled ? 'ENABLED' : 'DISABLED'}
                 </span>
                 <button
-                  onClick={toggle2FA}
+                  onClick={() => {
+                    if (!currentUser) {
+                      showToast('Sign in to configure Two-Factor Authentication.', 'info');
+                      onOpenAuth();
+                    } else {
+                      toggle2FA();
+                    }
+                  }}
                   className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
-                    currentUser.twoFactorEnabled
+                    displayUser.twoFactorEnabled
                       ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-200'
                       : 'bg-emerald-600 hover:bg-emerald-500 text-white'
                   }`}
                 >
-                  {currentUser.twoFactorEnabled ? 'Disable 2FA' : 'Enable 2FA Protection'}
+                  {displayUser.twoFactorEnabled ? 'Disable 2FA' : 'Enable 2FA Protection'}
                 </button>
               </div>
             </div>
@@ -1385,13 +1468,13 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
               <div className="flex items-center justify-between pt-2">
                 <span className="text-xs font-bold text-zinc-300">
-                  {currentUser.pinSet ? 'PIN Set (••••)' : 'No PIN Configured'}
+                  {displayUser.pinSet ? 'PIN Set (••••)' : 'No PIN Configured'}
                 </span>
                 <button
                   onClick={() => setShowPinModal(true)}
                   className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold transition cursor-pointer"
                 >
-                  {currentUser.pinSet ? 'Update PIN' : 'Set Security PIN'}
+                  {displayUser.pinSet ? 'Update PIN' : 'Set Security PIN'}
                 </button>
               </div>
             </div>

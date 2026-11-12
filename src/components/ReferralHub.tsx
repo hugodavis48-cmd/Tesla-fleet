@@ -43,25 +43,13 @@ export const ReferralHub: React.FC<ReferralHubProps> = ({ onOpenDeposit, onOpenA
   const [simDepositAmount, setSimDepositAmount] = useState<number>(500);
   const [isSimulating, setIsSimulating] = useState(false);
 
-  if (!currentUser) {
-    return (
-      <div className="py-20 px-4 text-center max-w-lg mx-auto space-y-4">
-        <div className="w-16 h-16 rounded-3xl bg-red-600/20 text-red-500 border border-red-500/30 flex items-center justify-center mx-auto">
-          <Users className="w-8 h-8" />
-        </div>
-        <h2 className="font-heading font-black text-3xl text-white">REFERRAL REWARDS PROGRAM</h2>
-        <p className="text-zinc-400 text-sm">
-          Sign in or create an account to generate your unique invite link and earn $100 platform credits whenever friends make their first deposit.
-        </p>
-        <button
-          onClick={onOpenAuth}
-          className="px-6 py-3.5 rounded-2xl bg-red-600 hover:bg-red-500 text-white font-bold text-sm shadow-xl shadow-red-950/50 transition"
-        >
-          Sign In to Access Referral Link
-        </button>
-      </div>
-    );
-  }
+  const isGuestView = !currentUser;
+  const displayUser = currentUser || {
+    referralCode: 'APEX-ALEX-99',
+    referralEarningsUsd: 0,
+    referralCount: 0,
+    referredUsers: [],
+  };
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(referralLink);
@@ -71,19 +59,29 @@ export const ReferralHub: React.FC<ReferralHubProps> = ({ onOpenDeposit, onOpenA
   };
 
   const handleCopyCode = () => {
-    navigator.clipboard.writeText(currentUser.referralCode || 'APEX-ALEX-99');
+    navigator.clipboard.writeText(displayUser.referralCode || 'APEX-ALEX-99');
     setCopiedCode(true);
     showToast('Referral code copied!');
     setTimeout(() => setCopiedCode(false), 2500);
   };
 
   const handleSaveCustomCode = () => {
+    if (!currentUser) {
+      showToast('Please sign in to customize your personal referral code.', 'info');
+      onOpenAuth?.();
+      return;
+    }
     if (updateReferralCode(customCodeInput)) {
       setIsEditingCode(false);
     }
   };
 
   const handleRunSimulation = () => {
+    if (!currentUser) {
+      showToast('Sign in to credit live referral bonuses to your personal vault.', 'info');
+      onOpenAuth?.();
+      return;
+    }
     setIsSimulating(true);
     setTimeout(() => {
       simulateFriendReferral(simFriendName, simDepositAmount);
@@ -93,18 +91,32 @@ export const ReferralHub: React.FC<ReferralHubProps> = ({ onOpenDeposit, onOpenA
 
   // Social share URLs
   const shareText = encodeURIComponent(
-    `Join me on Apex Tesla Hub for certified maintenance, bespoke body wraps, rentals & fleet yield! Use my invite code ${currentUser.referralCode} for $25 welcome credit + 5 free spins: `
+    `Join me on Apex Tesla Hub for certified maintenance, bespoke body wraps, rentals & fleet yield! Use my invite code ${displayUser.referralCode} for $25 welcome credit + 5 free spins: `
   );
   const twitterShareUrl = `https://twitter.com/intent/tweet?text=${shareText}&url=${encodeURIComponent(referralLink)}`;
   const telegramShareUrl = `https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${shareText}`;
   const whatsappShareUrl = `https://api.whatsapp.com/send?text=${shareText}%20${encodeURIComponent(referralLink)}`;
 
-  const totalEarnings = currentUser.referralEarningsUsd || 0;
-  const totalInvited = currentUser.referredUsers?.length || 0;
-  const completedDeposits = currentUser.referredUsers?.filter((u) => u.status === 'deposit_completed').length || 0;
+  const totalEarnings = displayUser.referralEarningsUsd || 0;
+  const totalInvited = displayUser.referredUsers?.length || 0;
+  const completedDeposits = displayUser.referredUsers?.filter((u) => u.status === 'deposit_completed').length || 0;
 
   return (
     <div id="referrals" className="py-12 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto space-y-12">
+      {isGuestView && onOpenAuth && (
+        <div className="p-4 rounded-2xl bg-zinc-950 border border-emerald-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <p className="text-xs text-zinc-300">
+            Viewing the Referral Rewards Program in Guest Mode. Sign in to generate and track your personal referral payouts.
+          </p>
+          <button
+            type="button"
+            onClick={onOpenAuth}
+            className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shrink-0 cursor-pointer"
+          >
+            Sign In to Claim Link
+          </button>
+        </div>
+      )}
       {/* Program Header */}
       <div className="text-center max-w-3xl mx-auto space-y-3">
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-600/10 border border-emerald-500/30 text-emerald-400 text-xs font-semibold uppercase tracking-wider">
@@ -201,7 +213,7 @@ export const ReferralHub: React.FC<ReferralHubProps> = ({ onOpenDeposit, onOpenA
                   <div>
                     <span className="text-xs font-bold text-white block">Promotional Ad Banners (All Sizes)</span>
                     <span className="text-[11px] text-zinc-400">
-                      Get 728×90, 300×300, 300×250 & 160×600 banners pre-loaded with your code {currentUser.referralCode}
+                      Get 728×90, 300×300, 300×250 & 160×600 banners pre-loaded with your code {displayUser.referralCode}
                     </span>
                   </div>
                 </div>
@@ -251,7 +263,7 @@ export const ReferralHub: React.FC<ReferralHubProps> = ({ onOpenDeposit, onOpenA
                 ) : (
                   <div className="flex items-center justify-between">
                     <span className="font-mono font-black text-xl text-yellow-400 tracking-wider">
-                      {currentUser.referralCode || 'APEX-ALEX-99'}
+                      {displayUser.referralCode || 'APEX-ALEX-99'}
                     </span>
                     <button
                       onClick={handleCopyCode}
@@ -362,7 +374,7 @@ export const ReferralHub: React.FC<ReferralHubProps> = ({ onOpenDeposit, onOpenA
               <rect x="80" y="80" width="6" height="6" fill="black" />
             </svg>
             <span className="text-[10px] font-mono font-bold text-black mt-2 tracking-wider">
-              {currentUser.referralCode || 'APEX-ALEX-99'}
+              {displayUser.referralCode || 'APEX-ALEX-99'}
             </span>
           </div>
 
@@ -472,11 +484,11 @@ export const ReferralHub: React.FC<ReferralHubProps> = ({ onOpenDeposit, onOpenA
             <p className="text-xs text-zinc-400">Real-time status tracking for all invited Tesla community members</p>
           </div>
           <span className="text-xs font-mono text-emerald-400 font-bold">
-            {currentUser.referredUsers?.length || 0} Total Invites
+            {displayUser.referredUsers?.length || 0} Total Invites
           </span>
         </div>
 
-        {(!currentUser.referredUsers || currentUser.referredUsers.length === 0) ? (
+        {(!displayUser.referredUsers || displayUser.referredUsers.length === 0) ? (
           <div className="text-center py-12 space-y-2">
             <Users className="w-12 h-12 text-zinc-600 mx-auto" />
             <p className="text-zinc-300 font-bold text-sm">No referred friends yet.</p>
@@ -484,7 +496,7 @@ export const ReferralHub: React.FC<ReferralHubProps> = ({ onOpenDeposit, onOpenA
           </div>
         ) : (
           <div className="divide-y divide-zinc-800/80">
-            {currentUser.referredUsers.map((friend) => (
+            {displayUser.referredUsers.map((friend) => (
               <div
                 key={friend.id}
                 className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs"

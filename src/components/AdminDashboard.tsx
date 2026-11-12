@@ -63,6 +63,10 @@ import {
   Gift,
   RotateCcw,
   Navigation,
+  UserPlus,
+  KeyRound,
+  LogOut,
+  ShieldAlert,
 } from 'lucide-react';
 import {
   SmtpConfig,
@@ -95,6 +99,7 @@ import {
   ProductItem,
   ScratchCardTier,
   SiteSettings,
+  AdminPrivilege,
 } from '../types';
 
 const PREBUILT_TEMPLATES: EmailTemplate[] = [
@@ -207,6 +212,7 @@ Stay optimal all season long with Apex Tesla Hub.`,
 
 type AdminTab =
   | 'users_kyc'
+  | 'admins_mgmt'
   | 'investment_mgmt'
   | 'withdrawals_mgmt'
   | 'stocks_mgmt'
@@ -219,6 +225,97 @@ type AdminTab =
   | 'site_editor'
   | 'email_marketing'
   | 'fleet_ops';
+
+const ADMIN_PRIVILEGE_CATALOG: {
+  id: AdminPrivilege;
+  label: string;
+  description: string;
+  color: string;
+}[] = [
+  {
+    id: 'super_admin',
+    label: 'Super-Admin (Full Access)',
+    description: 'Unrestricted access to all modules, feature switches & security policies',
+    color: 'amber',
+  },
+  {
+    id: 'manage_admins',
+    label: 'Admin Team & Privileges',
+    description: 'Create new administrators, edit assigned permissions & revoke access',
+    color: 'rose',
+  },
+  {
+    id: 'manage_users',
+    label: 'Users, Profiles & KYC',
+    description: 'Review user KYC, adjust vault balances, suspend/flag accounts',
+    color: 'cyan',
+  },
+  {
+    id: 'manage_investments',
+    label: 'Investments, Stocks & Cron',
+    description: 'Manage staking pools, TSLA stock plans, ROI cron & early maturity',
+    color: 'emerald',
+  },
+  {
+    id: 'manage_withdrawals',
+    label: 'Withdrawals & Gateways',
+    description: 'Approve user crypto/wire payouts, $200 rule & Web3 RPC gateways',
+    color: 'indigo',
+  },
+  {
+    id: 'manage_cars_store',
+    label: 'Car Sales, Shipping & Orders',
+    description: 'Manage Tesla vehicle inventory, MSRP, shipping rates & vehicle orders',
+    color: 'blue',
+  },
+  {
+    id: 'manage_site_cms',
+    label: 'Site CMS, Pages & Menus',
+    description: 'Edit site settings, custom pages, nav menus, products & manual deposit methods',
+    color: 'purple',
+  },
+  {
+    id: 'manage_marketing',
+    label: 'Promos, Spins, Mail & Alerts',
+    description: 'Manage spin wheel rewards, AI promo banners, SMTP mailer & user notifications',
+    color: 'orange',
+  },
+  {
+    id: 'manage_fleet_ops',
+    label: 'Fleet Bays & Ops AI Copilot',
+    description: 'Oversee service bays, Mobile Ranger dispatch & Gemini Ops Copilot',
+    color: 'teal',
+  },
+];
+
+const ADMIN_ROLE_PRESETS: { label: string; privileges: AdminPrivilege[] }[] = [
+  {
+    label: 'Super Admin',
+    privileges: [
+      'super_admin',
+      'manage_admins',
+      'manage_users',
+      'manage_investments',
+      'manage_cars_store',
+      'manage_withdrawals',
+      'manage_site_cms',
+      'manage_marketing',
+      'manage_fleet_ops',
+    ],
+  },
+  {
+    label: 'Site CMS & Inventory Manager',
+    privileges: ['manage_site_cms', 'manage_cars_store', 'manage_marketing'],
+  },
+  {
+    label: 'Finance & Withdrawals Officer',
+    privileges: ['manage_withdrawals', 'manage_investments', 'manage_users'],
+  },
+  {
+    label: 'Customer Support & KYC Lead',
+    privileges: ['manage_users', 'manage_fleet_ops', 'manage_marketing'],
+  },
+];
 
 export const AdminDashboard: React.FC = () => {
   const {
@@ -334,9 +431,43 @@ export const AdminDashboard: React.FC = () => {
     createMarketingBanner,
     updateMarketingBanner,
     deleteMarketingBanner,
+    // Admin RBAC & Session Controls
+    adminsList,
+    fetchAdmins,
+    createAdminAccount,
+    updateAdminPrivileges,
+    deleteAdminAccount,
+    hasAdminPrivilege,
+    logout,
   } = useApp();
 
   const [activeAdminTab, setActiveAdminTab] = useState<AdminTab>('users_kyc');
+
+  // Admin Team & Privileges State
+  const [newAdminForm, setNewAdminForm] = useState<{
+    name: string;
+    email: string;
+    password: string;
+    adminRoleLabel: string;
+    location: string;
+    phone: string;
+    adminPrivileges: AdminPrivilege[];
+  }>({
+    name: '',
+    email: '',
+    password: '',
+    adminRoleLabel: 'Site CMS & Inventory Manager',
+    location: 'Austin Gigafactory Hub',
+    phone: '',
+    adminPrivileges: ['manage_site_cms', 'manage_cars_store'],
+  });
+  const [showNewAdminPassword, setShowNewAdminPassword] = useState(false);
+  const [isCreatingAdmin, setIsCreatingAdmin] = useState(false);
+  const [adminCreateError, setAdminCreateError] = useState<string | null>(null);
+  const [editingAdminTarget, setEditingAdminTarget] = useState<User | null>(null);
+  const [editingAdminRoleLabel, setEditingAdminRoleLabel] = useState('');
+  const [editingAdminPrivileges, setEditingAdminPrivileges] = useState<AdminPrivilege[]>([]);
+  const [isSavingAdminPrivs, setIsSavingAdminPrivs] = useState(false);
   const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
   const categoryDropdownRef = useRef<HTMLDivElement>(null);
 
@@ -680,9 +811,18 @@ export const AdminDashboard: React.FC = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const ADMIN_CATEGORIES = [
+  const ALL_ADMIN_CATEGORIES: {
+    id: AdminTab;
+    requiredPrivilege: AdminPrivilege;
+    label: string;
+    shortLabel: string;
+    description: string;
+    icon: React.ComponentType<{ className?: string }>;
+    badge?: string;
+  }[] = [
     {
-      id: 'users_kyc' as const,
+      id: 'users_kyc',
+      requiredPrivilege: 'manage_users',
       label: 'All Users & KYC Management',
       shortLabel: 'Users & Profiles',
       description: 'Audit user profiles, online telemetry, last visits & individual actions',
@@ -690,7 +830,17 @@ export const AdminDashboard: React.FC = () => {
       badge: `${allUsers.length} Users`,
     },
     {
-      id: 'investment_mgmt' as const,
+      id: 'admins_mgmt',
+      requiredPrivilege: 'manage_admins',
+      label: 'Admin Accounts & Privileges (RBAC)',
+      shortLabel: 'Admin Roles',
+      description: 'Create new administrators, assign role privileges & manage executive access',
+      icon: Shield,
+      badge: `${adminsList.length || 1} Admins`,
+    },
+    {
+      id: 'investment_mgmt',
+      requiredPrivilege: 'manage_investments',
       label: 'Investments & Automated ROI Cron',
       shortLabel: 'Fleet Investments',
       description: 'Manage user stakes, APY yields, maturity payouts & Cron scheduler',
@@ -698,7 +848,8 @@ export const AdminDashboard: React.FC = () => {
       badge: `${allInvestments.length} Active`,
     },
     {
-      id: 'notifications_hub' as const,
+      id: 'notifications_hub',
+      requiredPrivilege: 'manage_marketing',
       label: 'Notification Message Dashboard',
       shortLabel: 'Notifications',
       description: 'Send custom broadcast or individual user inbox notifications & alerts',
@@ -706,7 +857,8 @@ export const AdminDashboard: React.FC = () => {
       badge: `${adminNotifications.length} Sent`,
     },
     {
-      id: 'car_sales' as const,
+      id: 'car_sales',
+      requiredPrivilege: 'manage_cars_store',
       label: 'Tesla Car Sales, Shipping & Refunds',
       shortLabel: 'Car Sales & Logistics',
       description: 'Vehicle inventory, MSRP, nationwide shipping flat-rates & 7-day money-back guarantee',
@@ -714,7 +866,8 @@ export const AdminDashboard: React.FC = () => {
       badge: `${teslaCarListings.length} Vehicles`,
     },
     {
-      id: 'site_editor' as const,
+      id: 'site_editor',
+      requiredPrivilege: 'manage_site_cms',
       label: 'Site CMS, Gateways & Menus',
       shortLabel: 'Site CMS & Gateways',
       description: 'Create & delete pages, manual deposit gateways, social URLs & catalog',
@@ -722,7 +875,8 @@ export const AdminDashboard: React.FC = () => {
       badge: `${sitePages.length} Pages`,
     },
     {
-      id: 'email_marketing' as const,
+      id: 'email_marketing',
+      requiredPrivilege: 'manage_marketing',
       label: 'Email Marketing & SMTP Mailer',
       shortLabel: 'Email & SMTP',
       description: 'Configure SMTP relays, test delivery with diagnostics & send campaigns',
@@ -730,7 +884,8 @@ export const AdminDashboard: React.FC = () => {
       badge: 'PHP/SMTP',
     },
     {
-      id: 'withdrawals_mgmt' as const,
+      id: 'withdrawals_mgmt',
+      requiredPrivilege: 'manage_withdrawals',
       label: 'User Withdrawals & $200 Deposit Rule',
       shortLabel: 'Withdrawals & AML',
       description: 'Review pending payouts, approve on-chain tx hashes & configure minimum $200 deposit policy',
@@ -738,7 +893,8 @@ export const AdminDashboard: React.FC = () => {
       badge: `${withdrawalRequests.filter((r) => r.status === 'pending').length} Pending`,
     },
     {
-      id: 'stocks_mgmt' as const,
+      id: 'stocks_mgmt',
+      requiredPrivilege: 'manage_investments',
       label: 'Tesla Live Stocks & Fast ROI CMS',
       shortLabel: 'Tesla Stocks & Fast ROI',
       description: 'Manage TSLA live quote, base prices, spot trading & high-yield accelerated stock plans',
@@ -746,7 +902,8 @@ export const AdminDashboard: React.FC = () => {
       badge: `${featuredStockPlans.length} Plans`,
     },
     {
-      id: 'auto_gateways' as const,
+      id: 'auto_gateways',
+      requiredPrivilege: 'manage_withdrawals',
       label: 'Auto Crypto Gateways & Web3 RPC Nodes',
       shortLabel: 'Auto Crypto Gateways',
       description: 'Configure automated blockchain receiving addresses, RPC nodes, webhook secrets, confirmations & latency ping',
@@ -754,7 +911,8 @@ export const AdminDashboard: React.FC = () => {
       badge: `${autoCryptoGateways.filter((g) => g.status === 'active').length} Active`,
     },
     {
-      id: 'spins_cms' as const,
+      id: 'spins_cms',
+      requiredPrivilege: 'manage_marketing',
       label: 'Spins Rewards & Spin Cost CMS',
       shortLabel: 'Spins & Rewards',
       description: 'Set execution spin cost ($USD/credits), customize wheel prizes, colors and probability weights',
@@ -762,7 +920,8 @@ export const AdminDashboard: React.FC = () => {
       badge: `$${spinCostUsd} / Spin`,
     },
     {
-      id: 'promo_banners' as const,
+      id: 'promo_banners',
+      requiredPrivilege: 'manage_marketing',
       label: 'Promotional Banners & Gemini AI Studio',
       shortLabel: 'Promo Banners AI',
       description: 'Auto-generate Leaderboard, Square, Rectangle & Sidebar referral banners with Gemini AI',
@@ -770,7 +929,8 @@ export const AdminDashboard: React.FC = () => {
       badge: `${marketingBanners.length} Banners`,
     },
     {
-      id: 'feature_switches' as const,
+      id: 'feature_switches',
+      requiredPrivilege: 'super_admin',
       label: 'Platform Feature Switches & Toggles',
       shortLabel: 'Feature Toggles',
       description: 'Master on/off toggles for stocks, withdrawals, spins, scratch cards & vehicle sales',
@@ -778,7 +938,8 @@ export const AdminDashboard: React.FC = () => {
       badge: 'Live Switches',
     },
     {
-      id: 'fleet_ops' as const,
+      id: 'fleet_ops',
+      requiredPrivilege: 'manage_fleet_ops',
       label: 'Fleet Bays & Gemini Ops AI',
       shortLabel: 'Fleet & Ops AI',
       description: 'Service bay tickets, Mobile Ranger dispatch & AI intelligence copilot',
@@ -787,7 +948,17 @@ export const AdminDashboard: React.FC = () => {
     },
   ];
 
-  const currentCategory = ADMIN_CATEGORIES.find((cat) => cat.id === activeAdminTab) || ADMIN_CATEGORIES[0];
+  const ADMIN_CATEGORIES = ALL_ADMIN_CATEGORIES.filter((cat) =>
+    hasAdminPrivilege(cat.requiredPrivilege)
+  );
+
+  useEffect(() => {
+    if (ADMIN_CATEGORIES.length > 0 && !ADMIN_CATEGORIES.some((c) => c.id === activeAdminTab)) {
+      setActiveAdminTab(ADMIN_CATEGORIES[0].id);
+    }
+  }, [currentUser?.id, currentUser?.adminPrivileges, activeAdminTab]);
+
+  const currentCategory = ADMIN_CATEGORIES.find((cat) => cat.id === activeAdminTab) || ADMIN_CATEGORIES[0] || ALL_ADMIN_CATEGORIES[0];
   const ActiveCategoryIcon = currentCategory.icon;
 
   const handleUpdateStatus = (id: string, newStatus: string) => {
@@ -1016,16 +1187,16 @@ export const AdminDashboard: React.FC = () => {
                 EXECUTIVE OPERATIONS SUITE
               </h2>
               <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[9px] sm:text-[10px] font-mono uppercase font-bold shrink-0">
-                Super-Admin
+                {currentUser?.adminRoleLabel || 'Administrator'}
               </span>
             </div>
             <p className="text-[11px] sm:text-xs text-zinc-400 mt-0.5 line-clamp-1 sm:line-clamp-none">
-              All Users & KYC • SMTP Relay & Test Diagnostics • Site Editor • Gemini AI Copilot
+              Signed in as <span className="text-zinc-200 font-semibold">{currentUser?.email}</span> • {currentUser?.adminPrivileges?.length || 0} Privilege Scopes Granted
             </p>
           </div>
         </div>
 
-        {/* Live Metrics Quick View - Wrap friendly for mobile */}
+        {/* Live Metrics Quick View & Admin Sign Out - Wrap friendly for mobile */}
         <div className="flex flex-wrap items-center gap-2 text-[11px] sm:text-xs font-mono">
           <span className="px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-xl bg-zinc-900 border border-zinc-800 text-emerald-400 flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
@@ -1034,9 +1205,15 @@ export const AdminDashboard: React.FC = () => {
           <span className="px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-xl bg-zinc-900 border border-zinc-800 text-cyan-400">
             {importedEmails.length} Email Leads
           </span>
-          <span className="px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-xl bg-zinc-900 border border-zinc-800 text-amber-400">
-            {localSmtp.host}:{localSmtp.port}
-          </span>
+          <button
+            type="button"
+            onClick={logout}
+            className="px-3 py-1.5 rounded-xl bg-rose-950/50 hover:bg-rose-900/60 border border-rose-500/40 text-rose-300 font-bold flex items-center gap-1.5 transition cursor-pointer"
+            title="Lock /admin gateway and sign out"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Sign Out Admin</span>
+          </button>
         </div>
       </div>
 
@@ -7373,6 +7550,500 @@ export const AdminDashboard: React.FC = () => {
                   >
                     Publish Banner
                   </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB: ADMIN ACCOUNTS & ROLE PRIVILEGES (RBAC) */}
+      {activeAdminTab === 'admins_mgmt' && hasAdminPrivilege('manage_admins') && (
+        <div className="space-y-6 animate-in fade-in">
+          {/* Summary Stats */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="p-5 rounded-2xl bg-zinc-950 border border-amber-500/30 space-y-1">
+              <p className="text-[11px] font-mono uppercase text-zinc-400">Authorized Administrators</p>
+              <p className="font-heading font-black text-2xl text-white">{adminsList.length || 1}</p>
+              <p className="text-[11px] text-amber-400">Restricted to /admin portal authentication</p>
+            </div>
+            <div className="p-5 rounded-2xl bg-zinc-950 border border-zinc-800 space-y-1">
+              <p className="text-[11px] font-mono uppercase text-zinc-400">Super-Admin Accounts</p>
+              <p className="font-heading font-black text-2xl text-emerald-400">
+                {adminsList.filter((a) => a.adminPrivileges?.includes('super_admin')).length || 1}
+              </p>
+              <p className="text-[11px] text-zinc-400">Unrestricted system-wide control</p>
+            </div>
+            <div className="p-5 rounded-2xl bg-zinc-950 border border-zinc-800 space-y-1">
+              <p className="text-[11px] font-mono uppercase text-zinc-400">Delegated Role Admins</p>
+              <p className="font-heading font-black text-2xl text-cyan-400">
+                {adminsList.filter((a) => !a.adminPrivileges?.includes('super_admin')).length}
+              </p>
+              <p className="text-[11px] text-zinc-400">Scoped strictly to assigned privileges</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            {/* Create New Admin Form */}
+            <div className="lg:col-span-5 p-6 rounded-3xl bg-zinc-950 border border-amber-500/30 space-y-4">
+              <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-500/40 flex items-center justify-center text-amber-400">
+                    <UserPlus className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="font-heading font-bold text-base text-white">Create New Admin</h3>
+                    <p className="text-[11px] text-zinc-400">Provision an administrator & assign permissions</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={fetchAdmins}
+                  className="p-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white cursor-pointer"
+                  title="Refresh admin roster"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              {adminCreateError && (
+                <div className="p-3 rounded-xl bg-rose-950/60 border border-rose-500/40 text-xs text-rose-200 flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                  <span>{adminCreateError}</span>
+                </div>
+              )}
+
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  setAdminCreateError(null);
+                  if (!newAdminForm.name.trim() || !newAdminForm.email.trim()) {
+                    setAdminCreateError('Admin full name and email are required.');
+                    return;
+                  }
+                  if (newAdminForm.password.length < 8) {
+                    setAdminCreateError('Password must be at least 8 characters.');
+                    return;
+                  }
+                  if (newAdminForm.adminPrivileges.length === 0) {
+                    setAdminCreateError('Select at least one privilege scope.');
+                    return;
+                  }
+                  setIsCreatingAdmin(true);
+                  const res = await createAdminAccount(newAdminForm);
+                  setIsCreatingAdmin(false);
+                  if (!res.success) {
+                    setAdminCreateError(res.error || 'Failed to create admin account.');
+                  } else {
+                    setNewAdminForm({
+                      name: '',
+                      email: '',
+                      password: '',
+                      adminRoleLabel: 'Site CMS & Inventory Manager',
+                      location: 'Austin Gigafactory Hub',
+                      phone: '',
+                      adminPrivileges: ['manage_site_cms', 'manage_cars_store'],
+                    });
+                  }
+                }}
+                className="space-y-3.5 text-xs"
+              >
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-zinc-400 block mb-1">Full Name</label>
+                    <input
+                      type="text"
+                      required
+                      value={newAdminForm.name}
+                      onChange={(e) => setNewAdminForm({ ...newAdminForm, name: e.target.value })}
+                      placeholder="e.g. Elena Rostova"
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-zinc-400 block mb-1">Role Title</label>
+                    <input
+                      type="text"
+                      required
+                      value={newAdminForm.adminRoleLabel}
+                      onChange={(e) => setNewAdminForm({ ...newAdminForm, adminRoleLabel: e.target.value })}
+                      placeholder="e.g. Finance Officer"
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-zinc-400 block mb-1">Admin Login Email</label>
+                  <input
+                    type="email"
+                    required
+                    value={newAdminForm.email}
+                    onChange={(e) => setNewAdminForm({ ...newAdminForm, email: e.target.value })}
+                    placeholder="elena.finance@apex-tesla.io"
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono"
+                  />
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-zinc-400">Password (min 8 chars)</label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const rand = `ApexAdm!${Math.floor(1000 + Math.random() * 9000)}`;
+                        setNewAdminForm({ ...newAdminForm, password: rand });
+                        setShowNewAdminPassword(true);
+                      }}
+                      className="text-[10px] text-amber-400 hover:underline font-semibold cursor-pointer"
+                    >
+                      Generate Strong Password
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type={showNewAdminPassword ? 'text' : 'password'}
+                      required
+                      minLength={8}
+                      value={newAdminForm.password}
+                      onChange={(e) => setNewAdminForm({ ...newAdminForm, password: e.target.value })}
+                      placeholder="Minimum 8 characters"
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-xl pl-3 pr-9 py-2 text-white font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewAdminPassword(!showNewAdminPassword)}
+                      className="absolute right-2.5 top-2 text-zinc-400 hover:text-white cursor-pointer"
+                    >
+                      {showNewAdminPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-zinc-400 block mb-1">Hub Location</label>
+                    <input
+                      type="text"
+                      value={newAdminForm.location}
+                      onChange={(e) => setNewAdminForm({ ...newAdminForm, location: e.target.value })}
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-zinc-400 block mb-1">Phone (Optional)</label>
+                    <input
+                      type="text"
+                      value={newAdminForm.phone}
+                      onChange={(e) => setNewAdminForm({ ...newAdminForm, phone: e.target.value })}
+                      placeholder="+1 (555) ..."
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white"
+                    />
+                  </div>
+                </div>
+
+                {/* Role Presets */}
+                <div className="pt-1">
+                  <label className="text-zinc-400 block mb-1.5 font-semibold">Quick Role Presets</label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {ADMIN_ROLE_PRESETS.map((preset) => (
+                      <button
+                        key={preset.label}
+                        type="button"
+                        onClick={() =>
+                          setNewAdminForm({
+                            ...newAdminForm,
+                            adminRoleLabel: preset.label,
+                            adminPrivileges: [...preset.privileges],
+                          })
+                        }
+                        className="px-2.5 py-1 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-[10px] font-semibold text-zinc-200 cursor-pointer transition"
+                      >
+                        {preset.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Granular Privileges Checkboxes */}
+                <div className="pt-1 space-y-1.5">
+                  <label className="text-zinc-300 font-semibold block">
+                    Assign Privileges ({newAdminForm.adminPrivileges.length} selected)
+                  </label>
+                  <div className="max-h-60 overflow-y-auto space-y-1.5 pr-1">
+                    {ADMIN_PRIVILEGE_CATALOG.map((priv) => {
+                      const checked = newAdminForm.adminPrivileges.includes(priv.id);
+                      const canGrantSuper =
+                        priv.id !== 'super_admin' || currentUser?.adminPrivileges?.includes('super_admin');
+                      return (
+                        <label
+                          key={priv.id}
+                          className={`flex items-start gap-2.5 p-2.5 rounded-xl border transition ${
+                            !canGrantSuper
+                              ? 'opacity-45 cursor-not-allowed bg-zinc-900/40 border-zinc-800'
+                              : checked
+                              ? 'bg-amber-500/10 border-amber-500/40 cursor-pointer'
+                              : 'bg-zinc-900/70 border-zinc-800 hover:border-zinc-700 cursor-pointer'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            disabled={!canGrantSuper}
+                            checked={checked}
+                            onChange={() => {
+                              setNewAdminForm((prev) => {
+                                const exists = prev.adminPrivileges.includes(priv.id);
+                                return {
+                                  ...prev,
+                                  adminPrivileges: exists
+                                    ? prev.adminPrivileges.filter((p) => p !== priv.id)
+                                    : [...prev.adminPrivileges, priv.id],
+                                };
+                              });
+                            }}
+                            className="mt-0.5 rounded text-amber-500 focus:ring-0"
+                          />
+                          <div className="min-w-0">
+                            <span className="font-bold text-white block">{priv.label}</span>
+                            <span className="text-[10px] text-zinc-400 leading-snug block">
+                              {priv.description}
+                            </span>
+                          </div>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isCreatingAdmin}
+                  className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-black font-heading font-black text-xs shadow-lg flex items-center justify-center gap-2 transition disabled:opacity-50 cursor-pointer"
+                >
+                  {isCreatingAdmin ? (
+                    <span>Provisioning Admin Account...</span>
+                  ) : (
+                    <>
+                      <UserPlus className="w-4 h-4" />
+                      <span>Create Administrator & Assign Privileges</span>
+                    </>
+                  )}
+                </button>
+              </form>
+            </div>
+
+            {/* Active Admin Accounts Roster */}
+            <div className="lg:col-span-7 space-y-4">
+              <div className="p-6 rounded-3xl bg-zinc-950 border border-zinc-800 space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-800 pb-3">
+                  <div>
+                    <h3 className="font-heading font-bold text-base text-white">
+                      Authorized Administrators & Permissions Roster
+                    </h3>
+                    <p className="text-[11px] text-zinc-400">
+                      Only listed accounts can authenticate at <code className="text-amber-300">/admin</code>
+                    </p>
+                  </div>
+                  <span className="px-2.5 py-1 rounded-full bg-zinc-900 border border-zinc-700 text-[11px] font-mono text-amber-300">
+                    {adminsList.length} Active Accounts
+                  </span>
+                </div>
+
+                <div className="space-y-3">
+                  {adminsList.map((adm) => {
+                    const isRoot = adm.id === 'usr-apex-admin-01';
+                    const isSelf = adm.id === currentUser?.id;
+                    const privs = adm.adminPrivileges || [];
+                    return (
+                      <div
+                        key={adm.id}
+                        className={`p-4 rounded-2xl border space-y-3 ${
+                          isRoot
+                            ? 'bg-amber-950/15 border-amber-500/40'
+                            : 'bg-zinc-900/70 border-zinc-800'
+                        }`}
+                      >
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <img
+                              src={adm.avatar}
+                              alt={adm.name}
+                              className="w-11 h-11 rounded-xl object-cover border border-amber-500/40 shrink-0"
+                            />
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <span className="font-heading font-bold text-sm text-white truncate">
+                                  {adm.name}
+                                </span>
+                                {isRoot && (
+                                  <span className="px-2 py-0.5 rounded-full bg-amber-500 text-black text-[9px] font-mono font-black uppercase">
+                                    ROOT PROTECTED
+                                  </span>
+                                )}
+                                {isSelf && (
+                                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-[9px] font-mono font-bold uppercase">
+                                    YOU
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-xs font-mono text-zinc-400 truncate">{adm.email}</p>
+                              <p className="text-[11px] text-amber-300 font-semibold mt-0.5">
+                                {adm.adminRoleLabel || 'Administrator'} • {adm.location || 'HQ'}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingAdminTarget(adm);
+                                setEditingAdminRoleLabel(adm.adminRoleLabel || 'Administrator');
+                                setEditingAdminPrivileges([...(adm.adminPrivileges || [])]);
+                              }}
+                              className="px-3 py-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-200 text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                            >
+                              <KeyRound className="w-3.5 h-3.5 text-amber-400" />
+                              <span>Edit Privileges</span>
+                            </button>
+                            {!isRoot && !isSelf && (
+                              <button
+                                type="button"
+                                onClick={() => deleteAdminAccount(adm.id)}
+                                className="px-3 py-1.5 rounded-xl bg-rose-950/60 hover:bg-rose-900/70 border border-rose-500/40 text-rose-300 text-xs font-semibold flex items-center gap-1 cursor-pointer"
+                                title="Revoke admin and terminate sessions"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                <span>Revoke</span>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Granted Privilege Badges */}
+                        <div className="flex flex-wrap gap-1.5 pt-1 border-t border-zinc-800/80">
+                          {privs.map((p) => {
+                            const meta = ADMIN_PRIVILEGE_CATALOG.find((c) => c.id === p);
+                            return (
+                              <span
+                                key={p}
+                                className={`px-2 py-0.5 rounded-md text-[10px] font-mono border ${
+                                  p === 'super_admin'
+                                    ? 'bg-amber-500/20 border-amber-500/40 text-amber-300 font-bold'
+                                    : 'bg-zinc-950 border-zinc-700 text-zinc-300'
+                                }`}
+                              >
+                                {meta?.label || p}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Edit Admin Privileges Modal */}
+          {editingAdminTarget && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
+              <div className="relative w-full max-w-lg bg-zinc-950 border border-amber-500/40 rounded-3xl p-6 space-y-4 text-zinc-100 shadow-2xl max-h-[90vh] overflow-y-auto">
+                <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+                  <div>
+                    <h3 className="font-heading font-bold text-base text-white">
+                      Edit Privileges: {editingAdminTarget.name}
+                    </h3>
+                    <p className="text-[11px] font-mono text-zinc-400">{editingAdminTarget.email}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setEditingAdminTarget(null)}
+                    className="p-1 rounded-lg text-zinc-400 hover:text-white cursor-pointer"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <div className="space-y-3 text-xs">
+                  <div>
+                    <label className="text-zinc-400 block mb-1">Role Label</label>
+                    <input
+                      type="text"
+                      value={editingAdminRoleLabel}
+                      onChange={(e) => setEditingAdminRoleLabel(e.target.value)}
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-zinc-300 font-semibold block">Granted Privileges</label>
+                    {ADMIN_PRIVILEGE_CATALOG.map((priv) => {
+                      const isChecked = editingAdminPrivileges.includes(priv.id);
+                      const isLockedRoot =
+                        editingAdminTarget.id === 'usr-apex-admin-01' &&
+                        (priv.id === 'super_admin' || priv.id === 'manage_admins');
+                      return (
+                        <label
+                          key={priv.id}
+                          className={`flex items-start gap-2.5 p-2.5 rounded-xl border transition ${
+                            isLockedRoot
+                              ? 'opacity-65 cursor-not-allowed bg-amber-950/20 border-amber-500/30'
+                              : isChecked
+                              ? 'bg-amber-500/10 border-amber-500/40 cursor-pointer'
+                              : 'bg-zinc-900/70 border-zinc-800 hover:border-zinc-700 cursor-pointer'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            disabled={isLockedRoot}
+                            checked={isChecked}
+                            onChange={() => {
+                              setEditingAdminPrivileges((prev) =>
+                                prev.includes(priv.id)
+                                  ? prev.filter((p) => p !== priv.id)
+                                  : [...prev, priv.id]
+                              );
+                            }}
+                            className="mt-0.5 rounded text-amber-500 focus:ring-0"
+                          />
+                          <div>
+                            <span className="font-bold text-white block">{priv.label}</span>
+                            <span className="text-[10px] text-zinc-400 block">{priv.description}</span>
+                          </div>
+                        </label>
+                      );
+                    })}
+                  </div>
+
+                  <div className="flex gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setEditingAdminTarget(null)}
+                      className="flex-1 py-2.5 rounded-xl bg-zinc-800 text-zinc-300 font-bold cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isSavingAdminPrivs || editingAdminPrivileges.length === 0}
+                      onClick={async () => {
+                        setIsSavingAdminPrivs(true);
+                        const res = await updateAdminPrivileges(editingAdminTarget.id, {
+                          adminRoleLabel: editingAdminRoleLabel,
+                          adminPrivileges: editingAdminPrivileges,
+                        });
+                        setIsSavingAdminPrivs(false);
+                        if (res.success) {
+                          setEditingAdminTarget(null);
+                        }
+                      }}
+                      className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold disabled:opacity-50 cursor-pointer"
+                    >
+                      {isSavingAdminPrivs ? 'Saving...' : 'Save Privileges'}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
