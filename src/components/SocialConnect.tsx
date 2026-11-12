@@ -28,10 +28,10 @@ interface SocialChannel {
 }
 
 export const SocialConnect: React.FC = () => {
-  const { showToast } = useApp();
+  const { showToast, socialLinks, siteSettings } = useApp();
   const [copiedLink, setCopiedLink] = useState(false);
 
-  const channels: SocialChannel[] = [
+  const baseChannels: SocialChannel[] = [
     {
       id: 'facebook',
       name: 'Facebook Community',
@@ -151,8 +151,25 @@ export const SocialConnect: React.FC = () => {
     },
   ];
 
+  // Overlay live Admin Site Editor socialLinks URLs, handles, and enabled visibility
+  const channels = baseChannels
+    .map((ch) => {
+      const override = socialLinks.find((s) => s.platform === ch.id);
+      if (override) {
+        if (!override.enabled) return null;
+        return {
+          ...ch,
+          name: override.name || override.label || ch.name,
+          handle: override.handle || ch.handle,
+          url: override.url || ch.url,
+        };
+      }
+      return ch;
+    })
+    .filter((ch): ch is SocialChannel => ch !== null);
+
   const shareUrl = window.location.origin || 'https://apex-tesla.io';
-  const shareText = 'Check out Apex Tesla Hub: Vehicle maintenance, custom 3M wraps, crypto deposits, and $8,000 jackpots!';
+  const shareText = `Check out ${siteSettings.siteName}: Vehicle maintenance, custom 3M wraps, crypto deposits, and $${siteSettings.maxScratchPrizeUsd.toLocaleString()} jackpots!`;
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(shareUrl);

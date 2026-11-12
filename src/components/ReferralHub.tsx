@@ -17,14 +17,16 @@ import {
   Award,
   QrCode,
   ExternalLink,
+  Megaphone,
 } from 'lucide-react';
 
 interface ReferralHubProps {
   onOpenDeposit?: () => void;
   onOpenAuth?: () => void;
+  onNavigateToBanners?: () => void;
 }
 
-export const ReferralHub: React.FC<ReferralHubProps> = ({ onOpenDeposit, onOpenAuth }) => {
+export const ReferralHub: React.FC<ReferralHubProps> = ({ onOpenDeposit, onOpenAuth, onNavigateToBanners }) => {
   const {
     currentUser,
     referralLink,
@@ -189,6 +191,30 @@ export const ReferralHub: React.FC<ReferralHubProps> = ({ onOpenDeposit, onOpenA
                 </button>
               </div>
             </div>
+
+            {onNavigateToBanners && (
+              <div className="p-4 rounded-2xl bg-gradient-to-r from-red-950/40 via-zinc-900 to-zinc-950 border border-red-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-red-600/20 border border-red-500/30 flex items-center justify-center text-red-400 shrink-0">
+                    <Megaphone className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-white block">Promotional Ad Banners (All Sizes)</span>
+                    <span className="text-[11px] text-zinc-400">
+                      Get 728×90, 300×300, 300×250 & 160×600 banners pre-loaded with your code {currentUser.referralCode}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={onNavigateToBanners}
+                  className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold flex items-center gap-1.5 shrink-0 transition cursor-pointer"
+                >
+                  <span>Open Ad Banners</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
 
             {/* Unique Referral Code with Edit Option */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">

@@ -56,6 +56,13 @@ import {
   ToggleRight,
   Eye,
   EyeOff,
+  Megaphone,
+  ArrowUp,
+  ArrowDown,
+  Package,
+  Gift,
+  RotateCcw,
+  Navigation,
 } from 'lucide-react';
 import {
   SmtpConfig,
@@ -81,6 +88,13 @@ import {
   WheelReward,
   FeatureToggles,
   AutoCryptoGateway,
+  MarketingBanner,
+  BannerSizeType,
+  NavigationMenuItem,
+  MenuLocation,
+  ProductItem,
+  ScratchCardTier,
+  SiteSettings,
 } from '../types';
 
 const PREBUILT_TEMPLATES: EmailTemplate[] = [
@@ -198,6 +212,7 @@ type AdminTab =
   | 'stocks_mgmt'
   | 'auto_gateways'
   | 'spins_cms'
+  | 'promo_banners'
   | 'feature_switches'
   | 'notifications_hub'
   | 'car_sales'
@@ -217,15 +232,30 @@ export const AdminDashboard: React.FC = () => {
     deleteUser,
     allInvestments,
     adminNotifications,
+    siteSettings,
+    updateSiteSettings,
     sitePages,
+    navigationMenus,
+    createNavigationMenuItem,
+    updateNavigationMenuItem,
+    deleteNavigationMenuItem,
+    reorderNavigationMenuItem,
+    resetNavigationMenus,
     manualDepositMethods,
     socialLinks,
     investmentPools,
     productsList,
+    scratchCardTiers,
+    createScratchCardTier,
+    updateScratchCardTier,
+    deleteScratchCardTier,
     rentalFleetList,
+    cronActive,
+    toggleCronActive,
     cronCyclesCount,
     lastCronRunAt,
     cronLogs,
+    dispatchedCronEmails,
     triggerManualCronCycle,
     updateUserInvestment,
     forceMatureInvestment,
@@ -299,11 +329,40 @@ export const AdminDashboard: React.FC = () => {
     addAutoCryptoGateway,
     deleteAutoCryptoGateway,
     testAutoCryptoGatewayPing,
+    // Promotional Marketing Banners CMS
+    marketingBanners,
+    createMarketingBanner,
+    updateMarketingBanner,
+    deleteMarketingBanner,
   } = useApp();
 
   const [activeAdminTab, setActiveAdminTab] = useState<AdminTab>('users_kyc');
   const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
   const categoryDropdownRef = useRef<HTMLDivElement>(null);
+
+  // AI & Manual Promotional Banner Generator State
+  const [aiBannerGoal, setAiBannerGoal] = useState('Promote TSLA 28.5% Fast ROI Pools, Cybertruck Sales & $100 Referral Rewards');
+  const [aiBannerSize, setAiBannerSize] = useState<BannerSizeType>('leaderboard');
+  const [aiBannerTone, setAiBannerTone] = useState('Luxury High-Octane EV');
+  const [aiBannerTargetTab, setAiBannerTargetTab] = useState('stocks');
+  const [isGeneratingAiBanner, setIsGeneratingAiBanner] = useState(false);
+  const [isGeneratingAllSizes, setIsGeneratingAllSizes] = useState(false);
+  const [showManualBannerModal, setShowManualBannerModal] = useState(false);
+  const [manualBannerForm, setManualBannerForm] = useState<Omit<MarketingBanner, 'id' | 'createdAt' | 'clicksCount'>>({
+    title: 'Cybertruck VIP Referral Leaderboard',
+    size: 'leaderboard',
+    dimensions: '728×90',
+    headline: 'TESLA CYBERBEAST DIRECT DELIVERY + $100 REFERRAL BONUS',
+    subheadline: 'Nationwide enclosed transport, 7-day money-back protection & instant crypto settlement.',
+    ctaText: 'Explore Inventory',
+    badgeText: '728×90 LEADERBOARD',
+    themeGradient: 'from-zinc-950 via-red-950/80 to-zinc-950',
+    accentColor: '#ef4444',
+    targetTab: 'vehicles',
+    imageUrl: 'https://images.unsplash.com/photo-1617788138017-80ad40651399?auto=format&fit=crop&w=900&q=80',
+    isActive: true,
+    isAiGenerated: false,
+  });
 
   // Auto Crypto Gateways Admin Local State
   const [gatewayNetworkFilter, setGatewayNetworkFilter] = useState<string>('all');
@@ -425,7 +484,9 @@ export const AdminDashboard: React.FC = () => {
   const [isSendingNotification, setIsSendingNotification] = useState(false);
 
   // Site CMS & Settings sub-tabs
-  const [siteCmsSubTab, setSiteCmsSubTab] = useState<'pages' | 'manual_deposits' | 'socials' | 'catalog' | 'global_settings'>('pages');
+  const [siteCmsSubTab, setSiteCmsSubTab] = useState<
+    'pages' | 'menus' | 'products' | 'promo_content' | 'manual_deposits' | 'socials' | 'catalog' | 'global_settings'
+  >('pages');
 
   // Page creation/edit state
   const [isPageModalOpen, setIsPageModalOpen] = useState(false);
@@ -439,6 +500,55 @@ export const AdminDashboard: React.FC = () => {
     isPublished: true,
     isSystem: false,
     order: 1,
+  });
+
+  // Navigation Menu CRUD state
+  const [menuLocationFilter, setMenuLocationFilter] = useState<'all' | MenuLocation>('all');
+  const [isMenuModalOpen, setIsMenuModalOpen] = useState(false);
+  const [editingMenuId, setEditingMenuId] = useState<string | null>(null);
+  const [menuForm, setMenuForm] = useState<Omit<NavigationMenuItem, 'id'>>({
+    label: '',
+    targetTab: 'home',
+    location: 'navbar',
+    order: 1,
+    badge: '',
+    highlight: false,
+    isVisible: true,
+    iconName: 'Tag',
+    isSystem: false,
+  });
+
+  // Product Inventory CRUD state
+  const [productSearchTerm, setProductSearchTerm] = useState('');
+  const [productCategoryFilter, setProductCategoryFilter] = useState<string>('All');
+  const [isProductModalOpen, setIsProductModalOpen] = useState(false);
+  const [editingProductId, setEditingProductId] = useState<string | null>(null);
+  const [productForm, setProductForm] = useState<Omit<ProductItem, 'id'>>({
+    name: '',
+    category: 'Charging & Tech',
+    priceUsd: 299,
+    description: '',
+    image: 'https://images.unsplash.com/photo-1560958089-b8a1929cea89?auto=format&fit=crop&w=800&q=80',
+    compatibility: 'Model 3, Model Y, Model S, Model X, Cybertruck',
+    inStock: true,
+  });
+
+  // Scratch Card Promotional Tier CRUD state
+  const [isScratchModalOpen, setIsScratchModalOpen] = useState(false);
+  const [editingScratchId, setEditingScratchId] = useState<string | null>(null);
+  const [scratchForm, setScratchForm] = useState<Omit<ScratchCardTier, 'id'>>({
+    name: 'Hyperion Cyber Vault',
+    priceUsd: 250,
+    maxPrizeUsd: 5000,
+    gradient: 'from-amber-600 via-red-600 to-rose-700',
+    textColor: 'text-white',
+    description: 'High-stakes promotional scratch foil featuring instant USDT vault credits & Cybertruck service vouchers.',
+    possiblePrizes: [
+      { amountUsd: 5000, label: 'Apex Vault Grand Prize ($5,000)', weight: 2 },
+      { amountUsd: 1000, label: 'Giga Crypto Payout ($1,000)', weight: 10 },
+      { amountUsd: 350, label: 'Supercharging Pass ($350)', weight: 30 },
+      { amountUsd: 100, label: 'Cashback Bonus ($100)', weight: 58 },
+    ],
   });
 
   // Manual Deposit Gateway creation/edit state
@@ -497,18 +607,11 @@ export const AdminDashboard: React.FC = () => {
   // Email List Import state
   const [rawEmailsInput, setRawEmailsInput] = useState('');
 
-  // Site Function Editor state
-  const [siteSettings, setSiteSettings] = useState({
-    siteName: 'Apex Tesla Hub',
-    heroHeadline: 'NEXT-GENERATION TESLA SERVICE, WRAPS & INVESTMENT FLEET',
-    heroSubtitle: 'Complete digital garage, certified high-voltage repairs, custom 3M wraps, and crypto payment processing.',
-    spinCostUsd: 25,
-    maxScratchPrizeUsd: 8000,
-    hourlyBayRateUsd: 185,
-    announcementBanner: '⚡ Flash Promotion: Zero deposit fees across BTC, USDT, XRP & BNB network gateways.',
-    maintenanceMode: false,
-    enableCryptoDeposits: true,
-  });
+  // Site Function Editor state (synced with global AppContext siteSettings)
+  const [siteSettingsForm, setSiteSettingsForm] = useState<SiteSettings>(siteSettings);
+  useEffect(() => {
+    setSiteSettingsForm(siteSettings);
+  }, [siteSettings]);
 
   // Withdrawals Management State
   const [withdrawalTxInputs, setWithdrawalTxInputs] = useState<Record<string, string>>({});
@@ -657,6 +760,14 @@ export const AdminDashboard: React.FC = () => {
       description: 'Set execution spin cost ($USD/credits), customize wheel prizes, colors and probability weights',
       icon: Coins,
       badge: `$${spinCostUsd} / Spin`,
+    },
+    {
+      id: 'promo_banners' as const,
+      label: 'Promotional Banners & Gemini AI Studio',
+      shortLabel: 'Promo Banners AI',
+      description: 'Auto-generate Leaderboard, Square, Rectangle & Sidebar referral banners with Gemini AI',
+      icon: Megaphone,
+      badge: `${marketingBanners.length} Banners`,
     },
     {
       id: 'feature_switches' as const,
@@ -833,8 +944,62 @@ export const AdminDashboard: React.FC = () => {
 
   const handleSaveSiteSettings = (e: React.FormEvent) => {
     e.preventDefault();
-    localStorage.setItem('apex_site_settings', JSON.stringify(siteSettings));
-    showToast('Site functions and live parameters updated globally!', 'success');
+    updateSiteSettings(siteSettingsForm);
+    updateSpinCost(siteSettingsForm.spinCostUsd);
+    setLocalSpinCost(siteSettingsForm.spinCostUsd);
+  };
+
+  const handleGenerateAiBanner = async (sizeToUse: BannerSizeType) => {
+    setIsGeneratingAiBanner(true);
+    try {
+      const res = await fetch('/api/gemini/generate-banner', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          campaignGoal: aiBannerGoal,
+          size: sizeToUse,
+          tone: aiBannerTone,
+          targetTab: aiBannerTargetTab,
+        }),
+      });
+      const data = await res.json();
+      if (data.success && data.banner) {
+        createMarketingBanner({
+          title: data.banner.title,
+          size: sizeToUse,
+          dimensions: data.banner.dimensions,
+          headline: data.banner.headline,
+          subheadline: data.banner.subheadline,
+          ctaText: data.banner.ctaText,
+          badgeText: data.banner.badgeText,
+          themeGradient: data.banner.themeGradient || 'from-zinc-950 via-red-950/80 to-zinc-950',
+          accentColor: data.banner.accentColor || '#ef4444',
+          targetTab: data.banner.targetTab || aiBannerTargetTab,
+          imageUrl: 'https://images.unsplash.com/photo-1560958089-b8a1929cea89?auto=format&fit=crop&w=900&q=80',
+          isActive: true,
+          isAiGenerated: true,
+        });
+      } else {
+        showToast(data.error || 'AI banner generation failed.', 'error');
+      }
+    } catch {
+      showToast('Network error contacting Gemini AI banner endpoint.', 'error');
+    } finally {
+      setIsGeneratingAiBanner(false);
+    }
+  };
+
+  const handleGenerateFullBannerPack = async () => {
+    setIsGeneratingAllSizes(true);
+    const sizes: BannerSizeType[] = ['leaderboard', 'square', 'rectangle', 'sidebar'];
+    try {
+      for (const s of sizes) {
+        await handleGenerateAiBanner(s);
+      }
+      showToast('Generated full 4-size AI referral banner pack (Leaderboard, Square, Rectangle, Sidebar)!', 'success');
+    } finally {
+      setIsGeneratingAllSizes(false);
+    }
   };
 
   return (
@@ -1342,13 +1507,27 @@ export const AdminDashboard: React.FC = () => {
                 </p>
               </div>
 
-              {/* Manual Cron Trigger */}
-              <div className="flex items-center gap-2 shrink-0">
+              {/* Manual Cron Trigger & Pause/Resume Controls */}
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    void toggleCronActive();
+                  }}
+                  className={`px-3.5 py-2.5 rounded-xl font-heading font-bold text-xs flex items-center gap-1.5 border transition cursor-pointer ${
+                    cronActive
+                      ? 'bg-zinc-900 border-amber-500/40 text-amber-300 hover:bg-zinc-800'
+                      : 'bg-emerald-950/60 border-emerald-500/40 text-emerald-300 hover:bg-emerald-900/50'
+                  }`}
+                >
+                  {cronActive ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+                  <span>{cronActive ? 'Pause Server Cron' : 'Resume Server Cron'}</span>
+                </button>
                 <button
                   onClick={async () => {
                     setManualCycleRunning(true);
-                    triggerManualCronCycle();
-                    setTimeout(() => setManualCycleRunning(false), 800);
+                    await triggerManualCronCycle();
+                    setManualCycleRunning(false);
                   }}
                   disabled={manualCycleRunning}
                   className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 text-white font-heading font-bold text-xs flex items-center gap-2 shadow-lg shadow-emerald-950/50 transition cursor-pointer disabled:opacity-60"
@@ -1362,10 +1541,20 @@ export const AdminDashboard: React.FC = () => {
             {/* Cron Metrics Row */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
               <div className="p-3 rounded-2xl bg-black/60 border border-zinc-800">
-                <span className="text-[10px] text-zinc-500 font-mono block">CRON STATUS</span>
+                <span className="text-[10px] text-zinc-500 font-mono block">SERVER CRON STATUS</span>
                 <div className="flex items-center gap-1.5 mt-0.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                  <span className="font-mono text-emerald-400 font-bold text-xs">ACTIVE (60s tick)</span>
+                  <span
+                    className={`w-2 h-2 rounded-full ${
+                      cronActive ? 'bg-emerald-400 animate-ping' : 'bg-amber-400'
+                    }`}
+                  />
+                  <span
+                    className={`font-mono font-bold text-xs ${
+                      cronActive ? 'text-emerald-400' : 'text-amber-400'
+                    }`}
+                  >
+                    {cronActive ? 'ACTIVE (server.ts)' : 'PAUSED'}
+                  </span>
                 </div>
               </div>
               <div className="p-3 rounded-2xl bg-black/60 border border-zinc-800">
@@ -1389,11 +1578,13 @@ export const AdminDashboard: React.FC = () => {
             {/* Live Cron Terminal Log */}
             <div className="p-3.5 rounded-2xl bg-black/80 border border-zinc-800 font-mono text-[11px] space-y-1.5">
               <div className="flex items-center justify-between text-zinc-500 text-[10px] border-b border-zinc-800/80 pb-1">
-                <span>AUTOMATED ROI CRON JOB AUDIT LOG (SYSTEM TELEMETRY)</span>
-                <span className="text-emerald-400">● LIVE RUNNER</span>
+                <span>AUTOMATED ROI CRON JOB AUDIT LOG (SERVER.TS SCHEDULER)</span>
+                <span className={cronActive ? 'text-emerald-400' : 'text-amber-400'}>
+                  {cronActive ? '● LIVE SERVER CRON' : '○ PAUSED'}
+                </span>
               </div>
-              <div className="max-h-24 overflow-y-auto space-y-1 text-zinc-300">
-                {cronLogs.slice(-4).map((log, i) => (
+              <div className="max-h-28 overflow-y-auto space-y-1 text-zinc-300">
+                {cronLogs.slice(0, 8).map((log, i) => (
                   <div key={i} className="flex items-start gap-2">
                     <span className="text-emerald-500 shrink-0">➜</span>
                     <span className="text-zinc-300">{log}</span>
@@ -1565,6 +1756,64 @@ export const AdminDashboard: React.FC = () => {
                 </tbody>
               </table>
             </div>
+          </div>
+
+          {/* Dispatched Maturity Notification Emails Audit Trail */}
+          <div className="p-5 sm:p-6 rounded-3xl bg-zinc-950 border border-zinc-800 space-y-4 shadow-xl">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-zinc-800 pb-3">
+              <div>
+                <h4 className="font-heading font-bold text-sm sm:text-base text-white flex items-center gap-2">
+                  <Mail className="w-4 h-4 text-emerald-400" />
+                  <span>Automated Plan Maturity Settlement Emails ({dispatchedCronEmails.length})</span>
+                </h4>
+                <p className="text-[11px] text-zinc-400">
+                  Real-time audit log of automated emails dispatched by the server.ts Cron Engine via configured SMTP relay (or simulated audit mode) upon plan completion.
+                </p>
+              </div>
+              <span className="text-[10px] font-mono px-2.5 py-1 rounded-full bg-zinc-900 border border-zinc-700 text-zinc-300 w-fit">
+                SMTP: {localSmtp.host}:{localSmtp.port}
+              </span>
+            </div>
+
+            {dispatchedCronEmails.length === 0 ? (
+              <div className="p-6 rounded-2xl bg-zinc-900/50 border border-zinc-800/80 text-center text-xs text-zinc-400">
+                No matured investment notification emails dispatched in this server session yet. Click{' '}
+                <strong className="text-emerald-400">Execute Cron ROI Cycle Now</strong> (or wait for the next interval) to process running stakes through maturity.
+              </div>
+            ) : (
+              <div className="space-y-2.5 max-h-64 overflow-y-auto">
+                {dispatchedCronEmails.map((em) => (
+                  <div
+                    key={em.id}
+                    className="p-3.5 rounded-2xl bg-zinc-900/70 border border-zinc-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                  >
+                    <div className="space-y-0.5 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-bold text-white truncate">{em.subject}</span>
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[9px] font-mono font-bold uppercase ${
+                            em.status === 'delivered'
+                              ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                              : 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
+                          }`}
+                        >
+                          {em.status === 'delivered' ? 'SMTP DELIVERED' : 'AUDIT LOGGED (SIMULATED)'}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-zinc-400 font-mono truncate">
+                        To: <span className="text-zinc-200">{em.recipient}</span> • Plan ID: {em.investmentId} • Cert: {em.certificateId}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-4 shrink-0 font-mono">
+                      <div className="text-right">
+                        <span className="text-emerald-400 font-bold block">+${em.amountUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        <span className="text-[10px] text-zinc-500">{new Date(em.dispatchedAt).toLocaleTimeString()}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -2396,12 +2645,15 @@ export const AdminDashboard: React.FC = () => {
             </div>
 
             {/* Sub-tab pills */}
-            <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-zinc-900 border border-zinc-800 overflow-x-auto">
+            <div className="flex flex-wrap items-center gap-1.5 p-1.5 rounded-2xl bg-zinc-900 border border-zinc-800">
               {[
-                { id: 'pages', label: 'Pages & Menus', count: sitePages.length },
-                { id: 'manual_deposits', label: 'Manual Gateways', count: manualDepositMethods.length },
+                { id: 'pages', label: 'Pages', count: sitePages.length },
+                { id: 'menus', label: 'Nav Menus', count: navigationMenus.length },
+                { id: 'products', label: 'Products', count: productsList.length },
+                { id: 'promo_content', label: 'Promotions', count: scratchCardTiers.length },
+                { id: 'manual_deposits', label: 'Gateways', count: manualDepositMethods.length },
                 { id: 'socials', label: 'Social URLs', count: socialLinks.length },
-                { id: 'catalog', label: 'Catalog & Plans', count: investmentPools.length },
+                { id: 'catalog', label: 'Fleet Plans', count: investmentPools.length },
                 { id: 'global_settings', label: 'Global Rules' },
               ].map((sub) => (
                 <button
@@ -2422,14 +2674,14 @@ export const AdminDashboard: React.FC = () => {
             </div>
           </div>
 
-          {/* SUBTAB 1: PAGES & MENUS */}
+          {/* SUBTAB 1: SITE PAGES */}
           {siteCmsSubTab === 'pages' && (
             <div className="p-6 rounded-3xl bg-zinc-950 border border-zinc-800 space-y-5 shadow-xl">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-800 pb-4">
                 <div>
-                  <h4 className="font-heading font-bold text-base text-white">Site Pages & Navigation Menus</h4>
+                  <h4 className="font-heading font-bold text-base text-white">Site Pages & Custom Routes</h4>
                   <p className="text-xs text-zinc-400">
-                    Create new landing pages, manage existing pages, and set display locations (Navbar, Footer, Both, or Hidden).
+                    Create new pages, edit existing page copy, and assign display locations (Navbar, Footer, Both, or Hidden).
                   </p>
                 </div>
                 <button
@@ -2454,7 +2706,7 @@ export const AdminDashboard: React.FC = () => {
                 </button>
               </div>
 
-              <div className="rounded-2xl border border-zinc-800 overflow-hidden">
+              <div className="rounded-2xl border border-zinc-800 overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead className="bg-zinc-900 text-zinc-400 font-mono uppercase text-[10px] border-b border-zinc-800">
                     <tr>
@@ -2466,66 +2718,623 @@ export const AdminDashboard: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-zinc-800">
-                    {sitePages.map((page) => (
-                      <tr key={page.id} className="hover:bg-zinc-900/50">
-                        <td className="p-3.5">
-                          <span className="font-heading font-bold text-white text-sm block">{page.title}</span>
-                          <span className="text-[11px] text-zinc-400 font-mono">/{page.slug}</span>
-                        </td>
-                        <td className="p-3.5">
-                          <span className="px-2.5 py-1 rounded-full text-[10px] font-mono uppercase bg-zinc-900 border border-zinc-700 text-zinc-300">
-                            {page.displayLocation}
-                          </span>
-                        </td>
-                        <td className="p-3.5">
-                          <span
-                            className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
-                              page.isPublished
-                                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                                : 'bg-zinc-800 text-zinc-400'
-                            }`}
-                          >
-                            {page.isPublished ? 'PUBLISHED' : 'DRAFT'}
-                          </span>
-                        </td>
-                        <td className="p-3.5 text-zinc-400 font-mono text-[11px]">
-                          {new Date(page.updatedAt).toLocaleDateString()}
-                        </td>
-                        <td className="p-3.5 text-right">
-                          <div className="flex items-center justify-end gap-1.5">
-                            <button
-                              onClick={() => {
-                                setEditingPageId(page.id);
-                                setPageForm({
-                                  title: page.title,
-                                  slug: page.slug,
-                                  displayLocation: page.displayLocation,
-                                  content: page.content,
-                                  published: page.published ?? true,
-                                  isPublished: page.isPublished ?? page.published ?? true,
-                                  isSystem: page.isSystem ?? false,
-                                  order: page.order,
-                                });
-                                setIsPageModalOpen(true);
-                              }}
-                              className="p-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-700"
-                              title="Edit Page"
+                    {sitePages.map((page) => {
+                      const published = page.isPublished ?? page.published;
+                      return (
+                        <tr key={page.id} className="hover:bg-zinc-900/50">
+                          <td className="p-3.5">
+                            <span className="font-heading font-bold text-white text-sm block">{page.title}</span>
+                            <span className="text-[11px] text-zinc-400 font-mono">/{page.slug}</span>
+                          </td>
+                          <td className="p-3.5">
+                            <span className="px-2.5 py-1 rounded-full text-[10px] font-mono uppercase bg-zinc-900 border border-zinc-700 text-zinc-300">
+                              {page.displayLocation}
+                            </span>
+                          </td>
+                          <td className="p-3.5">
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
+                                published
+                                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                  : 'bg-zinc-800 text-zinc-400'
+                              }`}
                             >
-                              <Edit3 className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => deleteSitePage(page.id)}
-                              className="p-1.5 rounded-lg bg-zinc-900 hover:bg-rose-900/50 text-rose-400 border border-zinc-700"
-                              title="Delete Page"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                              {published ? 'PUBLISHED' : 'DRAFT'}
+                            </span>
+                          </td>
+                          <td className="p-3.5 text-zinc-400 font-mono text-[11px]">
+                            {page.updatedAt}
+                          </td>
+                          <td className="p-3.5 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              {published && (
+                                <button
+                                  onClick={() =>
+                                    window.dispatchEvent(new CustomEvent('apex:navigate', { detail: page.slug }))
+                                  }
+                                  className="p-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-cyan-400 border border-zinc-700 cursor-pointer"
+                                  title="Open Live Page"
+                                >
+                                  <ExternalLink className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                              <button
+                                onClick={() => {
+                                  setEditingPageId(page.id);
+                                  setPageForm({
+                                    title: page.title,
+                                    slug: page.slug,
+                                    displayLocation: page.displayLocation,
+                                    content: page.content,
+                                    published: page.published ?? true,
+                                    isPublished: page.isPublished ?? page.published ?? true,
+                                    isSystem: page.isSystem ?? false,
+                                    order: page.order,
+                                  });
+                                  setIsPageModalOpen(true);
+                                }}
+                                className="p-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-700 cursor-pointer"
+                                title="Edit Page"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </button>
+                              {!page.isSystem && (
+                                <button
+                                  onClick={() => deleteSitePage(page.id)}
+                                  className="p-1.5 rounded-lg bg-zinc-900 hover:bg-rose-900/50 text-rose-400 border border-zinc-700 cursor-pointer"
+                                  title="Delete Page"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
+              </div>
+            </div>
+          )}
+
+          {/* SUBTAB: NAVIGATION MENUS CRUD */}
+          {siteCmsSubTab === 'menus' && (
+            <div className="p-6 rounded-3xl bg-zinc-950 border border-zinc-800 space-y-5 shadow-xl">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-800 pb-4">
+                <div>
+                  <h4 className="font-heading font-bold text-base text-white flex items-center gap-2">
+                    <Navigation className="w-4 h-4 text-amber-400" />
+                    <span>Navigation Menus Builder (Header, Dropdown & Footer)</span>
+                  </h4>
+                  <p className="text-xs text-zinc-400">
+                    Add, edit, reorder, hide, or delete menu links across the top Navbar, Account Dropdown, and all Footer columns. Changes reflect immediately site-wide.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={resetNavigationMenus}
+                    className="px-3 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-300 text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>Reset Defaults</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingMenuId(null);
+                      setMenuForm({
+                        label: '',
+                        targetTab: sitePages[0]?.slug || 'home',
+                        location: menuLocationFilter === 'all' ? 'navbar' : menuLocationFilter,
+                        order: navigationMenus.length + 1,
+                        badge: '',
+                        highlight: false,
+                        isVisible: true,
+                        iconName: 'Tag',
+                        isSystem: false,
+                      });
+                      setIsMenuModalOpen(true);
+                    }}
+                    className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Add Menu Item</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Location Filter Pills */}
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  { id: 'all', label: 'All Locations' },
+                  { id: 'navbar', label: 'Navbar' },
+                  { id: 'dropdown', label: 'User Dropdown' },
+                  { id: 'footer_services', label: 'Footer Services' },
+                  { id: 'footer_fleet', label: 'Footer Fleet' },
+                  { id: 'footer_legal', label: 'Footer Trust' },
+                  { id: 'mobile_only', label: 'Mobile Only' },
+                ].map((loc) => (
+                  <button
+                    key={loc.id}
+                    type="button"
+                    onClick={() => setMenuLocationFilter(loc.id as any)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
+                      menuLocationFilter === loc.id
+                        ? 'bg-red-600 text-white'
+                        : 'bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    {loc.label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="rounded-2xl border border-zinc-800 overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-zinc-900 text-zinc-400 font-mono uppercase text-[10px] border-b border-zinc-800">
+                    <tr>
+                      <th className="p-3.5">Label & Badge</th>
+                      <th className="p-3.5">Target Route / Page</th>
+                      <th className="p-3.5">Location</th>
+                      <th className="p-3.5">Order</th>
+                      <th className="p-3.5">Visibility</th>
+                      <th className="p-3.5 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-800">
+                    {navigationMenus
+                      .filter((m) => menuLocationFilter === 'all' || m.location === menuLocationFilter)
+                      .sort((a, b) => a.location.localeCompare(b.location) || a.order - b.order)
+                      .map((menu) => (
+                        <tr key={menu.id} className="hover:bg-zinc-900/50">
+                          <td className="p-3.5">
+                            <div className="flex items-center gap-2">
+                              <span className="font-heading font-bold text-white">{menu.label}</span>
+                              {menu.badge && (
+                                <span className="px-1.5 py-0.5 rounded bg-red-600/20 border border-red-500/40 text-red-300 font-mono text-[9px] font-bold">
+                                  {menu.badge}
+                                </span>
+                              )}
+                              {menu.highlight && (
+                                <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono text-[9px]">
+                                  HIGHLIGHT
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="p-3.5 font-mono text-cyan-300">/{menu.targetTab}</td>
+                          <td className="p-3.5">
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-zinc-900 border border-zinc-700 text-zinc-300">
+                              {menu.location}
+                            </span>
+                          </td>
+                          <td className="p-3.5 font-mono text-zinc-400">#{menu.order}</td>
+                          <td className="p-3.5">
+                            <button
+                              type="button"
+                              onClick={() => updateNavigationMenuItem(menu.id, { isVisible: !menu.isVisible })}
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold cursor-pointer ${
+                                menu.isVisible
+                                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                  : 'bg-zinc-800 text-zinc-400'
+                              }`}
+                            >
+                              {menu.isVisible ? 'VISIBLE' : 'HIDDEN'}
+                            </button>
+                          </td>
+                          <td className="p-3.5 text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              <button
+                                type="button"
+                                onClick={() => reorderNavigationMenuItem(menu.id, 'up')}
+                                className="p-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-700 cursor-pointer"
+                                title="Move Up"
+                              >
+                                <ArrowUp className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => reorderNavigationMenuItem(menu.id, 'down')}
+                                className="p-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-700 cursor-pointer"
+                                title="Move Down"
+                              >
+                                <ArrowDown className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingMenuId(menu.id);
+                                  setMenuForm({
+                                    label: menu.label,
+                                    targetTab: menu.targetTab,
+                                    location: menu.location,
+                                    order: menu.order,
+                                    badge: menu.badge || '',
+                                    highlight: Boolean(menu.highlight),
+                                    isVisible: menu.isVisible,
+                                    iconName: menu.iconName || 'Tag',
+                                    isSystem: Boolean(menu.isSystem),
+                                  });
+                                  setIsMenuModalOpen(true);
+                                }}
+                                className="p-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-700 cursor-pointer"
+                                title="Edit Menu"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => deleteNavigationMenuItem(menu.id)}
+                                className="p-1.5 rounded-lg bg-zinc-900 hover:bg-rose-900/50 text-rose-400 border border-zinc-700 cursor-pointer"
+                                title="Delete Menu Item"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* SUBTAB: PRODUCT INVENTORY CRUD */}
+          {siteCmsSubTab === 'products' && (
+            <div className="p-6 rounded-3xl bg-zinc-950 border border-zinc-800 space-y-5 shadow-xl">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-800 pb-4">
+                <div>
+                  <h4 className="font-heading font-bold text-base text-white flex items-center gap-2">
+                    <Package className="w-4 h-4 text-amber-400" />
+                    <span>Product Inventory Management ({productsList.length} Items)</span>
+                  </h4>
+                  <p className="text-xs text-zinc-400">
+                    Create, edit, price, toggle stock availability, or delete Tesla accessories & gear directly in the live storefront.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingProductId(null);
+                    setProductForm({
+                      name: '',
+                      category: 'Charging & Tech',
+                      priceUsd: 299,
+                      description: '',
+                      image: 'https://images.unsplash.com/photo-1560958089-b8a1929cea89?auto=format&fit=crop&w=800&q=80',
+                      compatibility: 'Model 3, Model Y, Model S, Model X, Cybertruck',
+                      inStock: true,
+                    });
+                    setIsProductModalOpen(true);
+                  }}
+                  className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs flex items-center gap-1.5 cursor-pointer self-start sm:self-auto"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Add Store Product</span>
+                </button>
+              </div>
+
+              {/* Search & Category Filter */}
+              <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
+                <input
+                  type="text"
+                  value={productSearchTerm}
+                  onChange={(e) => setProductSearchTerm(e.target.value)}
+                  placeholder="Search product name or description..."
+                  className="w-full sm:w-72 bg-zinc-900 border border-zinc-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+                />
+                <div className="flex flex-wrap gap-1.5">
+                  {['All', 'Wraps & Film', 'Aero & Carbon', 'Wheels & Performance', 'Interior & Yoke', 'Charging & Tech', 'Vehicle Sales'].map((cat) => (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => setProductCategoryFilter(cat)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-semibold cursor-pointer ${
+                        productCategoryFilter === cat
+                          ? 'bg-red-600 text-white'
+                          : 'bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white'
+                      }`}
+                    >
+                      {cat}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {productsList
+                  .filter((p) => productCategoryFilter === 'All' || p.category === productCategoryFilter)
+                  .filter(
+                    (p) =>
+                      !productSearchTerm.trim() ||
+                      p.name.toLowerCase().includes(productSearchTerm.toLowerCase()) ||
+                      p.description.toLowerCase().includes(productSearchTerm.toLowerCase())
+                  )
+                  .map((product) => (
+                    <div
+                      key={product.id}
+                      className="rounded-2xl bg-zinc-900/80 border border-zinc-800 overflow-hidden flex flex-col justify-between"
+                    >
+                      <div>
+                        <div className="h-36 bg-black relative overflow-hidden">
+                          <img
+                            src={product.image}
+                            alt={product.name}
+                            className="w-full h-full object-cover"
+                          />
+                          <span className="absolute top-2.5 left-2.5 px-2 py-0.5 rounded-full bg-black/80 border border-zinc-700 text-[10px] font-mono text-zinc-200">
+                            {product.category}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => updateProductItem(product.id, { inStock: !product.inStock })}
+                            className={`absolute top-2.5 right-2.5 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold cursor-pointer ${
+                              product.inStock
+                                ? 'bg-emerald-500/90 text-black'
+                                : 'bg-rose-600/90 text-white'
+                            }`}
+                          >
+                            {product.inStock ? 'IN STOCK' : 'OUT OF STOCK'}
+                          </button>
+                        </div>
+                        <div className="p-4 space-y-2">
+                          <div className="flex items-start justify-between gap-2">
+                            <h5 className="font-heading font-bold text-sm text-white line-clamp-1">{product.name}</h5>
+                            <span className="font-mono font-bold text-sm text-emerald-400 shrink-0">
+                              ${product.priceUsd.toLocaleString()}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-zinc-400 line-clamp-2">{product.description}</p>
+                          {product.compatibility && (
+                            <div className="flex flex-wrap gap-1 pt-1">
+                              {product.compatibility.split(',').slice(0, 3).map((c) => (
+                                <span key={c.trim()} className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-zinc-950 border border-zinc-800 text-zinc-400">
+                                  {c.trim()}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="p-3 bg-zinc-950/60 border-t border-zinc-800 flex items-center justify-between gap-2">
+                        <button
+                          type="button"
+                          onClick={() => updateProductItem(product.id, { inStock: !product.inStock })}
+                          className="text-[11px] font-mono text-zinc-400 hover:text-white underline cursor-pointer"
+                        >
+                          {product.inStock ? 'Mark Out of Stock' : 'Mark In Stock'}
+                        </button>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingProductId(product.id);
+                              setProductForm({
+                                name: product.name,
+                                category: product.category,
+                                priceUsd: product.priceUsd,
+                                description: product.description,
+                                image: product.image,
+                                compatibility: product.compatibility || '',
+                                inStock: product.inStock,
+                              });
+                              setIsProductModalOpen(true);
+                            }}
+                            className="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 cursor-pointer"
+                            title="Edit Product"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => deleteProductItem(product.id)}
+                            className="p-1.5 rounded-lg bg-zinc-800 hover:bg-rose-900/50 text-rose-400 cursor-pointer"
+                            title="Delete Product"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
+
+          {/* SUBTAB: PROMOTIONAL CONTENT & SCRATCH CARD TIERS CRUD */}
+          {siteCmsSubTab === 'promo_content' && (
+            <div className="space-y-6">
+              {/* Live Promotional Copy & Flash Announcement */}
+              <form
+                onSubmit={handleSaveSiteSettings}
+                className="p-6 rounded-3xl bg-zinc-950 border border-zinc-800 space-y-4 shadow-xl text-xs"
+              >
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-800 pb-3">
+                  <div>
+                    <h4 className="font-heading font-bold text-base text-white flex items-center gap-2">
+                      <Gift className="w-4 h-4 text-amber-400" />
+                      <span>Promotional Headlines, Announcement Banner & Spin Pricing</span>
+                    </h4>
+                    <p className="text-xs text-zinc-400">
+                      Edit homepage hero copy, top ticker announcement banner, Spin & Win cost, and Scratch Card promotional headings.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setActiveAdminTab('spins_cms')}
+                      className="px-3 py-1.5 rounded-xl bg-zinc-900 border border-zinc-700 text-amber-300 font-semibold cursor-pointer"
+                    >
+                      Spin Wheel Slices →
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveAdminTab('promo_banners')}
+                      className="px-3 py-1.5 rounded-xl bg-zinc-900 border border-zinc-700 text-cyan-300 font-semibold cursor-pointer"
+                    >
+                      AI Promo Banners →
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-zinc-300 block mb-1 font-medium">Promotions Hub Main Title</label>
+                    <input
+                      type="text"
+                      value={siteSettingsForm.promoBannerTitle}
+                      onChange={(e) => setSiteSettingsForm({ ...siteSettingsForm, promoBannerTitle: e.target.value })}
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3.5 py-2 text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-zinc-300 block mb-1 font-medium">Live Flash Announcement Ticker</label>
+                    <input
+                      type="text"
+                      value={siteSettingsForm.announcementBanner}
+                      onChange={(e) => setSiteSettingsForm({ ...siteSettingsForm, announcementBanner: e.target.value })}
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3.5 py-2 text-white"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-zinc-300 block mb-1 font-medium">Promotions Hub Subtitle</label>
+                  <input
+                    type="text"
+                    value={siteSettingsForm.promoBannerSubtitle}
+                    onChange={(e) => setSiteSettingsForm({ ...siteSettingsForm, promoBannerSubtitle: e.target.value })}
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3.5 py-2 text-white"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-zinc-300 block mb-1 font-medium">Wheel Spin Cost (USD)</label>
+                    <input
+                      type="number"
+                      value={siteSettingsForm.spinCostUsd}
+                      onChange={(e) => setSiteSettingsForm({ ...siteSettingsForm, spinCostUsd: Number(e.target.value) })}
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3.5 py-2 text-white font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-zinc-300 block mb-1 font-medium">Max Scratch Jackpot Display (USD)</label>
+                    <input
+                      type="number"
+                      value={siteSettingsForm.maxScratchPrizeUsd}
+                      onChange={(e) => setSiteSettingsForm({ ...siteSettingsForm, maxScratchPrizeUsd: Number(e.target.value) })}
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3.5 py-2 text-white font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div className="pt-1">
+                  <button
+                    type="submit"
+                    className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs cursor-pointer"
+                  >
+                    Save Promotional Copy & Pricing
+                  </button>
+                </div>
+              </form>
+
+              {/* Scratch Card Tiers CRUD */}
+              <div className="p-6 rounded-3xl bg-zinc-950 border border-zinc-800 space-y-5 shadow-xl">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-800 pb-4">
+                  <div>
+                    <h4 className="font-heading font-bold text-base text-white">
+                      Scratch & Win Promotional Tiers ({scratchCardTiers.length})
+                    </h4>
+                    <p className="text-xs text-zinc-400">
+                      Create, customize, price, or remove interactive scratch card tiers shown in the Promotions Hub.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingScratchId(null);
+                      setScratchForm({
+                        name: '',
+                        priceUsd: 250,
+                        maxPrizeUsd: 5000,
+                        gradient: 'from-amber-600 via-red-600 to-rose-700',
+                        textColor: 'text-white',
+                        description: 'High-stakes promotional scratch foil featuring instant crypto payouts & Tesla perks.',
+                        possiblePrizes: [
+                          { amountUsd: 5000, label: 'Apex Vault Grand Prize ($5,000)', weight: 2 },
+                          { amountUsd: 1000, label: 'Giga Crypto Payout ($1,000)', weight: 10 },
+                          { amountUsd: 350, label: 'Supercharging Pass ($350)', weight: 30 },
+                          { amountUsd: 100, label: 'Cashback Bonus ($100)', weight: 58 },
+                        ],
+                      });
+                      setIsScratchModalOpen(true);
+                    }}
+                    className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs flex items-center gap-1.5 cursor-pointer self-start sm:self-auto"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Add Scratch Card Tier</span>
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {scratchCardTiers.map((tier) => (
+                    <div key={tier.id} className="rounded-2xl bg-zinc-900/80 border border-zinc-800 p-4 space-y-3 flex flex-col justify-between">
+                      <div className="space-y-2.5">
+                        <div className={`p-3 rounded-xl bg-gradient-to-r ${tier.gradient} text-white`}>
+                          <span className="text-[9px] font-mono uppercase opacity-80 block">Scratch Card Tier</span>
+                          <h5 className="font-heading font-black text-base">{tier.name}</h5>
+                          <div className="flex justify-between items-center mt-2 text-xs font-mono">
+                            <span>Ticket: ${tier.priceUsd}</span>
+                            <span className="text-yellow-300 font-bold">Max: ${tier.maxPrizeUsd.toLocaleString()}</span>
+                          </div>
+                        </div>
+                        <p className="text-[11px] text-zinc-400 line-clamp-2">{tier.description}</p>
+                        <div className="space-y-1 text-[11px] text-zinc-300 border-t border-zinc-800 pt-2">
+                          {tier.possiblePrizes.slice(0, 3).map((p, i) => (
+                            <div key={i} className="flex justify-between">
+                              <span className="truncate pr-2">{p.label}</span>
+                              <span className="font-mono text-amber-400 shrink-0">${p.amountUsd}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-end gap-1.5 pt-2 border-t border-zinc-800">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingScratchId(tier.id);
+                            setScratchForm({
+                              name: tier.name,
+                              priceUsd: tier.priceUsd,
+                              maxPrizeUsd: tier.maxPrizeUsd,
+                              gradient: tier.gradient,
+                              textColor: tier.textColor,
+                              description: tier.description,
+                              possiblePrizes: tier.possiblePrizes,
+                            });
+                            setIsScratchModalOpen(true);
+                          }}
+                          className="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 cursor-pointer"
+                          title="Edit Scratch Tier"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => deleteScratchCardTier(tier.id)}
+                          className="p-1.5 rounded-lg bg-zinc-800 hover:bg-rose-900/50 text-rose-400 cursor-pointer"
+                          title="Delete Scratch Tier"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           )}
@@ -2686,7 +3495,7 @@ export const AdminDashboard: React.FC = () => {
                     className="p-4 rounded-2xl bg-zinc-900 border border-zinc-800 space-y-3 text-xs"
                   >
                     <div className="flex items-center justify-between">
-                      <span className="font-heading font-bold text-white text-sm">{link.name}</span>
+                      <span className="font-heading font-bold text-white text-sm">{link.name || link.label}</span>
                       <span className="text-[10px] font-mono text-zinc-500 uppercase">{link.platform}</span>
                     </div>
 
@@ -2708,6 +3517,25 @@ export const AdminDashboard: React.FC = () => {
                         onChange={(e) => updateSocialLink(link.id, { url: e.target.value })}
                         className="w-full bg-black/60 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-cyan-300 font-mono text-xs"
                       />
+                    </div>
+
+                    <div className="flex items-center gap-3 text-[11px] text-zinc-300">
+                      <label className="flex items-center gap-1.5 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={link.showInFooter}
+                          onChange={(e) => updateSocialLink(link.id, { showInFooter: e.target.checked })}
+                        />
+                        <span>Footer</span>
+                      </label>
+                      <label className="flex items-center gap-1.5 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={link.showInHeader}
+                          onChange={(e) => updateSocialLink(link.id, { showInHeader: e.target.checked })}
+                        />
+                        <span>Header</span>
+                      </label>
                     </div>
 
                     <div className="flex items-center justify-between pt-1">
@@ -2808,13 +3636,43 @@ export const AdminDashboard: React.FC = () => {
           {siteCmsSubTab === 'global_settings' && (
             <div className="p-6 rounded-3xl bg-zinc-950 border border-zinc-800 space-y-5 shadow-xl">
               <form onSubmit={handleSaveSiteSettings} className="space-y-5 text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <label className="text-zinc-300 block mb-1 font-medium">Platform Brand Name</label>
+                    <input
+                      type="text"
+                      value={siteSettingsForm.siteName}
+                      onChange={(e) => setSiteSettingsForm({ ...siteSettingsForm, siteName: e.target.value })}
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3.5 py-2 text-white font-bold focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-zinc-300 block mb-1 font-medium">Header Tagline</label>
+                    <input
+                      type="text"
+                      value={siteSettingsForm.siteTagline}
+                      onChange={(e) => setSiteSettingsForm({ ...siteSettingsForm, siteTagline: e.target.value })}
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3.5 py-2 text-white focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-zinc-300 block mb-1 font-medium">Hero Top Status Badge</label>
+                    <input
+                      type="text"
+                      value={siteSettingsForm.heroBadge}
+                      onChange={(e) => setSiteSettingsForm({ ...siteSettingsForm, heroBadge: e.target.value })}
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3.5 py-2 text-white focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="text-zinc-300 block mb-1 font-medium">Hero Section Main Headline</label>
                     <input
                       type="text"
-                      value={siteSettings.heroHeadline}
-                      onChange={(e) => setSiteSettings({ ...siteSettings, heroHeadline: e.target.value })}
+                      value={siteSettingsForm.heroHeadline}
+                      onChange={(e) => setSiteSettingsForm({ ...siteSettingsForm, heroHeadline: e.target.value })}
                       className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3.5 py-2 text-white font-medium focus:outline-none focus:border-amber-500"
                     />
                   </div>
@@ -2823,8 +3681,8 @@ export const AdminDashboard: React.FC = () => {
                     <label className="text-zinc-300 block mb-1 font-medium">Hero Subtitle Copy</label>
                     <input
                       type="text"
-                      value={siteSettings.heroSubtitle}
-                      onChange={(e) => setSiteSettings({ ...siteSettings, heroSubtitle: e.target.value })}
+                      value={siteSettingsForm.heroSubtitle}
+                      onChange={(e) => setSiteSettingsForm({ ...siteSettingsForm, heroSubtitle: e.target.value })}
                       className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3.5 py-2 text-white focus:outline-none focus:border-amber-500"
                     />
                   </div>
@@ -2835,8 +3693,8 @@ export const AdminDashboard: React.FC = () => {
                     <label className="text-zinc-300 block mb-1 font-medium">Wheel Spin Cost (USD)</label>
                     <input
                       type="number"
-                      value={siteSettings.spinCostUsd}
-                      onChange={(e) => setSiteSettings({ ...siteSettings, spinCostUsd: Number(e.target.value) })}
+                      value={siteSettingsForm.spinCostUsd}
+                      onChange={(e) => setSiteSettingsForm({ ...siteSettingsForm, spinCostUsd: Number(e.target.value) })}
                       className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono"
                     />
                   </div>
@@ -2845,8 +3703,8 @@ export const AdminDashboard: React.FC = () => {
                     <label className="text-zinc-300 block mb-1 font-medium">Scratch Card Max Prize Cap (USD)</label>
                     <input
                       type="number"
-                      value={siteSettings.maxScratchPrizeUsd}
-                      onChange={(e) => setSiteSettings({ ...siteSettings, maxScratchPrizeUsd: Number(e.target.value) })}
+                      value={siteSettingsForm.maxScratchPrizeUsd}
+                      onChange={(e) => setSiteSettingsForm({ ...siteSettingsForm, maxScratchPrizeUsd: Number(e.target.value) })}
                       className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono"
                     />
                   </div>
@@ -2855,8 +3713,8 @@ export const AdminDashboard: React.FC = () => {
                     <label className="text-zinc-300 block mb-1 font-medium">Hourly Bay Labor Rate (USD)</label>
                     <input
                       type="number"
-                      value={siteSettings.hourlyBayRateUsd}
-                      onChange={(e) => setSiteSettings({ ...siteSettings, hourlyBayRateUsd: Number(e.target.value) })}
+                      value={siteSettingsForm.hourlyBayRateUsd}
+                      onChange={(e) => setSiteSettingsForm({ ...siteSettingsForm, hourlyBayRateUsd: Number(e.target.value) })}
                       className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono"
                     />
                   </div>
@@ -2866,10 +3724,37 @@ export const AdminDashboard: React.FC = () => {
                   <label className="text-zinc-300 block mb-1 font-medium">Homepage Live Flash Announcement Bar</label>
                   <input
                     type="text"
-                    value={siteSettings.announcementBanner}
-                    onChange={(e) => setSiteSettings({ ...siteSettings, announcementBanner: e.target.value })}
+                    value={siteSettingsForm.announcementBanner}
+                    onChange={(e) => setSiteSettingsForm({ ...siteSettingsForm, announcementBanner: e.target.value })}
                     className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3.5 py-2 text-white focus:outline-none focus:border-amber-500"
                   />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <label className="p-3 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-between cursor-pointer">
+                    <div>
+                      <span className="font-bold text-white block">Enable Crypto Deposit Gateways</span>
+                      <span className="text-[10px] text-zinc-400">Accept BTC, USDT, XRP & BNB wallet funding</span>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={siteSettingsForm.enableCryptoDeposits}
+                      onChange={(e) => setSiteSettingsForm({ ...siteSettingsForm, enableCryptoDeposits: e.target.checked })}
+                      className="w-4 h-4 accent-emerald-500"
+                    />
+                  </label>
+                  <label className="p-3 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-between cursor-pointer">
+                    <div>
+                      <span className="font-bold text-amber-300 block">Sitewide Maintenance Banner</span>
+                      <span className="text-[10px] text-zinc-400">Display scheduled maintenance banner at top of app</span>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={siteSettingsForm.maintenanceMode}
+                      onChange={(e) => setSiteSettingsForm({ ...siteSettingsForm, maintenanceMode: e.target.checked })}
+                      className="w-4 h-4 accent-amber-500"
+                    />
+                  </label>
                 </div>
 
                 <div className="pt-2">
@@ -6197,6 +7082,304 @@ export const AdminDashboard: React.FC = () => {
         </div>
       )}
 
+      {/* TAB: PROMOTIONAL BANNERS & GEMINI AI GENERATOR */}
+      {activeAdminTab === 'promo_banners' && (
+        <div className="space-y-6 w-full">
+          {/* Gemini AI Banner Studio Card */}
+          <div className="p-5 sm:p-6 rounded-3xl bg-gradient-to-br from-zinc-950 via-red-950/20 to-zinc-950 border border-red-500/30 space-y-5 shadow-2xl">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-800 pb-4">
+              <div className="flex items-start gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-red-600/20 border border-red-500/40 flex items-center justify-center text-red-400 shrink-0">
+                  <Sparkles className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-heading font-black text-lg sm:text-xl text-white">
+                    AI Promotional Banner Generator (Gemini 4 Hydrogen)
+                  </h3>
+                  <p className="text-xs text-zinc-400 mt-0.5">
+                    Auto-create responsive Leaderboard (728×90), Square (300×300), Rectangle (300×250), and Sidebar (160×600) banners. Users automatically receive every active banner with their personal referral link embedded.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowManualBannerModal(true)}
+                className="px-4 py-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-white text-xs font-bold flex items-center gap-1.5 shrink-0 cursor-pointer"
+              >
+                <Plus className="w-4 h-4 text-amber-400" />
+                <span>Create Custom Banner</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 text-xs">
+              <div className="lg:col-span-6 space-y-1.5">
+                <label className="text-zinc-300 font-semibold block">Campaign Objective / AI Prompt</label>
+                <input
+                  type="text"
+                  value={aiBannerGoal}
+                  onChange={(e) => setAiBannerGoal(e.target.value)}
+                  placeholder="Describe offer, APY, vehicle discount, or referral bonus..."
+                  className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:border-red-500"
+                />
+              </div>
+
+              <div className="lg:col-span-2 space-y-1.5">
+                <label className="text-zinc-300 font-semibold block">Banner Size</label>
+                <select
+                  value={aiBannerSize}
+                  onChange={(e) => setAiBannerSize(e.target.value as BannerSizeType)}
+                  className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2.5 text-white"
+                >
+                  <option value="leaderboard">Leaderboard (728×90)</option>
+                  <option value="square">Square (300×300)</option>
+                  <option value="rectangle">Rectangle (300×250)</option>
+                  <option value="sidebar">Sidebar (160×600)</option>
+                </select>
+              </div>
+
+              <div className="lg:col-span-2 space-y-1.5">
+                <label className="text-zinc-300 font-semibold block">Tone</label>
+                <select
+                  value={aiBannerTone}
+                  onChange={(e) => setAiBannerTone(e.target.value)}
+                  className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2.5 text-white"
+                >
+                  <option value="Luxury High-Octane EV">Luxury High-Octane EV</option>
+                  <option value="Urgent Limited Offer">Urgent Limited Offer</option>
+                  <option value="Institutional Fintech">Institutional Fintech</option>
+                  <option value="Ambassador VIP Invite">Ambassador VIP Invite</option>
+                </select>
+              </div>
+
+              <div className="lg:col-span-2 space-y-1.5">
+                <label className="text-zinc-300 font-semibold block">Target Route</label>
+                <select
+                  value={aiBannerTargetTab}
+                  onChange={(e) => setAiBannerTargetTab(e.target.value)}
+                  className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2.5 text-white"
+                >
+                  <option value="stocks">TSLA Stocks</option>
+                  <option value="vehicles">Car Sales</option>
+                  <option value="investment">Fleet Yield</option>
+                  <option value="promotions">Spin & Win ($150)</option>
+                  <option value="referrals">Referrals (+$100)</option>
+                  <option value="shop">Hardware Store</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3 pt-1">
+              <button
+                type="button"
+                disabled={isGeneratingAiBanner || isGeneratingAllSizes}
+                onClick={() => handleGenerateAiBanner(aiBannerSize)}
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 text-white font-bold text-xs flex items-center gap-2 shadow-lg shadow-red-950/40 disabled:opacity-50 cursor-pointer"
+              >
+                <Sparkles className="w-4 h-4" />
+                <span>
+                  {isGeneratingAiBanner ? 'Generating AI Banner...' : `Auto-Generate ${aiBannerSize.toUpperCase()} Banner`}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                disabled={isGeneratingAiBanner || isGeneratingAllSizes}
+                onClick={handleGenerateFullBannerPack}
+                className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-2 shadow-lg shadow-emerald-950/40 disabled:opacity-50 cursor-pointer"
+              >
+                <Megaphone className="w-4 h-4" />
+                <span>
+                  {isGeneratingAllSizes ? 'Generating Full 4-Size Pack...' : 'AI Generate All 4 Sizes Pack'}
+                </span>
+              </button>
+            </div>
+          </div>
+
+          {/* Published Marketing Banners List */}
+          <div className="p-5 sm:p-6 rounded-3xl bg-zinc-950 border border-zinc-800 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-zinc-800 pb-3">
+              <div>
+                <h4 className="font-heading font-bold text-base text-white">
+                  Active & Draft Promotional Banners ({marketingBanners.length})
+                </h4>
+                <p className="text-xs text-zinc-400">
+                  Every published banner is displayed on the user Promotional Banners page with their referral link automatically attached.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {marketingBanners.map((b) => (
+                <div
+                  key={b.id}
+                  className="p-4 rounded-2xl bg-zinc-900/70 border border-zinc-800 space-y-3 flex flex-col justify-between"
+                >
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className="w-3 h-3 rounded-full shrink-0"
+                          style={{ backgroundColor: b.accentColor }}
+                        />
+                        <span className="px-2 py-0.5 rounded bg-zinc-950 border border-zinc-700 text-[10px] font-mono font-bold text-white uppercase">
+                          {b.size} ({b.dimensions})
+                        </span>
+                        {b.isAiGenerated && (
+                          <span className="px-2 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 text-[10px] font-mono font-bold">
+                            AI
+                          </span>
+                        )}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => updateMarketingBanner(b.id, { isActive: !b.isActive })}
+                        className={`px-2.5 py-0.5 rounded text-[10px] font-mono font-bold cursor-pointer ${
+                          b.isActive
+                            ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
+                            : 'bg-zinc-800 text-zinc-400'
+                        }`}
+                      >
+                        {b.isActive ? 'Published' : 'Paused'}
+                      </button>
+                    </div>
+
+                    <h5 className="font-heading font-bold text-sm text-white">{b.headline}</h5>
+                    <p className="text-xs text-zinc-400 line-clamp-2">{b.subheadline}</p>
+                  </div>
+
+                  <div className="pt-3 border-t border-zinc-800 flex items-center justify-between text-[11px]">
+                    <span className="font-mono text-zinc-400">
+                      CTA: <strong className="text-white">{b.ctaText}</strong> • /{b.targetTab}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => deleteMarketingBanner(b.id)}
+                      className="p-1.5 rounded-lg bg-zinc-950 hover:bg-rose-950/60 text-zinc-400 hover:text-rose-400 cursor-pointer"
+                      title="Delete banner"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Manual Create Banner Modal */}
+          {showManualBannerModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
+              <div className="bg-zinc-950 border border-zinc-800 rounded-3xl p-6 w-full max-w-lg space-y-4 text-xs">
+                <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+                  <h3 className="font-heading font-bold text-base text-white">Create Custom Promotional Banner</h3>
+                  <button onClick={() => setShowManualBannerModal(false)} className="text-zinc-400 hover:text-white">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-zinc-400 block mb-1">Banner Name</label>
+                      <input
+                        type="text"
+                        value={manualBannerForm.title}
+                        onChange={(e) => setManualBannerForm({ ...manualBannerForm, title: e.target.value })}
+                        className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-zinc-400 block mb-1">Size Format</label>
+                      <select
+                        value={manualBannerForm.size}
+                        onChange={(e) => {
+                          const s = e.target.value as BannerSizeType;
+                          const dimMap: Record<BannerSizeType, string> = {
+                            leaderboard: '728×90',
+                            square: '300×300',
+                            rectangle: '300×250',
+                            sidebar: '160×600',
+                          };
+                          setManualBannerForm({ ...manualBannerForm, size: s, dimensions: dimMap[s] });
+                        }}
+                        className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white"
+                      >
+                        <option value="leaderboard">Leaderboard (728×90)</option>
+                        <option value="square">Square (300×300)</option>
+                        <option value="rectangle">Rectangle (300×250)</option>
+                        <option value="sidebar">Sidebar (160×600)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-zinc-400 block mb-1">Headline</label>
+                    <input
+                      type="text"
+                      value={manualBannerForm.headline}
+                      onChange={(e) => setManualBannerForm({ ...manualBannerForm, headline: e.target.value })}
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-zinc-400 block mb-1">Subheadline</label>
+                    <textarea
+                      rows={2}
+                      value={manualBannerForm.subheadline}
+                      onChange={(e) => setManualBannerForm({ ...manualBannerForm, subheadline: e.target.value })}
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-xl p-3 text-white"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-zinc-400 block mb-1">CTA Button Text</label>
+                      <input
+                        type="text"
+                        value={manualBannerForm.ctaText}
+                        onChange={(e) => setManualBannerForm({ ...manualBannerForm, ctaText: e.target.value })}
+                        className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-zinc-400 block mb-1">Accent Color</label>
+                      <input
+                        type="color"
+                        value={manualBannerForm.accentColor}
+                        onChange={(e) => setManualBannerForm({ ...manualBannerForm, accentColor: e.target.value })}
+                        className="w-full h-9 bg-zinc-900 border border-zinc-700 rounded-xl px-2 py-1"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowManualBannerModal(false)}
+                    className="flex-1 py-2.5 rounded-xl bg-zinc-800 text-zinc-300 font-bold"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      createMarketingBanner(manualBannerForm);
+                      setShowManualBannerModal(false);
+                    }}
+                    className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold"
+                  >
+                    Publish Banner
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Edit Investment Position Modal */}
       {editingInvestment && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md">
@@ -6412,7 +7595,9 @@ export const AdminDashboard: React.FC = () => {
                   type="checkbox"
                   id="pagePublished"
                   checked={pageForm.isPublished}
-                  onChange={(e) => setPageForm({ ...pageForm, isPublished: e.target.checked })}
+                  onChange={(e) =>
+                    setPageForm({ ...pageForm, isPublished: e.target.checked, published: e.target.checked })
+                  }
                   className="rounded text-amber-500 focus:ring-0"
                 />
                 <label htmlFor="pagePublished" className="text-zinc-300">
@@ -6449,6 +7634,450 @@ export const AdminDashboard: React.FC = () => {
         </div>
       )}
 
+      {/* Navigation Menu Item Modal (Create / Edit) */}
+      {isMenuModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md">
+          <div className="relative w-full max-w-lg bg-zinc-950 border border-zinc-800 rounded-3xl p-6 space-y-4 text-zinc-100 shadow-2xl max-h-[92vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+              <h3 className="font-heading font-bold text-base text-white">
+                {editingMenuId ? 'Edit Navigation Menu Item' : 'Add Navigation Menu Item'}
+              </h3>
+              <button
+                onClick={() => setIsMenuModalOpen(false)}
+                className="p-1 rounded-lg text-zinc-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3.5 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-zinc-400 block mb-1">Menu Display Label</label>
+                  <input
+                    type="text"
+                    value={menuForm.label}
+                    onChange={(e) => setMenuForm({ ...menuForm, label: e.target.value })}
+                    placeholder="e.g. VIP Fleet, Storefront"
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white"
+                  />
+                </div>
+                <div>
+                  <label className="text-zinc-400 block mb-1">Menu Location</label>
+                  <select
+                    value={menuForm.location}
+                    onChange={(e) => setMenuForm({ ...menuForm, location: e.target.value as MenuLocation })}
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white"
+                  >
+                    <option value="navbar">Top Navbar</option>
+                    <option value="dropdown">User Dropdown Menu</option>
+                    <option value="footer_services">Footer: Services Column</option>
+                    <option value="footer_fleet">Footer: Fleet Column</option>
+                    <option value="footer_legal">Footer: Trust & Promotions</option>
+                    <option value="mobile_only">Mobile Drawer Only</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-zinc-400 block mb-1">Target Route / Page Slug</label>
+                  <select
+                    value={menuForm.targetTab}
+                    onChange={(e) => setMenuForm({ ...menuForm, targetTab: e.target.value })}
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono"
+                  >
+                    {[
+                      'home',
+                      'stocks',
+                      'vehicles',
+                      'coupons',
+                      'services',
+                      'wraps',
+                      'rentals',
+                      'investment',
+                      'promotions',
+                      'banners',
+                      'referrals',
+                      'social',
+                      'shop',
+                      'about',
+                      'faq',
+                      'contact',
+                      'tracking',
+                      'dashboard',
+                      ...sitePages.filter((p) => !p.isSystem).map((p) => p.slug),
+                    ]
+                      .filter((v, idx, arr) => arr.indexOf(v) === idx)
+                      .map((slug) => (
+                        <option key={slug} value={slug}>
+                          /{slug}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-zinc-400 block mb-1">Badge Pill (Optional)</label>
+                  <input
+                    type="text"
+                    value={menuForm.badge || ''}
+                    onChange={(e) => setMenuForm({ ...menuForm, badge: e.target.value })}
+                    placeholder="e.g. HOT, NEW, +$100"
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-zinc-400 block mb-1">Display Order</label>
+                  <input
+                    type="number"
+                    value={menuForm.order}
+                    onChange={(e) => setMenuForm({ ...menuForm, order: parseInt(e.target.value) || 1 })}
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="text-zinc-400 block mb-1">Icon (Optional)</label>
+                  <select
+                    value={menuForm.iconName || ''}
+                    onChange={(e) => setMenuForm({ ...menuForm, iconName: e.target.value })}
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white"
+                  >
+                    <option value="">None</option>
+                    <option value="Car">Car</option>
+                    <option value="Activity">Activity</option>
+                    <option value="Tag">Tag</option>
+                    <option value="Wrench">Wrench</option>
+                    <option value="Palette">Palette</option>
+                    <option value="TrendingUp">TrendingUp</option>
+                    <option value="Gift">Gift</option>
+                    <option value="Users">Users</option>
+                    <option value="Share2">Share2</option>
+                    <option value="Megaphone">Megaphone</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-4 pt-1">
+                <label className="flex items-center gap-2 text-zinc-300 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(menuForm.highlight)}
+                    onChange={(e) => setMenuForm({ ...menuForm, highlight: e.target.checked })}
+                  />
+                  <span>Highlight in Amber/Gold</span>
+                </label>
+                <label className="flex items-center gap-2 text-zinc-300 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={menuForm.isVisible}
+                    onChange={(e) => setMenuForm({ ...menuForm, isVisible: e.target.checked })}
+                  />
+                  <span>Visible on Site</span>
+                </label>
+              </div>
+
+              <div className="flex gap-2 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setIsMenuModalOpen(false)}
+                  className="flex-1 py-2.5 rounded-xl bg-zinc-800 text-zinc-300 font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={!menuForm.label.trim()}
+                  onClick={() => {
+                    if (editingMenuId) {
+                      updateNavigationMenuItem(editingMenuId, menuForm);
+                    } else {
+                      createNavigationMenuItem(menuForm);
+                    }
+                    setIsMenuModalOpen(false);
+                  }}
+                  className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold disabled:opacity-50"
+                >
+                  {editingMenuId ? 'Save Menu Item' : 'Add Menu Item'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Store Product Inventory Modal (Create / Edit) */}
+      {isProductModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md">
+          <div className="relative w-full max-w-lg bg-zinc-950 border border-zinc-800 rounded-3xl p-6 space-y-4 text-zinc-100 shadow-2xl max-h-[92vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+              <h3 className="font-heading font-bold text-base text-white">
+                {editingProductId ? 'Edit Store Product' : 'Add Store Product'}
+              </h3>
+              <button
+                onClick={() => setIsProductModalOpen(false)}
+                className="p-1 rounded-lg text-zinc-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3.5 text-xs">
+              <div>
+                <label className="text-zinc-400 block mb-1">Product Name</label>
+                <input
+                  type="text"
+                  value={productForm.name}
+                  onChange={(e) => setProductForm({ ...productForm, name: e.target.value })}
+                  placeholder="e.g. Cybertruck Forged Wheel Set"
+                  className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-zinc-400 block mb-1">Category</label>
+                  <select
+                    value={productForm.category}
+                    onChange={(e) => setProductForm({ ...productForm, category: e.target.value as ProductItem['category'] })}
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white"
+                  >
+                    <option value="Wraps & Film">Wraps &amp; Film</option>
+                    <option value="Aero & Carbon">Aero &amp; Carbon</option>
+                    <option value="Wheels & Performance">Wheels &amp; Performance</option>
+                    <option value="Interior & Yoke">Interior &amp; Yoke</option>
+                    <option value="Charging & Tech">Charging &amp; Tech</option>
+                    <option value="Vehicle Sales">Vehicle Sales</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-zinc-400 block mb-1">Price (USD)</label>
+                  <input
+                    type="number"
+                    value={productForm.priceUsd}
+                    onChange={(e) => setProductForm({ ...productForm, priceUsd: parseFloat(e.target.value) || 0 })}
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-zinc-400 block mb-1">Product Image URL</label>
+                <input
+                  type="text"
+                  value={productForm.image}
+                  onChange={(e) => setProductForm({ ...productForm, image: e.target.value })}
+                  className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-cyan-300 font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="text-zinc-400 block mb-1">Compatible Models</label>
+                <input
+                  type="text"
+                  value={productForm.compatibility || ''}
+                  onChange={(e) =>
+                    setProductForm({
+                      ...productForm,
+                      compatibility: e.target.value,
+                    })
+                  }
+                  placeholder="e.g. Model S, Model 3, Model X, Model Y, Cybertruck"
+                  className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white"
+                />
+              </div>
+
+              <div>
+                <label className="text-zinc-400 block mb-1">Description</label>
+                <textarea
+                  rows={3}
+                  value={productForm.description}
+                  onChange={(e) => setProductForm({ ...productForm, description: e.target.value })}
+                  className="w-full bg-zinc-900 border border-zinc-700 rounded-xl p-3 text-white"
+                />
+              </div>
+
+              <label className="flex items-center gap-2 text-zinc-300 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={productForm.inStock}
+                  onChange={(e) => setProductForm({ ...productForm, inStock: e.target.checked })}
+                />
+                <span>Available in stock on public Store page</span>
+              </label>
+
+              <div className="flex gap-2 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setIsProductModalOpen(false)}
+                  className="flex-1 py-2.5 rounded-xl bg-zinc-800 text-zinc-300 font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={!productForm.name.trim()}
+                  onClick={() => {
+                    if (editingProductId) {
+                      updateProductItem(editingProductId, productForm);
+                    } else {
+                      addProductItem(productForm);
+                    }
+                    setIsProductModalOpen(false);
+                  }}
+                  className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold disabled:opacity-50"
+                >
+                  {editingProductId ? 'Save Product' : 'Add Product'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Scratch Card Tier Promotional Modal (Create / Edit) */}
+      {isScratchModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md">
+          <div className="relative w-full max-w-lg bg-zinc-950 border border-zinc-800 rounded-3xl p-6 space-y-4 text-zinc-100 shadow-2xl max-h-[92vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+              <h3 className="font-heading font-bold text-base text-white">
+                {editingScratchId ? 'Edit Scratch Card Tier' : 'Create Scratch Card Tier'}
+              </h3>
+              <button
+                onClick={() => setIsScratchModalOpen(false)}
+                className="p-1 rounded-lg text-zinc-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3.5 text-xs">
+              <div>
+                <label className="text-zinc-400 block mb-1">Tier Name</label>
+                <input
+                  type="text"
+                  value={scratchForm.name}
+                  onChange={(e) => setScratchForm({ ...scratchForm, name: e.target.value })}
+                  placeholder="e.g. Founders Roadster Apex"
+                  className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-zinc-400 block mb-1">Ticket Price (USD)</label>
+                  <input
+                    type="number"
+                    value={scratchForm.priceUsd}
+                    onChange={(e) => setScratchForm({ ...scratchForm, priceUsd: parseFloat(e.target.value) || 0 })}
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="text-zinc-400 block mb-1">Max Jackpot (USD)</label>
+                  <input
+                    type="number"
+                    value={scratchForm.maxPrizeUsd}
+                    onChange={(e) => setScratchForm({ ...scratchForm, maxPrizeUsd: parseFloat(e.target.value) || 0 })}
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-zinc-400 block mb-1">Tailwind Gradient Class</label>
+                <select
+                  value={scratchForm.gradient}
+                  onChange={(e) => setScratchForm({ ...scratchForm, gradient: e.target.value })}
+                  className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono"
+                >
+                  <option value="from-amber-600 via-red-600 to-rose-700">Amber → Red → Rose</option>
+                  <option value="from-emerald-600 via-teal-600 to-cyan-700">Emerald → Teal → Cyan</option>
+                  <option value="from-purple-600 via-indigo-600 to-blue-700">Purple → Indigo → Blue</option>
+                  <option value="from-zinc-700 via-slate-800 to-zinc-950">Carbon Metallic</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-zinc-400 block mb-1">Description</label>
+                <textarea
+                  rows={2}
+                  value={scratchForm.description}
+                  onChange={(e) => setScratchForm({ ...scratchForm, description: e.target.value })}
+                  className="w-full bg-zinc-900 border border-zinc-700 rounded-xl p-3 text-white"
+                />
+              </div>
+
+              <div className="space-y-2 pt-1">
+                <span className="text-[10px] font-mono uppercase text-zinc-400 block">Top Prize Payout Tiers</span>
+                {scratchForm.possiblePrizes.map((p, idx) => (
+                  <div key={idx} className="grid grid-cols-12 gap-2 items-center">
+                    <input
+                      type="text"
+                      value={p.label}
+                      onChange={(e) => {
+                        const updated = [...scratchForm.possiblePrizes];
+                        updated[idx] = { ...updated[idx], label: e.target.value };
+                        setScratchForm({ ...scratchForm, possiblePrizes: updated });
+                      }}
+                      className="col-span-6 bg-zinc-900 border border-zinc-700 rounded-lg px-2 py-1.5 text-white"
+                    />
+                    <input
+                      type="number"
+                      value={p.amountUsd}
+                      onChange={(e) => {
+                        const updated = [...scratchForm.possiblePrizes];
+                        updated[idx] = { ...updated[idx], amountUsd: parseFloat(e.target.value) || 0 };
+                        setScratchForm({ ...scratchForm, possiblePrizes: updated });
+                      }}
+                      className="col-span-3 bg-zinc-900 border border-zinc-700 rounded-lg px-2 py-1.5 text-amber-400 font-mono"
+                    />
+                    <input
+                      type="number"
+                      value={p.weight}
+                      onChange={(e) => {
+                        const updated = [...scratchForm.possiblePrizes];
+                        updated[idx] = { ...updated[idx], weight: parseFloat(e.target.value) || 1 };
+                        setScratchForm({ ...scratchForm, possiblePrizes: updated });
+                      }}
+                      title="Probability weight"
+                      className="col-span-3 bg-zinc-900 border border-zinc-700 rounded-lg px-2 py-1.5 text-zinc-300 font-mono"
+                    />
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex gap-2 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setIsScratchModalOpen(false)}
+                  className="flex-1 py-2.5 rounded-xl bg-zinc-800 text-zinc-300 font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={!scratchForm.name.trim()}
+                  onClick={() => {
+                    if (editingScratchId) {
+                      updateScratchCardTier(editingScratchId, scratchForm);
+                    } else {
+                      createScratchCardTier(scratchForm);
+                    }
+                    setIsScratchModalOpen(false);
+                  }}
+                  className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold disabled:opacity-50"
+                >
+                  {editingScratchId ? 'Save Tier' : 'Create Tier'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Manual Deposit Method Modal (Create / Edit) */}
       {isDepositModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md">
@@ -6472,7 +8101,7 @@ export const AdminDashboard: React.FC = () => {
                   <input
                     type="text"
                     value={depositForm.name}
-                    onChange={(e) => setDepositForm({ ...depositForm, name: e.target.value })}
+                    onChange={(e) => setDepositForm({ ...depositForm, name: e.target.value, title: e.target.value })}
                     placeholder="e.g. Bank Wire USA, CashApp"
                     className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white"
                   />
@@ -6506,7 +8135,13 @@ export const AdminDashboard: React.FC = () => {
                   <input
                     type="text"
                     value={depositForm.accountNumber}
-                    onChange={(e) => setDepositForm({ ...depositForm, accountNumber: e.target.value })}
+                    onChange={(e) =>
+                      setDepositForm({
+                        ...depositForm,
+                        accountNumber: e.target.value,
+                        accountDetails: e.target.value,
+                      })
+                    }
                     placeholder="Account number or tag"
                     className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono"
                   />
@@ -6564,7 +8199,9 @@ export const AdminDashboard: React.FC = () => {
                   type="checkbox"
                   id="depEnabled"
                   checked={depositForm.enabled}
-                  onChange={(e) => setDepositForm({ ...depositForm, enabled: e.target.checked })}
+                  onChange={(e) =>
+                    setDepositForm({ ...depositForm, enabled: e.target.checked, isActive: e.target.checked })
+                  }
                   className="rounded text-emerald-500 focus:ring-0"
                 />
                 <label htmlFor="depEnabled" className="text-zinc-300">

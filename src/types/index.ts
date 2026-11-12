@@ -706,8 +706,101 @@ export interface AutoCryptoGateway {
   totalTransactionsCount: number;
 }
 
+export interface ReviewItem {
+  id: string;
+  targetType: 'vehicle' | 'product';
+  targetId: string;
+  targetName: string;
+  userId: string;
+  userName: string;
+  userAvatar: string;
+  userLocation?: string;
+  rating: 1 | 2 | 3 | 4 | 5;
+  title: string;
+  comment: string;
+  verifiedPurchase: boolean;
+  helpfulCount: number;
+  createdAt: string;
+}
 
+export interface StockPriceAlert {
+  id: string;
+  symbol: 'TSLA';
+  condition: 'above' | 'below';
+  targetPriceUsd: number;
+  note?: string;
+  isActive: boolean;
+  triggeredAt?: string;
+  createdAt: string;
+}
 
+export type BannerSizeType = 'leaderboard' | 'square' | 'rectangle' | 'sidebar';
 
+export interface MarketingBanner {
+  id: string;
+  title: string;
+  size: BannerSizeType;
+  dimensions: string;
+  headline: string;
+  subheadline: string;
+  ctaText: string;
+  badgeText: string;
+  themeGradient: string;
+  accentColor: string;
+  targetTab: string;
+  imageUrl?: string;
+  isActive: boolean;
+  isAiGenerated?: boolean;
+  clicksCount?: number;
+  createdAt: string;
+}
 
+export type MenuLocation =
+  | 'navbar'
+  | 'dropdown'
+  | 'footer_services'
+  | 'footer_fleet'
+  | 'footer_legal'
+  | 'mobile_only';
+
+export interface NavigationMenuItem {
+  id: string;
+  label: string;
+  targetTab: string;
+  location: MenuLocation;
+  order: number;
+  badge?: string;
+  highlight?: boolean;
+  isVisible: boolean;
+  iconName?: string;
+  isSystem?: boolean;
+}
+
+export interface SiteSettings {
+  siteName: string;
+  siteTagline: string;
+  heroBadge: string;
+  heroHeadline: string;
+  heroSubtitle: string;
+  announcementBanner: string;
+  promoBannerTitle: string;
+  promoBannerSubtitle: string;
+  spinCostUsd: number;
+  maxScratchPrizeUsd: number;
+  hourlyBayRateUsd: number;
+  maintenanceMode: boolean;
+  enableCryptoDeposits: boolean;
+}
+
+export interface CronDispatchedEmail {
+  id: string;
+  type: string;
+  recipient: string;
+  subject: string;
+  amountUsd: number;
+  investmentId: string;
+  certificateId: string;
+  dispatchedAt: string;
+  status: 'delivered' | 'simulated';
+}
 

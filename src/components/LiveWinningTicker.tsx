@@ -31,7 +31,7 @@ export const LiveWinningTicker: React.FC<LiveWinningTickerProps> = ({
   onNavigateToStocks,
   onNavigateToPromotions,
 }) => {
-  const { recentWinners, coupons, claimCoupon, tslaQuote, userInvestments } = useApp();
+  const { recentWinners, coupons, claimCoupon, tslaQuote, siteSettings } = useApp();
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
@@ -40,6 +40,7 @@ export const LiveWinningTicker: React.FC<LiveWinningTickerProps> = ({
 
   // Combined multiple display feeds
   const slides = [
+    ...(siteSettings.announcementBanner?.trim() ? [{ id: 'announcement', type: 'announcement' }] : []),
     { id: 'stocks', type: 'stocks' },
     { id: 'roi_wins', type: 'roi_wins' },
     { id: 'winners', type: 'winners' },
@@ -90,8 +91,20 @@ export const LiveWinningTicker: React.FC<LiveWinningTickerProps> = ({
 
         {/* Central Dynamic Sliding Display Area (Combined Multiple Display) */}
         <div className="flex-1 min-w-0 flex items-center justify-center overflow-hidden">
+          {slides[currentSlide % slides.length]?.id === 'announcement' && (
+            <div className="flex items-center gap-2.5 truncate animate-in fade-in slide-in-from-right-4 duration-300">
+              <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[10px] font-bold uppercase shrink-0">
+                <Sparkles className="w-3 h-3 text-amber-400 inline" />
+                <span>Flash Notice</span>
+              </span>
+              <span className="text-zinc-100 font-medium truncate">
+                {siteSettings.announcementBanner}
+              </span>
+            </div>
+          )}
+
           {/* FEED 0: LIVE TESLA STOCK TICKER & SPOT BUY ALERT */}
-          {currentSlide === 0 && (
+          {slides[currentSlide % slides.length]?.id === 'stocks' && (
             <div className="flex items-center gap-2.5 truncate animate-in fade-in slide-in-from-right-4 duration-300">
               <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-cyan-600/20 text-cyan-300 border border-cyan-500/30 text-[10px] font-bold uppercase shrink-0">
                 <Zap className="w-3 h-3 text-cyan-400 inline" />
@@ -120,7 +133,7 @@ export const LiveWinningTicker: React.FC<LiveWinningTickerProps> = ({
           )}
 
           {/* FEED 1: COMBINED INVESTMENT ROI WINS & DAILY CRON PAYOUTS */}
-          {currentSlide === 1 && (
+          {slides[currentSlide % slides.length]?.id === 'roi_wins' && (
             <div className="flex items-center gap-2.5 truncate animate-in fade-in slide-in-from-right-4 duration-300">
               <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-600/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold uppercase shrink-0">
                 <TrendingUp className="w-3 h-3 text-emerald-400 inline" />
@@ -145,7 +158,7 @@ export const LiveWinningTicker: React.FC<LiveWinningTickerProps> = ({
           )}
 
           {/* FEED 2: LIVE PROVABLY FAIR WINNERS (SPINS & SCRATCH CARDS) */}
-          {currentSlide === 2 && (
+          {slides[currentSlide % slides.length]?.id === 'winners' && (
             <div className="flex items-center gap-2.5 truncate animate-in fade-in slide-in-from-right-4 duration-300">
               <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-red-600/20 text-red-400 border border-red-500/30 text-[10px] font-bold uppercase shrink-0">
                 <Trophy className="w-3 h-3 text-yellow-400 inline" />
@@ -189,7 +202,7 @@ export const LiveWinningTicker: React.FC<LiveWinningTickerProps> = ({
           )}
 
           {/* FEED 3: MATURITY PLAN AUTO-SETTLEMENTS */}
-          {currentSlide === 3 && (
+          {slides[currentSlide % slides.length]?.id === 'settlements' && (
             <div className="flex items-center gap-2.5 truncate animate-in fade-in slide-in-from-right-4 duration-300">
               <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-600/20 text-purple-300 border border-purple-500/30 text-[10px] font-bold uppercase shrink-0">
                 <DollarSign className="w-3 h-3 text-purple-400 inline" />
@@ -213,7 +226,7 @@ export const LiveWinningTicker: React.FC<LiveWinningTickerProps> = ({
           )}
 
           {/* FEED 4: ACTIVE FLASH PROMO COUPONS */}
-          {currentSlide === 4 && (
+          {slides[currentSlide % slides.length]?.id === 'coupons' && (
             <div className="flex items-center gap-2.5 truncate animate-in fade-in slide-in-from-right-4 duration-300">
               <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-300 border border-yellow-500/30 text-[10px] font-bold uppercase shrink-0">
                 <Tag className="w-3 h-3 text-yellow-400 inline" />
@@ -244,7 +257,7 @@ export const LiveWinningTicker: React.FC<LiveWinningTickerProps> = ({
           )}
 
           {/* FEED 5: NATIONWIDE SHIPPING & DELIVERY DISPATCHES */}
-          {currentSlide === 5 && (
+          {slides[currentSlide % slides.length]?.id === 'shipping' && (
             <div className="flex items-center gap-2.5 truncate animate-in fade-in slide-in-from-right-4 duration-300">
               <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-cyan-600/20 text-cyan-300 border border-cyan-500/30 text-[10px] font-bold uppercase shrink-0">
                 <Truck className="w-3 h-3 text-cyan-400 inline" />

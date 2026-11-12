@@ -38,12 +38,19 @@ import {
   WheelReward,
   FeatureToggles,
   AutoCryptoGateway,
+  ReviewItem,
+  StockPriceAlert,
+  MarketingBanner,
+  NavigationMenuItem,
+  SiteSettings,
+  CronDispatchedEmail,
 } from '../types';
 import {
   CRYPTO_NETWORKS,
   INITIAL_VEHICLES,
   INVESTMENT_POOLS,
   MOCK_WINNERS,
+  PRODUCTS_CATALOG,
   RENTAL_FLEET,
   SCRATCH_CARD_TIERS,
   INITIAL_SITE_PAGES,
@@ -62,6 +69,10 @@ import {
   INITIAL_WITHDRAWAL_REQUESTS,
   DEFAULT_FEATURE_TOGGLES,
   DEFAULT_AUTO_CRYPTO_GATEWAYS,
+  INITIAL_REVIEWS,
+  INITIAL_MARKETING_BANNERS,
+  DEFAULT_SITE_SETTINGS,
+  INITIAL_NAVIGATION_MENUS,
 } from '../data/mockData';
 
 
@@ -139,10 +150,12 @@ interface AppContextType {
   forceMatureInvestment: (investmentId: string) => boolean;
   pauseResumeInvestment: (investmentId: string) => void;
   cancelInvestmentEarly: (investmentId: string) => boolean;
-  triggerManualCronCycle: () => { maturedCount: number; yieldDistributedUsd: number; logs: string[] };
+  triggerManualCronCycle: () => Promise<{ maturedCount: number; yieldDistributedUsd: number; logs: string[] }>;
+  toggleCronActive: (active?: boolean) => Promise<void>;
   cronActive: boolean;
   setCronActive: (active: boolean) => void;
   cronLogs: string[];
+  dispatchedCronEmails: CronDispatchedEmail[];
   lastCronRun: string | null;
   cronCyclesCount: number;
   lastCronRunAt: string | null;
@@ -158,11 +171,19 @@ interface AppContextType {
   markNotificationAsRead: (id: string) => void;
   dismissNotification: (id: string) => void;
   deleteNotification: (id: string) => void;
-  // Site CMS & Custom Pages
+  // Site CMS, Custom Pages, Navigation Menus & Global Settings
+  siteSettings: SiteSettings;
+  updateSiteSettings: (updates: Partial<SiteSettings>) => void;
   sitePages: SitePage[];
   createSitePage: (page: Omit<SitePage, 'id' | 'updatedAt'>) => void;
   updateSitePage: (id: string, updates: Partial<SitePage>) => void;
   deleteSitePage: (id: string) => boolean;
+  navigationMenus: NavigationMenuItem[];
+  createNavigationMenuItem: (item: Omit<NavigationMenuItem, 'id'>) => void;
+  updateNavigationMenuItem: (id: string, updates: Partial<NavigationMenuItem>) => void;
+  deleteNavigationMenuItem: (id: string) => void;
+  reorderNavigationMenuItem: (id: string, direction: 'up' | 'down') => void;
+  resetNavigationMenus: () => void;
   // Manual & Custom Deposit Methods
   manualDepositMethods: ManualDepositMethod[];
   addManualDepositMethod: (method: Omit<ManualDepositMethod, 'id'>) => void;
@@ -178,7 +199,11 @@ interface AppContextType {
   deleteProductItem: (id: string) => void;
   rentalFleetList: RentalVehicle[];
   updateRentalFleetVehicle: (id: string, updates: Partial<RentalVehicle>) => void;
-  // Promotions & Gaming
+  // Promotional Content & Gaming CMS
+  scratchCardTiers: ScratchCardTier[];
+  createScratchCardTier: (tier: Omit<ScratchCardTier, 'id'>) => void;
+  updateScratchCardTier: (id: string, updates: Partial<ScratchCardTier>) => void;
+  deleteScratchCardTier: (id: string) => void;
   executeSpin: () => { prize: string; valueUsd: number; type: string };
   purchaseScratchCard: (tier: ScratchCardTier) => boolean;
   awardScratchPrize: (tier: ScratchCardTier, prizeAmountUsd: number, prizeLabel: string) => void;
@@ -274,6 +299,29 @@ interface AppContextType {
   addAutoCryptoGateway: (gateway: Omit<AutoCryptoGateway, 'id' | 'totalProcessedUsd' | 'totalTransactionsCount'>) => void;
   deleteAutoCryptoGateway: (id: string) => void;
   testAutoCryptoGatewayPing: (id: string) => Promise<{ success: boolean; latencyMs: number; message: string }>;
+  // Verified Customer Reviews & Ratings
+  reviews: ReviewItem[];
+  addReview: (review: {
+    targetType: 'vehicle' | 'product';
+    targetId: string;
+    targetName: string;
+    rating: 1 | 2 | 3 | 4 | 5;
+    title: string;
+    comment: string;
+  }) => boolean;
+  markReviewHelpful: (reviewId: string) => void;
+  deleteReview: (reviewId: string) => void;
+  // TSLA Stock Price Alerts (with Toast Notification Triggers)
+  stockPriceAlerts: StockPriceAlert[];
+  addStockPriceAlert: (condition: 'above' | 'below', targetPriceUsd: number, note?: string) => void;
+  removeStockPriceAlert: (id: string) => void;
+  toggleStockPriceAlert: (id: string) => void;
+  resetStockPriceAlert: (id: string) => void;
+  // Promotional Marketing Banners CMS & AI Studio
+  marketingBanners: MarketingBanner[];
+  createMarketingBanner: (banner: Omit<MarketingBanner, 'id' | 'createdAt' | 'clicksCount'>) => MarketingBanner;
+  updateMarketingBanner: (id: string, updates: Partial<MarketingBanner>) => void;
+  deleteMarketingBanner: (id: string) => void;
 }
 
 
@@ -830,8 +878,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [availableSpins, setAvailableSpins] = useState<number>(0);
   const [spinCostUsd, setSpinCostUsd] = useState<number>(() => {
+    const migrated150 = localStorage.getItem('apex_spin_cost_migrated_150');
     const saved = localStorage.getItem('apex_spin_cost');
-    return saved ? Number(saved) : 25;
+    if (!migrated150) {
+      localStorage.setItem('apex_spin_cost_migrated_150', 'true');
+      if (!saved || Number(saved) === 25) {
+        localStorage.setItem('apex_spin_cost', '150');
+        return 150;
+      }
+    }
+    return saved ? Number(saved) : 150;
   });
 
   const [wheelRewards, setWheelRewards] = useState<WheelReward[]>(() => {
@@ -883,6 +939,41 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return saved ? JSON.parse(saved) : DEFAULT_AUTO_CRYPTO_GATEWAYS;
   });
 
+  const [reviews, setReviews] = useState<ReviewItem[]>(() => {
+    const saved = localStorage.getItem('apex_reviews_v1');
+    return saved ? JSON.parse(saved) : INITIAL_REVIEWS;
+  });
+
+  const [stockPriceAlerts, setStockPriceAlerts] = useState<StockPriceAlert[]>(() => {
+    const saved = localStorage.getItem('apex_tsla_price_alerts');
+    if (saved) return JSON.parse(saved);
+    return [
+      {
+        id: 'tsla-alert-high-01',
+        symbol: 'TSLA',
+        condition: 'above',
+        targetPriceUsd: Number((INITIAL_TSLA_QUOTE.price + 6.5).toFixed(2)),
+        note: 'Breakout resistance target',
+        isActive: true,
+        createdAt: new Date().toISOString(),
+      },
+      {
+        id: 'tsla-alert-low-01',
+        symbol: 'TSLA',
+        condition: 'below',
+        targetPriceUsd: Number(Math.max(100, INITIAL_TSLA_QUOTE.price - 6.5).toFixed(2)),
+        note: 'Spot accumulation dip target',
+        isActive: true,
+        createdAt: new Date().toISOString(),
+      },
+    ];
+  });
+
+  const [marketingBanners, setMarketingBanners] = useState<MarketingBanner[]>(() => {
+    const saved = localStorage.getItem('apex_marketing_banners_v1');
+    return saved ? JSON.parse(saved) : INITIAL_MARKETING_BANNERS;
+  });
+
 
   const [allUsers, setAllUsers] = useState<User[]>(() => {
     const saved = localStorage.getItem('apex_all_users');
@@ -923,10 +1014,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return saved ? JSON.parse(saved) : INITIAL_ADMIN_NOTIFICATIONS;
   });
 
+  // Global Site Settings (Reflected Site-Wide)
+  const [siteSettings, setSiteSettings] = useState<SiteSettings>(() => {
+    const saved = localStorage.getItem('apex_site_settings');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        return { ...DEFAULT_SITE_SETTINGS, ...parsed };
+      } catch {
+        return DEFAULT_SITE_SETTINGS;
+      }
+    }
+    return DEFAULT_SITE_SETTINGS;
+  });
+
   // Site CMS Pages state
   const [sitePages, setSitePages] = useState<SitePage[]>(() => {
     const saved = localStorage.getItem('apex_site_pages');
     return saved ? JSON.parse(saved) : INITIAL_SITE_PAGES;
+  });
+
+  // Navigation Menus state (Navbar, Dropdown, Footer)
+  const [navigationMenus, setNavigationMenus] = useState<NavigationMenuItem[]>(() => {
+    const saved = localStorage.getItem('apex_navigation_menus');
+    return saved ? JSON.parse(saved) : INITIAL_NAVIGATION_MENUS;
   });
 
   // Custom & Manual Deposit Gateways state
@@ -947,10 +1058,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return saved ? JSON.parse(saved) : INVESTMENT_POOLS;
   });
 
-  // Store Products Catalog
+  // Store Products Catalog (seeded with full catalog if empty)
   const [productsList, setProductsList] = useState<ProductItem[]>(() => {
     const saved = localStorage.getItem('apex_products_list');
-    return saved ? JSON.parse(saved) : [];
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch {
+        // fallback below
+      }
+    }
+    return PRODUCTS_CATALOG;
+  });
+
+  // Editable Scratch & Win Card Tiers
+  const [scratchCardTiers, setScratchCardTiers] = useState<ScratchCardTier[]>(() => {
+    const saved = localStorage.getItem('apex_scratch_tiers');
+    return saved ? JSON.parse(saved) : SCRATCH_CARD_TIERS;
   });
 
   // Rental Fleet List
@@ -996,12 +1121,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Automated ROI Cron Engine state
   const [cronActive, setCronActive] = useState<boolean>(true);
-  const [cronCyclesCount, setCronCyclesCount] = useState<number>(142);
-  const [lastCronRun, setLastCronRun] = useState<string | null>('2026-11-08 14:30');
+  const [cronCyclesCount, setCronCyclesCount] = useState<number>(186);
+  const [lastCronRun, setLastCronRun] = useState<string | null>(new Date().toISOString().replace('T', ' ').substring(0, 16));
+  const [dispatchedCronEmails, setDispatchedCronEmails] = useState<CronDispatchedEmail[]>([]);
   const [cronLogs, setCronLogs] = useState<string[]>([
-    'System init: Automated ROI Cron Engine active on 45s interval.',
-    'Cycle [14:00]: Processed 4 running fleet staking pools. Accrued $18.68 daily yield.',
-    'Cycle [14:30]: Validated maturity countdowns. Model S Plaid pool completion verified.',
+    'System init: Automated ROI Cron Engine active on 60s server interval.',
+    'Cycle verified: Calculating daily ROI by plan duration & auto-settling matured wallets.',
   ]);
 
   // Sync to local storage
@@ -1015,7 +1140,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   useEffect(() => {
     localStorage.setItem('apex_smtp', JSON.stringify(smtpConfig));
+    fetch('/api/mailer/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ smtpConfig }),
+    }).catch(() => {});
   }, [smtpConfig]);
+
+  useEffect(() => {
+    localStorage.setItem('apex_site_settings', JSON.stringify(siteSettings));
+  }, [siteSettings]);
 
   useEffect(() => {
     localStorage.setItem('apex_imported_emails', JSON.stringify(importedEmails));
@@ -1054,6 +1188,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [sitePages]);
 
   useEffect(() => {
+    localStorage.setItem('apex_navigation_menus', JSON.stringify(navigationMenus));
+  }, [navigationMenus]);
+
+  useEffect(() => {
     localStorage.setItem('apex_manual_deposits', JSON.stringify(manualDepositMethods));
   }, [manualDepositMethods]);
 
@@ -1068,6 +1206,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     localStorage.setItem('apex_products_list', JSON.stringify(productsList));
   }, [productsList]);
+
+  useEffect(() => {
+    localStorage.setItem('apex_scratch_tiers', JSON.stringify(scratchCardTiers));
+  }, [scratchCardTiers]);
 
   useEffect(() => {
     localStorage.setItem('apex_rental_fleet_list', JSON.stringify(rentalFleetList));
@@ -1120,6 +1262,45 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     localStorage.setItem('apex_auto_crypto_gateways', JSON.stringify(autoCryptoGateways));
   }, [autoCryptoGateways]);
+
+  useEffect(() => {
+    localStorage.setItem('apex_reviews_v1', JSON.stringify(reviews));
+  }, [reviews]);
+
+  useEffect(() => {
+    localStorage.setItem('apex_tsla_price_alerts', JSON.stringify(stockPriceAlerts));
+  }, [stockPriceAlerts]);
+
+  useEffect(() => {
+    localStorage.setItem('apex_marketing_banners_v1', JSON.stringify(marketingBanners));
+  }, [marketingBanners]);
+
+  // Monitor live TSLA quote against user-defined stock price alert thresholds
+  useEffect(() => {
+    const currentPrice = tslaQuote.price;
+    const hitAlerts = stockPriceAlerts.filter((a) => {
+      if (!a.isActive || a.triggeredAt) return false;
+      if (a.condition === 'above') return currentPrice >= a.targetPriceUsd;
+      return currentPrice <= a.targetPriceUsd;
+    });
+
+    if (hitAlerts.length > 0) {
+      const nowIso = new Date().toISOString();
+      setStockPriceAlerts((prev) =>
+        prev.map((item) =>
+          hitAlerts.some((h) => h.id === item.id) ? { ...item, triggeredAt: nowIso } : item
+        )
+      );
+
+      const first = hitAlerts[0];
+      showToast(
+        `📈 TSLA Price Alert Hit! TSLA reached $${currentPrice.toFixed(2)} (Target: ${
+          first.condition === 'above' ? '≥' : '≤'
+        } $${first.targetPriceUsd.toFixed(2)}${first.note ? ` — ${first.note}` : ''})`,
+        'success'
+      );
+    }
+  }, [tslaQuote.price, stockPriceAlerts]);
 
 
   // Live TSLA stock price fluctuation (simulating real-time NASDAQ market updates)
@@ -1198,16 +1379,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       })
       .catch((e) => console.warn('Failed to fetch refund policy:', e));
 
-    fetch('/api/cron/status')
-      .then((res) => (res.ok ? res.json() : null))
-      .then((status) => {
-        if (status) {
-          if (typeof status.cyclesRun === 'number') setCronCyclesCount(status.cyclesRun);
-          if (status.lastRunTimestamp) setLastCronRun(status.lastRunTimestamp.replace('T', ' ').substring(0, 16));
-          if (Array.isArray(status.logs)) setCronLogs(status.logs);
-        }
-      })
-      .catch((e) => console.warn('Failed to fetch cron status:', e));
+    // Sync client investments up to server cron service on boot, then pull authoritative cron status
+    const syncPayload = userInvestments.map((inv) => ({
+      ...inv,
+      userId: inv.userId || currentUser?.id || 'usr-alex-001',
+      userEmail: currentUser?.email || 'alex.vance@apex-tesla.io',
+      userName: currentUser?.name || 'Alex Vance',
+    }));
+
+    fetch('/api/investments/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ investments: syncPayload }),
+    })
+      .catch(() => {})
+      .finally(() => {
+        fetch('/api/cron/status')
+          .then((res) => (res.ok ? res.json() : null))
+          .then((status) => {
+            if (status) {
+              if (typeof status.active === 'boolean') setCronActive(status.active);
+              if (typeof status.cyclesRun === 'number') setCronCyclesCount(status.cyclesRun);
+              if (status.lastRunTimestamp) setLastCronRun(status.lastRunTimestamp.replace('T', ' ').substring(0, 19));
+              if (Array.isArray(status.logs)) setCronLogs(status.logs);
+              if (Array.isArray(status.dispatchedEmails)) setDispatchedCronEmails(status.dispatchedEmails);
+            }
+          })
+          .catch((e) => console.warn('Failed to fetch cron status:', e));
+      });
   }, []);
 
   // Periodic simulated live winner popups to give dynamic proof of fair platform activity with guaranteed verified avatars
@@ -1816,6 +2015,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setUserInvestments((prev) => [newInvestment, ...prev]);
 
+    // Sync newly created stake to server.ts automated ROI cron store
+    fetch('/api/investments/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        investments: [
+          {
+            ...newInvestment,
+            userId: currentUser?.id || 'usr-alex-001',
+            userEmail: currentUser?.email || 'alex.vance@apex-tesla.io',
+            userName: currentUser?.name || 'Alex Vance',
+          },
+        ],
+      }),
+    }).catch(() => {});
+
     // Record transaction
     const newTx: Transaction = {
       id: `tx-${Date.now()}`,
@@ -1928,6 +2143,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
 
     showToast(`Settled $${totalReturn.toFixed(2)} (Capital + ROI) to wallet!`, 'success');
+    // Also dispatch maturity email & mark settled on server.ts
+    fetch(`/api/investments/${investmentId}/force-mature`, { method: 'POST' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d?.dispatchedEmails) setDispatchedCronEmails(d.dispatchedEmails);
+      })
+      .catch(() => {});
     return true;
   };
 
@@ -1937,7 +2159,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (i.id === investmentId) {
           const nextStatus = i.status === 'running' ? 'paused' : 'running';
           showToast(`Investment #${investmentId} status set to ${nextStatus}.`, 'info');
-          return { ...i, status: nextStatus as any };
+          const updated = { ...i, status: nextStatus as any };
+          fetch('/api/investments/sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ investments: [updated] }),
+          }).catch(() => {});
+          return updated;
         }
         return i;
       })
@@ -1984,136 +2212,224 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return true;
   };
 
-  // Automated ROI Cron Job Execution Engine
-  const triggerManualCronCycle = () => {
+  // Reconcile Server Cron State & Apply Newly Matured Wallet Settlements (Idempotent)
+  const applyServerCronSnapshot = (snapshot: {
+    active?: boolean;
+    cyclesRun?: number;
+    lastRunTimestamp?: string;
+    logs?: string[];
+    dispatchedEmails?: CronDispatchedEmail[];
+    investments?: any[];
+    settlementEvents?: Array<{
+      id: string;
+      investmentId: string;
+      userId: string;
+      userEmail: string;
+      userName: string;
+      poolTitle: string;
+      principalUsd: number;
+      roiUsd: number;
+      totalPayoutUsd: number;
+      certificateId: string;
+      settledAt: string;
+    }>;
+  }) => {
+    if (typeof snapshot.active === 'boolean') setCronActive(snapshot.active);
+    if (typeof snapshot.cyclesRun === 'number') setCronCyclesCount(snapshot.cyclesRun);
+    if (snapshot.lastRunTimestamp) setLastCronRun(snapshot.lastRunTimestamp.replace('T', ' ').substring(0, 19));
+    if (Array.isArray(snapshot.logs)) setCronLogs(snapshot.logs);
+    if (Array.isArray(snapshot.dispatchedEmails)) setDispatchedCronEmails(snapshot.dispatchedEmails);
+
+    if (Array.isArray(snapshot.investments) && snapshot.investments.length > 0) {
+      const serverById = new Map<string, any>();
+      snapshot.investments.forEach((sInv) => {
+        if (sInv?.id) serverById.set(sInv.id, sInv);
+      });
+
+      setUserInvestments((prev) =>
+        prev.map((localInv) => {
+          const srv = serverById.get(localInv.id);
+          if (!srv) return localInv;
+          return {
+            ...localInv,
+            earnedDividendsUsd: typeof srv.earnedDividendsUsd === 'number' ? srv.earnedDividendsUsd : localInv.earnedDividendsUsd,
+            daysElapsed: typeof srv.daysElapsed === 'number' ? srv.daysElapsed : localInv.daysElapsed,
+            status: srv.status || localInv.status,
+            completedAt: srv.completedAt ? String(srv.completedAt).substring(0, 10) : localInv.completedAt,
+            capitalReturned: typeof srv.capitalReturned === 'boolean' ? srv.capitalReturned : localInv.capitalReturned,
+            certificateId: srv.certificateId || localInv.certificateId,
+          };
+        })
+      );
+    }
+
+    if (Array.isArray(snapshot.settlementEvents) && snapshot.settlementEvents.length > 0) {
+      const appliedRaw = localStorage.getItem('apex_applied_settlements');
+      const appliedIds: string[] = appliedRaw ? JSON.parse(appliedRaw) : [];
+      const appliedSet = new Set<string>(appliedIds);
+      const activeUid = currentUser?.id || 'usr-alex-001';
+      let creditedAny = false;
+
+      snapshot.settlementEvents.forEach((ev) => {
+        if (appliedSet.has(ev.id)) return;
+        const belongsToSession =
+          ev.userId === activeUid || ev.userId === 'usr-alex-001' || ev.userId === 'usr-apex-001';
+        if (!belongsToSession) return;
+
+        appliedSet.add(ev.id);
+        creditedAny = true;
+
+        setBalances((b) => ({ ...b, usd: Number((b.usd + ev.totalPayoutUsd).toFixed(2)) }));
+
+        const settleTx: Transaction = {
+          id: `tx-cron-${ev.investmentId}-${Date.now()}`,
+          type: 'dividend_claim',
+          currency: 'USD',
+          amount: ev.totalPayoutUsd,
+          usdEquivalent: ev.totalPayoutUsd,
+          timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
+          status: 'completed',
+          txHash: `0x${Math.random().toString(16).substring(2, 10)}...cron`,
+          description: `Cron Auto-Settlement: ${ev.poolTitle} ($${ev.principalUsd.toLocaleString()} Capital + $${ev.roiUsd.toFixed(2)} ROI) • Cert ${ev.certificateId}`,
+        };
+        setTransactions((prev) => [settleTx, ...prev]);
+
+        sendNotification({
+          title: `🏆 Plan Matured & Auto-Settled: ${ev.poolTitle}`,
+          message: `Automated ROI Cron completed your investment cycle! $${ev.totalPayoutUsd.toFixed(2)} USD (Capital $${ev.principalUsd.toLocaleString()} + ROI $${ev.roiUsd.toFixed(2)}) has been credited to your wallet and an email receipt was dispatched to ${ev.userEmail}.`,
+          type: 'payout',
+          priority: 'urgent',
+          targetType: 'individual',
+          targetUserId: activeUid,
+          actionUrl: 'wallet',
+          actionLabel: 'View Wallet',
+        });
+      });
+
+      if (creditedAny) {
+        localStorage.setItem('apex_applied_settlements', JSON.stringify(Array.from(appliedSet).slice(-100)));
+      }
+    }
+  };
+
+  // Toggle Server Cron Service Active / Paused
+  const toggleCronActive = async (active?: boolean) => {
+    try {
+      const res = await fetch('/api/cron/toggle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(typeof active === 'boolean' ? { active } : {}),
+      });
+      const data = await res.json();
+      if (res.ok && typeof data.active === 'boolean') {
+        setCronActive(data.active);
+        showToast(data.message || `Cron service ${data.active ? 'activated' : 'paused'}.`, 'info');
+        return;
+      }
+    } catch {
+      // Fallback
+    }
+    const next = typeof active === 'boolean' ? active : !cronActive;
+    setCronActive(next);
+    showToast(`Cron service ${next ? 'activated' : 'paused'}.`, 'info');
+  };
+
+  // Automated ROI Cron Job Execution Engine (calls server.ts /api/cron/trigger)
+  const triggerManualCronCycle = async (): Promise<{ maturedCount: number; yieldDistributedUsd: number; logs: string[] }> => {
+    try {
+      // Ensure server has latest client investments before executing cycle
+      await fetch('/api/investments/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          investments: userInvestments.map((inv) => ({
+            ...inv,
+            userId: inv.userId || currentUser?.id || 'usr-alex-001',
+            userEmail: currentUser?.email || 'alex.vance@apex-tesla.io',
+            userName: currentUser?.name || 'Alex Vance',
+          })),
+        }),
+      });
+
+      const res = await fetch('/api/cron/trigger', { method: 'POST' });
+      if (res.ok) {
+        const data = await res.json();
+        applyServerCronSnapshot(data);
+        showToast(
+          data.message ||
+            `Cron Cycle complete: $${(data.yieldDistributedUsd || 0).toFixed(2)} yield accrued. ${data.maturedCount || 0} plan(s) matured!`,
+          'success'
+        );
+        return {
+          maturedCount: data.maturedCount || 0,
+          yieldDistributedUsd: data.yieldDistributedUsd || 0,
+          logs: Array.isArray(data.logs) ? data.logs : [],
+        };
+      }
+    } catch (err) {
+      console.warn('Server cron trigger fallback triggered:', err);
+    }
+
+    // Safe local fallback if server unreachable
     const timeStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
     setLastCronRun(timeStr);
-
     let maturedCount = 0;
     let yieldDistributedUsd = 0;
     const newLogs: string[] = [];
 
-    setUserInvestments((prev) => {
-      return prev.map((inv) => {
-        if (inv.status !== 'running') return inv;
+    setUserInvestments((prev) =>
+      prev.map((inv) => {
+        if (inv.status !== 'running' || inv.capitalReturned) return inv;
+        const duration = Math.max(1, inv.durationDays || 30);
+        const dailyYield =
+          inv.dailyRoiRate && inv.dailyRoiRate > 0
+            ? inv.dailyRoiRate
+            : inv.totalExpectedRoiUsd > 0
+            ? Number((inv.totalExpectedRoiUsd / duration).toFixed(2))
+            : Number(((inv.amountInvestedUsd * (inv.apy / 100)) / 365).toFixed(2));
+        const newEarned = Number(((inv.earnedDividendsUsd || 0) + dailyYield).toFixed(2));
+        const newDaysElapsed = Math.min(duration, (inv.daysElapsed || 0) + 1);
+        yieldDistributedUsd += dailyYield;
 
-        // Daily incremental ROI: (Principal * APY / 365)
-        const dailyYield = (inv.amountInvestedUsd * (inv.apy / 100)) / 365;
-        const newEarned = (inv.earnedDividendsUsd || 0) + Number(dailyYield.toFixed(2));
-        const newDaysElapsed = (inv.daysElapsed || 0) + 1;
-        yieldDistributedUsd += Number(dailyYield.toFixed(2));
-
-        // Check if plan has completed / reached duration
-        if (newDaysElapsed >= inv.durationDays) {
+        if (newDaysElapsed >= duration) {
           maturedCount++;
-          const totalSettlement = inv.amountInvestedUsd + newEarned;
-
-          // Auto-credit wallet with earnings & capital as due
-          setBalances((b) => ({ ...b, usd: b.usd + totalSettlement }));
-
+          const finalRoi = inv.totalExpectedRoiUsd > newEarned ? inv.totalExpectedRoiUsd : newEarned;
+          const totalSettlement = Number((inv.amountInvestedUsd + finalRoi).toFixed(2));
+          setBalances((b) => ({ ...b, usd: Number((b.usd + totalSettlement).toFixed(2)) }));
           const completionDate = new Date().toISOString().substring(0, 10);
           const certificateId = `APEX-CERT-${completionDate.replace(/-/g, '')}-${inv.id.substring(4, 8).toUpperCase()}`;
-
-          newLogs.push(`[MATURED] Plan #${inv.id} (${inv.poolTitle}): Paid $${totalSettlement.toFixed(2)} ($${inv.amountInvestedUsd} capital + $${newEarned.toFixed(2)} ROI). Cert: ${certificateId}`);
-
-          // Dispatched notification to user
-          sendNotification({
-            title: `🏆 Staking Plan Matured: ${inv.poolTitle}`,
-            message: `Your investment has completed its ${inv.durationDays}-day staking cycle! Total payout of $${totalSettlement.toFixed(2)} USD (Capital $${inv.amountInvestedUsd.toLocaleString()} + ROI $${newEarned.toFixed(2)}) has been credited directly to your wallet.`,
-            type: 'payout',
-            priority: 'urgent',
-            targetType: 'individual',
-            targetUserId: inv.userId || currentUser?.id,
-            actionUrl: 'wallet',
-            actionLabel: 'Check Wallet',
-          });
-
+          newLogs.push(`[MATURED] Plan #${inv.id}: Paid $${totalSettlement.toFixed(2)}. Cert: ${certificateId}`);
           return {
             ...inv,
             status: 'completed' as const,
-            daysElapsed: inv.durationDays,
-            earnedDividendsUsd: newEarned,
+            daysElapsed: duration,
+            earnedDividendsUsd: finalRoi,
             completedAt: completionDate,
             capitalReturned: true,
             certificateId,
           };
         }
-
-        newLogs.push(`[YIELD ACCRUED] Plan #${inv.id} (${inv.poolTitle}): +$${dailyYield.toFixed(2)} USD (Day ${newDaysElapsed}/${inv.durationDays})`);
-        return {
-          ...inv,
-          earnedDividendsUsd: newEarned,
-          daysElapsed: newDaysElapsed,
-          nextPayoutHours: 24,
-        };
-      });
-    });
-
-    const summaryLog = `[CRON CYCLE at ${timeStr}] Processed active investments. Yield distributed: $${yieldDistributedUsd.toFixed(2)} USD. Matured plans settled: ${maturedCount}.`;
+        newLogs.push(`[YIELD ACCRUED] Plan #${inv.id}: +$${dailyYield.toFixed(2)} (Day ${newDaysElapsed}/${duration})`);
+        return { ...inv, earnedDividendsUsd: newEarned, daysElapsed: newDaysElapsed, nextPayoutHours: 24 };
+      })
+    );
+    const summaryLog = `[CRON CYCLE at ${timeStr}] Accrued $${yieldDistributedUsd.toFixed(2)} USD. Matured: ${maturedCount}.`;
     setCronLogs((prevLogs) => [summaryLog, ...newLogs, ...prevLogs.slice(0, 20)]);
-    showToast(`Cron Cycle complete: $${yieldDistributedUsd.toFixed(2)} yield accrued. ${maturedCount} plan(s) matured!`, 'success');
-
     return { maturedCount, yieldDistributedUsd, logs: [summaryLog, ...newLogs] };
   };
 
-  // Background automated Cron interval (runs every 60s when cronActive is true)
+  // Poll authoritative server.ts Cron Engine every 20 seconds when active
   useEffect(() => {
     if (!cronActive) return;
 
     const interval = setInterval(() => {
-      // Process incremental yield & check for completions
-      setUserInvestments((prev) => {
-        let maturedFound = false;
-        const updated = prev.map((inv) => {
-          if (inv.status !== 'running') return inv;
-
-          // Increment slight yield on timer tick (simulated fraction of daily yield)
-          const incremental = (inv.amountInvestedUsd * (inv.apy / 100)) / (365 * 24);
-          const newEarned = (inv.earnedDividendsUsd || 0) + Number(incremental.toFixed(3));
-
-          // If daysElapsed reaches durationDays, mature plan
-          if (inv.daysElapsed >= inv.durationDays) {
-            maturedFound = true;
-            const totalPayout = inv.amountInvestedUsd + newEarned;
-            setBalances((b) => ({ ...b, usd: b.usd + totalPayout }));
-
-            const completionDate = new Date().toISOString().substring(0, 10);
-            const cert = `APEX-CERT-${completionDate.replace(/-/g, '')}-${inv.id.substring(4, 8).toUpperCase()}`;
-
-            sendNotification({
-              title: `🎉 Staking Completed: ${inv.poolTitle}`,
-              message: `Your investment duration has completed. Total payout of $${totalPayout.toFixed(2)} USD (Principal + ROI) has been credited to your available wallet balance.`,
-              type: 'payout',
-              priority: 'urgent',
-              targetType: 'individual',
-              targetUserId: inv.userId || currentUser?.id,
-              actionUrl: 'wallet',
-              actionLabel: 'View Wallet',
-            });
-
-            return {
-              ...inv,
-              status: 'completed' as const,
-              completedAt: completionDate,
-              capitalReturned: true,
-              earnedDividendsUsd: newEarned,
-              certificateId: cert,
-            };
-          }
-
-          return {
-            ...inv,
-            earnedDividendsUsd: newEarned,
-          };
-        });
-
-        if (maturedFound) {
-          setLastCronRun(new Date().toISOString().replace('T', ' ').substring(0, 19));
-        }
-
-        return updated;
-      });
-    }, 60000);
+      fetch('/api/cron/status')
+        .then((res) => (res.ok ? res.json() : null))
+        .then((status) => {
+          if (status) applyServerCronSnapshot(status);
+        })
+        .catch(() => {});
+    }, 20000);
 
     return () => clearInterval(interval);
   }, [cronActive, currentUser?.id]);
@@ -2150,10 +2466,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast('Notification deleted.', 'info');
   };
 
+  // Global Site Settings Handler
+  const updateSiteSettings = (updates: Partial<SiteSettings>) => {
+    setSiteSettings((prev) => {
+      const next = { ...prev, ...updates };
+      if (typeof updates.spinCostUsd === 'number' && updates.spinCostUsd > 0) {
+        setSpinCostUsd(updates.spinCostUsd);
+      }
+      return next;
+    });
+    showToast('Site settings saved and reflected site-wide.', 'success');
+  };
+
   // Site CMS Pages Handlers
   const createSitePage = (pageData: Omit<SitePage, 'id' | 'updatedAt'>) => {
     const newPage: SitePage = {
       ...pageData,
+      isPublished: pageData.isPublished ?? pageData.published ?? true,
+      published: pageData.published ?? pageData.isPublished ?? true,
       id: `page-${Date.now()}`,
       updatedAt: new Date().toISOString().substring(0, 10),
     };
@@ -2163,7 +2493,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateSitePage = (id: string, updates: Partial<SitePage>) => {
     setSitePages((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, ...updates, updatedAt: new Date().toISOString().substring(0, 10) } : p))
+      prev.map((p) =>
+        p.id === id
+          ? {
+              ...p,
+              ...updates,
+              published: updates.isPublished ?? updates.published ?? p.published,
+              isPublished: updates.isPublished ?? updates.published ?? p.isPublished ?? p.published,
+              updatedAt: new Date().toISOString().substring(0, 10),
+            }
+          : p
+      )
     );
     showToast('Page configuration saved.', 'success');
   };
@@ -2177,6 +2517,51 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setSitePages((prev) => prev.filter((p) => p.id !== id));
     showToast(`Page "${target?.title || id}" removed.`, 'info');
     return true;
+  };
+
+  // Navigation Menus CRUD Handlers
+  const createNavigationMenuItem = (itemData: Omit<NavigationMenuItem, 'id'>) => {
+    const newItem: NavigationMenuItem = {
+      ...itemData,
+      id: `menu-${Date.now()}`,
+    };
+    setNavigationMenus((prev) => [...prev, newItem]);
+    showToast(`Menu link "${itemData.label}" added.`, 'success');
+  };
+
+  const updateNavigationMenuItem = (id: string, updates: Partial<NavigationMenuItem>) => {
+    setNavigationMenus((prev) => prev.map((m) => (m.id === id ? { ...m, ...updates } : m)));
+    showToast('Navigation menu updated.', 'success');
+  };
+
+  const deleteNavigationMenuItem = (id: string) => {
+    setNavigationMenus((prev) => prev.filter((m) => m.id !== id));
+    showToast('Menu item deleted.', 'info');
+  };
+
+  const reorderNavigationMenuItem = (id: string, direction: 'up' | 'down') => {
+    setNavigationMenus((prev) => {
+      const target = prev.find((m) => m.id === id);
+      if (!target) return prev;
+      const group = prev
+        .filter((m) => m.location === target.location)
+        .sort((a, b) => a.order - b.order);
+      const idx = group.findIndex((m) => m.id === id);
+      const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+      if (idx < 0 || swapIdx < 0 || swapIdx >= group.length) return prev;
+
+      const reordered = [...group];
+      const [moved] = reordered.splice(idx, 1);
+      reordered.splice(swapIdx, 0, moved);
+      const updatedOrders = new Map(reordered.map((m, i) => [m.id, i + 1]));
+
+      return prev.map((m) => (updatedOrders.has(m.id) ? { ...m, order: updatedOrders.get(m.id)! } : m));
+    });
+  };
+
+  const resetNavigationMenus = () => {
+    setNavigationMenus(INITIAL_NAVIGATION_MENUS);
+    showToast('Navigation menus restored to defaults.', 'info');
   };
 
   // Manual Deposit Methods Handlers
@@ -2237,7 +2622,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ...productData,
       id: `prod-${Date.now()}`,
     };
-    setProductsList((prev) => [...prev, newProduct]);
+    setProductsList((prev) => [newProduct, ...prev]);
     showToast(`Product "${productData.name}" added to shop!`, 'success');
   };
 
@@ -2251,6 +2636,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const deleteProductItem = (id: string) => {
     setProductsList((prev) => prev.filter((p) => p.id !== id));
     showToast('Product deleted from catalog.', 'info');
+  };
+
+  // Scratch Card Tiers Promotional CMS Handlers
+  const createScratchCardTier = (tierData: Omit<ScratchCardTier, 'id'>) => {
+    const newTier: ScratchCardTier = {
+      ...tierData,
+      id: `scratch-tier-${Date.now()}`,
+    };
+    setScratchCardTiers((prev) => [...prev, newTier]);
+    showToast(`Scratch tier "${tierData.name}" created!`, 'success');
+  };
+
+  const updateScratchCardTier = (id: string, updates: Partial<ScratchCardTier>) => {
+    setScratchCardTiers((prev) => prev.map((t) => (t.id === id ? { ...t, ...updates } : t)));
+    showToast('Scratch card tier updated.', 'success');
+  };
+
+  const deleteScratchCardTier = (id: string) => {
+    setScratchCardTiers((prev) => prev.filter((t) => t.id !== id));
+    showToast('Scratch card tier deleted.', 'info');
   };
 
   const updateRentalFleetVehicle = (id: string, updates: Partial<RentalVehicle>) => {
@@ -2791,6 +3196,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     setUserInvestments((prev) => [newInv, ...prev]);
+
+    // Sync new Fast ROI plan stake to server.ts automated ROI cron store
+    fetch('/api/investments/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        investments: [
+          {
+            ...newInv,
+            userId: currentUser?.id || 'usr-alex-001',
+            userEmail: currentUser?.email || 'alex.vance@apex-tesla.io',
+            userName: currentUser?.name || 'Alex Vance',
+          },
+        ],
+      }),
+    }).catch(() => {});
 
     setFeaturedStockPlans((prev) =>
       prev.map((p) => (p.id === planId ? { ...p, totalSubscribedUsd: p.totalSubscribedUsd + amountUsd } : p))
@@ -3604,6 +4025,122 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
+  // Verified Customer Reviews CRUD
+  const addReview = (reviewData: {
+    targetType: 'vehicle' | 'product';
+    targetId: string;
+    targetName: string;
+    rating: 1 | 2 | 3 | 4 | 5;
+    title: string;
+    comment: string;
+  }): boolean => {
+    if (!currentUser) {
+      showToast('Please sign in to submit a verified rating and review.', 'error');
+      return false;
+    }
+    const newReview: ReviewItem = {
+      id: `rev-${Date.now()}`,
+      targetType: reviewData.targetType,
+      targetId: reviewData.targetId,
+      targetName: reviewData.targetName,
+      userId: currentUser.id,
+      userName: currentUser.name,
+      userAvatar:
+        currentUser.avatar ||
+        'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
+      userLocation: currentUser.location || 'Verified Owner',
+      rating: reviewData.rating,
+      title: reviewData.title.trim(),
+      comment: reviewData.comment.trim(),
+      verifiedPurchase: true,
+      helpfulCount: 1,
+      createdAt: new Date().toISOString().split('T')[0],
+    };
+    setReviews((prev) => [newReview, ...prev]);
+    showToast(`Thank you! Your ${reviewData.rating}-star review for ${reviewData.targetName} is live.`, 'success');
+    return true;
+  };
+
+  const markReviewHelpful = (reviewId: string) => {
+    setReviews((prev) =>
+      prev.map((r) => (r.id === reviewId ? { ...r, helpfulCount: r.helpfulCount + 1 } : r))
+    );
+    showToast('Marked review as helpful.', 'info');
+  };
+
+  const deleteReview = (reviewId: string) => {
+    setReviews((prev) => prev.filter((r) => r.id !== reviewId));
+    showToast('Review removed.', 'info');
+  };
+
+  // TSLA Stock Price Alerts CRUD
+  const addStockPriceAlert = (condition: 'above' | 'below', targetPriceUsd: number, note?: string) => {
+    const cleanPrice = Number(targetPriceUsd.toFixed(2));
+    if (!cleanPrice || cleanPrice <= 0) {
+      showToast('Enter a valid TSLA target price in USD.', 'error');
+      return;
+    }
+    const newAlert: StockPriceAlert = {
+      id: `tsla-alert-${Date.now()}`,
+      symbol: 'TSLA',
+      condition,
+      targetPriceUsd: cleanPrice,
+      note: note?.trim() || undefined,
+      isActive: true,
+      createdAt: new Date().toISOString(),
+    };
+    setStockPriceAlerts((prev) => [newAlert, ...prev]);
+    showToast(
+      `🔔 TSLA alert armed: Notify when TSLA goes ${condition === 'above' ? 'above' : 'below'} $${cleanPrice.toFixed(2)}`,
+      'success'
+    );
+  };
+
+  const removeStockPriceAlert = (id: string) => {
+    setStockPriceAlerts((prev) => prev.filter((a) => a.id !== id));
+    showToast('TSLA price alert deleted.', 'info');
+  };
+
+  const toggleStockPriceAlert = (id: string) => {
+    setStockPriceAlerts((prev) =>
+      prev.map((a) => (a.id === id ? { ...a, isActive: !a.isActive } : a))
+    );
+  };
+
+  const resetStockPriceAlert = (id: string) => {
+    setStockPriceAlerts((prev) =>
+      prev.map((a) => (a.id === id ? { ...a, triggeredAt: undefined, isActive: true } : a))
+    );
+    showToast('TSLA price alert re-armed for live monitoring.', 'info');
+  };
+
+  // Promotional Marketing Banners CMS
+  const createMarketingBanner = (
+    bannerData: Omit<MarketingBanner, 'id' | 'createdAt' | 'clicksCount'>
+  ): MarketingBanner => {
+    const created: MarketingBanner = {
+      ...bannerData,
+      id: `banner-${Date.now().toString(36)}`,
+      clicksCount: 0,
+      createdAt: new Date().toISOString().split('T')[0],
+    };
+    setMarketingBanners((prev) => [created, ...prev]);
+    showToast(`Promotional banner "${created.title}" published!`, 'success');
+    return created;
+  };
+
+  const updateMarketingBanner = (id: string, updates: Partial<MarketingBanner>) => {
+    setMarketingBanners((prev) =>
+      prev.map((b) => (b.id === id ? { ...b, ...updates } : b))
+    );
+    showToast('Promotional banner updated.', 'success');
+  };
+
+  const deleteMarketingBanner = (id: string) => {
+    setMarketingBanners((prev) => prev.filter((b) => b.id !== id));
+    showToast('Promotional banner deleted.', 'info');
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -3652,9 +4189,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         pauseResumeInvestment,
         cancelInvestmentEarly,
         triggerManualCronCycle,
+        toggleCronActive,
         cronActive,
         setCronActive,
         cronLogs,
+        dispatchedCronEmails,
         lastCronRun,
         cronCyclesCount,
         lastCronRunAt: lastCronRun,
@@ -3668,10 +4207,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         markNotificationAsRead,
         dismissNotification,
         deleteNotification,
+        siteSettings,
+        updateSiteSettings,
         sitePages,
         createSitePage,
         updateSitePage,
         deleteSitePage,
+        navigationMenus,
+        createNavigationMenuItem,
+        updateNavigationMenuItem,
+        deleteNavigationMenuItem,
+        reorderNavigationMenuItem,
+        resetNavigationMenus,
         manualDepositMethods,
         addManualDepositMethod,
         updateManualDepositMethod,
@@ -3684,6 +4231,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         deleteProductItem,
         rentalFleetList,
         updateRentalFleetVehicle,
+        scratchCardTiers,
+        createScratchCardTier,
+        updateScratchCardTier,
+        deleteScratchCardTier,
         updateUserStatus,
         deleteUser,
         executeSpin,
@@ -3754,6 +4305,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addAutoCryptoGateway,
         deleteAutoCryptoGateway,
         testAutoCryptoGatewayPing,
+        // Verified Customer Reviews
+        reviews,
+        addReview,
+        markReviewHelpful,
+        deleteReview,
+        // TSLA Stock Price Alerts
+        stockPriceAlerts,
+        addStockPriceAlert,
+        removeStockPriceAlert,
+        toggleStockPriceAlert,
+        resetStockPriceAlert,
+        // Promotional Marketing Banners CMS
+        marketingBanners,
+        createMarketingBanner,
+        updateMarketingBanner,
+        deleteMarketingBanner,
       }}
     >
 

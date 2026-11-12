@@ -32,6 +32,7 @@ import {
   Check,
   Sun,
   Moon,
+  Megaphone,
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -53,9 +54,23 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenCart,
   onOpenTracking,
 }) => {
-  const { currentUser, logout, balances, cart, userRole, setRole, adminNotifications, tslaQuote, featureToggles } = useApp();
+  const {
+    currentUser,
+    logout,
+    balances,
+    cart,
+    userRole,
+    setRole,
+    adminNotifications,
+    tslaQuote,
+    featureToggles,
+    navigationMenus,
+    sitePages,
+    siteSettings,
+    socialLinks,
+  } = useApp();
   const { currentLanguageOption, setLanguage, languages, t } = useLanguage();
-  const { theme, toggleTheme, isLight } = useTheme();
+  const { isLight, toggleTheme } = useTheme();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
 
@@ -66,30 +81,63 @@ export const Navbar: React.FC<NavbarProps> = ({
     return !isRead && isTargeted;
   }).length;
 
-  const navLinks = [
-    { id: 'home', label: t('nav.home', 'Home') },
-    ...(featureToggles.teslaStocksEnabled ? [{
-      id: 'stocks',
-      label: t('nav.stocks', 'TSLA Stocks'),
-      icon: Activity,
-      highlight: true,
-      stockPill: `$${tslaQuote.price.toFixed(1)}`,
-      stockChange: tslaQuote.change24h,
-    }] : []),
-    { id: 'vehicles', label: t('nav.vehicles', 'Buy Tesla'), icon: Car, highlight: true },
-    { id: 'coupons', label: t('nav.coupons', 'Coupons'), icon: Tag, highlight: true },
-    { id: 'services', label: t('nav.services', 'Service'), icon: Wrench },
-    { id: 'wraps', label: t('nav.wraps', 'Wraps'), icon: Palette },
-    { id: 'rentals', label: t('nav.rentals', 'Rentals'), icon: Car },
-    { id: 'investment', label: t('nav.investment', 'Fleet Yield'), icon: TrendingUp },
-    { id: 'promotions', label: t('nav.promotions', 'Spin & Win'), icon: Gift },
-    { id: 'referrals', label: t('nav.referrals', 'Referrals'), icon: Users, badge: '+$100' },
-    { id: 'social', label: t('nav.social', 'Social'), icon: Share2 },
-    { id: 'shop', label: t('nav.shop', 'Store') },
-    { id: 'about', label: t('nav.about', 'About') },
-    { id: 'faq', label: t('nav.faq', 'FAQ') },
-    { id: 'contact', label: t('nav.contact', 'Contact') },
-  ];
+  const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
+    Activity,
+    Car,
+    Tag,
+    Wrench,
+    Palette,
+    TrendingUp,
+    Gift,
+    Users,
+    Share2,
+    Megaphone,
+  };
+
+  const primaryMenuLinks = navigationMenus
+    .filter((m) => m.location === 'navbar' && m.isVisible)
+    .filter((m) => m.targetTab !== 'stocks' || featureToggles.teslaStocksEnabled)
+    .sort((a, b) => a.order - b.order)
+    .map((m) => ({
+      id: m.targetTab,
+      label: m.isSystem ? t(`nav.${m.targetTab}`, m.label) : m.label,
+      icon: m.iconName ? iconMap[m.iconName] : undefined,
+      highlight: m.highlight,
+      badge: m.badge,
+      stockPill: m.targetTab === 'stocks' ? `$${tslaQuote.price.toFixed(1)}` : undefined,
+    }));
+
+  const customNavbarPages = sitePages
+    .filter((p) => !p.isSystem && (p.isPublished ?? p.published) && (p.displayLocation === 'navbar' || p.displayLocation === 'both'))
+    .filter((p) => !primaryMenuLinks.some((m) => m.id === p.slug))
+    .sort((a, b) => a.order - b.order)
+    .map((p) => ({
+      id: p.slug,
+      label: p.title,
+      icon: undefined as React.ComponentType<{ className?: string }> | undefined,
+      highlight: false,
+      badge: undefined as string | undefined,
+      stockPill: undefined as string | undefined,
+    }));
+
+  const navLinks = [...primaryMenuLinks, ...customNavbarPages];
+
+  const dropdownMenuLinks = navigationMenus
+    .filter((m) => m.location === 'dropdown' && m.isVisible)
+    .sort((a, b) => a.order - b.order);
+
+  const mobileOnlyLinks = navigationMenus
+    .filter((m) => m.location === 'mobile_only' && m.isVisible)
+    .sort((a, b) => a.order - b.order);
+
+  const whatsappChannel = socialLinks.find((s) => s.platform === 'whatsapp' && s.enabled);
+  const whatsappUrl =
+    whatsappChannel?.url ||
+    'https://wa.me/18005552739?text=Hi%20Apex%20Tesla%20Hub!%20I%20am%20inquiring%20about%20vehicle%20service%20or%20fleet%20investments.';
+
+  const brandParts = siteSettings.siteName.includes('//')
+    ? siteSettings.siteName.split('//').map((s) => s.trim())
+    : [siteSettings.siteName, ''];
 
   const handleNavClick = (id: string) => {
     setActiveTab(id);
@@ -112,15 +160,19 @@ export const Navbar: React.FC<NavbarProps> = ({
           <div>
             <div className="flex items-center gap-1.5">
               <span className="font-heading font-black text-xl tracking-tight text-white group-hover:text-red-400 transition">
-                APEX
+                {brandParts[0]}
               </span>
-              <span className="font-mono text-xs text-red-500 font-extrabold tracking-widest">//</span>
-              <span className="font-heading font-extrabold text-xl tracking-wider text-zinc-300">
-                TESLA
-              </span>
+              {brandParts[1] && (
+                <>
+                  <span className="font-mono text-xs text-red-500 font-extrabold tracking-widest">//</span>
+                  <span className="font-heading font-extrabold text-xl tracking-wider text-zinc-300">
+                    {brandParts[1]}
+                  </span>
+                </>
+              )}
             </div>
             <span className="text-[10px] tracking-widest text-zinc-400 uppercase font-semibold block -mt-1">
-              Service • Wraps • Fleet
+              {siteSettings.siteTagline}
             </span>
           </div>
         </button>
@@ -196,16 +248,18 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
 
           {/* WhatsApp VIP Concierge Quick Link */}
-          <a
-            href="https://wa.me/18005552739?text=Hi%20Apex%20Tesla%20Hub!%20I%20am%20inquiring%20about%20vehicle%20service%20or%20fleet%20investments."
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hidden lg:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-emerald-950/40 border border-emerald-500/30 hover:border-emerald-500/60 text-emerald-300 hover:text-emerald-200 text-xs font-semibold transition"
-            title="Chat with WhatsApp VIP Concierge"
-          >
-            <MessageCircle className="w-3.5 h-3.5 text-emerald-400" />
-            <span className="text-[11px]">WhatsApp</span>
-          </a>
+          {whatsappChannel && (
+            <a
+              href={whatsappUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hidden lg:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-emerald-950/40 border border-emerald-500/30 hover:border-emerald-500/60 text-emerald-300 hover:text-emerald-200 text-xs font-semibold transition"
+              title="Chat with WhatsApp VIP Concierge"
+            >
+              <MessageCircle className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="text-[11px]">WhatsApp</span>
+            </a>
+          )}
 
           {/* Role switcher toggle (Customer vs Admin) */}
           <button
@@ -407,6 +461,30 @@ export const Navbar: React.FC<NavbarProps> = ({
                         +$100
                       </span>
                     </button>
+
+                    {dropdownMenuLinks.map((m) => {
+                      const DropIcon = (m.iconName && iconMap[m.iconName]) || Megaphone;
+                      return (
+                        <button
+                          key={m.id}
+                          onClick={() => {
+                            handleNavClick(m.targetTab);
+                            setUserDropdownOpen(false);
+                          }}
+                          className="w-full px-3 py-2 rounded-xl text-left text-xs hover:bg-zinc-900 flex items-center justify-between text-zinc-300 hover:text-white transition"
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <DropIcon className="w-4 h-4 text-red-400" />
+                            <span>{m.label}</span>
+                          </div>
+                          {m.badge && (
+                            <span className="text-[10px] font-mono text-amber-400 bg-amber-950/50 px-1.5 py-0.5 rounded border border-amber-500/30">
+                              {m.badge}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
                   </div>
 
                   {/* Preferences: Theme Toggle & Language Selector */}
@@ -478,7 +556,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     </div>
                   ) : (
                     <div className="px-3 pt-2 text-[11px] text-zinc-500 text-center">
-                      Need help? <a href="https://wa.me/18005552739" target="_blank" rel="noopener noreferrer" className="text-emerald-400 hover:underline">Chat VIP WhatsApp</a>
+                      Need help? <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" className="text-emerald-400 hover:underline">Chat VIP WhatsApp</a>
                     </div>
                   )}
                 </div>
@@ -589,7 +667,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
             )}
             <a
-              href="https://wa.me/18005552739?text=Hi%20Apex%20Tesla%20Hub!%20I%20am%20inquiring%20about%20vehicle%20service%20or%20fleet%20investments."
+              href={whatsappUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="p-2.5 rounded-xl bg-emerald-950/40 border border-emerald-500/30 text-emerald-300 font-semibold text-xs flex items-center justify-center gap-1.5"
@@ -614,6 +692,23 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <span>{link.label}</span>
               </button>
             ))}
+            {[...dropdownMenuLinks, ...mobileOnlyLinks].map((m) => {
+              const MobIcon = (m.iconName && iconMap[m.iconName]) || Megaphone;
+              return (
+                <button
+                  key={m.id}
+                  onClick={() => handleNavClick(m.targetTab)}
+                  className={`p-3 rounded-xl text-left text-xs font-semibold flex items-center gap-2 border ${
+                    activeTab === m.targetTab
+                      ? 'bg-red-600/20 border-red-500/50 text-white'
+                      : 'bg-zinc-900/60 border-zinc-800 text-zinc-300'
+                  }`}
+                >
+                  <MobIcon className="w-4 h-4 text-amber-400" />
+                  <span>{m.label}</span>
+                </button>
+              );
+            })}
           </div>
 
           {/* Mobile Language Switcher */}

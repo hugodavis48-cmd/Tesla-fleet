@@ -23,11 +23,14 @@ import {
   AlertCircle,
   ShoppingBag,
   Tag,
+  Star,
 } from 'lucide-react';
+import { ReviewComponent } from './ReviewComponent';
 
 interface TeslaCarSalesProps {
   onOpenDeposit: () => void;
   onNavigateToDashboard?: () => void;
+  onOpenAuth?: () => void;
   isHomeTeaser?: boolean;
   onViewAll?: () => void;
 }
@@ -35,6 +38,7 @@ interface TeslaCarSalesProps {
 export const TeslaCarSales: React.FC<TeslaCarSalesProps> = ({
   onOpenDeposit,
   onNavigateToDashboard,
+  onOpenAuth,
   isHomeTeaser = false,
   onViewAll,
 }) => {
@@ -48,6 +52,7 @@ export const TeslaCarSales: React.FC<TeslaCarSalesProps> = ({
     addToCart,
     showToast,
     coupons,
+    reviews,
   } = useApp();
 
   const [selectedModelFilter, setSelectedModelFilter] = useState<string>('all');
@@ -449,14 +454,28 @@ export const TeslaCarSales: React.FC<TeslaCarSalesProps> = ({
                         </div>
                       </div>
 
-                      {/* Exterior Color & DriveTrain note */}
-                      <div className="flex items-center justify-between text-[11px] text-zinc-400 pt-1">
-                        <span className="truncate">Exterior: <strong className="text-zinc-200">{car.color}</strong></span>
-                        <span className="shrink-0 text-emerald-400 flex items-center gap-1">
-                          <ShieldCheck className="w-3 h-3" />
-                          7-Day Money-Back
-                        </span>
-                      </div>
+                      {/* Exterior Color & Rating / DriveTrain note */}
+                      {(() => {
+                        const carReviews = reviews.filter((r) => r.targetId === car.id);
+                        const avgRating =
+                          carReviews.length > 0
+                            ? (carReviews.reduce((acc, r) => acc + r.rating, 0) / carReviews.length).toFixed(1)
+                            : '4.9';
+                        return (
+                          <div className="flex items-center justify-between text-[11px] text-zinc-400 pt-1 gap-2">
+                            <span className="truncate">Exterior: <strong className="text-zinc-200">{car.color}</strong></span>
+                            <button
+                              type="button"
+                              onClick={() => setViewingCar(car)}
+                              className="shrink-0 flex items-center gap-1 text-amber-400 hover:text-amber-300 font-semibold cursor-pointer"
+                            >
+                              <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+                              <span>{avgRating}</span>
+                              <span className="text-zinc-500">({carReviews.length || 1})</span>
+                            </button>
+                          </div>
+                        );
+                      })()}
                     </div>
 
                     {/* Action Buttons */}
@@ -502,6 +521,18 @@ export const TeslaCarSales: React.FC<TeslaCarSalesProps> = ({
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>
+        )}
+
+        {/* Full Verified Vehicle Owner Reviews Section */}
+        {!isHomeTeaser && (
+          <ReviewComponent
+            targetType="vehicle"
+            selectableTargets={teslaCarListings.map((c) => ({
+              id: c.id,
+              name: `${c.year} Tesla ${c.model} ${c.trim}`,
+            }))}
+            onOpenAuth={onOpenAuth}
+          />
         )}
       </div>
 
@@ -616,6 +647,15 @@ export const TeslaCarSales: React.FC<TeslaCarSalesProps> = ({
                   <span className="font-semibold text-zinc-300">Reliable Carriers, Apex Logistics</span>
                 </div>
               </div>
+
+              {/* Verified Reviews inside Spec Modal */}
+              <ReviewComponent
+                targetType="vehicle"
+                targetId={viewingCar.id}
+                targetName={`${viewingCar.year} Tesla ${viewingCar.model} ${viewingCar.trim}`}
+                onOpenAuth={onOpenAuth}
+                compact
+              />
             </div>
 
             {/* Modal Footer */}

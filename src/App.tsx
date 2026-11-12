@@ -35,10 +35,12 @@ import { OrderTrackingModal } from './components/OrderTrackingModal';
 import { WithdrawModal } from './components/WithdrawModal';
 import { TeslaStockHub } from './components/TeslaStockHub';
 import { UnifiedShowcaseDeck } from './components/UnifiedShowcaseDeck';
-import { CheckCircle2, AlertCircle, Info } from 'lucide-react';
+import { PromoBannersPage } from './components/PromoBannersPage';
+import { CustomPageView } from './components/CustomPageView';
+import { CheckCircle2, AlertCircle, Info, AlertTriangle } from 'lucide-react';
 
 const MainAppContent: React.FC = () => {
-  const { userRole, toastMessage } = useApp();
+  const { userRole, toastMessage, sitePages, siteSettings } = useApp();
   const { isLight } = useTheme();
 
   const [activeTab, setActiveTab] = useState<string>('home');
@@ -54,6 +56,44 @@ const MainAppContent: React.FC = () => {
     setChatbotPrompt(query || 'Please run a telemetry diagnostics scan on my Tesla high-voltage battery and drive unit.');
   };
 
+  React.useEffect(() => {
+    const handler = (e: Event) => {
+      const custom = e as CustomEvent<string>;
+      if (custom.detail) {
+        setActiveTab(custom.detail);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    };
+    window.addEventListener('apex:navigate', handler);
+    return () => window.removeEventListener('apex:navigate', handler);
+  }, []);
+
+  const BUILTIN_TABS = new Set([
+    'home',
+    'stocks',
+    'vehicles',
+    'services',
+    'wraps',
+    'rentals',
+    'investment',
+    'promotions',
+    'coupons',
+    'tracking',
+    'referrals',
+    'banners',
+    'shop',
+    'dashboard',
+    'admin',
+    'social',
+    'about',
+    'faq',
+    'contact',
+  ]);
+
+  const matchedCustomPage = !BUILTIN_TABS.has(activeTab)
+    ? sitePages.find((p) => p.slug === activeTab && (p.isPublished ?? p.published))
+    : undefined;
+
   return (
     <div className={`min-h-screen flex flex-col transition-colors duration-200 selection:bg-red-600 selection:text-white ${isLight ? 'bg-slate-50 text-slate-900' : 'bg-[#07090e] text-slate-100'}`}>
       {/* Proof-of-fair Live Winning Ticker Bar */}
@@ -65,6 +105,14 @@ const MainAppContent: React.FC = () => {
         onNavigateToTracking={() => setIsOrderTrackingOpen(true)}
         onNavigateToInvestment={() => {
           setActiveTab('investment');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
+        onNavigateToStocks={() => {
+          setActiveTab('stocks');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
+        onNavigateToPromotions={() => {
+          setActiveTab('promotions');
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }}
       />
@@ -80,8 +128,15 @@ const MainAppContent: React.FC = () => {
         onOpenTracking={() => setIsOrderTrackingOpen(true)}
       />
 
-      {/* Tab routing container */}
+        {/* Tab routing container */}
       <main className="flex-1">
+        {siteSettings.maintenanceMode && userRole !== 'admin' && (
+          <div className="bg-amber-500/15 border-b border-amber-500/40 text-amber-300 px-4 py-2.5 text-xs text-center flex items-center justify-center gap-2 font-medium">
+            <AlertTriangle className="w-4 h-4 shrink-0 text-amber-400" />
+            <span>Scheduled system upgrade window active — existing investments & telemetry remain protected.</span>
+          </div>
+        )}
+
         {activeTab === 'home' && (
           <div className="space-y-12">
             <Hero
@@ -127,6 +182,7 @@ const MainAppContent: React.FC = () => {
         {activeTab === 'vehicles' && (
           <TeslaCarSales
             onOpenDeposit={() => setIsDepositModalOpen(true)}
+            onOpenAuth={() => setIsAuthModalOpen(true)}
             onNavigateToDashboard={() => {
               setActiveTab('dashboard');
               window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -203,6 +259,20 @@ const MainAppContent: React.FC = () => {
           <ReferralHub
             onOpenDeposit={() => setIsDepositModalOpen(true)}
             onOpenAuth={() => setIsAuthModalOpen(true)}
+            onNavigateToBanners={() => {
+              setActiveTab('banners');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+          />
+        )}
+
+        {activeTab === 'banners' && (
+          <PromoBannersPage
+            onOpenAuth={() => setIsAuthModalOpen(true)}
+            onNavigate={(tab) => {
+              setActiveTab(tab);
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
           />
         )}
 
@@ -210,6 +280,7 @@ const MainAppContent: React.FC = () => {
           <ProductShop
             onOpenCart={() => setIsCartModalOpen(true)}
             onOpenDeposit={() => setIsDepositModalOpen(true)}
+            onOpenAuth={() => setIsAuthModalOpen(true)}
           />
         )}
 
@@ -233,6 +304,16 @@ const MainAppContent: React.FC = () => {
         {activeTab === 'about' && <AboutSection />}
         {activeTab === 'faq' && <FaqSection />}
         {activeTab === 'contact' && <ContactSection />}
+
+        {matchedCustomPage && (
+          <CustomPageView
+            page={matchedCustomPage}
+            onNavigate={(tab) => {
+              setActiveTab(tab);
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+          />
+        )}
       </main>
 
       {/* Footer */}

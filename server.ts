@@ -1,6 +1,6 @@
 import express from 'express';
 import { createServer as createViteServer } from 'vite';
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, Type } from '@google/genai';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -200,6 +200,126 @@ Provide a concise breakdown:
   } catch (err: unknown) {
     const error = err as Error;
     return res.status(500).json({ error: error.message });
+  }
+});
+
+// Admin AI Promotional Banner Generator (Gemini 4 Hydrogen)
+app.post('/api/gemini/generate-banner', async (req, res) => {
+  try {
+    const { campaignGoal, size = 'leaderboard', tone = 'Luxury High-Tech', targetTab = 'stocks' } = req.body;
+
+    const sizeDimensionMap: Record<string, string> = {
+      leaderboard: '728×90',
+      square: '300×300',
+      rectangle: '300×250',
+      sidebar: '160×600',
+    };
+    const dimensions = sizeDimensionMap[size] || '728×90';
+    const cleanGoal = campaignGoal || 'Earn High Yield on TSLA Stocks, Cybertruck Sales & Referral Bonuses';
+
+    if (ai) {
+      try {
+        const response = await ai.models.generateContent({
+          model: 'gemini-4-hydrogen',
+          contents: `Create a high-converting digital marketing banner specification for Apex Tesla Hub.
+Campaign Goal: ${cleanGoal}
+Banner Format: ${size} (${dimensions} px)
+Brand Tone: ${tone}
+Target Section: ${targetTab}
+Note: Mention referral benefits or VIP rewards where natural, keep headline punchy (max 8-10 words), subheadline concise (max 18 words), and CTA under 4 words.`,
+          config: {
+            systemInstruction:
+              'You are a senior growth designer and conversion copywriter for Apex Tesla Hub (Tesla car sales, wraps, fleet staking, TSLA fast ROI plans, Spin & Win $150, $100 referral rewards). Output strictly valid JSON matching the schema.',
+            responseMimeType: 'application/json',
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                title: { type: Type.STRING },
+                badgeText: { type: Type.STRING },
+                headline: { type: Type.STRING },
+                subheadline: { type: Type.STRING },
+                ctaText: { type: Type.STRING },
+                accentColor: { type: Type.STRING },
+                themeGradient: { type: Type.STRING },
+                targetTab: { type: Type.STRING },
+              },
+              required: ['title', 'badgeText', 'headline', 'subheadline', 'ctaText', 'accentColor', 'themeGradient', 'targetTab'],
+            },
+          },
+        });
+
+        if (response.text) {
+          const parsed = JSON.parse(response.text);
+          return res.json({
+            success: true,
+            aiPowered: true,
+            banner: {
+              ...parsed,
+              size,
+              dimensions,
+              isAiGenerated: true,
+            },
+          });
+        }
+      } catch (geminiError: any) {
+        console.warn('Gemini banner generator fallback triggered:', geminiError?.message);
+      }
+    }
+
+    const presetsBySize: Record<string, any> = {
+      leaderboard: {
+        title: `AI Campaign: ${cleanGoal.slice(0, 32)}`,
+        badgeText: '728×90 LEADERBOARD • AI',
+        headline: 'ACCELERATE WEALTH WITH TSLA & ROBOTAXI YIELDS',
+        subheadline: `${cleanGoal.slice(0, 90)} — Invite friends via your VIP referral link for +$100 vault bonus.`,
+        ctaText: 'Launch Now',
+        accentColor: '#ef4444',
+        themeGradient: 'from-zinc-950 via-red-950/85 to-zinc-950',
+      },
+      square: {
+        title: `AI Square Promo: ${cleanGoal.slice(0, 30)}`,
+        badgeText: '300×300 SQUARE • AI',
+        headline: 'VIP TESLA SALES & FLEET YIELD ACCESS',
+        subheadline: `${cleanGoal.slice(0, 85)} • Instant crypto checkout & $25 welcome invite bonus.`,
+        ctaText: 'Claim VIP Access',
+        accentColor: '#10b981',
+        themeGradient: 'from-zinc-950 via-emerald-950/70 to-zinc-950',
+      },
+      rectangle: {
+        title: `AI Rectangle Unit: ${cleanGoal.slice(0, 28)}`,
+        badgeText: '300×250 RECTANGLE • AI',
+        headline: 'TSLA FAST ROI + $150 SPIN JACKPOTS',
+        subheadline: `${cleanGoal.slice(0, 85)} • Automated payouts & enclosed nationwide Tesla shipping.`,
+        ctaText: 'Activate Referral',
+        accentColor: '#f59e0b',
+        themeGradient: 'from-zinc-950 via-amber-950/75 to-red-950/75',
+      },
+      sidebar: {
+        title: `AI Sidebar Skyscraper: ${cleanGoal.slice(0, 24)}`,
+        badgeText: '160×600 SIDEBAR • AI',
+        headline: 'TESLA INVESTOR & BUYER CLUB',
+        subheadline: 'TSLA Stocks • Cyberbeast Delivery • 18.5% APY Fleet Pools',
+        ctaText: 'Join With Invite',
+        accentColor: '#06b6d4',
+        themeGradient: 'from-zinc-950 via-cyan-950/75 to-zinc-950',
+      },
+    };
+
+    const chosen = presetsBySize[size] || presetsBySize.leaderboard;
+    return res.json({
+      success: true,
+      aiPowered: false,
+      banner: {
+        ...chosen,
+        size,
+        dimensions,
+        targetTab,
+        isAiGenerated: true,
+      },
+    });
+  } catch (err: unknown) {
+    const error = err as Error;
+    return res.status(500).json({ error: error.message || 'Failed to generate promotional banner' });
   }
 });
 
@@ -538,6 +658,7 @@ interface ServerInvestment {
   daysElapsed: number;
   earnedDividendsUsd: number;
   totalExpectedRoiUsd: number;
+  dailyRoiRate?: number;
   startDate: string;
   maturityDate: string;
   completedAt?: string;
@@ -554,9 +675,36 @@ interface ServerWallet {
   bnb: number;
 }
 
+interface ServerSettlementEvent {
+  id: string;
+  investmentId: string;
+  userId: string;
+  userEmail: string;
+  userName: string;
+  poolTitle: string;
+  principalUsd: number;
+  roiUsd: number;
+  totalPayoutUsd: number;
+  certificateId: string;
+  settledAt: string;
+  emailDispatched: boolean;
+}
+
+// Dynamic SMTP Config Synced from Admin Mailer Settings
+let serverSmtpConfig: {
+  host?: string;
+  port?: number;
+  secure?: boolean;
+  username?: string;
+  password?: string;
+  fromName?: string;
+  fromEmail?: string;
+} | null = null;
+
 // In-Memory Persistent Stores
 const serverInvestments: Map<string, ServerInvestment> = new Map();
 const serverWallets: Map<string, ServerWallet> = new Map();
+const serverSettlementEvents: ServerSettlementEvent[] = [];
 const serverDispatchedEmails: Array<{
   id: string;
   type: string;
@@ -574,15 +722,26 @@ let cronCyclesRun = 186;
 let lastCronRunTimestamp: string = new Date().toISOString();
 const serverCronLogs: string[] = [
   `[${new Date().toISOString().substring(11, 19)}] Automated ROI Cron Engine initialized on 60-second cycle.`,
-  `[${new Date().toISOString().substring(11, 19)}] Verified 3 active fleet staking pools with smart contract telemetry.`,
+  `[${new Date().toISOString().substring(11, 19)}] Verified active fleet & Fast-ROI plans with smart contract telemetry.`,
 ];
+
+function computeDailyRoiUsd(inv: ServerInvestment): number {
+  if (typeof inv.dailyRoiRate === 'number' && inv.dailyRoiRate > 0) {
+    return Number(inv.dailyRoiRate.toFixed(2));
+  }
+  const duration = Math.max(1, Number(inv.durationDays) || 30);
+  if (typeof inv.totalExpectedRoiUsd === 'number' && inv.totalExpectedRoiUsd > 0) {
+    return Number((inv.totalExpectedRoiUsd / duration).toFixed(2));
+  }
+  return Number((((inv.amountInvestedUsd * (inv.apy / 100)) / 365)).toFixed(2));
+}
 
 // Seed initial investments matching demo users
 function seedServerInvestments() {
   if (serverInvestments.size === 0) {
     const inv1: ServerInvestment = {
       id: 'inv-alex-robotaxi',
-      userId: 'usr-apex-001',
+      userId: 'usr-alex-001',
       userEmail: 'alex.vance@apex-tesla.io',
       userName: 'Alex Vance',
       poolId: 'pool-robotaxi-01',
@@ -591,9 +750,10 @@ function seedServerInvestments() {
       apy: 18.5,
       status: 'running',
       durationDays: 30,
-      daysElapsed: 28, // Near completion for easy demo!
+      daysElapsed: 28, // Near completion for easy verification!
       earnedDividendsUsd: 71.03,
       totalExpectedRoiUsd: 76.03,
+      dailyRoiRate: 2.53,
       startDate: new Date(Date.now() - 28 * 86400000).toISOString(),
       maturityDate: new Date(Date.now() + 2 * 86400000).toISOString(),
       txHash: '0x9fa810c2834b9281a182048f029148d891b01984',
@@ -601,7 +761,7 @@ function seedServerInvestments() {
 
     const inv2: ServerInvestment = {
       id: 'inv-alex-supercharger',
-      userId: 'usr-apex-001',
+      userId: 'usr-alex-001',
       userEmail: 'alex.vance@apex-tesla.io',
       userName: 'Alex Vance',
       poolId: 'pool-supercharger-02',
@@ -613,6 +773,7 @@ function seedServerInvestments() {
       daysElapsed: 42,
       earnedDividendsUsd: 253.15,
       totalExpectedRoiUsd: 361.64,
+      dailyRoiRate: 6.03,
       startDate: new Date(Date.now() - 42 * 86400000).toISOString(),
       maturityDate: new Date(Date.now() + 18 * 86400000).toISOString(),
       txHash: '0x3cb19028a71928491823908f9182903847a98291',
@@ -620,7 +781,7 @@ function seedServerInvestments() {
 
     const inv3: ServerInvestment = {
       id: 'inv-alex-plaid',
-      userId: 'usr-apex-001',
+      userId: 'usr-alex-001',
       userEmail: 'alex.vance@apex-tesla.io',
       userName: 'Alex Vance',
       poolId: 'pool-plaid-track-03',
@@ -632,6 +793,7 @@ function seedServerInvestments() {
       daysElapsed: 45,
       earnedDividendsUsd: 241.64,
       totalExpectedRoiUsd: 241.64,
+      dailyRoiRate: 5.37,
       startDate: new Date(Date.now() - 50 * 86400000).toISOString(),
       maturityDate: new Date(Date.now() - 5 * 86400000).toISOString(),
       completedAt: new Date(Date.now() - 5 * 86400000).toISOString(),
@@ -645,6 +807,13 @@ function seedServerInvestments() {
     serverInvestments.set(inv3.id, inv3);
 
     // Initial wallet balance for Alex Vance
+    serverWallets.set('usr-alex-001', {
+      usd: 12450.0,
+      btc: 0.45,
+      usdt: 14200.0,
+      xrp: 4200.0,
+      bnb: 18.5,
+    });
     serverWallets.set('usr-apex-001', {
       usd: 12450.0,
       btc: 0.45,
@@ -657,6 +826,22 @@ function seedServerInvestments() {
 
 seedServerInvestments();
 
+app.post('/api/mailer/config', (req, res) => {
+  const { smtpConfig } = req.body || {};
+  if (smtpConfig && typeof smtpConfig === 'object') {
+    serverSmtpConfig = {
+      host: smtpConfig.host,
+      port: Number(smtpConfig.port) || 587,
+      secure: Boolean(smtpConfig.secure),
+      username: smtpConfig.username,
+      password: smtpConfig.password,
+      fromName: smtpConfig.fromName,
+      fromEmail: smtpConfig.fromEmail,
+    };
+  }
+  return res.json({ success: true });
+});
+
 // Automated Maturity Email Dispatcher
 async function dispatchMaturityEmail(params: {
   toEmail: string;
@@ -667,29 +852,41 @@ async function dispatchMaturityEmail(params: {
   totalPayoutUsd: number;
   newWalletBalanceUsd: number;
   investmentId: string;
+  certificateId?: string;
 }): Promise<boolean> {
   const { toEmail, userName, poolTitle, principalUsd, roiUsd, totalPayoutUsd, newWalletBalanceUsd, investmentId } = params;
-  const certId = `CERT-SETTLE-${Date.now().toString(36).toUpperCase()}`;
+  const certId = params.certificateId || `CERT-SETTLE-${Date.now().toString(36).toUpperCase()}`;
   const subject = `⚡ [MATURITY SETTLEMENT] ${poolTitle} Yield Plan Complete • $${totalPayoutUsd.toFixed(2)} USD Credited`;
 
   console.log(`[CRON AUTOMATED EMAIL DISPATCH] To: ${toEmail} | Asset: ${poolTitle} | Payout: $${totalPayoutUsd.toFixed(2)}`);
 
   let delivered = false;
 
-  // If live SMTP credentials exist in environment, send real email
-  if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
+  const smtpHost = serverSmtpConfig?.host || process.env.SMTP_HOST;
+  const smtpPort = serverSmtpConfig?.port || Number(process.env.SMTP_PORT) || 587;
+  const smtpSecure = serverSmtpConfig?.secure ?? Boolean(process.env.SMTP_SECURE);
+  const smtpUser = serverSmtpConfig?.username || process.env.SMTP_USER;
+  const smtpPass =
+    serverSmtpConfig?.password && !serverSmtpConfig.password.includes('•••') && serverSmtpConfig.password.length > 3
+      ? serverSmtpConfig.password
+      : process.env.SMTP_PASS;
+  const fromName = serverSmtpConfig?.fromName || 'Apex Tesla Hub Settlement Operations';
+  const fromEmail = serverSmtpConfig?.fromEmail || process.env.SMTP_FROM || 'concierge@apex-tesla.io';
+
+  // If live SMTP credentials exist in environment or admin settings, send real email
+  if (smtpHost && smtpUser && smtpPass) {
     try {
       const nodemailer = await import('nodemailer');
       const transporter = nodemailer.default.createTransport({
-        host: process.env.SMTP_HOST,
-        port: Number(process.env.SMTP_PORT) || 587,
-        secure: Boolean(process.env.SMTP_SECURE),
-        auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+        host: smtpHost,
+        port: smtpPort,
+        secure: smtpSecure,
+        auth: { user: smtpUser, pass: smtpPass },
         tls: { rejectUnauthorized: false },
       });
 
       await transporter.sendMail({
-        from: `"Apex Tesla Hub Settlement Operations" <${process.env.SMTP_FROM || 'concierge@apex-tesla.io'}>`,
+        from: `"${fromName}" <${fromEmail}>`,
         to: toEmail,
         subject,
         html: `
@@ -746,7 +943,7 @@ async function dispatchMaturityEmail(params: {
 
   // Record into dispatched emails audit log
   serverDispatchedEmails.unshift({
-    id: `email-${Date.now()}`,
+    id: `email-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
     type: 'maturity_settlement',
     recipient: toEmail,
     subject,
@@ -756,12 +953,18 @@ async function dispatchMaturityEmail(params: {
     dispatchedAt: new Date().toISOString(),
     status: delivered ? 'delivered' : 'simulated',
   });
+  if (serverDispatchedEmails.length > 50) serverDispatchedEmails.length = 50;
 
   return true;
 }
 
 // Master Cron Cycle Function
-function runServerCronCycle(): { maturedCount: number; yieldDistributedUsd: number; logs: string[] } {
+function runServerCronCycle(): {
+  maturedCount: number;
+  yieldDistributedUsd: number;
+  logs: string[];
+  settledEvents: ServerSettlementEvent[];
+} {
   const timeStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
   lastCronRunTimestamp = new Date().toISOString();
   cronCyclesRun += 1;
@@ -769,36 +972,62 @@ function runServerCronCycle(): { maturedCount: number; yieldDistributedUsd: numb
   let maturedCount = 0;
   let yieldDistributedUsd = 0;
   const cycleLogs: string[] = [];
+  const settledEvents: ServerSettlementEvent[] = [];
 
   for (const inv of serverInvestments.values()) {
-    if (inv.status !== 'running') continue;
+    if (inv.status !== 'running' || inv.capitalReturned) continue;
 
-    // Daily incremental ROI: (Principal * APY / 365)
-    const dailyRoiRate = (inv.amountInvestedUsd * (inv.apy / 100)) / 365;
-    const addedYield = Number(dailyRoiRate.toFixed(2));
+    // Daily ROI calculated based on specific plan duration
+    const addedYield = computeDailyRoiUsd(inv);
+    inv.dailyRoiRate = addedYield;
     inv.earnedDividendsUsd = Number(((inv.earnedDividendsUsd || 0) + addedYield).toFixed(2));
-    inv.daysElapsed = (inv.daysElapsed || 0) + 1;
-    yieldDistributedUsd += addedYield;
+    inv.daysElapsed = Math.min(inv.durationDays, (inv.daysElapsed || 0) + 1);
+    yieldDistributedUsd = Number((yieldDistributedUsd + addedYield).toFixed(2));
 
     // Check if plan duration is complete
     if (inv.daysElapsed >= inv.durationDays) {
+      // Ensure full expected plan ROI is realized on final day when specified
+      if (inv.totalExpectedRoiUsd > 0 && inv.earnedDividendsUsd < inv.totalExpectedRoiUsd) {
+        const deltaTopUp = Number((inv.totalExpectedRoiUsd - inv.earnedDividendsUsd).toFixed(2));
+        inv.earnedDividendsUsd = Number(inv.totalExpectedRoiUsd.toFixed(2));
+        yieldDistributedUsd = Number((yieldDistributedUsd + deltaTopUp).toFixed(2));
+      }
+
       maturedCount++;
       inv.status = 'completed';
       inv.completedAt = new Date().toISOString();
       inv.capitalReturned = true;
-      inv.certificateId = `CERT-${Date.now().toString(36).toUpperCase()}`;
+      inv.certificateId = `CERT-${Date.now().toString(36).toUpperCase()}-${inv.id.slice(-4).toUpperCase()}`;
 
       const totalPayoutUsd = Number((inv.amountInvestedUsd + inv.earnedDividendsUsd).toFixed(2));
 
       // Credit User Wallet
       let wallet = serverWallets.get(inv.userId);
       if (!wallet) {
-        wallet = { usd: 0, btc: 0, usdt: 0, xrp: 0, bnb: 0 };
+        wallet = { usd: 12450.0, btc: 0.45, usdt: 14200.0, xrp: 4200.0, bnb: 18.5 };
         serverWallets.set(inv.userId, wallet);
       }
       wallet.usd = Number((wallet.usd + totalPayoutUsd).toFixed(2));
 
-      const logMsg = `[CRON MATURITY SETTLED] Position #${inv.id} (${inv.poolTitle}): $${inv.amountInvestedUsd} capital + $${inv.earnedDividendsUsd.toFixed(2)} ROI credited to wallet (${inv.userEmail}). New balance: $${wallet.usd.toFixed(2)}`;
+      const settlementEvent: ServerSettlementEvent = {
+        id: `settle-${inv.id}-${Date.now()}`,
+        investmentId: inv.id,
+        userId: inv.userId,
+        userEmail: inv.userEmail,
+        userName: inv.userName,
+        poolTitle: inv.poolTitle,
+        principalUsd: inv.amountInvestedUsd,
+        roiUsd: inv.earnedDividendsUsd,
+        totalPayoutUsd,
+        certificateId: inv.certificateId,
+        settledAt: inv.completedAt,
+        emailDispatched: true,
+      };
+      serverSettlementEvents.unshift(settlementEvent);
+      if (serverSettlementEvents.length > 50) serverSettlementEvents.length = 50;
+      settledEvents.push(settlementEvent);
+
+      const logMsg = `[CRON MATURITY SETTLED] Position #${inv.id} (${inv.poolTitle}): $${inv.amountInvestedUsd} capital + $${inv.earnedDividendsUsd.toFixed(2)} ROI = $${totalPayoutUsd.toFixed(2)} credited to wallet (${inv.userEmail}).`;
       cycleLogs.push(logMsg);
       serverCronLogs.unshift(`[${timeStr}] ${logMsg}`);
 
@@ -812,15 +1041,19 @@ function runServerCronCycle(): { maturedCount: number; yieldDistributedUsd: numb
         totalPayoutUsd,
         newWalletBalanceUsd: wallet.usd,
         investmentId: inv.id,
+        certificateId: inv.certificateId,
       }).catch((e) => console.warn('Email dispatch error:', e));
+    } else {
+      const accrualMsg = `[YIELD ACCRUED] #${inv.id} (${inv.poolTitle}): +$${addedYield.toFixed(2)} daily ROI (${inv.daysElapsed}/${inv.durationDays} days).`;
+      cycleLogs.push(accrualMsg);
     }
   }
 
-  const summaryLog = `[${timeStr}] Cycle #${cronCyclesRun}: Accrued $${yieldDistributedUsd.toFixed(2)} ROI across running pools. ${maturedCount} plan(s) reached maturity & auto-settled.`;
+  const summaryLog = `[${timeStr}] Cycle #${cronCyclesRun}: Accrued $${yieldDistributedUsd.toFixed(2)} ROI across running plans. ${maturedCount} plan(s) reached maturity & auto-settled.`;
   serverCronLogs.unshift(summaryLog);
-  if (serverCronLogs.length > 50) serverCronLogs.length = 50;
+  if (serverCronLogs.length > 60) serverCronLogs.length = 60;
 
-  return { maturedCount, yieldDistributedUsd, logs: cycleLogs };
+  return { maturedCount, yieldDistributedUsd, logs: [summaryLog, ...cycleLogs], settledEvents };
 }
 
 // Background Interval Runner (every 60 seconds)
@@ -845,8 +1078,10 @@ app.get('/api/cron/status', (_req, res) => {
     runningCount,
     completedCount,
     totalStakedUsd,
-    logs: serverCronLogs.slice(0, 15),
-    dispatchedEmails: serverDispatchedEmails.slice(0, 10),
+    logs: serverCronLogs.slice(0, 20),
+    dispatchedEmails: serverDispatchedEmails.slice(0, 15),
+    investments,
+    settlementEvents: serverSettlementEvents.slice(0, 20),
   });
 });
 
@@ -854,18 +1089,26 @@ app.post('/api/cron/trigger', (_req, res) => {
   const result = runServerCronCycle();
   return res.json({
     success: true,
-    message: `Manual cron cycle #${cronCyclesRun} executed successfully!`,
+    cyclesRun: cronCyclesRun,
+    lastRunTimestamp: lastCronRunTimestamp,
+    message: `Cron cycle #${cronCyclesRun} executed: $${result.yieldDistributedUsd.toFixed(2)} ROI accrued, ${result.maturedCount} plan(s) matured & settled.`,
+    investments: Array.from(serverInvestments.values()),
+    dispatchedEmails: serverDispatchedEmails.slice(0, 15),
+    settlementEvents: serverSettlementEvents.slice(0, 20),
     ...result,
   });
 });
 
 app.post('/api/cron/toggle', (req, res) => {
-  const { active } = req.body;
+  const { active } = req.body || {};
   if (typeof active === 'boolean') {
     cronActive = active;
   } else {
     cronActive = !cronActive;
   }
+  serverCronLogs.unshift(
+    `[${new Date().toISOString().replace('T', ' ').substring(0, 19)}] Cron scheduler ${cronActive ? 'RESUMED' : 'PAUSED'} by administrator.`
+  );
   return res.json({
     success: true,
     active: cronActive,
@@ -879,15 +1122,25 @@ app.get('/api/investments', (_req, res) => {
 });
 
 app.post('/api/investments/sync', (req, res) => {
-  const { investments } = req.body;
+  const { investments } = req.body || {};
   if (Array.isArray(investments)) {
     investments.forEach((inv: ServerInvestment) => {
-      if (inv.id) {
-        serverInvestments.set(inv.id, inv);
+      if (!inv.id) return;
+      const existing = serverInvestments.get(inv.id);
+      // Preserve server-completed settlement state so client polling never reverts matured payouts
+      if (existing && existing.capitalReturned && existing.status === 'completed') {
+        return;
       }
+      serverInvestments.set(inv.id, {
+        ...existing,
+        ...inv,
+        userId: inv.userId || existing?.userId || 'usr-alex-001',
+        userEmail: inv.userEmail || existing?.userEmail || 'alex.vance@apex-tesla.io',
+        userName: inv.userName || existing?.userName || 'Alex Vance',
+      });
     });
   }
-  return res.json({ success: true, count: serverInvestments.size });
+  return res.json({ success: true, count: serverInvestments.size, investments: Array.from(serverInvestments.values()) });
 });
 
 app.post('/api/investments/:id/force-mature', (req, res) => {
@@ -898,7 +1151,18 @@ app.post('/api/investments/:id/force-mature', (req, res) => {
     return res.status(404).json({ error: 'Investment position not found.' });
   }
 
+  if (inv.capitalReturned) {
+    return res.json({
+      success: true,
+      message: `Investment #${id} already settled.`,
+      investment: inv,
+    });
+  }
+
   inv.daysElapsed = inv.durationDays;
+  if (inv.totalExpectedRoiUsd > 0 && (inv.earnedDividendsUsd || 0) < inv.totalExpectedRoiUsd) {
+    inv.earnedDividendsUsd = Number(inv.totalExpectedRoiUsd.toFixed(2));
+  }
   inv.status = 'completed';
   inv.completedAt = new Date().toISOString();
   inv.capitalReturned = true;
@@ -909,10 +1173,31 @@ app.post('/api/investments/:id/force-mature', (req, res) => {
   // Update wallet
   let wallet = serverWallets.get(inv.userId);
   if (!wallet) {
-    wallet = { usd: 0, btc: 0, usdt: 0, xrp: 0, bnb: 0 };
+    wallet = { usd: 12450.0, btc: 0.45, usdt: 14200.0, xrp: 4200.0, bnb: 18.5 };
     serverWallets.set(inv.userId, wallet);
   }
   wallet.usd = Number((wallet.usd + totalPayoutUsd).toFixed(2));
+
+  const settlementEvent: ServerSettlementEvent = {
+    id: `settle-${inv.id}-${Date.now()}`,
+    investmentId: inv.id,
+    userId: inv.userId,
+    userEmail: inv.userEmail,
+    userName: inv.userName,
+    poolTitle: inv.poolTitle,
+    principalUsd: inv.amountInvestedUsd,
+    roiUsd: inv.earnedDividendsUsd || 0,
+    totalPayoutUsd,
+    certificateId: inv.certificateId,
+    settledAt: inv.completedAt,
+    emailDispatched: true,
+  };
+  serverSettlementEvents.unshift(settlementEvent);
+
+  const timeStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
+  serverCronLogs.unshift(
+    `[${timeStr}] [ADMIN MATURITY SETTLED] Position #${inv.id}: $${totalPayoutUsd.toFixed(2)} credited to ${inv.userEmail}.`
+  );
 
   // Trigger maturity email
   dispatchMaturityEmail({
@@ -924,12 +1209,15 @@ app.post('/api/investments/:id/force-mature', (req, res) => {
     totalPayoutUsd,
     newWalletBalanceUsd: wallet.usd,
     investmentId: inv.id,
+    certificateId: inv.certificateId,
   }).catch((e) => console.warn('Email dispatch error:', e));
 
   return res.json({
     success: true,
     message: `Investment #${id} successfully settled. $${totalPayoutUsd.toFixed(2)} credited to ${inv.userName}'s wallet. Notification email dispatched.`,
     investment: inv,
+    settlementEvent,
+    dispatchedEmails: serverDispatchedEmails.slice(0, 15),
     newWalletBalanceUsd: wallet.usd,
   });
 });

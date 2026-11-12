@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Zap, ShieldCheck, Heart, ExternalLink, X } from 'lucide-react';
+import { Zap, ShieldCheck, ExternalLink, X } from 'lucide-react';
+import { useApp } from '../context/AppContext';
 
 interface FooterProps {
   onNavigate: (tab: string) => void;
@@ -7,11 +8,30 @@ interface FooterProps {
 }
 
 export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenDeposit }) => {
+  const { navigationMenus, sitePages, siteSettings, socialLinks } = useApp();
   const [modalContent, setModalContent] = useState<{ title: string; body: string } | null>(null);
 
   const openLegalModal = (title: string, body: string) => {
     setModalContent({ title, body });
   };
+
+  const footerSocials = socialLinks.filter((s) => s.enabled && s.showInFooter);
+  const serviceMenus = navigationMenus
+    .filter((m) => m.location === 'footer_services' && m.isVisible)
+    .sort((a, b) => a.order - b.order);
+  const fleetMenus = navigationMenus
+    .filter((m) => m.location === 'footer_fleet' && m.isVisible)
+    .sort((a, b) => a.order - b.order);
+  const legalMenus = navigationMenus
+    .filter((m) => m.location === 'footer_legal' && m.isVisible)
+    .sort((a, b) => a.order - b.order);
+  const customFooterPages = sitePages
+    .filter((p) => !p.isSystem && (p.isPublished ?? p.published) && (p.displayLocation === 'footer' || p.displayLocation === 'both'))
+    .sort((a, b) => a.order - b.order);
+
+  const brandParts = siteSettings.siteName.includes('//')
+    ? siteSettings.siteName.split('//').map((s) => s.trim())
+    : [siteSettings.siteName, ''];
 
   const privacyText = `Apex Tesla Hub is committed to protecting your privacy and digital assets.
 1. Data Collection: We collect only necessary vehicle telematics (VIN, error codes, odometer, SoC) to perform maintenance and schedule technician dispatches.
@@ -20,7 +40,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenDeposit }) => 
 
   const termsText = `Terms of Service - Apex Tesla Hub:
 1. Certified Service & Repairs: All mechanical, electrical, and wrap customization services performed at Apex facilities or via Mobile Rangers include a 2-Year / 24,000-mile warranty.
-2. Promotional Gaming & Scratch Cards: Spin-and-Win Wheel and purchasable Scratch & Win cards ($50 to $8,000 tiers) operate via provably fair algorithmic randomness. Prizes are credited immediately to user dashboard balances.
+2. Promotional Gaming & Scratch Cards: Spin-and-Win Wheel and purchasable Scratch & Win cards ($50 to $${siteSettings.maxScratchPrizeUsd.toLocaleString()} tiers) operate via provably fair algorithmic randomness. Prizes are credited immediately to user dashboard balances.
 3. Staking & Yield: Vehicle and Supercharger staking APYs (14.8% to 22.6%) reflect distributed commercial fleet operations. Yield payouts are automated daily.
 4. Independent Affiliation: Apex Tesla Hub is an independent engineering and customization network dedicated to Tesla vehicle owners and enthusiasts.`;
 
@@ -35,14 +55,18 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenDeposit }) => 
                 <Zap className="w-4 h-4 text-white fill-white" />
               </div>
               <div className="flex items-center gap-1">
-                <span className="font-heading font-black text-lg tracking-tight text-white">APEX</span>
-                <span className="font-mono text-red-500 font-extrabold">//</span>
-                <span className="font-heading font-extrabold text-lg text-zinc-300">TESLA</span>
+                <span className="font-heading font-black text-lg tracking-tight text-white">{brandParts[0]}</span>
+                {brandParts[1] && (
+                  <>
+                    <span className="font-mono text-red-500 font-extrabold">//</span>
+                    <span className="font-heading font-extrabold text-lg text-zinc-300">{brandParts[1]}</span>
+                  </>
+                )}
               </div>
             </div>
 
             <p className="text-zinc-400 text-xs leading-relaxed max-w-sm">
-              The premier ecosystem for Tesla vehicle maintenance, bespoke color wraps, exotic fleet rentals, decentralized investment yields, and Gemini AI diagnostics.
+              {siteSettings.heroSubtitle}
             </p>
 
             {/* Social Connect Handles */}
@@ -59,25 +83,15 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenDeposit }) => 
                 </button>
               </div>
               <div className="flex flex-wrap gap-1.5 text-xs">
-                {[
-                  { name: 'WhatsApp VIP', url: 'https://wa.me/18005552739' },
-                  { name: 'Facebook', url: 'https://facebook.com' },
-                  { name: 'Pinterest', url: 'https://pinterest.com' },
-                  { name: 'Threads', url: 'https://threads.net' },
-                  { name: 'Instagram', url: 'https://instagram.com' },
-                  { name: 'TikTok', url: 'https://tiktok.com' },
-                  { name: 'X / Twitter', url: 'https://twitter.com' },
-                  { name: 'YouTube', url: 'https://youtube.com' },
-                  { name: 'Discord', url: 'https://discord.com' },
-                ].map((social) => (
+                {footerSocials.map((social) => (
                   <a
-                    key={social.name}
+                    key={social.id}
                     href={social.url}
                     target="_blank"
                     rel="noreferrer"
                     className="px-2 py-0.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-red-500/50 text-zinc-300 hover:text-white transition flex items-center gap-1 text-[11px]"
                   >
-                    <span>{social.name}</span>
+                    <span>{social.name || social.label}</span>
                     <ExternalLink className="w-2.5 h-2.5 text-zinc-500" />
                   </a>
                 ))}
@@ -91,31 +105,13 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenDeposit }) => 
               Services & Custom
             </h4>
             <ul className="space-y-2">
-              <li>
-                <button onClick={() => onNavigate('services')} className="hover:text-red-400 transition">
-                  High-Voltage Diagnostics
-                </button>
-              </li>
-              <li>
-                <button onClick={() => onNavigate('services')} className="hover:text-red-400 transition">
-                  Mobile Ranger Dispatch
-                </button>
-              </li>
-              <li>
-                <button onClick={() => onNavigate('wraps')} className="hover:text-red-400 transition">
-                  3M Satin Stealth Wraps
-                </button>
-              </li>
-              <li>
-                <button onClick={() => onNavigate('wraps')} className="hover:text-red-400 transition">
-                  Ceramic Self-Healing PPF
-                </button>
-              </li>
-              <li>
-                <button onClick={() => onNavigate('shop')} className="hover:text-red-400 transition">
-                  Yoke Steering Retrofits
-                </button>
-              </li>
+              {serviceMenus.map((item) => (
+                <li key={item.id}>
+                  <button onClick={() => onNavigate(item.targetTab)} className="hover:text-red-400 transition text-left">
+                    {item.label}
+                  </button>
+                </li>
+              ))}
             </ul>
           </div>
 
@@ -125,28 +121,15 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenDeposit }) => 
               Fleet & Yield
             </h4>
             <ul className="space-y-2">
+              {fleetMenus.map((item) => (
+                <li key={item.id}>
+                  <button onClick={() => onNavigate(item.targetTab)} className="hover:text-red-400 transition text-left">
+                    {item.label}
+                  </button>
+                </li>
+              ))}
               <li>
-                <button onClick={() => onNavigate('rentals')} className="hover:text-red-400 transition">
-                  Cybertruck Cyberbeast Rental
-                </button>
-              </li>
-              <li>
-                <button onClick={() => onNavigate('rentals')} className="hover:text-red-400 transition">
-                  Roadster Founders Edition
-                </button>
-              </li>
-              <li>
-                <button onClick={() => onNavigate('investment')} className="hover:text-red-400 transition">
-                  Robotaxi Autonomous Yield
-                </button>
-              </li>
-              <li>
-                <button onClick={() => onNavigate('investment')} className="hover:text-red-400 transition">
-                  Supercharger Node Staking
-                </button>
-              </li>
-              <li>
-                <button onClick={onOpenDeposit} className="hover:text-red-400 transition">
+                <button onClick={onOpenDeposit} className="hover:text-red-400 transition text-left">
                   Crypto Gateway (BTC/USDT/XRP)
                 </button>
               </li>
@@ -159,32 +142,33 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenDeposit }) => 
               Promotions & Trust
             </h4>
             <ul className="space-y-2">
-              <li>
-                <button onClick={() => onNavigate('coupons')} className="hover:text-red-400 text-yellow-400 font-bold transition flex items-center gap-1">
-                  <span>Coupons & Deals</span>
-                  <span className="text-[9px] px-1 py-0.2 bg-red-600 text-white rounded font-bold uppercase animate-pulse">HOT</span>
-                </button>
-              </li>
-              <li>
-                <button onClick={() => onNavigate('tracking')} className="hover:text-cyan-400 text-cyan-300 font-semibold transition">
-                  Track Delivery & Orders
-                </button>
-              </li>
-              <li>
-                <button onClick={() => onNavigate('promotions')} className="hover:text-yellow-400 text-zinc-300 font-semibold transition">
-                  Spin & Win Wheel (Live)
-                </button>
-              </li>
-              <li>
-                <button onClick={() => onNavigate('referrals')} className="hover:text-emerald-400 text-emerald-400 font-bold transition flex items-center gap-1">
-                  <span>Invite & Earn ($100)</span>
-                </button>
-              </li>
-              <li>
-                <button onClick={() => onNavigate('promotions')} className="hover:text-yellow-400 transition">
-                  $8,000 Scratch Cards
-                </button>
-              </li>
+              {legalMenus.map((item) => (
+                <li key={item.id}>
+                  <button
+                    onClick={() => onNavigate(item.targetTab)}
+                    className={`hover:text-red-400 transition flex items-center gap-1 text-left ${
+                      item.highlight ? 'text-yellow-400 font-bold' : 'text-zinc-300'
+                    }`}
+                  >
+                    <span>{item.label}</span>
+                    {item.badge && (
+                      <span className="text-[9px] px-1 py-0.2 bg-red-600 text-white rounded font-bold uppercase animate-pulse">
+                        {item.badge}
+                      </span>
+                    )}
+                  </button>
+                </li>
+              ))}
+              {customFooterPages.map((pg) => (
+                <li key={pg.id}>
+                  <button
+                    onClick={() => onNavigate(pg.slug)}
+                    className="hover:text-amber-300 text-zinc-300 transition text-left"
+                  >
+                    {pg.title}
+                  </button>
+                </li>
+              ))}
               <li>
                 <button
                   onClick={() => openLegalModal('Privacy Policy', privacyText)}
@@ -202,18 +186,8 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenDeposit }) => 
                 </button>
               </li>
               <li>
-                <button onClick={() => onNavigate('social')} className="hover:text-red-400 text-zinc-300 transition">
-                  Social Channels & Share
-                </button>
-              </li>
-              <li>
                 <button onClick={() => onNavigate('admin')} className="hover:text-amber-400 text-amber-400 font-bold font-mono transition">
                   Executive Admin Suite ⚙️
-                </button>
-              </li>
-              <li>
-                <button onClick={() => onNavigate('faq')} className="hover:text-white transition">
-                  Platform FAQ
                 </button>
               </li>
             </ul>
@@ -222,7 +196,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenDeposit }) => 
 
         {/* Bottom copyright disclaimer */}
         <div className="pt-8 border-t border-zinc-900 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-zinc-500">
-          <p>© 2026 Apex Tesla Hub. All rights reserved. Independent certified Tesla engineering ecosystem.</p>
+          <p>© 2026 {siteSettings.siteName} ({siteSettings.siteTagline}). All rights reserved.</p>
           <div className="flex items-center gap-1.5 text-zinc-400">
             <ShieldCheck className="w-4 h-4 text-emerald-400" />
             <span>256-Bit SSL Encrypted • Cold-Storage Vault Security</span>

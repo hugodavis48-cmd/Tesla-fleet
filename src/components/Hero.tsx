@@ -23,7 +23,7 @@ interface HeroProps {
 }
 
 export const Hero: React.FC<HeroProps> = ({ onNavigate, onOpenDeposit }) => {
-  const { tslaQuote, featureToggles } = useApp();
+  const { tslaQuote, featureToggles, siteSettings } = useApp();
   const { t } = useLanguage();
 
   return (
@@ -40,9 +40,7 @@ export const Hero: React.FC<HeroProps> = ({ onNavigate, onOpenDeposit }) => {
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
             </span>
-            <span className="text-white font-mono uppercase">{t('hero.badge', 'APEX TESLA ECOSYSTEM 2026')}</span>
-            <span className="text-zinc-500">•</span>
-            <span className="text-red-400">Mobile Ranger & Center Bays Active</span>
+            <span className="text-white font-mono uppercase">{siteSettings.heroBadge || t('hero.badge', 'APEX TESLA ECOSYSTEM 2026')}</span>
           </div>
 
           {featureToggles.teslaStocksEnabled && (
@@ -62,7 +60,7 @@ export const Hero: React.FC<HeroProps> = ({ onNavigate, onOpenDeposit }) => {
 
           <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-yellow-500/10 border border-yellow-500/30 text-xs font-semibold text-yellow-300">
             <Sparkles className="w-3.5 h-3.5 text-yellow-400 animate-spin" style={{ animationDuration: '6s' }} />
-            <span>Spin & Win $8,000 Scratch Jackpots Open</span>
+            <span>Spin & Win ${siteSettings.maxScratchPrizeUsd.toLocaleString()} Scratch Jackpots Open</span>
           </div>
         </div>
 
@@ -70,11 +68,11 @@ export const Hero: React.FC<HeroProps> = ({ onNavigate, onOpenDeposit }) => {
         {/* Hero Headline */}
         <div className="text-center max-w-4xl mx-auto space-y-4">
           <h1 className="font-heading font-black text-4xl sm:text-6xl lg:text-7xl tracking-tight text-white uppercase leading-[1.08]">
-            {t('hero.title', 'THE ULTIMATE TESLA VEHICLE HUB')}
+            {siteSettings.heroHeadline || t('hero.title', 'THE ULTIMATE TESLA VEHICLE HUB')}
           </h1>
 
           <p className="text-zinc-400 text-sm sm:text-lg max-w-2xl mx-auto font-normal leading-relaxed">
-            {t('hero.subtitle', 'Certified maintenance & diagnostics, bespoke vinyl color wraps, high-downforce custom accessories, exotic fleet rentals, and decentralized vehicle yield pools with seamless crypto funding.')}
+            {siteSettings.heroSubtitle || t('hero.subtitle', 'Certified maintenance & diagnostics, bespoke vinyl color wraps, high-downforce custom accessories, exotic fleet rentals, and decentralized vehicle yield pools with seamless crypto funding.')}
           </p>
 
           {/* Action CTAs */}

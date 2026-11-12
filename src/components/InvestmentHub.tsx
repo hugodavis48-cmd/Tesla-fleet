@@ -27,6 +27,11 @@ import {
   CheckCircle2,
   Volume2,
   Share2,
+  Activity,
+  TrendingDown,
+  Plus,
+  Trash2,
+  RotateCcw,
 } from 'lucide-react';
 
 interface InvestmentHubProps {
@@ -38,12 +43,28 @@ const STORAGE_KEY = 'apex_fleet_target_alert_settings';
 const ACTIVITY_STORAGE_KEY = 'apex_fleet_investment_activities';
 
 export const InvestmentHub: React.FC<InvestmentHubProps> = ({ onOpenDeposit, onNavigateToDashboard }) => {
-  const { userInvestments, stakeInPool, claimDividends, balances, showToast, currentUser } = useApp();
+  const {
+    userInvestments,
+    stakeInPool,
+    claimDividends,
+    balances,
+    showToast,
+    currentUser,
+    tslaQuote,
+    stockPriceAlerts,
+    addStockPriceAlert,
+    removeStockPriceAlert,
+    toggleStockPriceAlert,
+    resetStockPriceAlert,
+  } = useApp();
 
   const [activePoolToStake, setActivePoolToStake] = useState<InvestmentPool | null>(null);
   const [stakeAmount, setStakeAmount] = useState<string>('500');
   const [isAlertModalOpen, setIsAlertModalOpen] = useState(false);
   const [isSendingTestAlert, setIsSendingTestAlert] = useState(false);
+  const [stockAlertCondition, setStockAlertCondition] = useState<'above' | 'below'>('above');
+  const [stockAlertPrice, setStockAlertPrice] = useState<string>(() => (tslaQuote.price + 5).toFixed(2));
+  const [stockAlertNote, setStockAlertNote] = useState<string>('');
 
   // Investment activity chronological history with localStorage persistence
   const [activities, setActivities] = useState<InvestmentActivityItem[]>(() => {
@@ -549,6 +570,249 @@ export const InvestmentHub: React.FC<InvestmentHubProps> = ({ onOpenDeposit, onN
               <Send className="w-3.5 h-3.5" />
               <span>{isSendingTestAlert ? 'Dispatching...' : 'Test Alert'}</span>
             </button>
+          </div>
+        </div>
+      </div>
+
+      {/* TSLA Stock Price Alert System (Live Thresholds -> Toast Notification) */}
+      <div className="rounded-3xl border border-zinc-800 bg-zinc-950/95 p-5 sm:p-6 shadow-2xl space-y-5">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-zinc-800/80 pb-4">
+          <div className="space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 text-[11px] font-mono uppercase font-bold text-red-400 tracking-wider">
+                <Activity className="w-3.5 h-3.5" />
+                <span>NASDAQ: TSLA Real-Time Alert Engine</span>
+              </span>
+              <span className="px-2.5 py-0.5 rounded-lg bg-zinc-900 border border-zinc-700 font-mono text-xs font-bold text-white">
+                TSLA: ${tslaQuote.price.toFixed(2)}{' '}
+                <span className={tslaQuote.changePercent >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
+                  ({tslaQuote.changePercent >= 0 ? '+' : ''}
+                  {tslaQuote.changePercent.toFixed(2)}%)
+                </span>
+              </span>
+            </div>
+            <h3 className="font-heading font-black text-xl text-white">
+              TSLA Stock Price Threshold Alerts (Toast System)
+            </h3>
+            <p className="text-xs text-zinc-400 max-w-2xl">
+              Set custom Above or Below USD price targets for Tesla stock. When live market telemetry reaches your threshold, an instant toast alert notifies you across the platform.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              playTeslaAudioChime();
+              showToast(
+                `📈 TSLA Price Alert Hit! Live TSLA crossed $${tslaQuote.price.toFixed(2)} USD target threshold.`,
+                'success'
+              );
+            }}
+            className="px-4 py-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-red-500/40 text-red-300 text-xs font-bold flex items-center gap-2 shrink-0 transition cursor-pointer"
+          >
+            <BellRing className="w-3.5 h-3.5 text-red-400" />
+            <span>Test TSLA Alert Toast</span>
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          {/* Add New Price Threshold Form */}
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const parsed = parseFloat(stockAlertPrice);
+              if (!parsed || parsed <= 0) {
+                showToast('Please enter a valid TSLA threshold price.', 'error');
+                return;
+              }
+              addStockPriceAlert(stockAlertCondition, parsed, stockAlertNote);
+              setStockAlertNote('');
+              playTeslaAudioChime();
+            }}
+            className="lg:col-span-5 p-4 rounded-2xl bg-zinc-900/70 border border-zinc-800 space-y-3 text-xs"
+          >
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setStockAlertCondition('above');
+                  setStockAlertPrice((tslaQuote.price + 5).toFixed(2));
+                }}
+                className={`py-2 px-3 rounded-xl border font-bold flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                  stockAlertCondition === 'above'
+                    ? 'bg-emerald-600/20 border-emerald-500 text-emerald-300'
+                    : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-white'
+                }`}
+              >
+                <TrendingUp className="w-3.5 h-3.5" />
+                <span>Rises Above (≥)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setStockAlertCondition('below');
+                  setStockAlertPrice(Math.max(50, tslaQuote.price - 5).toFixed(2));
+                }}
+                className={`py-2 px-3 rounded-xl border font-bold flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                  stockAlertCondition === 'below'
+                    ? 'bg-rose-600/20 border-rose-500 text-rose-300'
+                    : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-white'
+                }`}
+              >
+                <TrendingDown className="w-3.5 h-3.5" />
+                <span>Drops Below (≤)</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[11px] font-mono text-zinc-400 mb-1">Target Price (USD)</label>
+                <div className="relative">
+                  <DollarSign className="w-3.5 h-3.5 text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="1"
+                    required
+                    value={stockAlertPrice}
+                    onChange={(e) => setStockAlertPrice(e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-700 rounded-xl pl-8 pr-3 py-2 text-white font-mono font-bold focus:outline-none focus:border-red-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-mono text-zinc-400 mb-1">Alert Note (Optional)</label>
+                <input
+                  type="text"
+                  value={stockAlertNote}
+                  onChange={(e) => setStockAlertNote(e.target.value)}
+                  placeholder="e.g. Breakout entry"
+                  className="w-full bg-zinc-950 border border-zinc-700 rounded-xl px-3 py-2 text-white placeholder-zinc-500 focus:outline-none focus:border-red-500"
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-1.5 pt-1">
+              {[
+                { label: '+2% Breakout', cond: 'above' as const, val: (tslaQuote.price * 1.02).toFixed(2) },
+                { label: '+5% Rally', cond: 'above' as const, val: (tslaQuote.price * 1.05).toFixed(2) },
+                { label: '-2% Dip Buy', cond: 'below' as const, val: (tslaQuote.price * 0.98).toFixed(2) },
+              ].map((preset) => (
+                <button
+                  key={preset.label}
+                  type="button"
+                  onClick={() => {
+                    setStockAlertCondition(preset.cond);
+                    setStockAlertPrice(preset.val);
+                  }}
+                  className="px-2.5 py-1 rounded-lg bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 text-[10px] font-mono text-zinc-300 cursor-pointer"
+                >
+                  {preset.label} (${preset.val})
+                </button>
+              ))}
+            </div>
+
+            <button
+              type="submit"
+              className="w-full py-2.5 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 text-white font-bold flex items-center justify-center gap-1.5 transition cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Create TSLA Price Alert</span>
+            </button>
+          </form>
+
+          {/* Active & Triggered Alerts List */}
+          <div className="lg:col-span-7 space-y-2.5">
+            {stockPriceAlerts.length === 0 ? (
+              <div className="p-6 rounded-2xl bg-zinc-900/40 border border-zinc-800 text-center text-xs text-zinc-400">
+                No TSLA price alerts armed yet. Create a threshold rule on the left to monitor live price swings.
+              </div>
+            ) : (
+              stockPriceAlerts.map((alert) => {
+                const isTriggered = Boolean(alert.triggeredAt);
+                return (
+                  <div
+                    key={alert.id}
+                    className={`p-3.5 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition ${
+                      isTriggered
+                        ? 'bg-emerald-950/25 border-emerald-500/40'
+                        : alert.isActive
+                        ? 'bg-zinc-900/70 border-zinc-800'
+                        : 'bg-zinc-950 border-zinc-900 opacity-60'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div
+                        className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border ${
+                          alert.condition === 'above'
+                            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                            : 'bg-rose-500/10 border-rose-500/30 text-rose-400'
+                        }`}
+                      >
+                        {alert.condition === 'above' ? (
+                          <TrendingUp className="w-4 h-4" />
+                        ) : (
+                          <TrendingDown className="w-4 h-4" />
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-xs font-heading font-bold text-white">
+                            TSLA {alert.condition === 'above' ? '≥' : '≤'} ${alert.targetPriceUsd.toFixed(2)} USD
+                          </span>
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase ${
+                              isTriggered
+                                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                : alert.isActive
+                                ? 'bg-cyan-500/15 text-cyan-300 border border-cyan-500/30'
+                                : 'bg-zinc-800 text-zinc-400'
+                            }`}
+                          >
+                            {isTriggered ? 'Triggered' : alert.isActive ? 'Armed' : 'Paused'}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-zinc-400 truncate">
+                          {alert.note || 'Toast alert notification enabled'}
+                          {isTriggered && alert.triggeredAt ? ` • Triggered ${new Date(alert.triggeredAt).toLocaleTimeString()}` : ''}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {isTriggered ? (
+                        <button
+                          type="button"
+                          onClick={() => resetStockPriceAlert(alert.id)}
+                          className="px-2.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-[11px] font-semibold text-emerald-300 flex items-center gap-1 cursor-pointer"
+                          title="Re-arm threshold alert"
+                        >
+                          <RotateCcw className="w-3 h-3" />
+                          <span>Re-arm</span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => toggleStockPriceAlert(alert.id)}
+                          className="px-2.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-[11px] font-semibold text-zinc-200 cursor-pointer"
+                        >
+                          {alert.isActive ? 'Pause' : 'Resume'}
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => removeStockPriceAlert(alert.id)}
+                        className="p-1.5 rounded-lg bg-zinc-900 hover:bg-rose-950/60 text-zinc-400 hover:text-rose-400 cursor-pointer"
+                        title="Remove alert"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
       </div>
