@@ -33,6 +33,7 @@ import {
   SitemapEntry,
   RssFeedItem,
   PromoVideoItem,
+  CurrencyConfig,
 } from '../types';
 
 
@@ -834,6 +835,54 @@ export const FAQ_ITEMS: FaqItem[] = [
     isPublished: true,
     question: 'Where can I view live updates via Sitemap, XML Feeds, or RSS?',
     answer: 'We publish both human-readable Site Map & RSS Feeds pages (linked directly in the footer) and machine-readable /sitemap.xml and /rss.xml endpoints updated in real time with new inventory drops, APY pool launches, and platform announcements.',
+  },
+  {
+    id: 'faq-19',
+    category: 'Platform & Feeds',
+    order: 19,
+    isPublished: true,
+    question: 'How does the Local Currency Switcher calculate dashboard balances and vehicle prices?',
+    answer: 'Open Site Settings in the navigation menu or your User Dashboard to switch display currencies (USD, EUR, GBP, CAD, AUD, AED, JPY, CHF, NGN). All converted vehicle MSRP prices and dashboard balances use live platform multipliers configured by our Treasury Admin, while underlying settlements remain transparently tracked in USD.',
+  },
+  {
+    id: 'faq-20',
+    category: 'Spins & Deposits',
+    order: 20,
+    isPublished: true,
+    question: 'Why are free-spin money winnings locked until $250 in deposits are completed?',
+    answer: 'To protect community jackpots against multi-account bonus abuse, cash prizes won from complimentary or promotional spins sit in your Locked Bonus Vault until your cumulative verified account deposits reach $250 USD. Once unlocked, every dollar immediately becomes spendable and withdrawable.',
+  },
+  {
+    id: 'faq-21',
+    category: 'Vehicles & Shipping',
+    order: 21,
+    isPublished: true,
+    question: 'How do I claim and ship a Tesla vehicle or hardware prize won on the wheel?',
+    answer: 'Open User Dashboard → Won Prizes & Shipping. Select your won vehicle, verify its assigned VIN, fill in your international or domestic street address and delivery method, and settle the itemized Processing Fee, Export Documentation Cost, and Carrier Freight directly from your spendable USD vault or via deposit.',
+  },
+  {
+    id: 'faq-22',
+    category: 'Platform & Feeds',
+    order: 22,
+    isPublished: true,
+    question: 'Can ambassadors share multi-slide 3D banners and short promotional videos?',
+    answer: 'Yes. Visit the Promo Banners & AI Videos section to preview interactive 3D/HD rotating multi-image banners and AI-generated or studio short promo videos. Every shareable link and HTML embed automatically injects your personal referral code.',
+  },
+  {
+    id: 'faq-23',
+    category: 'Services & Wraps',
+    order: 23,
+    isPublished: true,
+    question: 'Does Mobile Ranger dispatch cover high-voltage diagnostics, tire rotations, and brake service?',
+    answer: 'Yes. Our Mobile Ranger vans carry Tesla-grade diagnostic telemetry laptops, torque calibration tools, 12V/16V lithium auxiliary batteries, and HEPA cabin filter kits to service your vehicle directly at your home or office driveway.',
+  },
+  {
+    id: 'faq-24',
+    category: 'Staking & Yields',
+    order: 24,
+    isPublished: true,
+    question: 'How are Staking ROI and TSLA Stock ROI drops verified in the Live Community Ledger?',
+    answer: 'Every payout from autonomous Robotaxi pools, Supercharger V4 nodes, TSLA Fast-ROI stock cycles, Wheel Spins, and Scratch Cards emits a cryptographic transaction signature displayed live inside the Community Win History & Ledger slider.',
   },
 ];
 
@@ -2801,6 +2850,127 @@ export const DEFAULT_SEO_CONFIG: SeoMetadataConfig = {
   faviconUrl: '/favicon.jpg',
   robotsDirective: 'index, follow',
   schemaOrgEnabled: true,
+  pageMeta: {
+    home: {
+      pageKey: 'home',
+      pageLabel: 'Home Portal',
+      metaTitle: 'Apex Tesla Hub — Service, Customization, Rentals & Fleet Yield',
+      metaDescription: 'Comprehensive Tesla ecosystem for certified maintenance bays, 3M vinyl wraps, exotic fleet rentals, TSLA stocks, staking yields, and Tesla giveaways.',
+      keywords: 'Apex Tesla Hub, Tesla Service, Tesla Wraps, Cybertruck Sales, TSLA Stocks, Fleet Staking',
+    },
+    vehicles: {
+      pageKey: 'vehicles',
+      pageLabel: 'Tesla Vehicle Showroom',
+      metaTitle: 'Buy 2026 Tesla Cybertruck, Model S Plaid & Roadster | Apex Tesla Hub',
+      metaDescription: 'Order factory-direct 2026 Tesla Cybertruck Cyberbeast, Model S Plaid, Model 3, Model Y, and Roadster with nationwide enclosed delivery and 7-day refund guarantee.',
+      keywords: 'Buy Tesla Cybertruck, Model S Plaid for sale, Enclosed Tesla delivery, Apex EV Showroom',
+    },
+    stocks: {
+      pageKey: 'stocks',
+      pageLabel: 'TSLA Stocks & Fast-ROI',
+      metaTitle: 'TSLA Live Stocks & Fast-ROI Equity Plans | Apex Tesla Hub',
+      metaDescription: 'Trade NASDAQ: TSLA spot positions and subscribe to automated 7-to-30 day Fast-ROI equity plans with real-time telemetry and instant settlement.',
+      keywords: 'TSLA Stock Trading, Tesla Fast ROI Plans, TSLA Spot Buy, EV Equity Yields',
+    },
+    investment: {
+      pageKey: 'investment',
+      pageLabel: 'Fleet Staking & Yield',
+      metaTitle: 'Autonomous Robotaxi & Supercharger Staking (14.8%–22.6% APY) | Apex Tesla Hub',
+      metaDescription: 'Stake into autonomous Robotaxi fleets and V4 Supercharger Megawatt nodes for daily automated USD/USDT dividend distributions.',
+      keywords: 'Tesla Robotaxi Staking, Supercharger Yield, EV Fleet APY, Decentralized EV Yield',
+    },
+    services: {
+      pageKey: 'services',
+      pageLabel: 'Service & Mobile Ranger',
+      metaTitle: 'Certified Tesla Service Bays & Mobile Ranger Dispatch | Apex Tesla Hub',
+      metaDescription: 'Book 40-point HV battery diagnostics, drive unit calibration, carbon-ceramic brakes, HEPA service, or doorstep Mobile Ranger dispatch.',
+      keywords: 'Tesla Service Center, Mobile Tesla Ranger, HV Battery Diagnostics, EV Repair',
+    },
+    wraps: {
+      pageKey: 'wraps',
+      pageLabel: 'Custom Wrap Studio',
+      metaTitle: 'Custom 3M Tesla Body Wraps, Ceramic PPF & Aero Upgrades | Apex Tesla Hub',
+      metaDescription: 'Design bespoke 3M 2080 vinyl wraps, self-healing Stealth PPF, forged wheels, and carbon aero kits with 5-year anti-peel warranty.',
+      keywords: 'Tesla Vinyl Wrap, Satin Stealth Black Tesla, Cybertruck Wrap, Ceramic PPF',
+    },
+    rentals: {
+      pageKey: 'rentals',
+      pageLabel: 'Exotic Rental Fleet',
+      metaTitle: 'Rent Cybertruck Cyberbeast, Model S Plaid & Roadster | Apex Tesla Hub',
+      metaDescription: 'Reserve high-performance Tesla vehicles daily or weekly with unlimited Supercharging and Full Self-Driving (Supervised) included.',
+      keywords: 'Rent Tesla Cybertruck, Model S Plaid Rental, Roadster Rental, Exotic EV Fleet',
+    },
+    promotions: {
+      pageKey: 'promotions',
+      pageLabel: 'Spin & Scratch Promotions',
+      metaTitle: 'Provably Fair Spin Wheel & $8,000 Scratch Cards | Apex Tesla Hub',
+      metaDescription: 'Spin to win a Tesla Model 3, Cybertruck Cyberbeast, crypto rewards, or scratch verified foils up to $8,000 USD max payout.',
+      keywords: 'Spin and Win Tesla, Tesla Scratch Cards, Win Cybertruck, Provably Fair EV Promotions',
+    },
+    shop: {
+      pageKey: 'shop',
+      pageLabel: 'Hardware & Parts Store',
+      metaTitle: 'Tesla Forged Wheels, Carbon Aero & Wall Chargers | Apex Tesla Hub',
+      metaDescription: 'Shop OEM-certified monoblock forged rims, dry carbon spoilers, Alcantara yoke wheels, and 48A Megawatt wall connectors.',
+      keywords: 'Tesla Forged Wheels, Tesla Yoke Wheel, Carbon Fiber Spoiler, Tesla Wall Charger',
+    },
+    banners: {
+      pageKey: 'banners',
+      pageLabel: 'Promo Banners & Videos',
+      metaTitle: '3D/HD Promotional Banners & Short Promo Videos | Apex Tesla Hub',
+      metaDescription: 'Download and share multi-slide 3D/HD promotional banners and AI short promo videos with instant $100 referral tracking.',
+      keywords: 'Tesla Ambassador Banners, 3D Promo Banners, Tesla Short Videos, Referral Kit',
+    },
+    coupons: {
+      pageKey: 'coupons',
+      pageLabel: 'Coupons & Vouchers',
+      metaTitle: 'VIP Discount Coupons & Free Shipping Vouchers | Apex Tesla Hub',
+      metaDescription: 'Claim verified promo codes for wrap studios, enclosed vehicle delivery, free spins, and Tesla hardware discounts.',
+      keywords: 'Tesla Promo Codes, Apex Coupons, Free EV Shipping Voucher',
+    },
+    referrals: {
+      pageKey: 'referrals',
+      pageLabel: 'Affiliate & Referrals',
+      metaTitle: 'Invite Tesla Drivers & Earn $100 USD Vault Credit | Apex Tesla Hub',
+      metaDescription: 'Share your unique Apex referral link and earn $100 USD credit plus bonus wheel spins for every verified member deposit.',
+      keywords: 'Tesla Referral Program, Earn $100 EV Credit, Apex Affiliate',
+    },
+    about: {
+      pageKey: 'about',
+      pageLabel: 'About Apex Hub',
+      metaTitle: 'About Apex Tesla Hub — Engineering, Custody & Fleet Proof | Apex Tesla Hub',
+      metaDescription: 'Learn about Apex Tesla Hub cleanroom engineering bays, audited fleet reserves, and global EV logistics network.',
+      keywords: 'About Apex Tesla Hub, EV Engineering Network, Fleet Proof of Reserves',
+    },
+    faq: {
+      pageKey: 'faq',
+      pageLabel: 'Platform FAQ',
+      metaTitle: 'Frequently Asked Questions — Wins, Shipping & Staking | Apex Tesla Hub',
+      metaDescription: 'Explore detailed answers covering international prize shipping, $250 spin-win activation, fleet staking yields, and crypto deposits.',
+      keywords: 'Apex Tesla FAQ, Won Vehicle Shipping, $250 Deposit Rule, Tesla Staking FAQ',
+    },
+    contact: {
+      pageKey: 'contact',
+      pageLabel: 'Contact & Concierge',
+      metaTitle: 'Contact Apex Concierge & Service Locations | Apex Tesla Hub',
+      metaDescription: 'Reach Apex Tesla Hub engineering concierge for fleet onboarding, custom wrap quotes, or international prize logistics.',
+      keywords: 'Contact Apex Tesla Hub, EV Concierge Support, Fremont Austin Hubs',
+    },
+    sitemap: {
+      pageKey: 'sitemap',
+      pageLabel: 'HTML & XML Sitemap',
+      metaTitle: 'Site Map & Directory (/sitemap.xml) | Apex Tesla Hub',
+      metaDescription: 'Complete navigational index and search engine XML sitemap for all Apex Tesla Hub vehicles, services, and yield modules.',
+      keywords: 'Apex Tesla Sitemap, sitemap.xml, EV Portal Directory',
+    },
+    rss: {
+      pageKey: 'rss',
+      pageLabel: 'RSS News & XML Feed',
+      metaTitle: 'Live RSS Syndication Feed (/rss.xml) | Apex Tesla Hub',
+      metaDescription: 'Subscribe to Apex Tesla Hub RSS XML updates for yield settlements, new EV arrivals, and giveaway announcements.',
+      keywords: 'Apex Tesla RSS, rss.xml, Tesla Fleet Updates',
+    },
+  },
 };
 
 export const INITIAL_SITEMAP_ENTRIES: SitemapEntry[] = [
@@ -2958,4 +3128,17 @@ export const INITIAL_WON_PRIZES: WonPrizeItem[] = [
     notes: 'Spin Wheel Grand Prize allocation ready for international or domestic shipping details & export documentation clearance.',
   },
 ];
+
+export const INITIAL_CURRENCIES: CurrencyConfig[] = [
+  { code: 'USD', name: 'US Dollar', symbol: '$', multiplier: 1.0, isActive: true },
+  { code: 'EUR', name: 'Euro', symbol: '€', multiplier: 0.92, isActive: true },
+  { code: 'GBP', name: 'British Pound', symbol: '£', multiplier: 0.79, isActive: true },
+  { code: 'CAD', name: 'Canadian Dollar', symbol: 'C$', multiplier: 1.38, isActive: true },
+  { code: 'AUD', name: 'Australian Dollar', symbol: 'A$', multiplier: 1.52, isActive: true },
+  { code: 'AED', name: 'UAE Dirham', symbol: 'AED ', multiplier: 3.67, isActive: true },
+  { code: 'CHF', name: 'Swiss Franc', symbol: 'CHF ', multiplier: 0.88, isActive: true },
+  { code: 'JPY', name: 'Japanese Yen', symbol: '¥', multiplier: 154.0, isActive: true },
+  { code: 'NGN', name: 'Nigerian Naira', symbol: '₦', multiplier: 1650.0, isActive: true },
+];
+
 

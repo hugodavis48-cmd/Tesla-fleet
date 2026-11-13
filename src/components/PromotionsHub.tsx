@@ -75,23 +75,29 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
     });
   }, [recentWinners, winFilter]);
 
+  const scrollChildHorizontally = React.useCallback((container: HTMLElement | null, index: number) => {
+    if (!container) return;
+    const target = container.children[index] as HTMLElement | undefined;
+    if (!target) return;
+    const cRect = container.getBoundingClientRect();
+    const elRect = target.getBoundingClientRect();
+    container.scrollTo({
+      left: Math.max(0, container.scrollLeft + (elRect.left - cRect.left)),
+      behavior: 'smooth',
+    });
+  }, []);
+
   React.useEffect(() => {
     if (!winAutoSlide || filteredWinners.length <= 1) return;
     const t = setInterval(() => {
       setWinSlideIndex((prev) => {
         const next = (prev + 1) % filteredWinners.length;
-        if (winSliderRef.current && winSliderRef.current.children[next]) {
-          (winSliderRef.current.children[next] as HTMLElement).scrollIntoView({
-            behavior: 'smooth',
-            block: 'nearest',
-            inline: 'start',
-          });
-        }
+        scrollChildHorizontally(winSliderRef.current, next);
         return next;
       });
     }, 4500);
     return () => clearInterval(t);
-  }, [winAutoSlide, filteredWinners.length]);
+  }, [winAutoSlide, filteredWinners.length, scrollChildHorizontally]);
 
   // Dynamic wheel slices from admin-editable rewards
   const activeRewards = wheelRewards.filter((r) => r.isActive);
@@ -278,7 +284,7 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
           {/* Left: Interactive Wheel Canvas/SVG representation */}
           <div className="lg:col-span-7 flex flex-col items-center">
             {/* The Wheel Container */}
-            <div className="relative w-[320px] h-[320px] sm:w-[420px] sm:h-[420px] flex items-center justify-center">
+            <div className="relative w-[248px] h-[248px] sm:w-[360px] sm:h-[360px] lg:w-[420px] lg:h-[420px] max-w-full aspect-square flex items-center justify-center">
               {/* Outer Glowing Metallic Rim */}
               <div className="absolute inset-0 rounded-full border-8 border-zinc-800 shadow-[0_0_50px_rgba(232,33,39,0.3)] bg-zinc-950" />
 
@@ -500,12 +506,7 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
                   onClick={() => {
                     const newIdx = Math.max(0, activeSlideIndex - 1);
                     setActiveSlideIndex(newIdx);
-                    if (scratchSliderRef.current) {
-                      const card = scratchSliderRef.current.children[newIdx] as HTMLElement;
-                      if (card) {
-                        card.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'start' });
-                      }
-                    }
+                    scrollChildHorizontally(scratchSliderRef.current, newIdx);
                   }}
                   disabled={activeSlideIndex === 0}
                   className="p-2 rounded-xl bg-zinc-900 border border-zinc-700 hover:border-amber-500 text-zinc-300 hover:text-white disabled:opacity-40 transition cursor-pointer"
@@ -519,12 +520,7 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
                   onClick={() => {
                     const newIdx = Math.min(scratchCardTiers.length - 1, activeSlideIndex + 1);
                     setActiveSlideIndex(newIdx);
-                    if (scratchSliderRef.current) {
-                      const card = scratchSliderRef.current.children[newIdx] as HTMLElement;
-                      if (card) {
-                        card.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'start' });
-                      }
-                    }
+                    scrollChildHorizontally(scratchSliderRef.current, newIdx);
                   }}
                   disabled={activeSlideIndex >= scratchCardTiers.length - 1}
                   className="p-2 rounded-xl bg-zinc-900 border border-zinc-700 hover:border-amber-500 text-zinc-300 hover:text-white disabled:opacity-40 transition cursor-pointer"
@@ -564,7 +560,7 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
                   <div
                     key={tier.id}
                     onClick={() => setActiveSlideIndex(idx)}
-                    className={`w-[290px] sm:w-[320px] lg:w-[340px] shrink-0 snap-start rounded-3xl border bg-zinc-950 p-6 flex flex-col justify-between shadow-2xl transition-all duration-300 group ${
+                    className={`w-[260px] sm:w-[320px] lg:w-[340px] max-w-[calc(100vw-3rem)] shrink-0 snap-start rounded-3xl border bg-zinc-950 p-5 sm:p-6 flex flex-col justify-between shadow-2xl transition-all duration-300 group ${
                       isCurrent
                         ? 'border-amber-500/80 ring-2 ring-amber-500/20 scale-[1.01]'
                         : 'border-zinc-800 hover:border-zinc-700 opacity-90'
@@ -640,12 +636,7 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
                   key={tier.id}
                   onClick={() => {
                     setActiveSlideIndex(idx);
-                    if (scratchSliderRef.current) {
-                      const card = scratchSliderRef.current.children[idx] as HTMLElement;
-                      if (card) {
-                        card.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'start' });
-                      }
-                    }
+                    scrollChildHorizontally(scratchSliderRef.current, idx);
                   }}
                   className={`h-2 rounded-full transition-all cursor-pointer ${
                     activeSlideIndex === idx
@@ -678,7 +669,7 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
           <div className="flex flex-wrap items-center gap-2">
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-600/10 border border-emerald-500/30 text-emerald-400 text-xs font-semibold">
               <span className="h-2 w-2 rounded-full bg-emerald-400 animate-ping" />
-              <span>Live Drops Every 10s</span>
+              <span>Live Drops Every 6s</span>
             </div>
             <button
               type="button"
@@ -693,9 +684,7 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
               onClick={() => {
                 const next = Math.max(0, winSlideIndex - 1);
                 setWinSlideIndex(next);
-                if (winSliderRef.current?.children[next]) {
-                  (winSliderRef.current.children[next] as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'start' });
-                }
+                scrollChildHorizontally(winSliderRef.current, next);
               }}
               className="p-2 rounded-xl bg-zinc-900 border border-zinc-700 hover:border-yellow-500 text-zinc-200 cursor-pointer"
               aria-label="Previous win card"
@@ -707,9 +696,7 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
               onClick={() => {
                 const next = Math.min(filteredWinners.length - 1, winSlideIndex + 1);
                 setWinSlideIndex(next);
-                if (winSliderRef.current?.children[next]) {
-                  (winSliderRef.current.children[next] as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'start' });
-                }
+                scrollChildHorizontally(winSliderRef.current, next);
               }}
               className="p-2 rounded-xl bg-zinc-900 border border-zinc-700 hover:border-yellow-500 text-zinc-200 cursor-pointer"
               aria-label="Next win card"
@@ -760,7 +747,7 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
               <div
                 key={win.id}
                 onClick={() => setWinSlideIndex(idx)}
-                className={`w-[285px] sm:w-[320px] shrink-0 snap-start p-4 rounded-2xl border transition flex flex-col justify-between gap-3 cursor-pointer ${
+                className={`w-[260px] sm:w-[320px] max-w-[calc(100vw-3rem)] shrink-0 snap-start p-4 rounded-2xl border transition flex flex-col justify-between gap-3 cursor-pointer ${
                   isRoi
                     ? 'bg-gradient-to-br from-emerald-950/35 to-zinc-900 border-emerald-500/35 hover:border-emerald-400/60'
                     : isVehicle
@@ -827,9 +814,7 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
               type="button"
               onClick={() => {
                 setWinSlideIndex(idx);
-                if (winSliderRef.current?.children[idx]) {
-                  (winSliderRef.current.children[idx] as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'start' });
-                }
+                scrollChildHorizontally(winSliderRef.current, idx);
               }}
               className={`h-1.5 rounded-full transition-all cursor-pointer ${
                 winSlideIndex === idx ? 'w-6 bg-yellow-400' : 'w-1.5 bg-zinc-700'

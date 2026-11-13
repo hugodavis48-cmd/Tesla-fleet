@@ -115,20 +115,116 @@
         }
       },
       "required": ["uid", "email", "adminRoleLabel"]
+    },
+    "SeoGlobalConfig": {
+      "title": "SeoGlobalConfig",
+      "description": "Global site branding, logo/favicon URLs, and fallback SEO metadata.",
+      "type": "object",
+      "properties": {
+        "siteTitle": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "metaDescription": { "type": "string", "minLength": 0, "maxLength": 600 },
+        "keywords": { "type": "string", "minLength": 0, "maxLength": 600 },
+        "ogTitle": { "type": "string", "minLength": 0, "maxLength": 200 },
+        "ogDescription": { "type": "string", "minLength": 0, "maxLength": 600 },
+        "ogImageUrl": { "type": "string", "minLength": 0, "maxLength": 1500 },
+        "twitterCard": { "type": "string", "enum": ["summary_large_image", "summary"] },
+        "canonicalUrl": { "type": "string", "minLength": 0, "maxLength": 300 },
+        "logoUrl": { "type": "string", "minLength": 1, "maxLength": 1500 },
+        "faviconUrl": { "type": "string", "minLength": 1, "maxLength": 1500 },
+        "robotsDirective": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "schemaOrgEnabled": { "type": "boolean" },
+        "updatedByUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "siteTitle",
+        "metaDescription",
+        "keywords",
+        "ogTitle",
+        "ogDescription",
+        "ogImageUrl",
+        "twitterCard",
+        "canonicalUrl",
+        "logoUrl",
+        "faviconUrl",
+        "robotsDirective",
+        "schemaOrgEnabled",
+        "updatedByUid",
+        "updatedAt"
+      ]
+    },
+    "PageSeoEntry": {
+      "title": "PageSeoEntry",
+      "description": "Per-page dynamic SEO title, description, keywords, and OpenGraph overrides.",
+      "type": "object",
+      "properties": {
+        "pageKey": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "pageLabel": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "metaTitle": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "metaDescription": { "type": "string", "minLength": 0, "maxLength": 600 },
+        "keywords": { "type": "string", "minLength": 0, "maxLength": 600 },
+        "ogTitle": { "type": "string", "minLength": 0, "maxLength": 200 },
+        "ogImageUrl": { "type": "string", "minLength": 0, "maxLength": 1500 },
+        "updatedByUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["pageKey", "pageLabel", "metaTitle", "metaDescription", "keywords", "updatedByUid", "updatedAt"]
+    },
+    "AdminSettingSection": {
+      "title": "AdminSettingSection",
+      "description": "Persisted admin-managed platform configuration slice stored cleanly by section ID.",
+      "type": "object",
+      "properties": {
+        "sectionId": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "payloadJson": { "type": "string", "minLength": 2, "maxLength": 450000 },
+        "updatedByUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["sectionId", "payloadJson", "updatedByUid", "updatedAt"]
+    },
+    "MediaAssetRecord": {
+      "title": "MediaAssetRecord",
+      "description": "Firebase Storage branding and media asset metadata record (logo, favicon, OG image).",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "role": { "type": "string", "enum": ["logo", "favicon", "og_image", "general"] },
+        "name": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "storagePath": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "downloadUrl": { "type": "string", "minLength": 1, "maxLength": 1500 },
+        "contentType": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "sizeBytes": { "type": "number" },
+        "uploadedAt": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "source": { "type": "string", "enum": ["firebase_storage", "local_upload", "preset"] },
+        "uploadedByUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" }
+      },
+      "required": ["id", "role", "name", "storagePath", "downloadUrl", "contentType", "sizeBytes", "uploadedAt", "uploadedByUid"]
     }
   },
   "firestore": {
     "/users/{userId}": {
-      "schema": {
-        "$ref": "#/entities/UserProfile"
-      },
+      "schema": { "$ref": "#/entities/UserProfile" },
       "description": "Owner-isolated customer profile documents synced on Google Social Sign-Up."
     },
     "/admins/{adminId}": {
-      "schema": {
-        "$ref": "#/entities/AdminRecord"
-      },
+      "schema": { "$ref": "#/entities/AdminRecord" },
       "description": "Read-only administrator allowlist markers managed by backend/super-admin."
+    },
+    "/site_config/{configId}": {
+      "schema": { "$ref": "#/entities/SeoGlobalConfig" },
+      "description": "Global site branding & fallback SEO configuration (doc ID: seo)."
+    },
+    "/page_seo/{pageId}": {
+      "schema": { "$ref": "#/entities/PageSeoEntry" },
+      "description": "Per-page dynamic meta title, description, and keyword overrides."
+    },
+    "/admin_settings/{sectionId}": {
+      "schema": { "$ref": "#/entities/AdminSettingSection" },
+      "description": "All admin-saved platform settings slices (currencies, toggles, menus, FAQs, inventory, etc.)."
+    },
+    "/media_assets/{assetId}": {
+      "schema": { "$ref": "#/entities/MediaAssetRecord" },
+      "description": "Metadata registry for Firebase Storage branding uploads (logo, favicon, OG images)."
     }
   }
 }

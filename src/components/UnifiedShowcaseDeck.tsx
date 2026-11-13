@@ -16,7 +16,9 @@ import {
   Flame,
   Star,
   CheckCircle2,
+  Maximize2,
 } from 'lucide-react';
+import { ImageLightbox, LightboxImageItem } from './ImageLightbox';
 
 interface UnifiedShowcaseDeckProps {
   onNavigate: (tab: string) => void;
@@ -38,10 +40,15 @@ export const UnifiedShowcaseDeck: React.FC<UnifiedShowcaseDeckProps> = ({
     addToCart,
     showToast,
     currentUser,
+    formatCurrency,
   } = useApp();
 
   const [currentSlide, setCurrentSlide] = useState<number>(0);
   const [isPaused, setIsPaused] = useState<boolean>(false);
+  const [lightboxViewer, setLightboxViewer] = useState<{
+    images: LightboxImageItem[];
+    index: number;
+  } | null>(null);
 
   const categories = [
     { id: 'stocks', label: 'Tesla Stocks & Fast ROI', icon: TrendingUp, tab: 'stocks', highlight: 'Min $500' },
@@ -246,11 +253,40 @@ export const UnifiedShowcaseDeck: React.FC<UnifiedShowcaseDeckProps> = ({
                     <img
                       src={car.image}
                       alt={car.trim}
-                      className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
+                      onClick={() =>
+                        setLightboxViewer({
+                          index: teslaCarListings.slice(0, 3).findIndex((item) => item.id === car.id),
+                          images: teslaCarListings.slice(0, 3).map((c) => ({
+                            url: c.image,
+                            title: `${c.year} Tesla ${c.model} ${c.trim}`,
+                            subtitle: `${formatCurrency(c.salePriceUsd)} • ${c.rangeMiles} mi range • 0-60 in ${c.zeroToSixty}`,
+                            badge: c.model,
+                          })),
+                        })
+                      }
+                      className="w-full h-full object-cover group-hover:scale-105 transition duration-500 cursor-zoom-in"
                     />
-                    <div className="absolute top-2.5 left-2.5 px-2 py-0.5 rounded-full bg-black/70 backdrop-blur border border-white/10 text-[10px] font-bold text-white uppercase">
+                    <div className="absolute top-2.5 left-2.5 px-2 py-0.5 rounded-full bg-black/70 backdrop-blur border border-white/10 text-[10px] font-bold text-white uppercase pointer-events-none">
                       {car.model}
                     </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setLightboxViewer({
+                          index: teslaCarListings.slice(0, 3).findIndex((item) => item.id === car.id),
+                          images: teslaCarListings.slice(0, 3).map((c) => ({
+                            url: c.image,
+                            title: `${c.year} Tesla ${c.model} ${c.trim}`,
+                            subtitle: `${formatCurrency(c.salePriceUsd)} • ${c.rangeMiles} mi range • 0-60 in ${c.zeroToSixty}`,
+                            badge: c.model,
+                          })),
+                        })
+                      }
+                      className="absolute top-2.5 right-2.5 p-1.5 rounded-lg bg-black/75 hover:bg-red-600 border border-white/15 text-white opacity-90 sm:opacity-0 sm:group-hover:opacity-100 transition cursor-pointer"
+                      aria-label={`Inspect ${car.trim} photo`}
+                    >
+                      <Maximize2 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
 
                   <div className="p-4 space-y-3 flex-1 flex flex-col justify-between">
@@ -260,8 +296,8 @@ export const UnifiedShowcaseDeck: React.FC<UnifiedShowcaseDeckProps> = ({
                     </div>
 
                     <div className="flex items-center justify-between border-t border-zinc-800 pt-2 text-xs">
-                      <span className="font-mono font-black text-lg text-white">
-                        ${car.salePriceUsd.toLocaleString()}
+                      <span className="font-mono font-black text-lg text-white tabular-nums">
+                        {formatCurrency(car.salePriceUsd)}
                       </span>
                       <span className="text-cyan-400 font-semibold">{car.deliveryEstimate}</span>
                     </div>
@@ -330,9 +366,34 @@ export const UnifiedShowcaseDeck: React.FC<UnifiedShowcaseDeckProps> = ({
                     <img
                       src={wrap.img}
                       alt={wrap.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
+                      onClick={() =>
+                        setLightboxViewer({
+                          index: i,
+                          images: [
+                            {
+                              url: 'https://images.unsplash.com/photo-1617788138017-80ad40651399?auto=format&fit=crop&w=800&q=80',
+                              title: '3M Satin Stealth Black',
+                              subtitle: '$3,800 • Aerospace-grade cast vinyl with ceramic coat',
+                              badge: 'Most Popular',
+                            },
+                            {
+                              url: 'https://images.unsplash.com/photo-1541899481282-d53bffe3c35d?auto=format&fit=crop&w=800&q=80',
+                              title: 'Liquid Titanium Chrome',
+                              subtitle: '$4,200 • High-reflectivity metallic gloss cast wrap',
+                              badge: 'Cyber Armor',
+                            },
+                            {
+                              url: 'https://images.unsplash.com/photo-1560958089-b8a1929cea89?auto=format&fit=crop&w=800&q=80',
+                              title: 'Electric Miami Cyan & PPF',
+                              subtitle: '$4,600 • Racing livery + self-healing paint protection film',
+                              badge: 'Self-Healing',
+                            },
+                          ],
+                        })
+                      }
+                      className="w-full h-full object-cover group-hover:scale-105 transition duration-500 cursor-zoom-in"
                     />
-                    <div className="absolute top-2.5 left-2.5 px-2 py-0.5 rounded-full bg-black/70 backdrop-blur border border-white/10 text-[10px] font-bold text-yellow-300 uppercase">
+                    <div className="absolute top-2.5 left-2.5 px-2 py-0.5 rounded-full bg-black/70 backdrop-blur border border-white/10 text-[10px] font-bold text-yellow-300 uppercase pointer-events-none">
                       {wrap.badge}
                     </div>
                   </div>
@@ -461,9 +522,20 @@ export const UnifiedShowcaseDeck: React.FC<UnifiedShowcaseDeckProps> = ({
                     <img
                       src={car.image}
                       alt={car.trim}
-                      className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
+                      onClick={() =>
+                        setLightboxViewer({
+                          index: rentalFleetList.slice(0, 3).findIndex((r) => r.id === car.id),
+                          images: rentalFleetList.slice(0, 3).map((r) => ({
+                            url: r.image,
+                            title: `${r.model} ${r.trim}`,
+                            subtitle: `${formatCurrency(r.dailyRateUsd)} / day • ${r.horsepower} HP • 0-60 in ${r.zeroToSixty}`,
+                            badge: `${r.rangeMiles} mi Range`,
+                          })),
+                        })
+                      }
+                      className="w-full h-full object-cover group-hover:scale-105 transition duration-500 cursor-zoom-in"
                     />
-                    <div className="absolute top-2.5 left-2.5 px-2 py-0.5 rounded-full bg-black/70 backdrop-blur border border-white/10 text-[10px] font-bold text-emerald-400 uppercase">
+                    <div className="absolute top-2.5 left-2.5 px-2 py-0.5 rounded-full bg-black/70 backdrop-blur border border-white/10 text-[10px] font-bold text-emerald-400 uppercase pointer-events-none">
                       {car.horsepower} HP • {car.zeroToSixty} 0-60
                     </div>
                   </div>
@@ -476,7 +548,7 @@ export const UnifiedShowcaseDeck: React.FC<UnifiedShowcaseDeckProps> = ({
 
                     <div className="flex items-center justify-between border-t border-zinc-800 pt-2 text-xs">
                       <div>
-                        <span className="font-mono font-black text-lg text-white">${car.dailyRateUsd}</span>
+                        <span className="font-mono font-black text-lg text-white tabular-nums">{formatCurrency(car.dailyRateUsd)}</span>
                         <span className="text-zinc-400 text-[10px]"> / day</span>
                       </div>
                       <span className="text-emerald-400 font-semibold">Unlimited Supercharging</span>
@@ -546,7 +618,36 @@ export const UnifiedShowcaseDeck: React.FC<UnifiedShowcaseDeckProps> = ({
                     <img
                       src={item.img}
                       alt={item.name}
-                      className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
+                      onClick={() =>
+                        setLightboxViewer({
+                          index: [
+                            'prod-yoke',
+                            'prod-spoiler',
+                            'prod-wall',
+                          ].indexOf(item.id),
+                          images: [
+                            {
+                              url: 'https://images.unsplash.com/photo-1542282088-72c9c27ed0cd?auto=format&fit=crop&w=800&q=80',
+                              title: 'Forged Carbon Yoke Steering Wheel',
+                              subtitle: `${formatCurrency(890)} • Direct plug-and-play retrofit`,
+                              badge: 'Aero & Carbon',
+                            },
+                            {
+                              url: 'https://images.unsplash.com/photo-1617788138017-80ad40651399?auto=format&fit=crop&w=800&q=80',
+                              title: 'Track Edition Carbon Fiber Spoiler',
+                              subtitle: `${formatCurrency(650)} • Pre-preg autoclave carbon`,
+                              badge: 'Aero & Carbon',
+                            },
+                            {
+                              url: 'https://images.unsplash.com/photo-1593941707882-a5bba14938c7?auto=format&fit=crop&w=800&q=80',
+                              title: 'Apex Megawatt High-Output Wall Charger',
+                              subtitle: `${formatCurrency(520)} • 48A level 2 charging station`,
+                              badge: 'Charging & Tech',
+                            },
+                          ],
+                        })
+                      }
+                      className="w-full h-full object-cover group-hover:scale-105 transition duration-500 cursor-zoom-in"
                     />
                   </div>
 
@@ -557,7 +658,7 @@ export const UnifiedShowcaseDeck: React.FC<UnifiedShowcaseDeckProps> = ({
                     </div>
 
                     <div className="flex items-center justify-between border-t border-zinc-800 pt-2 text-xs">
-                      <span className="font-mono font-bold text-lg text-white">${item.price}</span>
+                      <span className="font-mono font-bold text-lg text-white tabular-nums">{formatCurrency(item.price)}</span>
                       <span className="text-purple-400 font-semibold">In Stock Fremont Hub</span>
                     </div>
 
@@ -592,6 +693,12 @@ export const UnifiedShowcaseDeck: React.FC<UnifiedShowcaseDeckProps> = ({
           </div>
         )}
       </div>
+      <ImageLightbox
+        isOpen={lightboxViewer !== null}
+        onClose={() => setLightboxViewer(null)}
+        images={lightboxViewer?.images || []}
+        initialIndex={lightboxViewer?.index ?? 0}
+      />
     </section>
   );
 };

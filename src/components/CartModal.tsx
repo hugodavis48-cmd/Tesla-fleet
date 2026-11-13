@@ -20,6 +20,7 @@ export const CartModal: React.FC<CartModalProps> = ({ isOpen, onClose, onOpenDep
     activeCoupon,
     applyCoupon,
     removeCoupon,
+    formatCurrency,
   } = useApp();
   const [couponInput, setCouponInput] = useState('');
   const [couponError, setCouponError] = useState<string | null>(null);
@@ -88,7 +89,7 @@ export const CartModal: React.FC<CartModalProps> = ({ isOpen, onClose, onOpenDep
                 <img src={item.product.image} alt={item.product.name} className="w-16 h-16 object-cover rounded-xl shrink-0" />
                 <div className="flex-1 min-w-0">
                   <h4 className="font-semibold text-sm text-white truncate">{item.product.name}</h4>
-                  <p className="text-xs text-zinc-400">${item.product.priceUsd.toLocaleString()} each</p>
+                  <p className="text-xs text-zinc-400">{formatCurrency(item.product.priceUsd)} each</p>
                   <div className="flex items-center gap-2 mt-2">
                     <button
                       onClick={() => removeFromCart(item.product.id)}
@@ -106,8 +107,8 @@ export const CartModal: React.FC<CartModalProps> = ({ isOpen, onClose, onOpenDep
                   </div>
                 </div>
                 <div className="text-right">
-                  <span className="font-heading font-bold text-sm text-red-400">
-                    ${(item.product.priceUsd * item.quantity).toLocaleString()}
+                  <span className="font-heading font-bold text-sm text-red-400 tabular-nums">
+                    {formatCurrency(item.product.priceUsd * item.quantity)}
                   </span>
                 </div>
               </div>
@@ -166,30 +167,30 @@ export const CartModal: React.FC<CartModalProps> = ({ isOpen, onClose, onOpenDep
             <div className="space-y-1 text-xs">
               <div className="flex justify-between items-center text-zinc-400">
                 <span>Subtotal:</span>
-                <span className="font-mono text-zinc-200">${subtotalUsd.toLocaleString()} USD</span>
+                <span className="font-mono text-zinc-200 tabular-nums">{formatCurrency(subtotalUsd, { includeCode: true })}</span>
               </div>
               {discountUsd > 0 && (
                 <div className="flex justify-between items-center text-emerald-400 font-semibold">
                   <span>Coupon Discount ({activeCoupon?.code}):</span>
-                  <span className="font-mono">- ${discountUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD</span>
+                  <span className="font-mono tabular-nums">- {formatCurrency(discountUsd, { includeCode: true })}</span>
                 </div>
               )}
               <div className="flex justify-between items-center text-zinc-400">
                 <span>Nationwide Shipping:</span>
-                <span className="text-emerald-400 font-semibold">FREE ($0.00)</span>
+                <span className="text-emerald-400 font-semibold">FREE ({formatCurrency(0)})</span>
               </div>
               <div className="flex justify-between items-center text-sm font-bold pt-2 border-t border-zinc-800">
                 <span className="text-zinc-200">Total Due:</span>
-                <span className="font-heading font-black text-xl text-white">
-                  ${finalTotalUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
+                <span className="font-heading font-black text-xl text-white tabular-nums">
+                  {formatCurrency(finalTotalUsd, { includeCode: true })}
                 </span>
               </div>
             </div>
 
             <div className="flex justify-between items-center text-xs p-2.5 rounded-xl bg-zinc-950 border border-zinc-800">
               <span className="text-zinc-400">Spendable Vault Balance:</span>
-              <span className={`font-semibold ${hasSufficientBalance ? 'text-emerald-400' : 'text-amber-400'}`}>
-                ${balances.usd.toFixed(2)} USD
+              <span className={`font-semibold tabular-nums ${hasSufficientBalance ? 'text-emerald-400' : 'text-amber-400'}`}>
+                {formatCurrency(balances.usd, { includeCode: true })}
               </span>
             </div>
 
@@ -197,7 +198,7 @@ export const CartModal: React.FC<CartModalProps> = ({ isOpen, onClose, onOpenDep
               <div className="flex items-start gap-2 p-2.5 rounded-xl bg-amber-950/30 border border-amber-500/40 text-[11px] text-amber-200">
                 <Lock className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
                 <span>
-                  You also have <strong>${lockedWinBalanceUsd.toLocaleString()} USD</strong> in locked spin/promo winnings. Deposit at least <strong>${minDepositToActivateWinsUsd} USD</strong> total to unlock them for checkout!
+                  You also have <strong>{formatCurrency(lockedWinBalanceUsd, { includeCode: true })}</strong> in locked spin/promo winnings. Deposit at least <strong>${minDepositToActivateWinsUsd} USD</strong> total to unlock them for checkout!
                 </span>
               </div>
             )}

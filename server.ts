@@ -1951,12 +1951,13 @@ app.post('/api/orders', (req, res) => {
 // ============================================================================
 app.post('/api/media/upload', (req, res) => {
   try {
-    const { filename, dataUrl } = req.body || {};
-    if (!filename || !dataUrl || typeof dataUrl !== 'string') {
+    const { filename, dataUrl, base64Data: altDataUrl } = req.body || {};
+    const resolvedDataUrl = typeof dataUrl === 'string' ? dataUrl : altDataUrl;
+    if (!filename || !resolvedDataUrl || typeof resolvedDataUrl !== 'string') {
       return res.status(400).json({ error: 'filename and dataUrl are required.' });
     }
 
-    const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+    const match = resolvedDataUrl.match(/^data:([^;]+);base64,(.+)$/);
     if (!match) {
       return res.status(400).json({ error: 'Invalid base64 dataUrl payload.' });
     }
@@ -2002,16 +2003,118 @@ app.post('/api/media/upload', (req, res) => {
   }
 });
 
+app.get('/api/media/list', (_req, res) => {
+  try {
+    const entries: Array<{
+      id: string;
+      name: string;
+      url: string;
+      storagePath: string;
+      sizeBytes: number;
+      uploadedAt: string;
+      contentType: string;
+      source: 'local_upload' | 'preset';
+    }> = [];
+
+    // Include built-in public assets
+    [
+      { name: 'logo.jpg', url: '/logo.jpg' },
+      { name: 'favicon.jpg', url: '/favicon.jpg' },
+    ].forEach((builtin) => {
+      const pubFile = path.join(process.cwd(), 'public', builtin.name);
+      if (fs.existsSync(pubFile)) {
+        const stat = fs.statSync(pubFile);
+        entries.push({
+          id: `builtin_${builtin.name.replace(/[^a-zA-Z0-9]/g, '_')}`,
+          name: builtin.name,
+          url: builtin.url,
+          storagePath: `public/${builtin.name}`,
+          sizeBytes: stat.size,
+          uploadedAt: stat.mtime.toISOString(),
+          contentType: 'image/jpeg',
+          source: 'preset',
+        });
+      }
+    });
+
+    if (fs.existsSync(uploadsDir)) {
+      const files = fs.readdirSync(uploadsDir);
+      files.forEach((f) => {
+        if (!f.match(/\.(jpg|jpeg|png|webp)$/i)) return;
+        const full = path.join(uploadsDir, f);
+        const stat = fs.statSync(full);
+        const ext = path.extname(f).toLowerCase();
+        entries.push({
+          id: `up_${f.replace(/[^a-zA-Z0-9_-]/g, '_')}`,
+          name: f,
+          url: `/uploads/${f}`,
+          storagePath: `/uploads/${f}`,
+          sizeBytes: stat.size,
+          uploadedAt: stat.mtime.toISOString(),
+          contentType: ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : 'image/jpeg',
+          source: 'local_upload',
+        });
+      });
+    }
+
+    entries.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
+    return res.json({ files: entries });
+  } catch (err: unknown) {
+    return res.status(500).json({ error: (err as Error).message || 'Failed to list media' });
+  }
+});
+
+app.delete('/api/media/delete', (req, res) => {
+  try {
+    const filename = String(req.body?.filename || req.query?.filename || '').trim();
+    const safeName = path.basename(filename);
+    if (!safeName || !fs.existsSync(uploadsDir)) {
+      return res.status(400).json({ error: 'Invalid filename' });
+    }
+    const targetPath = path.join(uploadsDir, safeName);
+    if (fs.existsSync(targetPath)) {
+      fs.unlinkSync(targetPath);
+    }
+    return res.json({ success: true });
+  } catch (err: unknown) {
+    return res.status(500).json({ error: (err as Error).message || 'Delete failed' });
+  }
+});
+
 // ============================================================================
-// SEO METADATA, SITEMAP.XML & RSS.XML SYNDICATION
+// SEO METADATA, ADMIN PERSISTED CONFIG, SITEMAP.XML & RSS.XML SYNDICATION
 // ============================================================================
-let serverSeoState = {
+const adminStateFilePath = path.join(process.cwd(), '.apex_admin_state.json');
+
+const readServerAdminState = (): Record<string, unknown> => {
+  try {
+    if (fs.existsSync(adminStateFilePath)) {
+      return JSON.parse(fs.readFileSync(adminStateFilePath, 'utf-8'));
+    }
+  } catch {
+    // ignore parse failure
+  }
+  return {};
+};
+
+const writeServerAdminState = (patch: Record<string, unknown>) => {
+  try {
+    const current = readServerAdminState();
+    const next = { ...current, ...patch, updatedAt: new Date().toISOString() };
+    fs.writeFileSync(adminStateFilePath, JSON.stringify(next, null, 2), 'utf-8');
+  } catch {
+    // non-fatal on read-only filesystem
+  }
+};
+
+let serverSeoState: Record<string, any> = {
   siteTitle: 'Apex Tesla Hub - Service, Customization, Rentals & Fleet Yield',
   metaDescription:
     'Comprehensive Tesla vehicle hub for certified maintenance, 3M vinyl wraps & custom accessories, exotic fleet rentals, decentralized staking yields, TSLA stocks, and spin & scratch Tesla giveaways.',
   canonicalUrl: 'https://apex-tesla.io/',
   logoUrl: '/logo.jpg',
   faviconUrl: '/favicon.jpg',
+  ...(readServerAdminState().seoSettings as Record<string, any> | undefined),
 };
 
 let serverSitemapEntries: Array<{
@@ -2021,7 +2124,7 @@ let serverSitemapEntries: Array<{
   changeFreq: string;
   isActive: boolean;
   lastMod: string;
-}> = [
+}> = (readServerAdminState().sitemapEntries as any) || [
   { path: 'home', title: 'Apex Tesla Hub Home', priority: 1.0, changeFreq: 'daily', isActive: true, lastMod: '2026-11-12' },
   { path: 'vehicles', title: 'Buy Factory Tesla Vehicles', priority: 0.95, changeFreq: 'daily', isActive: true, lastMod: '2026-11-12' },
   { path: 'stocks', title: 'TSLA Stocks & Fast-ROI Plans', priority: 0.9, changeFreq: 'daily', isActive: true, lastMod: '2026-11-12' },
@@ -2043,7 +2146,7 @@ let serverRssItems: Array<{
   pubDate: string;
   guid: string;
   isPublished: boolean;
-}> = [
+}> = (readServerAdminState().rssFeedItems as any) || [
   {
     id: 'rss-01',
     title: '2026 Cybertruck Cyberbeast & Model S Plaid Multi-Slide 3D Promo Suite Live',
@@ -2074,16 +2177,36 @@ const escapeXml = (str: string) =>
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&apos;');
 
+app.get('/api/admin/state', (_req, res) => {
+  return res.json({ state: readServerAdminState() });
+});
+
+app.post('/api/admin/state', (req, res) => {
+  const { section, value, sections } = req.body || {};
+  if (section && typeof section === 'string' && value !== undefined) {
+    writeServerAdminState({ [section]: value });
+    return res.json({ success: true });
+  }
+  if (sections && typeof sections === 'object') {
+    writeServerAdminState(sections);
+    return res.json({ success: true });
+  }
+  return res.status(400).json({ error: 'section/value or sections object required' });
+});
+
 app.post('/api/seo/sync', (req, res) => {
   const { seoSettings, sitemapEntries, rssFeedItems } = req.body || {};
   if (seoSettings) {
     serverSeoState = { ...serverSeoState, ...seoSettings };
+    writeServerAdminState({ seoSettings: serverSeoState });
   }
   if (Array.isArray(sitemapEntries)) {
     serverSitemapEntries = sitemapEntries;
+    writeServerAdminState({ sitemapEntries });
   }
   if (Array.isArray(rssFeedItems)) {
     serverRssItems = rssFeedItems;
+    writeServerAdminState({ rssFeedItems });
   }
   return res.json({ success: true });
 });
@@ -2273,7 +2396,341 @@ Each scene needs a crisp title (max 5 words), short subtitle (max 14 words), and
   }
 });
 
+// ============================================================================
+// VISITOR ANALYTICS & LIVE ACTIVITY TELEMETRY
+// ============================================================================
+interface ServerVisitorLog {
+  id: string;
+  visitorId: string;
+  ip: string;
+  country: string;
+  city?: string;
+  deviceType: 'Mobile' | 'Tablet' | 'Desktop';
+  mobileModel: string;
+  browser: string;
+  os: string;
+  action: string;
+  pageTab: string;
+  details?: string;
+  userId?: string;
+  userEmail?: string;
+  userName?: string;
+  screenSize?: string;
+  referrer?: string;
+  timestamp: string;
+}
 
+const serverVisitorLogs: ServerVisitorLog[] = [
+  {
+    id: 'vis-seed-01',
+    visitorId: 'v-us-9910',
+    ip: '172.58.194.21',
+    country: 'United States',
+    city: 'Austin, TX',
+    deviceType: 'Mobile',
+    mobileModel: 'iPhone (iOS Mobile)',
+    browser: 'Safari',
+    os: 'iOS 18',
+    action: 'Viewed Tesla Car Sales Showroom',
+    pageTab: 'vehicles',
+    details: 'Inspected 2026 Cybertruck Cyberbeast specs & financing',
+    userName: 'Marcus Vance',
+    userEmail: 'marcus.v@apex-tesla.io',
+    screenSize: '430x932',
+    timestamp: new Date(Date.now() - 4 * 60000).toISOString(),
+  },
+  {
+    id: 'vis-seed-02',
+    visitorId: 'v-de-4821',
+    ip: '84.115.202.88',
+    country: 'Germany',
+    city: 'Berlin',
+    deviceType: 'Desktop',
+    mobileModel: 'Desktop Workstation',
+    browser: 'Chrome',
+    os: 'Windows 11',
+    action: 'Opened TSLA Stocks & Fast ROI Hub',
+    pageTab: 'stocks',
+    details: 'Reviewed TSLA.FSD 34% Accelerated ROI tier',
+    userName: 'Elena Rostova',
+    userEmail: 'elena.r@berlin-ev.de',
+    screenSize: '1920x1080',
+    timestamp: new Date(Date.now() - 9 * 60000).toISOString(),
+  },
+  {
+    id: 'vis-seed-03',
+    visitorId: 'v-ae-7723',
+    ip: '94.200.41.15',
+    country: 'United Arab Emirates',
+    city: 'Dubai',
+    deviceType: 'Mobile',
+    mobileModel: 'Samsung Galaxy (Android)',
+    browser: 'Chrome Mobile',
+    os: 'Android 15',
+    action: 'Submitted Won Prize International Shipping Quote',
+    pageTab: 'dashboard',
+    details: 'Checked UAE air/RoRo freight & export documentation fees',
+    userName: 'Tariq Al-Mansoor',
+    userEmail: 'tariq@dubai-motors.ae',
+    screenSize: '412x915',
+    timestamp: new Date(Date.now() - 16 * 60000).toISOString(),
+  },
+  {
+    id: 'vis-seed-04',
+    visitorId: 'v-gb-2104',
+    ip: '81.149.118.42',
+    country: 'United Kingdom',
+    city: 'London',
+    deviceType: 'Tablet',
+    mobileModel: 'Apple iPad',
+    browser: 'Safari',
+    os: 'iPadOS 18',
+    action: 'Played AI Promotional Short Video',
+    pageTab: 'banners',
+    details: 'Copied 3D Cyberbeast banner HTML embed with referral code',
+    screenSize: '1024x1366',
+    timestamp: new Date(Date.now() - 24 * 60000).toISOString(),
+  },
+  {
+    id: 'vis-seed-05',
+    visitorId: 'v-ca-5539',
+    ip: '142.114.62.109',
+    country: 'Canada',
+    city: 'Toronto',
+    deviceType: 'Desktop',
+    mobileModel: 'Desktop Workstation',
+    browser: 'Firefox',
+    os: 'macOS',
+    action: 'Switched Display Currency to CAD',
+    pageTab: 'vehicles',
+    details: 'Viewed Model S Plaid MSRP converted via treasury multiplier',
+    screenSize: '2560x1440',
+    timestamp: new Date(Date.now() - 33 * 60000).toISOString(),
+  },
+  {
+    id: 'vis-seed-06',
+    visitorId: 'v-jp-8840',
+    ip: '126.198.73.14',
+    country: 'Japan',
+    city: 'Tokyo',
+    deviceType: 'Mobile',
+    mobileModel: 'iPhone (iOS Mobile)',
+    browser: 'Safari',
+    os: 'iOS 18',
+    action: 'Activated Spin & Win Wheel Session',
+    pageTab: 'promotions',
+    details: 'Browsed $8,000 Scratch & Win Jackpot tiers',
+    userName: 'Kenji Takahashi',
+    userEmail: 'kenji@tokyo-ev.jp',
+    screenSize: '390x844',
+    timestamp: new Date(Date.now() - 47 * 60000).toISOString(),
+  },
+  {
+    id: 'vis-seed-07',
+    visitorId: 'v-ng-3319',
+    ip: '102.89.34.176',
+    country: 'Nigeria',
+    city: 'Lagos',
+    deviceType: 'Mobile',
+    mobileModel: 'Android Smartphone',
+    browser: 'Chrome Mobile',
+    os: 'Android 14',
+    action: 'Visited Autonomous Fleet Staking Pools',
+    pageTab: 'investment',
+    details: 'Explored 18.4% APY Robotaxi & Supercharger V4 nodes',
+    screenSize: '360x800',
+    timestamp: new Date(Date.now() - 62 * 60000).toISOString(),
+  },
+  {
+    id: 'vis-seed-08',
+    visitorId: 'v-au-6490',
+    ip: '1.129.104.53',
+    country: 'Australia',
+    city: 'Sydney',
+    deviceType: 'Desktop',
+    mobileModel: 'Desktop Workstation',
+    browser: 'Edge',
+    os: 'Windows 11',
+    action: 'Requested Mobile Ranger Diagnostic Quote',
+    pageTab: 'services',
+    details: 'Selected 3M Satin Stealth PPF + Battery Telemetry inspection',
+    screenSize: '1920x1080',
+    timestamp: new Date(Date.now() - 85 * 60000).toISOString(),
+  },
+];
+
+function parseUserAgentInfo(ua: string): {
+  deviceType: 'Mobile' | 'Tablet' | 'Desktop';
+  mobileModel: string;
+  browser: string;
+  os: string;
+} {
+  const s = ua || '';
+  const lower = s.toLowerCase();
+
+  let browser = 'Unknown Browser';
+  if (lower.includes('edg/')) browser = 'Edge';
+  else if (lower.includes('opr/') || lower.includes('opera')) browser = 'Opera';
+  else if (lower.includes('chrome') && !lower.includes('edg/')) browser = lower.includes('mobile') ? 'Chrome Mobile' : 'Chrome';
+  else if (lower.includes('safari') && !lower.includes('chrome')) browser = 'Safari';
+  else if (lower.includes('firefox')) browser = 'Firefox';
+  else if (lower.includes('curl')) browser = 'cURL / API Client';
+
+  let os = 'Unknown OS';
+  if (lower.includes('iphone') || lower.includes('ipad') || lower.includes('ios')) os = 'iOS';
+  else if (lower.includes('android')) os = 'Android';
+  else if (lower.includes('windows')) os = 'Windows';
+  else if (lower.includes('mac os') || lower.includes('macintosh')) os = 'macOS';
+  else if (lower.includes('linux')) os = 'Linux';
+
+  let deviceType: 'Mobile' | 'Tablet' | 'Desktop' = 'Desktop';
+  let mobileModel = 'Desktop Workstation';
+
+  if (lower.includes('ipad') || (lower.includes('tablet') && !lower.includes('mobile'))) {
+    deviceType = 'Tablet';
+    mobileModel = lower.includes('ipad') ? 'Apple iPad' : 'Android Tablet';
+  } else if (lower.includes('iphone')) {
+    deviceType = 'Mobile';
+    mobileModel = 'iPhone (iOS Mobile)';
+  } else if (lower.includes('android') || lower.includes('mobile')) {
+    deviceType = 'Mobile';
+    if (lower.includes('samsung') || lower.includes('sm-')) mobileModel = 'Samsung Galaxy (Android)';
+    else if (lower.includes('pixel')) mobileModel = 'Google Pixel (Android)';
+    else mobileModel = 'Android Smartphone';
+  }
+
+  return { deviceType, mobileModel, browser, os };
+}
+
+function inferCountryFromRequest(req: express.Request, bodyCountry?: string, timezone?: string): string {
+  if (bodyCountry && bodyCountry.trim() && bodyCountry !== 'Unknown') return bodyCountry.trim();
+  const headerCountry =
+    (req.headers['cf-ipcountry'] as string) ||
+    (req.headers['x-vercel-ip-country'] as string) ||
+    (req.headers['x-country-code'] as string);
+  if (headerCountry && headerCountry.length === 2) {
+    const codeMap: Record<string, string> = {
+      US: 'United States',
+      GB: 'United Kingdom',
+      DE: 'Germany',
+      CA: 'Canada',
+      AU: 'Australia',
+      AE: 'United Arab Emirates',
+      JP: 'Japan',
+      NG: 'Nigeria',
+      FR: 'France',
+      SG: 'Singapore',
+      BR: 'Brazil',
+    };
+    return codeMap[headerCountry.toUpperCase()] || headerCountry.toUpperCase();
+  }
+  if (timezone) {
+    const tz = timezone.toLowerCase();
+    if (tz.includes('america/new_york') || tz.includes('america/los_angeles') || tz.includes('america/chicago') || tz.includes('america/denver')) return 'United States';
+    if (tz.includes('america/toronto') || tz.includes('america/vancouver')) return 'Canada';
+    if (tz.includes('europe/london')) return 'United Kingdom';
+    if (tz.includes('europe/berlin')) return 'Germany';
+    if (tz.includes('europe/paris')) return 'France';
+    if (tz.includes('asia/dubai')) return 'United Arab Emirates';
+    if (tz.includes('asia/tokyo')) return 'Japan';
+    if (tz.includes('africa/lagos')) return 'Nigeria';
+    if (tz.includes('australia/')) return 'Australia';
+  }
+  return 'United States';
+}
+
+app.post('/api/analytics/track', (req, res) => {
+  try {
+    const rawIp =
+      (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
+      req.socket?.remoteAddress ||
+      req.ip ||
+      '127.0.0.1';
+    const cleanIp = rawIp.replace(/^::ffff:/, '') === '127.0.0.1' || rawIp === '::1' ? '104.28.212.90' : rawIp.replace(/^::ffff:/, '');
+    const ua = String(req.headers['user-agent'] || '');
+    const parsedUa = parseUserAgentInfo(ua);
+
+    const {
+      visitorId,
+      action = 'Page View',
+      pageTab = 'home',
+      details,
+      country,
+      timezone,
+      userId,
+      userEmail,
+      userName,
+      screenSize,
+      referrer,
+    } = req.body || {};
+
+    const entry: ServerVisitorLog = {
+      id: `vis-${Date.now().toString(36)}-${Math.floor(Math.random() * 999)}`,
+      visitorId: String(visitorId || `anon-${Date.now().toString(36)}`),
+      ip: cleanIp,
+      country: inferCountryFromRequest(req, country, timezone),
+      deviceType: parsedUa.deviceType,
+      mobileModel: parsedUa.mobileModel,
+      browser: parsedUa.browser,
+      os: parsedUa.os,
+      action: String(action),
+      pageTab: String(pageTab),
+      details: details ? String(details) : undefined,
+      userId: userId ? String(userId) : undefined,
+      userEmail: userEmail ? String(userEmail) : undefined,
+      userName: userName ? String(userName) : undefined,
+      screenSize: screenSize ? String(screenSize) : undefined,
+      referrer: referrer ? String(referrer) : undefined,
+      timestamp: new Date().toISOString(),
+    };
+
+    serverVisitorLogs.unshift(entry);
+    if (serverVisitorLogs.length > 250) {
+      serverVisitorLogs.length = 250;
+    }
+
+    return res.json({ success: true, entry });
+  } catch (err: unknown) {
+    const error = err as Error;
+    return res.status(500).json({ error: error.message || 'Analytics tracking error' });
+  }
+});
+
+app.get('/api/analytics/visitors', (_req, res) => {
+  const uniqueIps = new Set(serverVisitorLogs.map((l) => l.ip)).size;
+  const uniqueVisitors = new Set(serverVisitorLogs.map((l) => l.visitorId)).size;
+
+  const byCountry: Record<string, number> = {};
+  const byDevice: Record<string, number> = {};
+  const byBrowser: Record<string, number> = {};
+  const byTab: Record<string, number> = {};
+
+  for (const log of serverVisitorLogs) {
+    byCountry[log.country] = (byCountry[log.country] || 0) + 1;
+    byDevice[log.deviceType] = (byDevice[log.deviceType] || 0) + 1;
+    byBrowser[log.browser] = (byBrowser[log.browser] || 0) + 1;
+    byTab[log.pageTab] = (byTab[log.pageTab] || 0) + 1;
+  }
+
+  return res.json({
+    success: true,
+    summary: {
+      totalEvents: serverVisitorLogs.length,
+      uniqueIps,
+      uniqueVisitors,
+      byCountry,
+      byDevice,
+      byBrowser,
+      byTab,
+    },
+    logs: serverVisitorLogs,
+  });
+});
+
+app.delete('/api/analytics/visitors', (_req, res) => {
+  serverVisitorLogs.length = 0;
+  return res.json({ success: true });
+});
 
 // Vite middleware setup for Development or Static serving for Production
 async function startServer() {

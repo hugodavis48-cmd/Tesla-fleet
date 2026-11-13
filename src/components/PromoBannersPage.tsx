@@ -1,6 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { BannerSizeType, MarketingBanner } from '../types';
+import { BannerSizeType, MarketingBanner, PromoVideoItem } from '../types';
 import {
   Megaphone,
   Copy,
@@ -19,7 +19,16 @@ import {
   PanelLeft,
   Box,
   Car,
+  ChevronLeft,
+  ChevronRight,
+  Play,
+  Pause,
+  Film,
+  Eye,
+  Upload,
+  Maximize2,
 } from 'lucide-react';
+import { ImageLightbox, LightboxImageItem } from './ImageLightbox';
 
 interface PromoBannersPageProps {
   onOpenAuth?: () => void;
@@ -34,12 +43,44 @@ const SIZE_DIMENSIONS: Record<BannerSizeType, { w: number; h: number; label: str
 };
 
 export const PromoBannersPage: React.FC<PromoBannersPageProps> = ({ onOpenAuth, onNavigate }) => {
-  const { marketingBanners, currentUser, referralLink, showToast } = useApp();
+  const { marketingBanners, promoVideos, incrementPromoVideoView, currentUser, referralLink, showToast } = useApp();
 
   const [sizeFilter, setSizeFilter] = useState<'all' | BannerSizeType>('all');
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [openCodeId, setOpenCodeId] = useState<string | null>(null);
   const [tiltState, setTiltState] = useState<{ id: string; rx: number; ry: number; gx: number; gy: number } | null>(null);
+  const [slideTick, setSlideTick] = useState<number>(0);
+  const [bannerSlideOverride, setBannerSlideOverride] = useState<Record<string, number>>({});
+  const [videoSceneState, setVideoSceneState] = useState<Record<string, number>>({});
+  const [pausedVideos, setPausedVideos] = useState<Record<string, boolean>>({});
+  const [lightboxViewer, setLightboxViewer] = useState<{
+    images: LightboxImageItem[];
+    index: number;
+  } | null>(null);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setSlideTick((t) => t + 1);
+    }, 3800);
+    return () => clearInterval(timer);
+  }, []);
+
+  const activePromoVideos = useMemo(() => promoVideos.filter((v) => v.isActive), [promoVideos]);
+
+  useEffect(() => {
+    const vidTimer = setInterval(() => {
+      setVideoSceneState((prev) => {
+        const next = { ...prev };
+        activePromoVideos.forEach((vid) => {
+          if (vid.videoType === 'ai_generated' && vid.scenes && vid.scenes.length > 1 && !pausedVideos[vid.id]) {
+            next[vid.id] = ((prev[vid.id] || 0) + 1) % vid.scenes.length;
+          }
+        });
+        return next;
+      });
+    }, 3200);
+    return () => clearInterval(vidTimer);
+  }, [activePromoVideos, pausedVideos]);
 
   const activeBanners = useMemo(() => {
     return marketingBanners
@@ -269,10 +310,36 @@ export const PromoBannersPage: React.FC<PromoBannersPageProps> = ({ onOpenAuth, 
     setTiltState({ id, rx, ry, gx: Math.round(px * 100), gy: Math.round(py * 100) });
   };
 
+  const getBannerSlides = (banner: MarketingBanner): string[] => {
+    const list = (banner.slideImages && banner.slideImages.length > 0)
+      ? banner.slideImages.filter(Boolean)
+      : banner.imageUrl
+      ? [banner.imageUrl]
+      : [];
+    return list;
+  };
+
+  const getActiveSlideIndex = (banner: MarketingBanner): number => {
+    const slides = getBannerSlides(banner);
+    if (slides.length <= 1) return 0;
+    if (bannerSlideOverride[banner.id] !== undefined) {
+      return bannerSlideOverride[banner.id] % slides.length;
+    }
+    return slideTick % slides.length;
+  };
+
+  const getVideoReferralUrl = (vid: PromoVideoItem) => {
+    const sep = referralLink.includes('?') ? '&' : '?';
+    return `${referralLink}${sep}video=${encodeURIComponent(vid.id)}&dest=${encodeURIComponent(vid.targetTab)}`;
+  };
+
   const renderBannerVisual = (banner: MarketingBanner) => {
     const destUrl = getBannerReferralUrl(banner);
     const activeTilt = tiltState?.id === banner.id ? tiltState : null;
     const is3d = banner.is3dHd !== false;
+    const slides = getBannerSlides(banner);
+    const activeSlideIdx = getActiveSlideIndex(banner);
+    const activeImage = slides[activeSlideIdx] || banner.imageUrl;
     const tiltStyle: React.CSSProperties = is3d
       ? {
           transform: activeTilt
@@ -298,11 +365,12 @@ export const PromoBannersPage: React.FC<PromoBannersPageProps> = ({ onOpenAuth, 
             className={`mx-auto flex items-center justify-between gap-4 px-5 py-3 rounded-2xl border bg-gradient-to-r ${banner.themeGradient} relative overflow-hidden group shadow-2xl`}
             style={{ width: 728, height: 90, borderColor: `${banner.accentColor}88`, ...tiltStyle }}
           >
-            {banner.imageUrl && (
+            {activeImage && (
               <img
-                src={banner.imageUrl}
+                key={`${banner.id}-lb-${activeSlideIdx}`}
+                src={activeImage}
                 alt={banner.title}
-                className="absolute inset-0 w-full h-full object-cover opacity-25 group-hover:scale-105 transition duration-500 pointer-events-none"
+                className="absolute inset-0 w-full h-full object-cover opacity-30 group-hover:scale-105 transition-all duration-700 pointer-events-none"
               />
             )}
             {is3d && (
@@ -362,14 +430,15 @@ export const PromoBannersPage: React.FC<PromoBannersPageProps> = ({ onOpenAuth, 
             }}
             onMouseMove={(e) => is3d && handle3dMouseMove(banner.id, e)}
             onMouseLeave={() => setTiltState(null)}
-            className={`flex flex-col justify-between p-4 rounded-2xl border bg-gradient-to-b ${banner.themeGradient} relative overflow-hidden group shadow-2xl`}
-            style={{ width: 160, height: 600, borderColor: `${banner.accentColor}88`, ...tiltStyle }}
+            className={`flex flex-col justify-between p-4 rounded-2xl border bg-gradient-to-b ${banner.themeGradient} relative overflow-hidden group shadow-2xl w-full`}
+            style={{ maxWidth: 220, minHeight: 480, borderColor: `${banner.accentColor}88`, ...tiltStyle }}
           >
-            {banner.imageUrl && (
+            {activeImage && (
               <img
-                src={banner.imageUrl}
+                key={`${banner.id}-sb-${activeSlideIdx}`}
+                src={activeImage}
                 alt={banner.title}
-                className="absolute inset-0 w-full h-full object-cover opacity-28 group-hover:scale-105 transition duration-500 pointer-events-none"
+                className="absolute inset-0 w-full h-full object-cover opacity-30 group-hover:scale-105 transition-all duration-700 pointer-events-none"
               />
             )}
             {is3d && (
@@ -440,14 +509,15 @@ export const PromoBannersPage: React.FC<PromoBannersPageProps> = ({ onOpenAuth, 
           }}
           onMouseMove={(e) => is3d && handle3dMouseMove(banner.id, e)}
           onMouseLeave={() => setTiltState(null)}
-          className={`flex flex-col justify-between p-5 rounded-2xl border bg-gradient-to-br ${banner.themeGradient} relative overflow-hidden group shadow-2xl shrink-0`}
-          style={{ width: dim.w, height: dim.h, borderColor: `${banner.accentColor}88`, ...tiltStyle }}
+          className={`flex flex-col justify-between p-5 rounded-2xl border bg-gradient-to-br ${banner.themeGradient} relative overflow-hidden group shadow-2xl w-full`}
+          style={{ maxWidth: dim.w, minHeight: Math.min(dim.h, 260), height: 'auto', borderColor: `${banner.accentColor}88`, ...tiltStyle }}
         >
-          {banner.imageUrl && (
+          {activeImage && (
             <img
-              src={banner.imageUrl}
+              key={`${banner.id}-card-${activeSlideIdx}`}
+              src={activeImage}
               alt={banner.title}
-              className="absolute inset-0 w-full h-full object-cover opacity-30 group-hover:scale-105 transition duration-500 pointer-events-none"
+              className="absolute inset-0 w-full h-full object-cover opacity-35 group-hover:scale-105 transition-all duration-700 pointer-events-none"
             />
           )}
           {is3d && (
@@ -670,6 +740,28 @@ export const PromoBannersPage: React.FC<PromoBannersPageProps> = ({ onOpenAuth, 
 
                   <button
                     type="button"
+                    onClick={() => {
+                      const slides = getBannerSlides(banner);
+                      if (slides.length === 0) return;
+                      setLightboxViewer({
+                        index: getActiveSlideIndex(banner),
+                        images: slides.map((url, idx) => ({
+                          url,
+                          title: `${banner.title} (Slide ${idx + 1}/${slides.length})`,
+                          subtitle: `${SIZE_DIMENSIONS[banner.size].label} • ${banner.headline}`,
+                          badge: banner.resolutionQuality || '4K UHD',
+                        })),
+                      });
+                    }}
+                    className="px-3 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-200 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
+                    title="Inspect banner artwork in Lightbox"
+                  >
+                    <Maximize2 className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Zoom</span>
+                  </button>
+
+                  <button
+                    type="button"
                     onClick={() => setOpenCodeId(isCodeOpen ? null : banner.id)}
                     className="px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white text-xs font-mono cursor-pointer"
                   >
@@ -679,8 +771,65 @@ export const PromoBannersPage: React.FC<PromoBannersPageProps> = ({ onOpenAuth, 
               </div>
 
               {/* Live Visual Preview Stage */}
-              <div className="p-4 sm:p-6 rounded-2xl bg-[#05070b] border border-zinc-800/80">
+              <div className="p-4 sm:p-6 rounded-2xl bg-[#05070b] border border-zinc-800/80 space-y-3">
                 {renderBannerVisual(banner)}
+                {getBannerSlides(banner).length > 1 && (
+                  <div className="flex items-center justify-between gap-3 pt-2 border-t border-zinc-900">
+                    <span className="text-[10px] font-mono text-zinc-400">
+                      3D Multi-Slide Rotation ({getActiveSlideIndex(banner) + 1} / {getBannerSlides(banner).length})
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const total = getBannerSlides(banner).length;
+                          const curr = getActiveSlideIndex(banner);
+                          setBannerSlideOverride((prev) => ({
+                            ...prev,
+                            [banner.id]: (curr - 1 + total) % total,
+                          }));
+                        }}
+                        className="p-1 rounded-lg bg-zinc-900 border border-zinc-700 text-zinc-300 hover:text-white cursor-pointer"
+                        aria-label="Previous banner slide"
+                      >
+                        <ChevronLeft className="w-3.5 h-3.5" />
+                      </button>
+                      {getBannerSlides(banner).map((_, sIdx) => (
+                        <button
+                          key={`${banner.id}-dot-${sIdx}`}
+                          type="button"
+                          onClick={() =>
+                            setBannerSlideOverride((prev) => ({
+                              ...prev,
+                              [banner.id]: sIdx,
+                            }))
+                          }
+                          className={`h-1.5 rounded-full transition-all cursor-pointer ${
+                            getActiveSlideIndex(banner) === sIdx
+                              ? 'w-5 bg-red-500'
+                              : 'w-1.5 bg-zinc-700 hover:bg-zinc-500'
+                          }`}
+                          aria-label={`Slide ${sIdx + 1}`}
+                        />
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const total = getBannerSlides(banner).length;
+                          const curr = getActiveSlideIndex(banner);
+                          setBannerSlideOverride((prev) => ({
+                            ...prev,
+                            [banner.id]: (curr + 1) % total,
+                          }));
+                        }}
+                        className="p-1 rounded-lg bg-zinc-900 border border-zinc-700 text-zinc-300 hover:text-white cursor-pointer"
+                        aria-label="Next banner slide"
+                      >
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Embedded Referral URL Strip */}
@@ -720,6 +869,218 @@ export const PromoBannersPage: React.FC<PromoBannersPageProps> = ({ onOpenAuth, 
           );
         })}
       </div>
+
+      {/* Promotional Short Videos Gallery (AI-Generated Storyboard Reels + Admin Uploaded MP4/WEBM) */}
+      <div className="pt-6 border-t border-zinc-800 space-y-6">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+          <div className="space-y-2">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-600/15 border border-indigo-500/35 text-indigo-300 text-xs font-semibold uppercase tracking-wider">
+              <Film className="w-3.5 h-3.5" />
+              <span>AI Motion Reels &amp; Uploaded Promo Videos</span>
+            </div>
+            <h2 className="font-heading font-black text-2xl sm:text-4xl text-white tracking-tight">
+              PROMOTIONAL SHORT VIDEOS
+            </h2>
+            <p className="text-zinc-400 text-sm max-w-2xl">
+              Watch and share high-converting 9:16 &amp; 16:9 promotional short videos—both AI-directed multi-scene reels and official studio uploads with your embedded invite code.
+            </p>
+          </div>
+          <span className="text-xs font-mono text-zinc-400">
+            {activePromoVideos.length} Active Video{activePromoVideos.length === 1 ? '' : 's'}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {activePromoVideos.map((vid) => {
+            const isPaused = !!pausedVideos[vid.id];
+            const sceneIdx = (videoSceneState[vid.id] || 0) % Math.max(1, vid.scenes?.length || 1);
+            const activeScene = vid.scenes?.[sceneIdx];
+            const vidUrl = getVideoReferralUrl(vid);
+
+            return (
+              <div
+                key={vid.id}
+                className="rounded-3xl border border-zinc-800 bg-zinc-950 overflow-hidden shadow-2xl flex flex-col justify-between"
+              >
+                {/* Video Stage */}
+                <div className="relative aspect-[16/10] bg-black overflow-hidden">
+                  {vid.videoType === 'uploaded' && vid.videoUrl ? (
+                    <video
+                      src={vid.videoUrl}
+                      poster={vid.thumbnailUrl}
+                      controls
+                      playsInline
+                      onPlay={() => incrementPromoVideoView(vid.id)}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <>
+                      <img
+                        key={`${vid.id}-scene-${sceneIdx}`}
+                        src={activeScene?.bgImage || vid.thumbnailUrl}
+                        alt={vid.title}
+                        className={`w-full h-full object-cover transition-transform duration-[3000ms] ${
+                          isPaused ? 'scale-100' : 'scale-110'
+                        }`}
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black via-black/45 to-black/30" />
+
+                      {/* Scene Progress Bars */}
+                      {vid.scenes && vid.scenes.length > 0 && (
+                        <div className="absolute top-3 left-3 right-3 flex gap-1.5 z-10">
+                          {vid.scenes.map((_, i) => (
+                            <button
+                              key={`${vid.id}-bar-${i}`}
+                              type="button"
+                              onClick={() =>
+                                setVideoSceneState((prev) => ({ ...prev, [vid.id]: i }))
+                              }
+                              className={`h-1 flex-1 rounded-full transition-all cursor-pointer ${
+                                i === sceneIdx ? 'bg-white' : i < sceneIdx ? 'bg-white/60' : 'bg-white/25'
+                              }`}
+                              aria-label={`Scene ${i + 1}`}
+                            />
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Top Type & Play/Pause Controls */}
+                      <div className="absolute top-7 left-3 right-3 flex items-center justify-between gap-2 z-10">
+                        <span className="px-2 py-0.5 rounded-md bg-black/75 border border-white/15 text-[10px] font-mono font-bold text-amber-300 flex items-center gap-1">
+                          <Sparkles className="w-3 h-3" />
+                          AI REEL • {vid.durationSec}s
+                        </span>
+
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const frames = vid.scenes && vid.scenes.length > 0
+                                ? vid.scenes.map((sc, sIdx) => ({
+                                    url: sc.bgImage || vid.thumbnailUrl || '',
+                                    title: `${vid.title} • Scene ${sIdx + 1}`,
+                                    subtitle: `${sc.title} — ${sc.subtitle}`,
+                                    badge: sc.metric,
+                                  }))
+                                : [
+                                    {
+                                      url: vid.thumbnailUrl || '',
+                                      title: vid.title,
+                                      subtitle: vid.subheadline,
+                                      badge: `AI REEL • ${vid.durationSec}s`,
+                                    },
+                                  ];
+                              setLightboxViewer({
+                                index: sceneIdx,
+                                images: frames.filter((f) => !!f.url),
+                              });
+                            }}
+                            className="p-2 rounded-full bg-black/75 hover:bg-black border border-white/20 text-white cursor-pointer"
+                            title="Inspect reel artwork in Lightbox"
+                            aria-label="Inspect reel artwork"
+                          >
+                            <Maximize2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPausedVideos((prev) => ({ ...prev, [vid.id]: !prev[vid.id] }));
+                              incrementPromoVideoView(vid.id);
+                            }}
+                            className="p-2 rounded-full bg-black/75 hover:bg-black border border-white/20 text-white cursor-pointer"
+                            title={isPaused ? 'Play AI Reel' : 'Pause AI Reel'}
+                          >
+                            {isPaused ? <Play className="w-3.5 h-3.5" /> : <Pause className="w-3.5 h-3.5" />}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Animated Storyboard Overlay */}
+                      <div className="absolute bottom-3 left-3 right-3 z-10 space-y-1">
+                        {activeScene && (
+                          <span
+                            className="inline-block px-2 py-0.5 rounded text-[10px] font-mono font-black text-black"
+                            style={{ backgroundColor: vid.accentColor || '#ef4444' }}
+                          >
+                            {activeScene.metric}
+                          </span>
+                        )}
+                        <h4 className="font-heading font-black text-base text-white drop-shadow">
+                          {activeScene?.title || vid.headline}
+                        </h4>
+                        <p className="text-[11px] text-zinc-200 line-clamp-2 drop-shadow">
+                          {activeScene?.subtitle || vid.subheadline}
+                        </p>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {/* Video Meta & Actions */}
+                <div className="p-5 space-y-3 flex-1 flex flex-col justify-between">
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between text-[10px] font-mono text-zinc-400">
+                      <span className="uppercase flex items-center gap-1">
+                        {vid.videoType === 'uploaded' ? (
+                          <Upload className="w-3 h-3 text-cyan-400" />
+                        ) : (
+                          <Sparkles className="w-3 h-3 text-amber-400" />
+                        )}
+                        {vid.videoType === 'uploaded' ? 'Admin Studio Upload' : 'AI Storyboard Motion Reel'}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Eye className="w-3 h-3" />
+                        {(vid.viewsCount || 0).toLocaleString()} views
+                      </span>
+                    </div>
+                    <h3 className="font-heading font-bold text-base text-white">{vid.title}</h3>
+                    <p className="text-xs text-zinc-400 line-clamp-2">{vid.subheadline}</p>
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-2 border-t border-zinc-800/80">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        incrementPromoVideoView(vid.id);
+                        if (onNavigate) onNavigate(vid.targetTab);
+                      }}
+                      className="flex-1 py-2.5 px-3 rounded-xl text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
+                      style={{ backgroundColor: vid.accentColor || '#dc2626' }}
+                    >
+                      <span>{vid.ctaText || 'Explore Now'}</span>
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(vidUrl);
+                        setCopiedId(`vid-${vid.id}`);
+                        showToast(`Copied invite link for "${vid.title}"!`, 'success');
+                        setTimeout(() => setCopiedId(null), 2000);
+                      }}
+                      className="px-3 py-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-200 text-xs font-semibold flex items-center gap-1 cursor-pointer"
+                    >
+                      {copiedId === `vid-${vid.id}` ? (
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                      ) : (
+                        <Copy className="w-3.5 h-3.5 text-zinc-400" />
+                      )}
+                      <span>{copiedId === `vid-${vid.id}` ? 'Copied' : 'Share'}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      <ImageLightbox
+        isOpen={lightboxViewer !== null}
+        onClose={() => setLightboxViewer(null)}
+        images={lightboxViewer?.images || []}
+        initialIndex={lightboxViewer?.index ?? 0}
+      />
     </div>
   );
 };

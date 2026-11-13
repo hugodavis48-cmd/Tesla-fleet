@@ -24,8 +24,11 @@ import {
   ShoppingBag,
   Tag,
   Star,
+  Globe,
+  Maximize2,
 } from 'lucide-react';
 import { ReviewComponent } from './ReviewComponent';
+import { ImageLightbox } from './ImageLightbox';
 
 interface TeslaCarSalesProps {
   onOpenDeposit: () => void;
@@ -53,6 +56,10 @@ export const TeslaCarSales: React.FC<TeslaCarSalesProps> = ({
     showToast,
     coupons,
     reviews,
+    currencies,
+    selectedCurrencyCode,
+    setSelectedCurrencyCode,
+    formatCurrency,
   } = useApp();
 
   const [selectedModelFilter, setSelectedModelFilter] = useState<string>('all');
@@ -61,6 +68,7 @@ export const TeslaCarSales: React.FC<TeslaCarSalesProps> = ({
 
   // Selected car for details modal
   const [viewingCar, setViewingCar] = useState<TeslaCarListing | null>(null);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   // Selected car for checkout / ordering modal
   const [orderingCar, setOrderingCar] = useState<TeslaCarListing | null>(null);
@@ -280,7 +288,7 @@ export const TeslaCarSales: React.FC<TeslaCarSalesProps> = ({
               <div>
                 <span className="text-zinc-300 font-semibold block">Nationwide Shipping</span>
                 <span className="text-[11px] text-zinc-400">
-                  {isFreeShippingEligible ? 'Free for Plaid Members' : `$${nationwideShippingSettings.flatFeeUsd.toLocaleString()} Enclosed Flat-Rate`}
+                  {isFreeShippingEligible ? 'Free for Plaid Members' : `${formatCurrency(nationwideShippingSettings.flatFeeUsd)} Enclosed Flat-Rate`}
                 </span>
               </div>
             </div>
@@ -359,6 +367,24 @@ export const TeslaCarSales: React.FC<TeslaCarSalesProps> = ({
                   <option value="accel" className="bg-zinc-900">Fastest 0-60</option>
                 </select>
               </div>
+
+              <div className="flex items-center gap-1.5 bg-zinc-900 border border-zinc-800 rounded-xl px-2.5 py-1.5 text-xs text-zinc-300">
+                <Globe className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                <select
+                  aria-label="Vehicle Price Currency"
+                  value={selectedCurrencyCode}
+                  onChange={(e) => setSelectedCurrencyCode(e.target.value)}
+                  className="bg-transparent text-xs font-mono font-bold text-white focus:outline-none cursor-pointer"
+                >
+                  {currencies
+                    .filter((c) => c.isActive)
+                    .map((c) => (
+                      <option key={c.code} value={c.code} className="bg-zinc-900 text-white">
+                        {c.code}
+                      </option>
+                    ))}
+                </select>
+              </div>
             </div>
           </div>
         </div>
@@ -395,13 +421,14 @@ export const TeslaCarSales: React.FC<TeslaCarSalesProps> = ({
                     <img
                       src={car.image}
                       alt={`Tesla ${car.model} ${car.trim}`}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      onClick={() => setLightboxIndex(displayedCars.findIndex((c) => c.id === car.id))}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 cursor-zoom-in"
                       loading="lazy"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-transparent to-black/30" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-transparent to-black/30 pointer-events-none" />
 
                     {/* Model & Year Tag */}
-                    <div className="absolute top-3 left-3 flex items-center gap-1.5">
+                    <div className="absolute top-3 left-3 flex items-center gap-1.5 pointer-events-none">
                       <span className="px-2.5 py-1 rounded-lg bg-zinc-900/90 backdrop-blur-md border border-zinc-700 text-[11px] font-heading font-black text-white tracking-wide">
                         {car.year} {car.model}
                       </span>
@@ -413,22 +440,31 @@ export const TeslaCarSales: React.FC<TeslaCarSalesProps> = ({
                       )}
                     </div>
 
-                    {/* Stock Status Badge */}
-                    <div className="absolute top-3 right-3">
-                      <span className="px-2.5 py-1 rounded-lg bg-emerald-950/80 backdrop-blur-md border border-emerald-500/40 text-[11px] font-semibold text-emerald-300 flex items-center gap-1">
+                    {/* Stock Status Badge + Expand Button */}
+                    <div className="absolute top-3 right-3 flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setLightboxIndex(displayedCars.findIndex((c) => c.id === car.id))}
+                        className="p-1.5 rounded-lg bg-black/75 hover:bg-red-600 border border-zinc-700 hover:border-red-500 text-white backdrop-blur-md opacity-90 sm:opacity-0 sm:group-hover:opacity-100 transition cursor-pointer"
+                        title="Inspect vehicle photo in Lightbox"
+                        aria-label={`Inspect ${car.model} photo`}
+                      >
+                        <Maximize2 className="w-3.5 h-3.5" />
+                      </button>
+                      <span className="px-2.5 py-1 rounded-lg bg-emerald-950/80 backdrop-blur-md border border-emerald-500/40 text-[11px] font-semibold text-emerald-300 flex items-center gap-1 pointer-events-none">
                         <CheckCircle2 className="w-3 h-3 text-emerald-400" />
                         <span>In Stock ({car.stockCount})</span>
                       </span>
                     </div>
 
                     {/* Delivery Estimate Snippet */}
-                    <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between text-[11px] text-zinc-300 bg-black/60 backdrop-blur-md px-2.5 py-1.5 rounded-lg border border-white/10">
+                    <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between text-[11px] text-zinc-300 bg-black/60 backdrop-blur-md px-2.5 py-1.5 rounded-lg border border-white/10 pointer-events-none">
                       <span className="flex items-center gap-1.5 text-zinc-300 truncate">
                         <Truck className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
                         <span className="truncate">{car.deliveryEstimate}</span>
                       </span>
-                      <span className="font-semibold text-white shrink-0 ml-2">
-                        {shippingRate === 0 ? 'Free Shipping' : `+$${shippingRate.toLocaleString()}`}
+                      <span className="font-semibold text-white shrink-0 ml-2 tabular-nums">
+                        {shippingRate === 0 ? 'Free Shipping' : `+${formatCurrency(shippingRate)}`}
                       </span>
                     </div>
                   </div>
@@ -445,9 +481,11 @@ export const TeslaCarSales: React.FC<TeslaCarSalesProps> = ({
                         </div>
 
                         <div className="text-right shrink-0">
-                          <span className="text-[10px] uppercase font-semibold text-zinc-400 block">Original MSRP</span>
-                          <span className="text-xl font-heading font-black text-white">
-                            ${car.salePriceUsd.toLocaleString()}
+                          <span className="text-[10px] uppercase font-semibold text-zinc-400 block">
+                            MSRP ({selectedCurrencyCode})
+                          </span>
+                          <span className="text-xl font-heading font-black text-white tabular-nums">
+                            {formatCurrency(car.salePriceUsd)}
                           </span>
                         </div>
                       </div>
@@ -586,9 +624,22 @@ export const TeslaCarSales: React.FC<TeslaCarSalesProps> = ({
             {/* Modal Content */}
             <div className="p-6 overflow-y-auto space-y-6">
               {/* Main Image */}
-              <div className="relative rounded-2xl overflow-hidden aspect-[16/9] bg-zinc-900">
-                <img src={viewingCar.image} alt={viewingCar.model} className="w-full h-full object-cover" />
-                <div className="absolute bottom-3 left-3 bg-black/70 backdrop-blur-md px-3 py-1 rounded-lg text-xs font-mono text-zinc-300">
+              <div className="relative rounded-2xl overflow-hidden aspect-[16/9] bg-zinc-900 group">
+                <img
+                  src={viewingCar.image}
+                  alt={viewingCar.model}
+                  onClick={() => setLightboxIndex(Math.max(0, displayedCars.findIndex((c) => c.id === viewingCar.id)))}
+                  className="w-full h-full object-cover cursor-zoom-in"
+                />
+                <button
+                  type="button"
+                  onClick={() => setLightboxIndex(Math.max(0, displayedCars.findIndex((c) => c.id === viewingCar.id)))}
+                  className="absolute top-3 right-3 px-2.5 py-1.5 rounded-xl bg-black/75 hover:bg-red-600 border border-zinc-700 text-white text-[11px] font-semibold flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Maximize2 className="w-3.5 h-3.5" />
+                  <span>Full Lightbox</span>
+                </button>
+                <div className="absolute bottom-3 left-3 bg-black/70 backdrop-blur-md px-3 py-1 rounded-lg text-xs font-mono text-zinc-300 pointer-events-none">
                   VIN: {viewingCar.vin || 'Allocated Upon Order Confirmation'}
                 </div>
               </div>
@@ -597,8 +648,8 @@ export const TeslaCarSales: React.FC<TeslaCarSalesProps> = ({
               <div className="p-4 rounded-2xl bg-zinc-900/80 border border-zinc-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <span className="text-xs text-zinc-400 block">Total Vehicle Price (Guaranteed MSRP)</span>
-                  <span className="text-2xl font-heading font-black text-white">
-                    ${viewingCar.salePriceUsd.toLocaleString()} USD
+                  <span className="text-2xl font-heading font-black text-white tabular-nums">
+                    {formatCurrency(viewingCar.salePriceUsd, { includeCode: true })}
                   </span>
                 </div>
 
@@ -817,8 +868,8 @@ export const TeslaCarSales: React.FC<TeslaCarSalesProps> = ({
                     </div>
                     <div className="text-right shrink-0">
                       <span className="text-[10px] text-zinc-500 uppercase block">Vehicle Price</span>
-                      <span className="text-base font-heading font-black text-white">
-                        ${orderingCar.salePriceUsd.toLocaleString()}
+                      <span className="text-base font-heading font-black text-white tabular-nums">
+                        {formatCurrency(orderingCar.salePriceUsd)}
                       </span>
                     </div>
                   </div>
@@ -1085,39 +1136,39 @@ export const TeslaCarSales: React.FC<TeslaCarSalesProps> = ({
                       <div className="p-4 rounded-2xl bg-zinc-900 border border-zinc-800 space-y-2">
                         <div className="flex justify-between text-xs text-zinc-400">
                           <span>Tesla {orderingCar.model} {orderingCar.trim}:</span>
-                          <span className="text-white font-mono">${orderingCar.salePriceUsd.toLocaleString()} USD</span>
+                          <span className="text-white font-mono tabular-nums">{formatCurrency(orderingCar.salePriceUsd, { includeCode: true })}</span>
                         </div>
                         <div className="flex justify-between text-xs text-zinc-400">
                           <span>Nationwide Enclosed Transport:</span>
-                          <span className={shippingFee === 0 ? 'text-emerald-400 font-bold' : 'text-white font-mono'}>
-                            {shippingFee === 0 ? '$0.00 (Free Member Delivery)' : `$${shippingFee.toLocaleString()} USD`}
+                          <span className={shippingFee === 0 ? 'text-emerald-400 font-bold' : 'text-white font-mono tabular-nums'}>
+                            {shippingFee === 0 ? 'Free Member Delivery' : formatCurrency(shippingFee, { includeCode: true })}
                           </span>
                         </div>
                         {discountUsd > 0 && (
                           <div className="flex justify-between text-xs text-emerald-400 font-semibold">
                             <span>Coupon Discount ({appliedVehicleCoupon?.code}):</span>
-                            <span className="font-mono">- ${discountUsd.toLocaleString()} USD</span>
+                            <span className="font-mono tabular-nums">- {formatCurrency(discountUsd, { includeCode: true })}</span>
                           </div>
                         )}
                         <div className="flex justify-between text-xs text-zinc-400">
                           <span>Title, Documentation & Temp Registration:</span>
-                          <span className="text-emerald-400 font-semibold font-mono">Included ($0.00)</span>
+                          <span className="text-emerald-400 font-semibold font-mono">Included ({formatCurrency(0)})</span>
                         </div>
 
                         <hr className="border-zinc-800 my-2" />
 
                         <div className="flex justify-between items-center text-sm font-bold">
                           <span className="text-white">Total Delivery Settlement:</span>
-                          <span className="text-xl font-heading font-black text-red-400">
-                            ${totalDue.toLocaleString()} USD
+                          <span className="text-xl font-heading font-black text-red-400 tabular-nums">
+                            {formatCurrency(totalDue, { includeCode: true })}
                           </span>
                         </div>
 
                         {paymentMethod === 'vault_balance' && !hasSufficient && (
                           <div className="pt-2 text-xs text-amber-400 flex items-center justify-between">
-                            <span className="flex items-center gap-1">
+                            <span className="flex items-center gap-1 tabular-nums">
                               <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                              Short by ${(totalDue - balances.usd).toLocaleString()} USD
+                              Short by {formatCurrency(totalDue - balances.usd, { includeCode: true })}
                             </span>
                             <button
                               type="button"
@@ -1220,6 +1271,18 @@ export const TeslaCarSales: React.FC<TeslaCarSalesProps> = ({
           </div>
         </div>
       )}
+      {/* Vehicle Showroom Lightbox */}
+      <ImageLightbox
+        isOpen={lightboxIndex !== null}
+        onClose={() => setLightboxIndex(null)}
+        initialIndex={lightboxIndex ?? 0}
+        images={displayedCars.map((c) => ({
+          url: c.image,
+          title: `${c.year} Tesla ${c.model} ${c.trim}`,
+          subtitle: `${formatCurrency(c.salePriceUsd, { includeCode: true })} • ${c.rangeMiles} mi range • 0-60 mph in ${c.zeroToSixty}`,
+          badge: c.color,
+        }))}
+      />
     </div>
   );
 };

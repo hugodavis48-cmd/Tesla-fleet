@@ -32,7 +32,7 @@ export const SitemapRssPage: React.FC<SitemapRssPageProps> = ({ initialMode, onN
   const activeSitemap = useMemo(
     () =>
       sitemapEntries
-        .filter((e) => e.isIncluded)
+        .filter((e) => e.isActive !== false)
         .filter(
           (e) =>
             !searchQuery.trim() ||
@@ -51,7 +51,7 @@ export const SitemapRssPage: React.FC<SitemapRssPageProps> = ({ initialMode, onN
           (r) =>
             !searchQuery.trim() ||
             r.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            r.summary.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            r.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
             r.category.toLowerCase().includes(searchQuery.toLowerCase())
         ),
     [rssFeedItems, searchQuery]
@@ -64,7 +64,7 @@ export const SitemapRssPage: React.FC<SitemapRssPageProps> = ({ initialMode, onN
       const urls = activeSitemap
         .map(
           (item) =>
-            `  <url>\n    <loc>${origin}${item.path}</loc>\n    <lastmod>${item.lastModified}</lastmod>\n    <changefreq>${item.changeFreq}</changefreq>\n    <priority>${item.priority}</priority>\n  </url>`
+            `  <url>\n    <loc>${origin}/?tab=${encodeURIComponent(item.path)}</loc>\n    <lastmod>${item.lastMod}</lastmod>\n    <changefreq>${item.changeFreq}</changefreq>\n    <priority>${item.priority}</priority>\n  </url>`
         )
         .join('\n');
       return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>`;
@@ -73,10 +73,10 @@ export const SitemapRssPage: React.FC<SitemapRssPageProps> = ({ initialMode, onN
     const items = activeRss
       .map(
         (item) =>
-          `    <item>\n      <title>${item.title}</title>\n      <link>${origin}${item.linkUrl || '/#' + item.targetTab}</link>\n      <category>${item.category}</category>\n      <pubDate>${new Date(item.publishedAt).toUTCString()}</pubDate>\n      <description>${item.summary}</description>\n    </item>`
+          `    <item>\n      <title>${item.title}</title>\n      <link>${origin}/?tab=${encodeURIComponent(item.linkTab || 'home')}</link>\n      <category>${item.category}</category>\n      <pubDate>${new Date(item.pubDate).toUTCString()}</pubDate>\n      <description>${item.description}</description>\n    </item>`
       )
       .join('\n');
-    return `<?xml version="1.0" encoding="UTF-8"?>\n<rss version="2.0">\n  <channel>\n    <title>${seoSettings.siteName}</title>\n    <link>${origin}</link>\n    <description>${seoSettings.metaDescription}</description>\n${items}\n  </channel>\n</rss>`;
+    return `<?xml version="1.0" encoding="UTF-8"?>\n<rss version="2.0">\n  <channel>\n    <title>${seoSettings.siteTitle || seoSettings.siteName}</title>\n    <link>${origin}</link>\n    <description>${seoSettings.metaDescription}</description>\n${items}\n  </channel>\n</rss>`;
   }, [mode, activeSitemap, activeRss, seoSettings]);
 
   const handleCopyXml = () => {
@@ -176,10 +176,10 @@ export const SitemapRssPage: React.FC<SitemapRssPageProps> = ({ initialMode, onN
                 <p className="text-xs font-mono text-zinc-400 break-all">{entry.path}</p>
               </div>
               <div className="flex items-center justify-between pt-3 border-t border-zinc-900 text-[11px]">
-                <span className="text-zinc-500 font-mono">Updated {entry.lastModified}</span>
+                <span className="text-zinc-500 font-mono">Updated {entry.lastMod}</span>
                 <button
                   type="button"
-                  onClick={() => onNavigate(entry.targetTab)}
+                  onClick={() => onNavigate(entry.path)}
                   className="text-red-400 hover:text-red-300 font-bold flex items-center gap-1 cursor-pointer"
                 >
                   <span>Visit Hub</span>
@@ -204,17 +204,17 @@ export const SitemapRssPage: React.FC<SitemapRssPageProps> = ({ initialMode, onN
                   </span>
                   <span className="inline-flex items-center gap-1 text-zinc-500 font-mono">
                     <Calendar className="w-3 h-3" />
-                    {item.publishedAt}
+                    {item.pubDate}
                   </span>
                 </div>
                 <h3 className="font-heading font-bold text-lg text-white leading-snug">{item.title}</h3>
-                <p className="text-xs text-zinc-400 leading-relaxed">{item.summary}</p>
+                <p className="text-xs text-zinc-400 leading-relaxed">{item.description}</p>
               </div>
               <div className="flex items-center justify-between pt-3 border-t border-zinc-900 text-xs">
-                <span className="text-[11px] text-zinc-500">By {item.author}</span>
+                <span className="text-[11px] text-zinc-500">By Apex Tesla Editorial</span>
                 <button
                   type="button"
-                  onClick={() => onNavigate(item.targetTab)}
+                  onClick={() => onNavigate(item.linkTab)}
                   className="px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-amber-600 text-zinc-200 hover:text-white font-bold text-[11px] flex items-center gap-1 transition cursor-pointer"
                 >
                   <span>Open Section</span>

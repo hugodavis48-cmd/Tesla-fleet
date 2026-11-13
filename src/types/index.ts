@@ -286,7 +286,16 @@ export interface WinRecord {
   username: string;
   prize: string;
   type: 'Wheel Spin' | 'Scratch & Win' | 'Staking ROI' | 'TSLA Stock ROI';
-  category?: 'Wheel Spin' | 'Scratch & Win' | 'Staking ROI' | 'TSLA Stock ROI' | 'Vehicle Jackpot';
+  category?:
+    | 'Wheel Spin'
+    | 'Scratch & Win'
+    | 'Staking ROI'
+    | 'TSLA Stock ROI'
+    | 'Vehicle Jackpot'
+    | 'staking'
+    | 'stock'
+    | 'vehicle'
+    | 'spin_scratch';
   poolOrTicker?: string;
   roiPercent?: number;
   valueUsd: number;
@@ -886,12 +895,40 @@ export interface FaqItem {
   category: string;
   question: string;
   answer: string;
+  q?: string;
+  a?: string;
   isPublished: boolean;
   order: number;
 }
 
+export interface PageSeoMeta {
+  pageKey: string;
+  pageLabel: string;
+  metaTitle: string;
+  metaDescription: string;
+  keywords: string;
+  ogTitle?: string;
+  ogImageUrl?: string;
+  updatedAt?: string;
+}
+
+export interface MediaAssetRecord {
+  id: string;
+  role: 'logo' | 'favicon' | 'og_image' | 'general';
+  name: string;
+  storagePath: string;
+  downloadUrl: string;
+  contentType: string;
+  sizeBytes: number;
+  uploadedAt: string;
+  uploadedByEmail?: string;
+  source?: 'firebase_storage' | 'local_upload' | 'preset';
+}
+
 export interface SeoMetadataConfig {
   siteTitle: string;
+  siteName?: string;
+  metaTitle?: string;
   metaDescription: string;
   keywords: string;
   ogTitle: string;
@@ -903,6 +940,9 @@ export interface SeoMetadataConfig {
   faviconUrl: string;
   robotsDirective: string;
   schemaOrgEnabled: boolean;
+  schemaOrgType?: string;
+  updatedAt?: string;
+  pageMeta?: Record<string, PageSeoMeta>;
 }
 
 export interface SitemapEntry {
@@ -952,5 +992,35 @@ export interface PromoVideoItem {
   createdAt: string;
   viewsCount: number;
 }
+
+export interface CurrencyConfig {
+  code: string;
+  name: string;
+  symbol: string;
+  multiplier: number;
+  isActive: boolean;
+}
+
+export interface VisitorActivityLog {
+  id: string;
+  visitorId: string;
+  ip: string;
+  country: string;
+  city?: string;
+  deviceType: 'Mobile' | 'Tablet' | 'Desktop';
+  mobileModel: string;
+  browser: string;
+  os: string;
+  action: string;
+  pageTab: string;
+  details?: string;
+  userId?: string;
+  userEmail?: string;
+  userName?: string;
+  screenSize?: string;
+  referrer?: string;
+  timestamp: string;
+}
+
 
 

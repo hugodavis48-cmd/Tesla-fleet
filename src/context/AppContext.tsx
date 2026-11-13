@@ -1,7 +1,20 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { signInWithPopup, signOut } from 'firebase/auth';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import { onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { auth, db, googleProvider, handleFirestoreError, OperationType } from '../lib/firebase';
+import {
+  auth,
+  db,
+  googleProvider,
+  handleFirestoreError,
+  OperationType,
+  connectFirebaseGoogleAdminSession,
+  saveSeoGlobalToFirestore,
+  savePageSeoToFirestore,
+  saveAdminSectionToFirestore,
+  loadGlobalSeoFromFirestore,
+  loadAdminSectionsFromFirestore,
+} from '../lib/firebase';
+import { PageSeoMeta } from '../types';
 import {
   CryptoCurrency,
   ProductItem,
@@ -54,6 +67,7 @@ import {
   SitemapEntry,
   RssFeedItem,
   PromoVideoItem,
+  CurrencyConfig,
 } from '../types';
 import {
   CRYPTO_NETWORKS,
@@ -89,6 +103,7 @@ import {
   INITIAL_RSS_ITEMS,
   INITIAL_PROMO_VIDEOS,
   INITIAL_WON_PRIZES,
+  INITIAL_CURRENCIES,
 } from '../data/mockData';
 
 
@@ -391,6 +406,7 @@ interface AppContextType {
     paymentMethod: 'wallet_usd' | 'deposit'
   ) => Promise<{ success: boolean; message: string }>;
   updateWonPrizeItem: (id: string, updates: Partial<WonPrizeItem>) => void;
+  createWonPrizeItem: (prize: Omit<WonPrizeItem, 'id' | 'wonAt'>) => void;
   // FAQs CMS
   faqsList: FaqItem[];
   createFaqItem: (faq: Omit<FaqItem, 'id'>) => void;
@@ -399,6 +415,15 @@ interface AppContextType {
   // SEO, Logo, Favicon, Sitemap & RSS Feeds CMS
   seoSettings: SeoMetadataConfig;
   updateSeoSettings: (updates: Partial<SeoMetadataConfig>) => void;
+  updatePageSeo: (pageKey: string, meta: PageSeoMeta) => Promise<{ synced: boolean; reason?: string }>;
+  activeRouteTab: string;
+  setActiveRouteTab: (tab: string) => void;
+  firebaseAdminEmail: string | null;
+  firebaseCloudConnected: boolean;
+  lastFirestoreSyncAt: string | null;
+  isSyncingFirestore: boolean;
+  connectAdminCloudSync: () => Promise<{ success: boolean; error?: string }>;
+  syncAllAdminSettingsToFirestore: (quiet?: boolean) => Promise<{ syncedCount: number; totalCount: number; needsAuth: boolean }>;
   sitemapEntries: SitemapEntry[];
   createSitemapEntry: (entry: Omit<SitemapEntry, 'id'>) => void;
   updateSitemapEntry: (id: string, updates: Partial<SitemapEntry>) => void;
@@ -413,6 +438,18 @@ interface AppContextType {
   updatePromoVideo: (id: string, updates: Partial<PromoVideoItem>) => void;
   deletePromoVideo: (id: string) => void;
   incrementPromoVideoView: (id: string) => void;
+  // Local Currency Switcher & Admin Multipliers
+  currencies: CurrencyConfig[];
+  selectedCurrencyCode: string;
+  selectedCurrency: CurrencyConfig;
+  setSelectedCurrencyCode: (code: string) => void;
+  updateCurrencyConfig: (code: string, updates: Partial<CurrencyConfig>) => void;
+  addCurrencyConfig: (currency: CurrencyConfig) => void;
+  deleteCurrencyConfig: (code: string) => void;
+  convertUsd: (usdAmount: number) => number;
+  formatCurrency: (usdAmount: number, options?: { decimals?: number; includeCode?: boolean; compact?: boolean }) => string;
+  // Visitor Analytics Tracker
+  trackVisitorAction: (action: string, pageTab: string, details?: string) => void;
 }
 
 
@@ -1565,7 +1602,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (saved) {
       try {
         const parsed: FaqItem[] = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length >= 10) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const existingIds = new Set(parsed.map((item) => item.id));
+          const missingDefaults = FAQ_ITEMS.filter((d) => !existingIds.has(d.id));
+          return [...parsed, ...missingDefaults];
+        }
       } catch {
         // fallback below
       }
@@ -1578,13 +1619,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const saved = localStorage.getItem('apex_seo_settings_v1');
     if (saved) {
       try {
-        return { ...DEFAULT_SEO_CONFIG, ...JSON.parse(saved) };
+        const parsed = JSON.parse(saved) as SeoMetadataConfig;
+        return {
+          ...DEFAULT_SEO_CONFIG,
+          ...parsed,
+          pageMeta: {
+            ...(DEFAULT_SEO_CONFIG.pageMeta || {}),
+            ...(parsed.pageMeta || {}),
+          },
+        };
       } catch {
         return DEFAULT_SEO_CONFIG;
       }
     }
     return DEFAULT_SEO_CONFIG;
   });
+
+  const [activeRouteTab, setActiveRouteTab] = useState<string>('home');
+  const [firebaseAdminEmail, setFirebaseAdminEmail] = useState<string | null>(() => auth.currentUser?.email || null);
+  const [firebaseCloudConnected, setFirebaseCloudConnected] = useState<boolean>(() => Boolean(auth.currentUser?.uid));
+  const [lastFirestoreSyncAt, setLastFirestoreSyncAt] = useState<string | null>(null);
+  const [isSyncingFirestore, setIsSyncingFirestore] = useState<boolean>(false);
+  const isHydratingRemoteRef = useRef<boolean>(true);
 
   const [sitemapEntries, setSitemapEntries] = useState<SitemapEntry[]>(() => {
     const saved = localStorage.getItem('apex_sitemap_entries_v1');
@@ -1600,6 +1656,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [promoVideos, setPromoVideos] = useState<PromoVideoItem[]>(() => {
     const saved = localStorage.getItem('apex_promo_videos_v1');
     return saved ? JSON.parse(saved) : INITIAL_PROMO_VIDEOS;
+  });
+
+  // Local Currency Switcher & Admin-Managed Multipliers
+  const [currencies, setCurrencies] = useState<CurrencyConfig[]>(() => {
+    const saved = localStorage.getItem('apex_currencies_v1');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch {
+        // fallback
+      }
+    }
+    return INITIAL_CURRENCIES;
+  });
+
+  const [selectedCurrencyCode, setSelectedCurrencyCodeState] = useState<string>(() => {
+    return localStorage.getItem('apex_selected_currency_v1') || 'USD';
   });
 
   const lockedWinBalanceUsd = currentUser ? Number((lockedWinsByUserId[currentUser.id] || 0).toFixed(2)) : 0;
@@ -1793,22 +1867,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     localStorage.setItem('apex_seo_settings_v1', JSON.stringify(seoSettings));
     if (typeof document !== 'undefined') {
-      document.title = seoSettings.metaTitle || DEFAULT_SEO_CONFIG.metaTitle;
+      const pageOverride = seoSettings.pageMeta?.[activeRouteTab];
+      const customPageMatch = sitePages.find((p) => p.slug === activeRouteTab);
+      const resolvedTitle =
+        pageOverride?.metaTitle ||
+        (customPageMatch ? `${customPageMatch.title} | ${seoSettings.siteTitle}` : '') ||
+        seoSettings.metaTitle ||
+        seoSettings.siteTitle ||
+        DEFAULT_SEO_CONFIG.siteTitle;
+      const resolvedDescription =
+        pageOverride?.metaDescription ||
+        customPageMatch?.metaDescription ||
+        seoSettings.metaDescription;
+      const resolvedKeywords = pageOverride?.keywords || seoSettings.keywords;
+      const resolvedOgTitle =
+        pageOverride?.ogTitle || pageOverride?.metaTitle || seoSettings.ogTitle || resolvedTitle;
+      const resolvedOgImage = pageOverride?.ogImageUrl || seoSettings.ogImageUrl;
+
+      document.title = resolvedTitle;
       const setMeta = (selector: string, content: string) => {
         const el = document.querySelector(selector);
         if (el) el.setAttribute('content', content);
       };
-      setMeta('meta[name="description"]', seoSettings.metaDescription);
-      setMeta('meta[name="keywords"]', seoSettings.keywords);
+      setMeta('meta[name="description"]', resolvedDescription);
+      setMeta('meta[name="keywords"]', resolvedKeywords);
       setMeta('meta[name="robots"]', seoSettings.robotsDirective || 'index, follow');
-      setMeta('meta[property="og:title"]', seoSettings.metaTitle);
-      setMeta('meta[property="og:description"]', seoSettings.metaDescription);
-      setMeta('meta[property="og:image"]', seoSettings.ogImageUrl);
-      setMeta('meta[name="twitter:image"]', seoSettings.ogImageUrl);
+      setMeta('meta[property="og:title"]', resolvedOgTitle);
+      setMeta('meta[property="og:description"]', resolvedDescription);
+      setMeta('meta[property="og:image"]', resolvedOgImage);
+      setMeta('meta[name="twitter:image"]', resolvedOgImage);
 
       const canonicalEl = document.getElementById('canonical-link');
       if (canonicalEl && seoSettings.canonicalUrl) {
-        canonicalEl.setAttribute('href', seoSettings.canonicalUrl);
+        const base = seoSettings.canonicalUrl.replace(/\/+$/, '');
+        canonicalEl.setAttribute('href', activeRouteTab === 'home' ? `${base}/` : `${base}/?tab=${encodeURIComponent(activeRouteTab)}`);
       }
 
       const faviconEl = document.getElementById('site-favicon') as HTMLLinkElement | null;
@@ -1822,18 +1914,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
 
       const schemaEl = document.getElementById('apex-schema-org');
-      if (schemaEl) {
+      if (schemaEl && seoSettings.schemaOrgEnabled !== false) {
         schemaEl.textContent = JSON.stringify({
           '@context': 'https://schema.org',
-          '@type': seoSettings.schemaOrgType || 'Organization',
-          name: seoSettings.siteName,
+          '@type': seoSettings.schemaOrgType || 'AutoDealer',
+          name: seoSettings.siteName || resolvedTitle,
           url: seoSettings.canonicalUrl,
           logo: seoSettings.logoUrl,
-          description: seoSettings.metaDescription,
+          image: resolvedOgImage,
+          description: resolvedDescription,
         });
       }
     }
-  }, [seoSettings]);
+  }, [seoSettings, activeRouteTab, sitePages]);
 
   useEffect(() => {
     localStorage.setItem('apex_sitemap_entries_v1', JSON.stringify(sitemapEntries));
@@ -1851,9 +1944,163 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }).catch(() => {});
   }, [seoSettings, sitemapEntries, rssFeedItems]);
 
+  // Monitor Firebase Auth state & hydrate remote Firestore + server state on boot
+  useEffect(() => {
+    const applyLoadedSections = (sections: Record<string, any>) => {
+      if (sections.site_settings && typeof sections.site_settings === 'object') {
+        setSiteSettings((prev) => ({ ...prev, ...sections.site_settings }));
+      }
+      if (Array.isArray(sections.currencies) && sections.currencies.length > 0) {
+        setCurrencies(sections.currencies);
+      }
+      if (sections.feature_toggles && typeof sections.feature_toggles === 'object') {
+        setFeatureToggles((prev) => ({ ...prev, ...sections.feature_toggles }));
+      }
+      if (sections.withdrawal_settings && typeof sections.withdrawal_settings === 'object') {
+        setWithdrawalSettings((prev) => ({ ...prev, ...sections.withdrawal_settings }));
+      }
+      if (sections.shipping_settings && typeof sections.shipping_settings === 'object') {
+        setNationwideShippingSettings((prev) => ({ ...prev, ...sections.shipping_settings }));
+      }
+      if (sections.refund_policy && typeof sections.refund_policy === 'object') {
+        setVehicleRefundPolicy((prev) => ({ ...prev, ...sections.refund_policy }));
+      }
+      if (Array.isArray(sections.navigation_menus) && sections.navigation_menus.length > 0) {
+        setNavigationMenus(sections.navigation_menus);
+      }
+      if (Array.isArray(sections.site_pages) && sections.site_pages.length > 0) {
+        setSitePages(sections.site_pages);
+      }
+      if (Array.isArray(sections.faqs) && sections.faqs.length > 0) {
+        setFaqsList(sections.faqs);
+      }
+      if (Array.isArray(sections.sitemap_entries) && sections.sitemap_entries.length > 0) {
+        setSitemapEntries(sections.sitemap_entries);
+      }
+      if (Array.isArray(sections.rss_items) && sections.rss_items.length > 0) {
+        setRssFeedItems(sections.rss_items);
+      }
+      if (Array.isArray(sections.promo_banners) && sections.promo_banners.length > 0) {
+        setMarketingBanners(sections.promo_banners);
+      }
+      if (Array.isArray(sections.promo_videos) && sections.promo_videos.length > 0) {
+        setPromoVideos(sections.promo_videos);
+      }
+      if (Array.isArray(sections.products) && sections.products.length > 0) {
+        setProductsList(sections.products);
+      }
+      if (Array.isArray(sections.tesla_cars) && sections.tesla_cars.length > 0) {
+        setTeslaCarListings(sections.tesla_cars);
+      }
+      if (Array.isArray(sections.investment_pools) && sections.investment_pools.length > 0) {
+        setInvestmentPools(sections.investment_pools);
+      }
+      if (Array.isArray(sections.stock_plans) && sections.stock_plans.length > 0) {
+        setFeaturedStockPlans(sections.stock_plans);
+      }
+      if (Array.isArray(sections.coupons) && sections.coupons.length > 0) {
+        setCoupons(sections.coupons);
+      }
+      if (Array.isArray(sections.wheel_rewards) && sections.wheel_rewards.length > 0) {
+        setWheelRewards(sections.wheel_rewards);
+      }
+      if (Array.isArray(sections.scratch_tiers) && sections.scratch_tiers.length > 0) {
+        setScratchCardTiers(sections.scratch_tiers);
+      }
+      if (Array.isArray(sections.manual_deposits) && sections.manual_deposits.length > 0) {
+        setManualDepositMethods(sections.manual_deposits);
+      }
+      if (Array.isArray(sections.social_links) && sections.social_links.length > 0) {
+        setSocialLinks(sections.social_links);
+      }
+      if (typeof sections.spin_cost === 'number' && sections.spin_cost > 0) {
+        setSpinCostUsd(sections.spin_cost);
+      }
+      if (sections.smtp_config && typeof sections.smtp_config === 'object') {
+        setSmtpConfig((prev) => ({ ...prev, ...sections.smtp_config }));
+      }
+      if (Array.isArray(sections.auto_gateways) && sections.auto_gateways.length > 0) {
+        setAutoCryptoGateways(sections.auto_gateways);
+      }
+      if (Array.isArray(sections.won_prizes) && sections.won_prizes.length > 0) {
+        setWonPrizes(sections.won_prizes);
+      }
+    };
+
+    const hydrateAll = async () => {
+      try {
+        // 1. Hydrate from local Express backend state mirror
+        const res = await fetch('/api/admin/state');
+        if (res.ok) {
+          const data = await res.json();
+          const st = data?.state || {};
+          if (st.seoSettings) {
+            setSeoSettings((prev) => ({
+              ...prev,
+              ...st.seoSettings,
+              pageMeta: { ...(prev.pageMeta || {}), ...(st.seoSettings.pageMeta || {}) },
+            }));
+          }
+          if (Array.isArray(st.sitemapEntries) && st.sitemapEntries.length > 0) {
+            setSitemapEntries(st.sitemapEntries);
+          }
+          if (Array.isArray(st.rssFeedItems) && st.rssFeedItems.length > 0) {
+            setRssFeedItems(st.rssFeedItems);
+          }
+          applyLoadedSections(st);
+        }
+      } catch {
+        // ignore server state error
+      }
+
+      try {
+        // 2. Hydrate authoritative Firestore SEO + Admin Config sections
+        const [fbSeo, fbSections] = await Promise.all([
+          loadGlobalSeoFromFirestore(),
+          loadAdminSectionsFromFirestore(Boolean(auth.currentUser)),
+        ]);
+
+        if (fbSeo.globalSeo || fbSeo.pageMeta) {
+          setSeoSettings((prev) => ({
+            ...prev,
+            ...(fbSeo.globalSeo || {}),
+            pageMeta: {
+              ...(prev.pageMeta || {}),
+              ...(fbSeo.pageMeta || {}),
+            },
+          }));
+        }
+        applyLoadedSections(fbSections);
+      } finally {
+        setTimeout(() => {
+          isHydratingRemoteRef.current = false;
+        }, 400);
+      }
+    };
+
+    void hydrateAll();
+
+    const unsub = onAuthStateChanged(auth, (fbUser) => {
+      setFirebaseAdminEmail(fbUser?.email || null);
+      setFirebaseCloudConnected(Boolean(fbUser?.uid));
+      if (fbUser) {
+        void loadAdminSectionsFromFirestore(true).then(applyLoadedSections).catch(() => {});
+      }
+    });
+    return () => unsub();
+  }, []);
+
   useEffect(() => {
     localStorage.setItem('apex_promo_videos_v1', JSON.stringify(promoVideos));
   }, [promoVideos]);
+
+  useEffect(() => {
+    localStorage.setItem('apex_currencies_v1', JSON.stringify(currencies));
+  }, [currencies]);
+
+  useEffect(() => {
+    localStorage.setItem('apex_selected_currency_v1', selectedCurrencyCode);
+  }, [selectedCurrencyCode]);
 
   // Monitor live TSLA quote against user-defined stock price alert thresholds
   useEffect(() => {
@@ -2054,8 +2301,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         avatar: randomAvatar,
       };
 
-      setRecentWinners((prev) => [newWin, ...prev.slice(0, 23)]);
-    }, 10000);
+      setRecentWinners((prev) => [newWin, ...prev.slice(0, 29)]);
+    }, 6000);
 
     return () => clearInterval(interval);
   }, []);
@@ -4176,19 +4423,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         userId: currentUser!.id,
         userName: currentUser!.name,
         userEmail: currentUser!.email,
-        prizeTitle: carTitle,
-        prizeType: 'tesla_vehicle',
-        source: 'wheel_spin',
+        title: carTitle,
+        prizeType: 'vehicle',
+        source: 'Wheel Spin',
         estimatedValueUsd: sliceValueUsd || 54990,
-        vehicleModel: wonVehicle.model,
+        modelOrSku: wonVehicle.model,
         vinAssigned: vin,
         image: wonVehicle.image,
         wonAt: new Date().toISOString().split('T')[0],
         processingFeeUsd: 495,
         shippingDocFeeUsd: 350,
-        shippingCostUsd: 1450,
+        shippingFreightFeeUsd: 1450,
+        totalFeesUsd: 495 + 350 + 1450,
         feesPaid: false,
-        status: 'awaiting_details',
+        shippingStatus: 'awaiting_details',
       };
       setWonPrizes((prev) => [wonPrizeEntry, ...prev]);
 
@@ -4917,19 +5165,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         userId: currentUser!.id,
         userName: currentUser!.name,
         userEmail: currentUser!.email,
-        prizeTitle: carTitle,
-        prizeType: 'tesla_vehicle',
-        source: 'scratch_card',
+        title: carTitle,
+        prizeType: 'vehicle',
+        source: 'Scratch & Win',
         estimatedValueUsd: prizeAmountUsd || 79990,
-        vehicleModel: wonVehicle.model,
+        modelOrSku: wonVehicle.model,
         vinAssigned: vin,
         image: wonVehicle.image,
         wonAt: new Date().toISOString().split('T')[0],
         processingFeeUsd: 595,
         shippingDocFeeUsd: 420,
-        shippingCostUsd: 1650,
+        shippingFreightFeeUsd: 1650,
+        totalFeesUsd: 595 + 420 + 1650,
         feesPaid: false,
-        status: 'awaiting_details',
+        shippingStatus: 'awaiting_details',
       };
       setWonPrizes((prev) => [wonPrizeEntry, ...prev]);
 
@@ -5633,7 +5882,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     const totalRequired = Number(
-      ((prize.processingFeeUsd || 0) + (prize.shippingDocFeeUsd || 0) + (prize.shippingCostUsd || 0)).toFixed(2)
+      ((prize.processingFeeUsd || 0) + (prize.shippingDocFeeUsd || 0) + (prize.shippingFreightFeeUsd || 0)).toFixed(2)
     );
 
     if (paymentMethod === 'wallet_usd') {
@@ -5655,12 +5904,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               ...item,
               shippingAddress,
               feesPaid: true,
-              feesPaidAt: nowIso,
+              paidAt: nowIso,
               paymentMethod,
               trackingNumber: trackingNum,
               carrierName: 'Apex Global Enclosed & Air/RoRo Freight',
-              estimatedDelivery: '7 - 14 Business Days International',
-              status: 'fees_paid_processing',
+              shippingStatus: 'fees_paid_processing',
             }
           : item
       )
@@ -5675,12 +5923,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
       status: 'completed',
       txHash: `0x${Math.random().toString(16).substring(2, 12)}...ship`,
-      description: `Won Prize Dispatch Fees (${prize.prizeTitle} -> ${shippingAddress.country}): Processing + Docs + Freight`,
+      description: `Won Prize Dispatch Fees (${prize.title} -> ${shippingAddress.country}): Processing + Docs + Freight`,
     };
     setTransactions((prev) => [feeTx, ...prev]);
 
     sendNotification({
-      title: `📦 International Dispatch Initiated: ${prize.prizeTitle}`,
+      title: `📦 International Dispatch Initiated: ${prize.title}`,
       message: `Shipping details for ${shippingAddress.country} saved and $${totalRequired.toLocaleString()} USD processing, documentation & freight fees confirmed. Tracking #${trackingNum}.`,
       type: 'system',
       priority: 'normal',
@@ -5699,11 +5947,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast('Won prize shipping record updated.', 'success');
   };
 
+  const createWonPrizeItem = (prize: Omit<WonPrizeItem, 'id' | 'wonAt'>) => {
+    const newItem: WonPrizeItem = {
+      ...prize,
+      id: `prize-${Date.now().toString(36)}`,
+      wonAt: new Date().toISOString().split('T')[0],
+    };
+    setWonPrizes((prev) => [newItem, ...prev]);
+    showToast(`Granted prize "${newItem.title}" to ${newItem.userName}!`, 'success');
+  };
+
   // FAQs CMS CRUD
   const createFaqItem = (faqData: Omit<FaqItem, 'id'>) => {
     const newFaq: FaqItem = { ...faqData, id: `faq-${Date.now().toString(36)}` };
     setFaqsList((prev) => [newFaq, ...prev]);
-    showToast(`FAQ "${newFaq.q}" added!`, 'success');
+    showToast(`FAQ "${newFaq.question || newFaq.q || 'New FAQ'}" added!`, 'success');
   };
 
   const updateFaqItem = (id: string, updates: Partial<FaqItem>) => {
@@ -5716,14 +5974,187 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast('FAQ removed.', 'info');
   };
 
-  // SEO, Logo, Favicon, Sitemap & RSS CMS CRUD
+  // SEO, Logo, Favicon, Sitemap & RSS CMS CRUD + Full Firestore & Server Persistence
+  const collectAdminSectionsMap = (): Record<string, unknown> => ({
+    site_settings: siteSettings,
+    currencies,
+    feature_toggles: featureToggles,
+    withdrawal_settings: withdrawalSettings,
+    shipping_settings: nationwideShippingSettings,
+    refund_policy: vehicleRefundPolicy,
+    navigation_menus: navigationMenus,
+    site_pages: sitePages,
+    faqs: faqsList,
+    sitemap_entries: sitemapEntries,
+    rss_items: rssFeedItems,
+    promo_banners: marketingBanners,
+    promo_videos: promoVideos,
+    products: productsList,
+    tesla_cars: teslaCarListings,
+    investment_pools: investmentPools,
+    stock_plans: featuredStockPlans,
+    coupons,
+    wheel_rewards: wheelRewards,
+    scratch_tiers: scratchCardTiers,
+    manual_deposits: manualDepositMethods,
+    social_links: socialLinks,
+    spin_cost: spinCostUsd,
+    smtp_config: smtpConfig,
+    auto_gateways: autoCryptoGateways,
+    won_prizes: wonPrizes,
+  });
+
+  const connectAdminCloudSync = async (): Promise<{ success: boolean; error?: string }> => {
+    const res = await connectFirebaseGoogleAdminSession();
+    if (res.success) {
+      setFirebaseAdminEmail(res.email || null);
+      setFirebaseCloudConnected(true);
+      showToast(`Connected Firebase Admin Cloud Sync (${res.email || 'Google Auth'})!`, 'success');
+      return { success: true };
+    }
+    showToast(res.error || 'Could not connect Google Admin session.', 'error');
+    return { success: false, error: res.error };
+  };
+
+  const syncAllAdminSettingsToFirestore = async (
+    quiet = false
+  ): Promise<{ syncedCount: number; totalCount: number; needsAuth: boolean }> => {
+    const sections = collectAdminSectionsMap();
+    const entries = Object.entries(sections);
+
+    // Always mirror to Express /api/admin/state
+    fetch('/api/admin/state', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sections: { ...sections, seoSettings } }),
+    }).catch(() => {});
+
+    if (!auth.currentUser) {
+      if (!quiet) {
+        showToast('Saved locally. Connect Google Admin Session to persist all settings directly to Firestore.', 'info');
+      }
+      return { syncedCount: 0, totalCount: entries.length + 1, needsAuth: true };
+    }
+
+    setIsSyncingFirestore(true);
+    let syncedCount = 0;
+    try {
+      const seoRes = await saveSeoGlobalToFirestore(seoSettings);
+      if (seoRes.synced) syncedCount += 1;
+
+      if (seoSettings.pageMeta) {
+        await Promise.all(
+          Object.values(seoSettings.pageMeta).map(async (pm) => {
+            await savePageSeoToFirestore(pm);
+          })
+        );
+      }
+
+      await Promise.all(
+        entries.map(async ([sectionId, payload]) => {
+          const r = await saveAdminSectionToFirestore(sectionId, payload);
+          if (r.synced) syncedCount += 1;
+        })
+      );
+
+      setLastFirestoreSyncAt(new Date().toLocaleTimeString());
+      if (!quiet) {
+        showToast(
+          `Synchronized ${syncedCount}/${entries.length + 1} admin modules & SEO configuration to Firestore!`,
+          syncedCount > 0 ? 'success' : 'error'
+        );
+      }
+      return { syncedCount, totalCount: entries.length + 1, needsAuth: false };
+    } finally {
+      setIsSyncingFirestore(false);
+    }
+  };
+
+  // Automatically persist Admin-modified platform configuration slices to server & Firestore (debounced)
+  useEffect(() => {
+    if (isHydratingRemoteRef.current || currentUser?.role !== 'admin') return;
+    const timer = setTimeout(() => {
+      void syncAllAdminSettingsToFirestore(true);
+    }, 900);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    currentUser?.role,
+    siteSettings,
+    currencies,
+    featureToggles,
+    withdrawalSettings,
+    nationwideShippingSettings,
+    vehicleRefundPolicy,
+    navigationMenus,
+    sitePages,
+    faqsList,
+    sitemapEntries,
+    rssFeedItems,
+    marketingBanners,
+    promoVideos,
+    productsList,
+    teslaCarListings,
+    investmentPools,
+    featuredStockPlans,
+    coupons,
+    wheelRewards,
+    scratchCardTiers,
+    manualDepositMethods,
+    socialLinks,
+    spinCostUsd,
+    smtpConfig,
+    autoCryptoGateways,
+    wonPrizes,
+    seoSettings,
+  ]);
+
   const updateSeoSettings = (updates: Partial<SeoMetadataConfig>) => {
-    setSeoSettings((prev) => ({
-      ...prev,
-      ...updates,
-      updatedAt: new Date().toISOString().split('T')[0],
-    }));
+    setSeoSettings((prev) => {
+      const merged: SeoMetadataConfig = {
+        ...prev,
+        ...updates,
+        pageMeta: updates.pageMeta ? { ...(prev.pageMeta || {}), ...updates.pageMeta } : prev.pageMeta,
+        updatedAt: new Date().toISOString().split('T')[0],
+      };
+      void saveSeoGlobalToFirestore(merged).then((r) => {
+        if (r.synced) setLastFirestoreSyncAt(new Date().toLocaleTimeString());
+      });
+      return merged;
+    });
     showToast('SEO metadata & branding saved and synchronized!', 'success');
+  };
+
+  const updatePageSeo = async (
+    pageKey: string,
+    meta: PageSeoMeta
+  ): Promise<{ synced: boolean; reason?: string }> => {
+    const cleanMeta: PageSeoMeta = {
+      ...meta,
+      pageKey,
+      updatedAt: new Date().toISOString().split('T')[0],
+    };
+    setSeoSettings((prev) => {
+      const next: SeoMetadataConfig = {
+        ...prev,
+        pageMeta: {
+          ...(prev.pageMeta || {}),
+          [pageKey]: cleanMeta,
+        },
+        updatedAt: new Date().toISOString().split('T')[0],
+      };
+      return next;
+    });
+    const res = await savePageSeoToFirestore(cleanMeta);
+    if (res.synced) {
+      setLastFirestoreSyncAt(new Date().toLocaleTimeString());
+      showToast(`Saved per-page SEO for "${cleanMeta.pageLabel}" to Firestore!`, 'success');
+    } else if (res.reason === 'auth_required') {
+      showToast(`Saved SEO for "${cleanMeta.pageLabel}" locally. Connect Google Admin to sync to Firestore.`, 'info');
+    } else {
+      showToast(`Saved "${cleanMeta.pageLabel}" locally (Firestore note: ${res.reason || 'check rules'}).`, 'info');
+    }
+    return res;
   };
 
   const createSitemapEntry = (entryData: Omit<SitemapEntry, 'id'>) => {
@@ -5786,6 +6217,114 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const incrementPromoVideoView = (id: string) => {
     setPromoVideos((prev) => prev.map((v) => (v.id === id ? { ...v, viewsCount: (v.viewsCount || 0) + 1 } : v)));
   };
+
+  // Currency Switcher & Admin-Managed Multipliers
+  const activeCurrencies = currencies.filter((c) => c.isActive);
+  const selectedCurrency: CurrencyConfig =
+    activeCurrencies.find((c) => c.code === selectedCurrencyCode) ||
+    currencies.find((c) => c.code === 'USD') ||
+    { code: 'USD', name: 'US Dollar', symbol: '$', multiplier: 1.0, isActive: true };
+
+  const setSelectedCurrencyCode = (code: string) => {
+    const target = currencies.find((c) => c.code === code.toUpperCase() && c.isActive);
+    if (!target) return;
+    setSelectedCurrencyCodeState(target.code);
+    showToast(`Display currency switched to ${target.name} (${target.code} ×${target.multiplier}).`, 'info');
+  };
+
+  const updateCurrencyConfig = (code: string, updates: Partial<CurrencyConfig>) => {
+    setCurrencies((prev) =>
+      prev.map((c) =>
+        c.code === code
+          ? {
+              ...c,
+              ...updates,
+              multiplier:
+                updates.multiplier !== undefined
+                  ? Math.max(0.0001, Number(updates.multiplier) || 1)
+                  : c.multiplier,
+            }
+          : c
+      )
+    );
+    showToast(`Updated ${code} currency multiplier.`, 'success');
+  };
+
+  const addCurrencyConfig = (currency: CurrencyConfig) => {
+    const cleanCode = currency.code.trim().toUpperCase().slice(0, 6);
+    if (!cleanCode) return;
+    setCurrencies((prev) => {
+      if (prev.some((c) => c.code === cleanCode)) {
+        return prev.map((c) => (c.code === cleanCode ? { ...currency, code: cleanCode } : c));
+      }
+      return [...prev, { ...currency, code: cleanCode }];
+    });
+    showToast(`Currency ${cleanCode} (${currency.symbol} ×${currency.multiplier}) saved.`, 'success');
+  };
+
+  const deleteCurrencyConfig = (code: string) => {
+    if (code === 'USD') return;
+    setCurrencies((prev) => prev.filter((c) => c.code !== code));
+    if (selectedCurrencyCode === code) setSelectedCurrencyCodeState('USD');
+    showToast(`Currency ${code} removed.`, 'info');
+  };
+
+  const convertUsd = (usdAmount: number): number => {
+    const base = Number(usdAmount) || 0;
+    return Number((base * selectedCurrency.multiplier).toFixed(selectedCurrency.multiplier >= 50 ? 0 : 2));
+  };
+
+  const formatCurrency = (
+    usdAmount: number,
+    options?: { decimals?: number; includeCode?: boolean; compact?: boolean }
+  ): string => {
+    const converted = (Number(usdAmount) || 0) * selectedCurrency.multiplier;
+    const defaultDecimals = selectedCurrency.multiplier >= 50 ? 0 : 2;
+    const decimals = options?.decimals !== undefined ? options.decimals : defaultDecimals;
+    const formattedNum = options?.compact
+      ? converted >= 1000000
+        ? `${(converted / 1000000).toFixed(2)}M`
+        : converted >= 1000
+        ? `${(converted / 1000).toFixed(1)}k`
+        : converted.toFixed(decimals)
+      : converted.toLocaleString('en-US', {
+          minimumFractionDigits: decimals,
+          maximumFractionDigits: decimals,
+        });
+    return `${selectedCurrency.symbol}${formattedNum}${options?.includeCode ? ` ${selectedCurrency.code}` : ''}`;
+  };
+
+  // Visitor Analytics Telemetry Helper
+  const trackVisitorAction = React.useCallback(
+    (action: string, pageTab: string, details?: string) => {
+      if (typeof window === 'undefined') return;
+      let visitorId = localStorage.getItem('apex_visitor_id_v1');
+      if (!visitorId) {
+        visitorId = `vis-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+        localStorage.setItem('apex_visitor_id_v1', visitorId);
+      }
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+      const screenSize = `${window.innerWidth}x${window.innerHeight}`;
+
+      fetch('/api/analytics/track', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          visitorId,
+          action,
+          pageTab,
+          details,
+          timezone,
+          screenSize,
+          referrer: document.referrer || undefined,
+          userId: currentUser?.id,
+          userEmail: currentUser?.email,
+          userName: currentUser?.name,
+        }),
+      }).catch(() => {});
+    },
+    [currentUser?.id, currentUser?.email, currentUser?.name]
+  );
 
   return (
     <AppContext.Provider
@@ -5983,14 +6522,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         wonPrizes,
         submitWonPrizeShippingAndPayFees,
         updateWonPrizeItem,
+        createWonPrizeItem,
         // FAQs CMS
         faqsList,
         createFaqItem,
         updateFaqItem,
         deleteFaqItem,
-        // SEO, Logo, Favicon, Sitemap & RSS Feeds
+        // SEO, Logo, Favicon, Sitemap & RSS Feeds + Firestore Cloud Sync
         seoSettings,
         updateSeoSettings,
+        updatePageSeo,
+        activeRouteTab,
+        setActiveRouteTab,
+        firebaseAdminEmail,
+        firebaseCloudConnected,
+        lastFirestoreSyncAt,
+        isSyncingFirestore,
+        connectAdminCloudSync,
+        syncAllAdminSettingsToFirestore,
         sitemapEntries,
         createSitemapEntry,
         updateSitemapEntry,
@@ -6005,6 +6554,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updatePromoVideo,
         deletePromoVideo,
         incrementPromoVideoView,
+        currencies,
+        selectedCurrencyCode,
+        selectedCurrency,
+        setSelectedCurrencyCode,
+        updateCurrencyConfig,
+        addCurrencyConfig,
+        deleteCurrencyConfig,
+        convertUsd,
+        formatCurrency,
+        trackVisitorAction,
       }}
     >
 

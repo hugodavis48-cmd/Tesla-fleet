@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { Palette, Check, Sparkles, Shield, Wrench, ArrowRight, Eye, ShieldCheck, Zap } from 'lucide-react';
+import { Palette, Check, Sparkles, Shield, Wrench, ArrowRight, Eye, ShieldCheck, Zap, Maximize2 } from 'lucide-react';
+import { ImageLightbox } from './ImageLightbox';
 
 interface CustomStudioProps {
   onNavigateToServices: () => void;
@@ -9,6 +10,7 @@ interface CustomStudioProps {
 
 export const CustomStudio: React.FC<CustomStudioProps> = ({ onNavigateToServices, onOpenDeposit }) => {
   const { bookService, balances, showToast, currentUser } = useApp();
+  const [lightboxOpen, setLightboxOpen] = useState(false);
 
   const wrapColors = [
     {
@@ -139,11 +141,12 @@ export const CustomStudio: React.FC<CustomStudioProps> = ({ onNavigateToServices
         <div className="lg:col-span-7 space-y-6">
           {/* Main Visualizer Stage */}
           <div className="relative rounded-3xl overflow-hidden border border-zinc-800 bg-zinc-950 shadow-2xl p-4">
-            <div className="relative aspect-[16/10] rounded-2xl overflow-hidden bg-black">
+            <div className="relative aspect-[16/10] rounded-2xl overflow-hidden bg-black group">
               <img
                 src={selectedWrap.image}
                 alt={selectedWrap.name}
-                className="w-full h-full object-cover transition-all duration-500"
+                onClick={() => setLightboxOpen(true)}
+                className="w-full h-full object-cover transition-all duration-500 cursor-zoom-in"
               />
 
               {/* Tint overlay based on selected color */}
@@ -156,7 +159,7 @@ export const CustomStudio: React.FC<CustomStudioProps> = ({ onNavigateToServices
               <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/90 via-transparent to-transparent pointer-events-none" />
 
               {/* Badges on top */}
-              <div className="absolute top-4 left-4 flex gap-2">
+              <div className="absolute top-4 left-4 flex gap-2 pointer-events-none">
                 <span className="px-3 py-1 rounded-full bg-black/75 backdrop-blur-md border border-zinc-700 text-xs font-semibold text-white">
                   {selectedModel}
                 </span>
@@ -164,6 +167,16 @@ export const CustomStudio: React.FC<CustomStudioProps> = ({ onNavigateToServices
                   {selectedFinish} Finish
                 </span>
               </div>
+
+              <button
+                type="button"
+                onClick={() => setLightboxOpen(true)}
+                className="absolute top-4 right-4 px-2.5 py-1.5 rounded-xl bg-black/75 hover:bg-red-600 border border-zinc-700 hover:border-red-500 text-white text-[11px] font-semibold flex items-center gap-1.5 backdrop-blur-md transition cursor-pointer"
+                title="View full wrap finish gallery in Lightbox"
+              >
+                <Maximize2 className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Expand Gallery</span>
+              </button>
 
               {/* Bottom spec overlay */}
               <div className="absolute bottom-4 inset-x-4 p-4 rounded-xl bg-black/80 backdrop-blur-md border border-zinc-800 flex items-center justify-between text-xs">
@@ -345,6 +358,18 @@ export const CustomStudio: React.FC<CustomStudioProps> = ({ onNavigateToServices
           </div>
         </div>
       </div>
+      {/* Wrap Shades Lightbox */}
+      <ImageLightbox
+        isOpen={lightboxOpen}
+        onClose={() => setLightboxOpen(false)}
+        initialIndex={Math.max(0, wrapColors.findIndex((c) => c.id === selectedWrap.id))}
+        images={wrapColors.map((w) => ({
+          url: w.image,
+          title: `${selectedModel} • ${w.name}`,
+          subtitle: `${w.type} • Base Package $${w.basePrice.toLocaleString()} (${selectedFinish})`,
+          badge: selectedFinish,
+        }))}
+      />
     </div>
   );
 };

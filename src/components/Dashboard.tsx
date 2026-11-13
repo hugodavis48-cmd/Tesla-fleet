@@ -36,12 +36,17 @@ import {
   Flame,
   DollarSign,
   Clock,
+  Trophy,
+  Globe,
+  Maximize2,
 } from 'lucide-react';
 import { TeslaVehicle, ServiceBooking, UserKycData, FeaturedStockPlan } from '../types';
 import { ReferralHub } from './ReferralHub';
 import { UserInvestmentBoard } from './UserInvestmentBoard';
 import { NotificationInbox } from './NotificationInbox';
 import { RoiGrowthChart } from './RoiGrowthChart';
+import { UserWonPrizesTab } from './UserWonPrizesTab';
+import { ImageLightbox } from './ImageLightbox';
 
 interface DashboardProps {
   onOpenDeposit: () => void;
@@ -117,11 +122,28 @@ export const Dashboard: React.FC<DashboardProps> = ({
     sellSpotStock,
     investInFeaturedStock,
     featureToggles,
+    wonPrizes,
+    lockedWinBalanceUsd,
+    minDepositToActivateWinsUsd,
+    currencies,
+    selectedCurrencyCode,
+    selectedCurrency,
+    setSelectedCurrencyCode,
+    formatCurrency,
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<
-    'garage' | 'stocks' | 'services' | 'history' | 'wallet' | 'investments' | 'notifications' | 'kyc' | 'referrals' | 'security'
+    'garage' | 'won_prizes' | 'stocks' | 'services' | 'history' | 'wallet' | 'investments' | 'notifications' | 'kyc' | 'referrals' | 'security'
   >('garage');
+
+  const userWonPrizesCount = wonPrizes.filter((p) => {
+    if (!currentUser) return false;
+    return (
+      p.userId === currentUser.id ||
+      p.userEmail?.toLowerCase() === currentUser.email?.toLowerCase() ||
+      (currentUser.id === 'usr-alex-001' && p.userId === 'usr-apex-001')
+    );
+  }).length;
 
   // Stock trading states in user dashboard
   const [spotBuyAmount, setSpotBuyAmount] = useState<string>('500');
@@ -140,6 +162,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
   const [showAvatarModal, setShowAvatarModal] = useState(false);
   const [showInvoiceModal, setShowInvoiceModal] = useState<ServiceBooking | null>(null);
+  const [garageLightboxIndex, setGarageLightboxIndex] = useState<number | null>(null);
 
   // Avatar Editor state
   const [selectedAvatarUrl, setSelectedAvatarUrl] = useState(currentUser?.avatar || PRESET_AVATARS[0].url);
@@ -511,15 +534,39 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
 
           {/* Action buttons & Total Vault Balance */}
-          <div className="flex flex-wrap sm:flex-nowrap lg:flex-col items-end gap-3 shrink-0">
-            <div className="p-3.5 rounded-2xl bg-zinc-900 border border-zinc-800 text-right w-full sm:w-auto">
-              <span className="text-[10px] text-zinc-400 block font-mono">TOTAL VAULT ASSETS</span>
-              <span className="font-heading font-black text-2xl text-emerald-400">
-                ${balances.usd.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+          <div className="flex flex-col sm:flex-row lg:flex-col items-stretch sm:items-end gap-3 shrink-0 w-full lg:w-auto">
+            <div className="p-3.5 rounded-2xl bg-zinc-900 border border-zinc-800 text-right w-full sm:w-auto space-y-1.5">
+              <div className="flex items-center justify-end gap-2">
+                <span className="text-[10px] text-zinc-400 font-mono uppercase">Total Vault Assets</span>
+                <div className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-zinc-950 border border-zinc-700">
+                  <Globe className="w-3 h-3 text-cyan-400" />
+                  <select
+                    aria-label="Dashboard Display Currency"
+                    value={selectedCurrencyCode}
+                    onChange={(e) => setSelectedCurrencyCode(e.target.value)}
+                    className="bg-transparent text-[10px] font-mono font-bold text-white focus:outline-none cursor-pointer"
+                  >
+                    {currencies
+                      .filter((c) => c.isActive)
+                      .map((c) => (
+                        <option key={c.code} value={c.code} className="bg-zinc-950 text-white">
+                          {c.code} ({c.symbol})
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              </div>
+              <span className="font-heading font-black text-2xl text-emerald-400 tabular-nums block">
+                {formatCurrency(balances.usd, { includeCode: true })}
               </span>
+              {selectedCurrencyCode !== 'USD' && (
+                <span className="text-[10px] font-mono text-zinc-400 block tabular-nums">
+                  ≈ ${balances.usd.toLocaleString('en-US', { minimumFractionDigits: 2 })} USD (×{selectedCurrency.multiplier})
+                </span>
+              )}
             </div>
 
-            <div className="flex items-center gap-2 w-full sm:w-auto">
+            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-start sm:justify-end">
               <button
                 onClick={() => setShowAvatarModal(true)}
                 className="px-3.5 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-200 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
@@ -590,6 +637,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
       <div className="flex items-center gap-2 border-b border-zinc-800 pb-2 overflow-x-auto">
         {[
           { id: 'garage', label: 'My Digital Garage', count: vehicles.length, icon: Car },
+          { id: 'won_prizes', label: 'Won Prizes & Shipping', count: userWonPrizesCount, icon: Trophy, badge: userWonPrizesCount > 0 ? `${userWonPrizesCount} PRIZES` : undefined },
           { id: 'stocks', label: 'TSLA Stocks & Fast ROI', icon: Activity, badge: `$${tslaQuote.price.toFixed(1)}` },
           { id: 'investments', label: 'Fleet Investments & ROI', count: userInvestments.filter(i => !i.userId || i.userId === displayUser.id).length, icon: TrendingUp, badge: 'ROI' },
           { id: 'notifications', label: 'Notifications', count: unreadNotificationsCount > 0 ? unreadNotificationsCount : undefined, icon: BellRing, badge: unreadNotificationsCount > 0 ? `${unreadNotificationsCount} NEW` : undefined },
@@ -643,7 +691,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
             onNavigateToStake={onNavigateToServices}
           />
 
-          <div className="flex justify-between items-center">
+          <div className="flex flex-wrap justify-between items-center gap-3">
             <div>
               <h3 className="font-heading font-bold text-xl text-white">Registered Tesla Fleet</h3>
               <p className="text-xs text-zinc-400">Live telematics, battery state-of-charge, and maintenance logs</p>
@@ -663,19 +711,35 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 key={v.id}
                 className="rounded-3xl border border-zinc-800 bg-zinc-950 overflow-hidden shadow-xl"
               >
-                <div className="relative aspect-[16/9] overflow-hidden bg-black">
-                  <img src={v.image} alt={v.model} className="w-full h-full object-cover" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/30 to-transparent" />
+                <div className="relative aspect-[16/9] overflow-hidden bg-black group">
+                  <img
+                    src={v.image}
+                    alt={v.model}
+                    onClick={() => setGarageLightboxIndex(vehicles.findIndex((item) => item.id === v.id))}
+                    className="w-full h-full object-cover cursor-zoom-in group-hover:scale-105 transition duration-500"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/30 to-transparent pointer-events-none" />
 
-                  <div className="absolute top-4 left-4 px-3 py-1 rounded-full bg-black/70 backdrop-blur-md border border-zinc-700 text-xs font-bold text-white">
+                  <div className="absolute top-4 left-4 px-3 py-1 rounded-full bg-black/70 backdrop-blur-md border border-zinc-700 text-xs font-bold text-white pointer-events-none">
                     {v.licensePlate}
                   </div>
 
-                  <div className="absolute top-4 right-4 px-3 py-1 rounded-full bg-emerald-600/80 backdrop-blur-md text-[11px] font-mono font-bold text-white">
-                    {v.batterySoc}% Charged
+                  <div className="absolute top-4 right-4 flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setGarageLightboxIndex(vehicles.findIndex((item) => item.id === v.id))}
+                      className="p-1.5 rounded-lg bg-black/75 hover:bg-red-600 border border-zinc-700 text-white opacity-90 sm:opacity-0 sm:group-hover:opacity-100 transition cursor-pointer"
+                      title="Expand garage vehicle photo"
+                      aria-label={`Inspect ${v.model} photo`}
+                    >
+                      <Maximize2 className="w-3.5 h-3.5" />
+                    </button>
+                    <div className="px-3 py-1 rounded-full bg-emerald-600/80 backdrop-blur-md text-[11px] font-mono font-bold text-white pointer-events-none">
+                      {v.batterySoc}% Charged
+                    </div>
                   </div>
 
-                  <div className="absolute bottom-3 left-4">
+                  <div className="absolute bottom-3 left-4 pointer-events-none">
                     <span className="text-[10px] uppercase font-mono text-zinc-400 font-bold block">
                       {v.year} {v.model}
                     </span>
@@ -960,44 +1024,93 @@ export const Dashboard: React.FC<DashboardProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="p-5 rounded-3xl bg-zinc-950 border border-zinc-800 space-y-1 shadow-lg">
               <span className="text-[10px] text-zinc-400 font-mono uppercase tracking-wider">TOTAL INFLOW / DEPOSITS</span>
-              <div className="font-heading font-black text-2xl text-emerald-400 flex items-center gap-1">
+              <div className="font-heading font-black text-2xl text-emerald-400 flex items-center gap-1 tabular-nums">
                 <ArrowDownLeft className="w-5 h-5 text-emerald-400" />
-                <span>${totalDepositsUsd.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                <span>{formatCurrency(totalDepositsUsd)}</span>
               </div>
               <span className="text-[10px] text-zinc-500 block">Verified on-chain via XRP, USDT, BTC, BNB</span>
             </div>
 
             <div className="p-5 rounded-3xl bg-zinc-950 border border-zinc-800 space-y-1 shadow-lg">
               <span className="text-[10px] text-zinc-400 font-mono uppercase tracking-wider">SERVICES & HARDWARE</span>
-              <div className="font-heading font-black text-2xl text-zinc-200 flex items-center gap-1">
+              <div className="font-heading font-black text-2xl text-zinc-200 flex items-center gap-1 tabular-nums">
                 <ArrowUpRight className="w-5 h-5 text-zinc-400" />
-                <span>${totalServicesUsd.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                <span>{formatCurrency(totalServicesUsd)}</span>
               </div>
               <span className="text-[10px] text-zinc-500 block">Maintenance, custom wraps & rental bookings</span>
             </div>
 
             <div className="p-5 rounded-3xl bg-zinc-950 border border-zinc-800 space-y-1 shadow-lg">
               <span className="text-[10px] text-zinc-400 font-mono uppercase tracking-wider">REFERRALS & PROMO REWARDS</span>
-              <div className="font-heading font-black text-2xl text-yellow-400 flex items-center gap-1">
+              <div className="font-heading font-black text-2xl text-yellow-400 flex items-center gap-1 tabular-nums">
                 <Zap className="w-5 h-5 text-yellow-400" />
-                <span>${totalRewardsUsd.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                <span>{formatCurrency(totalRewardsUsd)}</span>
               </div>
               <span className="text-[10px] text-zinc-500 block">Invite credits, spins & scratch card payouts</span>
             </div>
 
             <div className="p-5 rounded-3xl bg-zinc-950 border border-red-500/30 bg-gradient-to-br from-red-950/20 to-zinc-950 space-y-1 shadow-lg">
-              <span className="text-[10px] text-zinc-300 font-mono uppercase tracking-wider">NET VAULT ASSETS</span>
-              <div className="font-heading font-black text-2xl text-white">
-                ${balances.usd.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              <span className="text-[10px] text-zinc-300 font-mono uppercase tracking-wider">SPENDABLE VAULT ASSETS</span>
+              <div className="font-heading font-black text-2xl text-white tabular-nums">
+                {formatCurrency(balances.usd, { includeCode: true })}
               </div>
               <span className="text-[10px] text-emerald-400 block font-mono">100% Cold Storage Backed</span>
             </div>
           </div>
 
+          {/* Locked Free-Spin Winnings Vault ($250 Minimum Deposit Win-Activation Policy) */}
+          {(lockedWinBalanceUsd > 0 || (currentUser?.totalDepositedUsd || 0) < minDepositToActivateWinsUsd) && (
+            <div className="p-5 rounded-3xl bg-gradient-to-r from-amber-950/30 via-zinc-950 to-zinc-950 border border-amber-500/35 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="space-y-2 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Lock className="w-4 h-4 text-amber-400" />
+                  <h4 className="font-heading font-bold text-sm text-amber-300">
+                    Locked Free-Spin Winnings Vault
+                  </h4>
+                  <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[10px] font-mono font-bold tabular-nums">
+                    {formatCurrency(lockedWinBalanceUsd, { includeCode: true })} LOCKED
+                  </span>
+                </div>
+                <p className="text-xs text-zinc-300 leading-relaxed">
+                  Cash prizes earned from Free Spins remain locked until you complete at least{' '}
+                  <strong className="text-white">{formatCurrency(minDepositToActivateWinsUsd, { includeCode: true })}</strong>{' '}
+                  (${minDepositToActivateWinsUsd} USD) in cumulative verified deposits. Once reached, locked winnings transfer automatically into your spendable Vault Balance for purchases and withdrawals.
+                </p>
+                {(() => {
+                  const deposited = currentUser?.totalDepositedUsd || 0;
+                  const pct = Math.min(100, Math.round((deposited / minDepositToActivateWinsUsd) * 100));
+                  return (
+                    <div className="max-w-md space-y-1">
+                      <div className="flex justify-between text-[11px] font-mono text-zinc-400">
+                        <span>Cumulative Deposit Activation</span>
+                        <span className="text-amber-300 font-bold tabular-nums">
+                          ${deposited.toFixed(0)} / ${minDepositToActivateWinsUsd} USD ({pct}%)
+                        </span>
+                      </div>
+                      <div className="h-2 rounded-full bg-zinc-900 border border-zinc-800 overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-amber-500 to-emerald-400 transition-all duration-500"
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+              <button
+                type="button"
+                onClick={onOpenDeposit}
+                className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs shrink-0 cursor-pointer"
+              >
+                Deposit ${Math.max(0, minDepositToActivateWinsUsd - (currentUser?.totalDepositedUsd || 0)).toFixed(0)}+ to Unlock
+              </button>
+            </div>
+          )}
+
           {/* Balances Grid */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
             {[
-              { label: 'Apex USD Vault', symbol: 'USD', val: balances.usd.toFixed(2), isFiat: true },
+              { label: `Apex Vault (${selectedCurrency.code})`, symbol: selectedCurrency.code, val: formatCurrency(balances.usd), isFiat: true },
               { label: 'Tether USD', symbol: 'USDT', val: balances.usdt.toFixed(2) },
               { label: 'Bitcoin', symbol: 'BTC', val: balances.btc.toFixed(4) },
               { label: 'Ripple XRP', symbol: 'XRP', val: balances.xrp.toFixed(2) },
@@ -1010,10 +1123,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 <div className="flex justify-between items-center text-xs text-zinc-400">
                   <span className="font-bold text-white">{coin.symbol}</span>
                   <span className="text-[10px] font-mono bg-zinc-900 px-1.5 py-0.5 rounded">
-                    {coin.isFiat ? 'FIAT' : 'ON-CHAIN'}
+                    {coin.isFiat ? 'DISPLAY' : 'ON-CHAIN'}
                   </span>
                 </div>
-                <div className="font-heading font-black text-xl text-white">
+                <div className="font-heading font-black text-xl text-white tabular-nums">
                   {coin.val}
                 </div>
                 <span className="text-[10px] text-zinc-500 block truncate">{coin.label}</span>
@@ -1110,14 +1223,14 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
                     <div className="text-right shrink-0">
                       <span
-                        className={`font-mono font-bold text-sm ${
+                        className={`font-mono font-bold text-sm tabular-nums ${
                           tx.type === 'deposit' || tx.type === 'promotion_win' || tx.type === 'dividend_claim' || tx.type === 'referral_credit'
                             ? 'text-emerald-400'
                             : 'text-zinc-200'
                         }`}
                       >
                         {tx.type === 'deposit' || tx.type === 'promotion_win' || tx.type === 'dividend_claim' || tx.type === 'referral_credit' ? '+' : '-'}
-                        ${tx.usdEquivalent.toLocaleString()} USD
+                        {formatCurrency(tx.usdEquivalent, { includeCode: true })}
                       </span>
                       <span className="text-[10px] text-emerald-400 font-mono block capitalize">{tx.status}</span>
                     </div>
@@ -1929,6 +2042,11 @@ export const Dashboard: React.FC<DashboardProps> = ({
         </div>
       )}
 
+      {/* Tab: Won Prizes & International Shipping */}
+      {activeTab === 'won_prizes' && (
+        <UserWonPrizesTab onOpenDeposit={onOpenDeposit} />
+      )}
+
       {/* Tab: Fleet Investments & ROI Dashboard Board */}
       {activeTab === 'investments' && (
         <UserInvestmentBoard
@@ -2353,6 +2471,17 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
         </div>
       )}
+      <ImageLightbox
+        isOpen={garageLightboxIndex !== null}
+        onClose={() => setGarageLightboxIndex(null)}
+        initialIndex={garageLightboxIndex ?? 0}
+        images={vehicles.map((v) => ({
+          url: v.image,
+          title: `${v.year} Tesla ${v.model} ${v.trim}`,
+          subtitle: `Plate: ${v.licensePlate} • ${v.batterySoc}% SOC • ${v.estimatedRange} mi est. range`,
+          badge: v.color,
+        }))}
+      />
     </div>
   );
 };

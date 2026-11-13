@@ -3,7 +3,8 @@ import { useApp } from '../context/AppContext';
 import { PRODUCTS_CATALOG } from '../data/mockData';
 import { ProductItem } from '../types';
 import { ReviewComponent } from './ReviewComponent';
-import { ShoppingBag, Star, CheckCircle2, ArrowRight, Share2, MessageSquare, X } from 'lucide-react';
+import { ShoppingBag, Star, CheckCircle2, ArrowRight, Share2, MessageSquare, X, Maximize2 } from 'lucide-react';
+import { ImageLightbox } from './ImageLightbox';
 
 interface ProductShopProps {
   onOpenCart: () => void;
@@ -12,9 +13,10 @@ interface ProductShopProps {
 }
 
 export const ProductShop: React.FC<ProductShopProps> = ({ onOpenCart, onOpenAuth }) => {
-  const { addToCart, showToast, reviews, productsList, currentUser } = useApp();
+  const { addToCart, showToast, reviews, productsList, currentUser, formatCurrency, selectedCurrencyCode } = useApp();
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [reviewingProduct, setReviewingProduct] = useState<ProductItem | null>(null);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   const catalog = productsList.length > 0 ? productsList : PRODUCTS_CATALOG;
 
@@ -115,9 +117,10 @@ export const ProductShop: React.FC<ProductShopProps> = ({ onOpenCart, onOpenAuth
                   <img
                     src={product.image}
                     alt={product.name}
-                    className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
+                    onClick={() => setLightboxIndex(filteredProducts.findIndex((item) => item.id === product.id))}
+                    className="w-full h-full object-cover group-hover:scale-105 transition duration-500 cursor-zoom-in"
                   />
-                  <div className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-black/75 backdrop-blur-md text-[10px] font-mono text-zinc-300 border border-zinc-700">
+                  <div className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-black/75 backdrop-blur-md text-[10px] font-mono text-zinc-300 border border-zinc-700 pointer-events-none">
                     {product.category}
                   </div>
                   <button
@@ -129,6 +132,15 @@ export const ProductShop: React.FC<ProductShopProps> = ({ onOpenCart, onOpenAuth
                     <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
                     <span>{dynamicRating}</span>
                     <span className="text-[10px] text-zinc-400 font-normal">({dynamicCount})</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLightboxIndex(filteredProducts.findIndex((item) => item.id === product.id))}
+                    className="absolute bottom-3 right-3 p-2 rounded-xl bg-black/75 hover:bg-red-600 border border-zinc-700 hover:border-red-500 text-white backdrop-blur-md opacity-90 sm:opacity-0 sm:group-hover:opacity-100 transition cursor-pointer"
+                    title="Inspect photo in Lightbox"
+                    aria-label={`Inspect ${product.name} photo`}
+                  >
+                    <Maximize2 className="w-3.5 h-3.5" />
                   </button>
                 </div>
 
@@ -155,9 +167,9 @@ export const ProductShop: React.FC<ProductShopProps> = ({ onOpenCart, onOpenAuth
               <div className="p-6 pt-0 border-t border-zinc-900 mt-2 space-y-3">
                 <div className="flex items-center justify-between pt-3">
                   <div>
-                    <span className="text-[10px] text-zinc-500 block uppercase font-mono">Price (USD)</span>
-                    <span className="font-heading font-black text-2xl text-white">
-                      ${product.priceUsd.toLocaleString()}
+                    <span className="text-[10px] text-zinc-500 block uppercase font-mono">Price ({selectedCurrencyCode})</span>
+                    <span className="font-heading font-black text-2xl text-white tabular-nums">
+                      {formatCurrency(product.priceUsd)}
                     </span>
                   </div>
 
@@ -310,6 +322,18 @@ export const ProductShop: React.FC<ProductShopProps> = ({ onOpenCart, onOpenAuth
           </div>
         </div>
       )}
+      {/* Product Gallery Lightbox */}
+      <ImageLightbox
+        isOpen={lightboxIndex !== null}
+        onClose={() => setLightboxIndex(null)}
+        initialIndex={lightboxIndex ?? 0}
+        images={filteredProducts.map((p) => ({
+          url: p.image,
+          title: p.name,
+          subtitle: `${p.category} • ${formatCurrency(p.priceUsd)} • ${p.compatibility}`,
+          badge: p.category,
+        }))}
+      />
     </div>
   );
 };

@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { RENTAL_FLEET } from '../data/mockData';
 import { RentalVehicle } from '../types';
-import { Car, Zap, Gauge, BatteryCharging, Calendar, CheckCircle2, ArrowRight, ShieldCheck, Clock } from 'lucide-react';
+import { Car, Zap, Gauge, BatteryCharging, Calendar, CheckCircle2, ArrowRight, ShieldCheck, Clock, Maximize2 } from 'lucide-react';
+import { ImageLightbox } from './ImageLightbox';
 
 interface RentalFleetProps {
   onOpenDeposit: () => void;
@@ -10,10 +11,11 @@ interface RentalFleetProps {
 }
 
 export const RentalFleet: React.FC<RentalFleetProps> = ({ onOpenDeposit, onNavigateToDashboard }) => {
-  const { rentVehicle, balances, currentUser, showToast } = useApp();
+  const { rentVehicle, balances, currentUser, showToast, formatCurrency } = useApp();
   const [selectedRental, setSelectedRental] = useState<RentalVehicle | null>(null);
   const [rentalDays, setRentalDays] = useState<number>(3);
   const [startDate, setStartDate] = useState<string>('2026-11-09');
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   const handleOpenBooking = (vehicle: RentalVehicle) => {
     if (!currentUser) {
@@ -71,19 +73,30 @@ export const RentalFleet: React.FC<RentalFleetProps> = ({ onOpenDeposit, onNavig
                 <img
                   src={vehicle.image}
                   alt={vehicle.model}
-                  className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
+                  onClick={() => setLightboxIndex(RENTAL_FLEET.findIndex((r) => r.id === vehicle.id))}
+                  className="w-full h-full object-cover group-hover:scale-105 transition duration-500 cursor-zoom-in"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-transparent to-transparent" />
+                <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-transparent to-transparent pointer-events-none" />
 
                 {/* Rate Tag */}
-                <div className="absolute top-4 right-4 px-3 py-1.5 rounded-xl bg-black/80 backdrop-blur-md border border-zinc-700 text-right">
-                  <span className="font-heading font-black text-lg text-white">
-                    ${vehicle.dailyRateUsd}
+                <div className="absolute top-4 right-4 px-3 py-1.5 rounded-xl bg-black/80 backdrop-blur-md border border-zinc-700 text-right pointer-events-none">
+                  <span className="font-heading font-black text-lg text-white tabular-nums">
+                    {formatCurrency(vehicle.dailyRateUsd)}
                   </span>
                   <span className="text-[10px] text-zinc-400 block -mt-1">/ day</span>
                 </div>
 
-                <div className="absolute bottom-3 left-4">
+                <button
+                  type="button"
+                  onClick={() => setLightboxIndex(RENTAL_FLEET.findIndex((r) => r.id === vehicle.id))}
+                  className="absolute bottom-3 right-3 p-2 rounded-xl bg-black/75 hover:bg-red-600 border border-zinc-700 hover:border-red-500 text-white backdrop-blur-md opacity-90 sm:opacity-0 sm:group-hover:opacity-100 transition cursor-pointer"
+                  title="Expand vehicle photo"
+                  aria-label={`Inspect ${vehicle.model} photo`}
+                >
+                  <Maximize2 className="w-3.5 h-3.5" />
+                </button>
+
+                <div className="absolute bottom-3 left-4 pointer-events-none">
                   <span className="px-2.5 py-0.5 rounded-full bg-red-600/80 text-white text-[10px] font-bold uppercase tracking-wider">
                     {vehicle.year} {vehicle.model}
                   </span>
@@ -238,7 +251,7 @@ export const RentalFleet: React.FC<RentalFleetProps> = ({ onOpenDeposit, onNavig
               <div className="p-4 rounded-2xl bg-zinc-900 border border-zinc-800 space-y-2 text-xs">
                 <div className="flex justify-between">
                   <span className="text-zinc-400">Daily Rate:</span>
-                  <span className="text-white">${selectedRental.dailyRateUsd} / day</span>
+                  <span className="text-white tabular-nums">{formatCurrency(selectedRental.dailyRateUsd)} / day</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-zinc-400">Days:</span>
@@ -289,6 +302,18 @@ export const RentalFleet: React.FC<RentalFleetProps> = ({ onOpenDeposit, onNavig
           </div>
         </div>
       )}
+      {/* Fleet Lightbox */}
+      <ImageLightbox
+        isOpen={lightboxIndex !== null}
+        onClose={() => setLightboxIndex(null)}
+        initialIndex={lightboxIndex ?? 0}
+        images={RENTAL_FLEET.map((v) => ({
+          url: v.image,
+          title: `${v.year} Tesla ${v.model} ${v.trim}`,
+          subtitle: `${formatCurrency(v.dailyRateUsd)} / day • ${v.horsepower} HP • 0-60 mph in ${v.zeroToSixty}`,
+          badge: `${v.rangeMiles} mi Range`,
+        }))}
+      />
     </div>
   );
 };

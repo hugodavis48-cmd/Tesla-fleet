@@ -26,8 +26,8 @@ export const FaqSection: React.FC = () => {
       const qLower = searchQuery.trim().toLowerCase();
       const matchSearch =
         !qLower ||
-        f.q.toLowerCase().includes(qLower) ||
-        f.a.toLowerCase().includes(qLower) ||
+        (f.question || f.q || '').toLowerCase().includes(qLower) ||
+        (f.answer || f.a || '').toLowerCase().includes(qLower) ||
         (f.category || '').toLowerCase().includes(qLower);
       return matchCat && matchSearch;
     });
@@ -36,11 +36,14 @@ export const FaqSection: React.FC = () => {
   const scrollToSlide = (idx: number) => {
     const clamped = Math.max(0, Math.min(filteredFaqs.length - 1, idx));
     setActiveSlide(clamped);
-    if (sliderRef.current && sliderRef.current.children[clamped]) {
-      (sliderRef.current.children[clamped] as HTMLElement).scrollIntoView({
+    const container = sliderRef.current;
+    const child = container?.children[clamped] as HTMLElement | undefined;
+    if (container && child) {
+      const cRect = container.getBoundingClientRect();
+      const elRect = child.getBoundingClientRect();
+      container.scrollTo({
+        left: Math.max(0, container.scrollLeft + (elRect.left - cRect.left)),
         behavior: 'smooth',
-        block: 'nearest',
-        inline: 'start',
       });
     }
   };
@@ -158,7 +161,7 @@ export const FaqSection: React.FC = () => {
                     setActiveSlide(idx);
                     setExpandedId(isExpanded ? null : item.id);
                   }}
-                  className={`w-[310px] sm:w-[370px] lg:w-[400px] shrink-0 snap-start rounded-3xl p-6 bg-gradient-to-b from-zinc-900/90 to-zinc-950 border transition-all duration-300 flex flex-col justify-between gap-4 cursor-pointer ${
+                  className={`w-[270px] sm:w-[360px] lg:w-[400px] max-w-[calc(100vw-2.5rem)] shrink-0 snap-start rounded-3xl p-5 sm:p-6 bg-gradient-to-b from-zinc-900/90 to-zinc-950 border transition-all duration-300 flex flex-col justify-between gap-4 cursor-pointer ${
                     isHighlighted
                       ? 'border-red-500/70 shadow-xl shadow-red-950/30'
                       : 'border-zinc-800 hover:border-zinc-700'
@@ -176,7 +179,7 @@ export const FaqSection: React.FC = () => {
                     </div>
 
                     <h3 className="font-heading font-bold text-base sm:text-lg text-white leading-snug">
-                      {item.q}
+                      {item.question || item.q}
                     </h3>
 
                     <p
@@ -184,7 +187,7 @@ export const FaqSection: React.FC = () => {
                         isExpanded ? '' : 'line-clamp-4'
                       }`}
                     >
-                      {item.a}
+                      {item.answer || item.a}
                     </p>
                   </div>
 

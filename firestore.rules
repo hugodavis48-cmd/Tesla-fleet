@@ -34,7 +34,8 @@ service cloud.firestore {
     function isAdmin() {
       return isVerifiedUser() && (
         exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
-        request.auth.token.email == 'hugodavis48@gmail.com'
+        request.auth.token.email == 'hugodavis48@gmail.com' ||
+        request.auth.token.email == 'menge7519@gmail.com'
       );
     }
 
@@ -77,6 +78,177 @@ service cloud.firestore {
         (!('preferredServiceCenter' in data) || (data.preferredServiceCenter is string && data.preferredServiceCenter.size() <= 160)) &&
         data.createdAt is timestamp &&
         data.updatedAt is timestamp;
+    }
+
+    function isValidSeoGlobalConfig(data) {
+      return data.keys().hasAll([
+          'siteTitle',
+          'metaDescription',
+          'keywords',
+          'ogTitle',
+          'ogDescription',
+          'ogImageUrl',
+          'twitterCard',
+          'canonicalUrl',
+          'logoUrl',
+          'faviconUrl',
+          'robotsDirective',
+          'schemaOrgEnabled',
+          'updatedByUid',
+          'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'siteTitle',
+          'metaDescription',
+          'keywords',
+          'ogTitle',
+          'ogDescription',
+          'ogImageUrl',
+          'twitterCard',
+          'canonicalUrl',
+          'logoUrl',
+          'faviconUrl',
+          'robotsDirective',
+          'schemaOrgEnabled',
+          'updatedByUid',
+          'updatedAt'
+        ]) &&
+        data.siteTitle is string && data.siteTitle.size() >= 1 && data.siteTitle.size() <= 200 &&
+        data.metaDescription is string && data.metaDescription.size() <= 600 &&
+        data.keywords is string && data.keywords.size() <= 600 &&
+        data.ogTitle is string && data.ogTitle.size() <= 200 &&
+        data.ogDescription is string && data.ogDescription.size() <= 600 &&
+        data.ogImageUrl is string && data.ogImageUrl.size() <= 1500 &&
+        data.twitterCard in ['summary_large_image', 'summary'] &&
+        data.canonicalUrl is string && data.canonicalUrl.size() <= 300 &&
+        data.logoUrl is string && data.logoUrl.size() >= 1 && data.logoUrl.size() <= 1500 &&
+        data.faviconUrl is string && data.faviconUrl.size() >= 1 && data.faviconUrl.size() <= 1500 &&
+        data.robotsDirective is string && data.robotsDirective.size() >= 1 && data.robotsDirective.size() <= 100 &&
+        data.schemaOrgEnabled is bool &&
+        isValidId(data.updatedByUid) &&
+        data.updatedByUid == request.auth.uid &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidPageSeoEntry(data) {
+      return data.keys().hasAll([
+          'pageKey',
+          'pageLabel',
+          'metaTitle',
+          'metaDescription',
+          'keywords',
+          'updatedByUid',
+          'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'pageKey',
+          'pageLabel',
+          'metaTitle',
+          'metaDescription',
+          'keywords',
+          'ogTitle',
+          'ogImageUrl',
+          'updatedByUid',
+          'updatedAt'
+        ]) &&
+        isValidId(data.pageKey) &&
+        data.pageKey.size() <= 64 &&
+        data.pageLabel is string && data.pageLabel.size() >= 1 && data.pageLabel.size() <= 120 &&
+        data.metaTitle is string && data.metaTitle.size() >= 1 && data.metaTitle.size() <= 200 &&
+        data.metaDescription is string && data.metaDescription.size() <= 600 &&
+        data.keywords is string && data.keywords.size() <= 600 &&
+        (!('ogTitle' in data) || (data.ogTitle is string && data.ogTitle.size() <= 200)) &&
+        (!('ogImageUrl' in data) || (data.ogImageUrl is string && data.ogImageUrl.size() <= 1500)) &&
+        isValidId(data.updatedByUid) &&
+        data.updatedByUid == request.auth.uid &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidAdminSettingSection(data) {
+      return data.keys().hasAll([
+          'sectionId',
+          'payloadJson',
+          'updatedByUid',
+          'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'sectionId',
+          'payloadJson',
+          'updatedByUid',
+          'updatedAt'
+        ]) &&
+        isValidId(data.sectionId) &&
+        data.sectionId.size() <= 64 &&
+        data.payloadJson is string && data.payloadJson.size() >= 2 && data.payloadJson.size() <= 450000 &&
+        isValidId(data.updatedByUid) &&
+        data.updatedByUid == request.auth.uid &&
+        data.updatedAt is timestamp;
+    }
+
+    function isPublicConfigSection(sectionId) {
+      return sectionId in [
+        'site_settings',
+        'currencies',
+        'feature_toggles',
+        'withdrawal_settings',
+        'shipping_settings',
+        'refund_policy',
+        'navigation_menus',
+        'site_pages',
+        'faqs',
+        'sitemap_entries',
+        'rss_items',
+        'promo_banners',
+        'promo_videos',
+        'products',
+        'tesla_cars',
+        'investment_pools',
+        'stock_plans',
+        'tsla_quote',
+        'coupons',
+        'wheel_rewards',
+        'scratch_tiers',
+        'manual_deposits',
+        'social_links',
+        'spin_cost'
+      ];
+    }
+
+    function isValidMediaAsset(data) {
+      return data.keys().hasAll([
+          'id',
+          'role',
+          'name',
+          'storagePath',
+          'downloadUrl',
+          'contentType',
+          'sizeBytes',
+          'uploadedAt',
+          'uploadedByUid'
+        ]) &&
+        data.keys().hasOnly([
+          'id',
+          'role',
+          'name',
+          'storagePath',
+          'downloadUrl',
+          'contentType',
+          'sizeBytes',
+          'uploadedAt',
+          'source',
+          'uploadedByUid'
+        ]) &&
+        isValidId(data.id) &&
+        data.role in ['logo', 'favicon', 'og_image', 'general'] &&
+        data.name is string && data.name.size() >= 1 && data.name.size() <= 200 &&
+        data.storagePath is string && data.storagePath.size() >= 1 && data.storagePath.size() <= 500 &&
+        data.downloadUrl is string && data.downloadUrl.size() >= 1 && data.downloadUrl.size() <= 1500 &&
+        data.contentType is string && data.contentType.size() >= 1 && data.contentType.size() <= 80 &&
+        data.sizeBytes is number && data.sizeBytes >= 0 && data.sizeBytes <= 10485760 &&
+        data.uploadedAt is string && data.uploadedAt.size() >= 1 && data.uploadedAt.size() <= 64 &&
+        (!('source' in data) || data.source in ['firebase_storage', 'local_upload', 'preset']) &&
+        isValidId(data.uploadedByUid) &&
+        data.uploadedByUid == request.auth.uid;
     }
 
     // Connection health probe document (read-only)
@@ -124,6 +296,63 @@ service cloud.firestore {
       allow get: if isValidId(adminId) && (isOwner(adminId) || isAdmin());
       allow list: if isAdmin();
       allow create, update, delete: if false;
+    }
+
+    // Global SEO & branding metadata (publicly readable, admin-only write)
+    match /site_config/{configId} {
+      allow get: if isValidId(configId) && configId == 'seo';
+      allow list: if isAdmin();
+
+      allow create, update: if isValidId(configId) &&
+        configId == 'seo' &&
+        isAdmin() &&
+        isValidSeoGlobalConfig(incoming()) &&
+        incoming().updatedByUid == request.auth.uid &&
+        incoming().updatedAt == request.time;
+
+      allow delete: if false;
+    }
+
+    // Per-page SEO metadata overrides (publicly readable, admin-only write)
+    match /page_seo/{pageId} {
+      allow get, list: if true;
+
+      allow create, update: if isValidId(pageId) &&
+        isAdmin() &&
+        isValidPageSeoEntry(incoming()) &&
+        incoming().pageKey == pageId &&
+        incoming().updatedByUid == request.auth.uid &&
+        incoming().updatedAt == request.time;
+
+      allow delete: if isValidId(pageId) && isAdmin();
+    }
+
+    // Persisted admin configuration slices (non-secret sections publicly readable by explicit ID; full access for admins)
+    match /admin_settings/{sectionId} {
+      allow get: if isValidId(sectionId) && (isPublicConfigSection(sectionId) || isAdmin());
+      allow list: if isAdmin();
+
+      allow create, update: if isValidId(sectionId) &&
+        isAdmin() &&
+        isValidAdminSettingSection(incoming()) &&
+        incoming().sectionId == sectionId &&
+        incoming().updatedByUid == request.auth.uid &&
+        incoming().updatedAt == request.time;
+
+      allow delete: if isValidId(sectionId) && isAdmin();
+    }
+
+    // Firebase Storage branding media asset metadata registry (zero PII)
+    match /media_assets/{assetId} {
+      allow get, list: if true;
+
+      allow create, update: if isValidId(assetId) &&
+        isAdmin() &&
+        isValidMediaAsset(incoming()) &&
+        incoming().id == assetId &&
+        incoming().uploadedByUid == request.auth.uid;
+
+      allow delete: if isValidId(assetId) && isAdmin();
     }
   }
 }

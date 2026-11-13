@@ -48,7 +48,7 @@ const isPathAdmin = () => {
 };
 
 const MainAppContent: React.FC = () => {
-  const { currentUser, userRole, toastMessage, sitePages, siteSettings, showToast } = useApp();
+  const { currentUser, userRole, toastMessage, sitePages, siteSettings, showToast, trackVisitorAction, setActiveRouteTab } = useApp();
   const { isLight } = useTheme();
 
   const [activeTab, setActiveTabState] = useState<string>(() => (isPathAdmin() ? 'admin' : 'home'));
@@ -59,13 +59,24 @@ const MainAppContent: React.FC = () => {
   const [isOrderTrackingOpen, setIsOrderTrackingOpen] = useState(false);
   const [chatbotPrompt, setChatbotPrompt] = useState<string | null>(null);
 
+  React.useEffect(() => {
+    setActiveRouteTab(activeTab);
+  }, [activeTab, setActiveRouteTab]);
+
+  React.useEffect(() => {
+    trackVisitorAction('Session Initialized', activeTab, 'Loaded Apex Tesla Hub portal');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const setActiveTab = React.useCallback((tab: string) => {
     if (tab === 'dashboard' && !currentUser) {
       setIsAuthModalOpen(true);
       showToast('Please sign in or register to access your User Dashboard.', 'error');
+      trackVisitorAction('Auth Gate Prompted', 'dashboard', 'Guest attempted to access User Dashboard');
       return;
     }
     setActiveTabState(tab);
+    trackVisitorAction(`Viewed /${tab}`, tab, `Navigated to ${tab} section`);
     if (typeof window !== 'undefined') {
       const targetUrl = tab === 'admin' ? '/admin' : '/';
       const currentClean = window.location.pathname.replace(/\/+$/, '') || '/';
@@ -73,7 +84,7 @@ const MainAppContent: React.FC = () => {
         window.history.pushState({ tab }, '', targetUrl);
       }
     }
-  }, [currentUser, showToast]);
+  }, [currentUser, showToast, trackVisitorAction]);
 
   const openDepositModalGated = React.useCallback(() => {
     if (!currentUser) {
@@ -154,7 +165,7 @@ const MainAppContent: React.FC = () => {
     : undefined;
 
   return (
-    <div className={`min-h-screen flex flex-col transition-colors duration-200 selection:bg-red-600 selection:text-white ${isLight ? 'bg-slate-50 text-slate-900' : 'bg-[#07090e] text-slate-100'}`}>
+    <div className={`min-h-screen w-full max-w-[100vw] overflow-x-clip flex flex-col transition-colors duration-200 selection:bg-red-600 selection:text-white ${isLight ? 'bg-slate-50 text-slate-900' : 'bg-[#07090e] text-slate-100'}`}>
       {/* Proof-of-fair Live Winning Ticker Bar */}
       <LiveWinningTicker
         onNavigateToCoupons={() => {
@@ -202,7 +213,7 @@ const MainAppContent: React.FC = () => {
       />
 
         {/* Tab routing container */}
-      <main className="flex-1">
+      <main className="flex-1 w-full min-w-0">
         {siteSettings.maintenanceMode && userRole !== 'admin' && (
           <div className="bg-amber-500/15 border-b border-amber-500/40 text-amber-300 px-4 py-2.5 text-xs text-center flex items-center justify-center gap-2 font-medium">
             <AlertTriangle className="w-4 h-4 shrink-0 text-amber-400" />

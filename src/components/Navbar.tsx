@@ -68,6 +68,11 @@ export const Navbar: React.FC<NavbarProps> = ({
     siteSettings,
     seoSettings,
     socialLinks,
+    currencies,
+    selectedCurrencyCode,
+    selectedCurrency,
+    setSelectedCurrencyCode,
+    formatCurrency,
   } = useApp();
   const { currentLanguageOption, setLanguage, languages, t } = useLanguage();
   const { isLight, toggleTheme } = useTheme();
@@ -199,36 +204,45 @@ export const Navbar: React.FC<NavbarProps> = ({
     });
   };
 
+  const centerNavButtonHorizontally = (btn: HTMLButtonElement) => {
+    const parent = btn.parentElement;
+    if (!parent) return;
+    const pRect = parent.getBoundingClientRect();
+    const bRect = btn.getBoundingClientRect();
+    const targetLeft = parent.scrollLeft + (bRect.left - pRect.left) - (pRect.width / 2 - bRect.width / 2);
+    parent.scrollTo({ left: Math.max(0, targetLeft), behavior: 'smooth' });
+  };
+
   return (
     <header className="sticky top-0 z-40 bg-zinc-950/85 backdrop-blur-xl border-b border-zinc-800/80">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-3 xl:gap-4">
         {/* Brand Logo */}
         <button
           onClick={() => handleNavClick('home')}
-          className="flex items-center gap-2.5 sm:gap-3 text-left group shrink-0"
+          className="flex items-center gap-2 sm:gap-3 text-left group shrink-0 min-w-0 max-w-[62vw] sm:max-w-none"
         >
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-600 via-rose-600 to-red-800 p-0.5 shadow-lg shadow-red-900/40 group-hover:scale-105 transition overflow-hidden">
+          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-red-600 via-rose-600 to-red-800 p-0.5 shadow-lg shadow-red-900/40 group-hover:scale-105 transition overflow-hidden shrink-0">
             <img
               src={seoSettings?.logoUrl || '/logo.jpg'}
               alt={siteSettings.siteName}
               className="w-full h-full rounded-[10px] object-cover bg-zinc-950"
             />
           </div>
-          <div>
-            <div className="flex items-center gap-1.5">
-              <span className="font-heading font-black text-xl tracking-tight text-white group-hover:text-red-400 transition">
+          <div className="min-w-0">
+            <div className="flex items-center gap-1 sm:gap-1.5">
+              <span className="font-heading font-black text-base sm:text-xl tracking-tight text-white group-hover:text-red-400 transition truncate">
                 {brandParts[0]}
               </span>
               {brandParts[1] && (
                 <>
-                  <span className="font-mono text-xs text-red-500 font-extrabold tracking-widest">//</span>
-                  <span className="font-heading font-extrabold text-xl tracking-wider text-zinc-300">
+                  <span className="font-mono text-[10px] sm:text-xs text-red-500 font-extrabold tracking-widest shrink-0">//</span>
+                  <span className="font-heading font-extrabold text-base sm:text-xl tracking-wider text-zinc-300 truncate">
                     {brandParts[1]}
                   </span>
                 </>
               )}
             </div>
-            <span className="text-[10px] tracking-widest text-zinc-400 uppercase font-semibold block -mt-1">
+            <span className="text-[9px] sm:text-[10px] tracking-widest text-zinc-400 uppercase font-semibold hidden xs:block -mt-0.5 truncate">
               {siteSettings.siteTagline}
             </span>
           </div>
@@ -261,7 +275,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <button
                   key={link.id}
                   onClick={(e) => {
-                    e.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                    centerNavButtonHorizontally(e.currentTarget);
                     handleNavClick(link.id);
                   }}
                   className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold tracking-wide transition flex items-center gap-1 shrink-0 whitespace-nowrap cursor-pointer ${
@@ -317,9 +331,11 @@ export const Navbar: React.FC<NavbarProps> = ({
           {currentUser ? (
             <div className="hidden sm:flex items-center bg-zinc-900/90 border border-zinc-800 rounded-xl p-1 pl-3 shadow-inner">
               <div className="mr-2 text-right">
-                <span className="text-[10px] text-zinc-400 block -mb-0.5">{t('nav.vaultBalance', 'Vault Balance')}</span>
-                <span className="font-mono font-bold text-xs text-emerald-400">
-                  ${balances.usd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                <span className="text-[10px] text-zinc-400 block -mb-0.5">
+                  {t('nav.vaultBalance', 'Vault Balance')} ({selectedCurrency.code})
+                </span>
+                <span className="font-mono font-bold text-xs text-emerald-400 tabular-nums">
+                  {formatCurrency(balances.usd)}
                 </span>
               </div>
               <button
@@ -719,6 +735,32 @@ export const Navbar: React.FC<NavbarProps> = ({
                         })}
                       </div>
                     </div>
+                    {/* Currency Switcher (Site Settings) */}
+                    <div className="pt-2 border-t border-zinc-800/80">
+                      <div className="flex items-center justify-between text-xs text-zinc-300 mb-1.5">
+                        <div className="flex items-center gap-2">
+                          <CreditCard className="w-4 h-4 text-emerald-400" />
+                          <span className="font-medium">Display Currency</span>
+                        </div>
+                        <span className="text-[10px] text-emerald-400 font-mono">
+                          {selectedCurrency.code} (×{selectedCurrency.multiplier})
+                        </span>
+                      </div>
+                      <select
+                        value={selectedCurrencyCode}
+                        onChange={(e) => setSelectedCurrencyCode(e.target.value)}
+                        aria-label="Select local display currency"
+                        className="w-full px-2.5 py-1.5 rounded-lg bg-zinc-900 border border-zinc-700 text-xs text-white font-mono focus:outline-none focus:border-red-500 cursor-pointer"
+                      >
+                        {currencies
+                          .filter((c) => c.isActive)
+                          .map((c) => (
+                            <option key={c.code} value={c.code}>
+                              {c.code} ({c.symbol.trim()}) — {c.name} (×{c.multiplier})
+                            </option>
+                          ))}
+                      </select>
+                    </div>
                   </div>
 
                   {/* Sign Out or VIP Link */}
@@ -785,7 +827,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 key={`mob-rail-${link.id}`}
                 type="button"
                 onClick={(e) => {
-                  e.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                  centerNavButtonHorizontally(e.currentTarget);
                   handleNavClick(link.id);
                 }}
                 className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 shrink-0 whitespace-nowrap border transition cursor-pointer ${

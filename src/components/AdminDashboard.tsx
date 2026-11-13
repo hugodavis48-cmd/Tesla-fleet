@@ -103,6 +103,10 @@ import {
   AdminPrivilege,
   CronDispatchedEmail,
 } from '../types';
+import { AdminVisitorAnalytics } from './AdminVisitorAnalytics';
+import { AdminSeoFaqManager } from './AdminSeoFaqManager';
+import { AdminWonPrizesManager } from './AdminWonPrizesManager';
+import { AdminPromoVideosManager } from './AdminPromoVideosManager';
 
 const PREBUILT_TEMPLATES: EmailTemplate[] = [
   {
@@ -225,6 +229,8 @@ type AdminTab =
   | 'notifications_hub'
   | 'car_sales'
   | 'site_editor'
+  | 'seo_faq_cms'
+  | 'visitors_analytics'
   | 'email_marketing'
   | 'fleet_ops';
 
@@ -428,11 +434,22 @@ export const AdminDashboard: React.FC = () => {
     addAutoCryptoGateway,
     deleteAutoCryptoGateway,
     testAutoCryptoGatewayPing,
-    // Promotional Marketing Banners CMS
+    // Promotional Marketing Banners & Videos CMS
     marketingBanners,
     createMarketingBanner,
     updateMarketingBanner,
     deleteMarketingBanner,
+    promoVideos,
+    // Currencies, Won Prizes, SEO, Sitemap, RSS, FAQs
+    getUserWalletBalances,
+    currencies,
+    updateCurrencyConfig,
+    addCurrencyConfig,
+    deleteCurrencyConfig,
+    wonPrizes,
+    sitemapEntries,
+    rssFeedItems,
+    faqsList,
     // Admin RBAC & Session Controls
     sessionToken,
     adminsList,
@@ -443,6 +460,10 @@ export const AdminDashboard: React.FC = () => {
     deleteAdminAccount,
     hasAdminPrivilege,
     logout,
+    firebaseCloudConnected,
+    isSyncingFirestore,
+    syncAllAdminSettingsToFirestore,
+    connectAdminCloudSync,
   } = useApp();
 
   const [activeAdminTab, setActiveAdminTab] = useState<AdminTab>('users_kyc');
@@ -501,7 +522,9 @@ export const AdminDashboard: React.FC = () => {
     themeGradient: 'from-zinc-950 via-red-950/80 to-zinc-950',
     accentColor: '#ef4444',
     targetTab: 'vehicles',
-    imageUrl: 'https://images.unsplash.com/photo-1617788138017-80ad40651399?auto=format&fit=crop&w=1400&q=90',
+    imageUrl: '/promo-cyberbeast.jpg',
+    slideImages: ['/promo-cyberbeast.jpg', '/promo-plaid.jpg', '/promo-robotaxi.jpg'],
+    slideIntervalSec: 4,
     isActive: true,
     isAiGenerated: false,
     is3dHd: true,
@@ -509,6 +532,7 @@ export const AdminDashboard: React.FC = () => {
     resolutionQuality: '4K UHD',
     carRenderModel: 'Cybertruck Cyberbeast',
   });
+  const [isUploadingBannerSlides, setIsUploadingBannerSlides] = useState(false);
 
   // Auto Crypto Gateways Admin Local State
   const [gatewayNetworkFilter, setGatewayNetworkFilter] = useState<string>('all');
@@ -535,7 +559,7 @@ export const AdminDashboard: React.FC = () => {
   });
 
   // Tesla Car Sales & Nationwide Logistics Admin State
-  const [carSalesSubTab, setCarSalesSubTab] = useState<'inventory' | 'shipping' | 'refund_policy' | 'orders' | 'coupons'>('inventory');
+  const [carSalesSubTab, setCarSalesSubTab] = useState<'inventory' | 'won_prizes' | 'shipping' | 'refund_policy' | 'orders' | 'coupons'>('inventory');
   const [carSearchTerm, setCarSearchTerm] = useState('');
   const [carFilterModel, setCarFilterModel] = useState<string>('all');
   const [editingCar, setEditingCar] = useState<TeslaCarListing | null>(null);
@@ -613,6 +637,13 @@ export const AdminDashboard: React.FC = () => {
   const [showBalanceAdjustModal, setShowBalanceAdjustModal] = useState<User | null>(null);
   const [adjustCurrency, setAdjustCurrency] = useState<CryptoCurrency | 'USD'>('USD');
   const [adjustAmount, setAdjustAmount] = useState<number>(1000);
+  const [adjustMode, setAdjustMode] = useState<'add' | 'subtract' | 'set'>('add');
+  const [newCurrencyForm, setNewCurrencyForm] = useState<{ code: string; name: string; symbol: string; multiplier: number }>({
+    code: 'KES',
+    name: 'Kenyan Shilling',
+    symbol: 'KSh',
+    multiplier: 129,
+  });
 
   // Investment Management state
   const [investmentFilterStatus, setInvestmentFilterStatus] = useState<'all' | 'running' | 'completed' | 'paused'>('all');
@@ -921,9 +952,27 @@ export const AdminDashboard: React.FC = () => {
       requiredPrivilege: 'manage_site_cms',
       label: 'Site CMS, Gateways & Menus',
       shortLabel: 'Site CMS & Gateways',
-      description: 'Create & delete pages, manual deposit gateways, social URLs & catalog',
+      description: 'Create & delete pages, manual deposit gateways, social URLs, currency multipliers & catalog',
       icon: Sliders,
       badge: `${sitePages.length} Pages`,
+    },
+    {
+      id: 'seo_faq_cms',
+      requiredPrivilege: 'manage_site_cms',
+      label: 'SEO, Logo/Favicon, Sitemap, RSS & FAQs',
+      shortLabel: 'SEO, RSS & FAQs',
+      description: 'Upload JPG/PNG logo & favicon, manage meta/schema tags, RSS articles, XML sitemap & 24+ FAQ slider cards',
+      icon: Globe,
+      badge: `${faqsList.length} FAQs • ${rssFeedItems.length} RSS • ${sitemapEntries.length} URLs`,
+    },
+    {
+      id: 'visitors_analytics',
+      requiredPrivilege: 'manage_users',
+      label: 'Visitor Analytics & Live Activity',
+      shortLabel: 'Visitor Analytics',
+      description: 'Live telemetry tracking visitor IP, country, mobile device type, browser, OS & page actions',
+      icon: Activity,
+      badge: 'Live Geo/Device',
     },
     {
       id: 'email_marketing',
@@ -1264,6 +1313,26 @@ export const AdminDashboard: React.FC = () => {
           <span className="px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-xl bg-zinc-900 border border-zinc-800 text-cyan-400">
             {importedEmails.length} Email Leads
           </span>
+          <button
+            type="button"
+            disabled={isSyncingFirestore}
+            onClick={() => {
+              if (firebaseCloudConnected) {
+                syncAllAdminSettingsToFirestore();
+              } else {
+                connectAdminCloudSync();
+              }
+            }}
+            className={`px-3 py-1.5 rounded-xl border font-bold flex items-center gap-1.5 transition cursor-pointer ${
+              firebaseCloudConnected
+                ? 'bg-emerald-950/60 hover:bg-emerald-900/60 border-emerald-500/40 text-emerald-300'
+                : 'bg-amber-950/60 hover:bg-amber-900/60 border-amber-500/40 text-amber-300'
+            }`}
+            title={firebaseCloudConnected ? 'Sync all admin settings & SEO to Firestore' : 'Connect Google Admin & sync to Firestore'}
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isSyncingFirestore ? 'animate-spin' : ''}`} />
+            <span>{isSyncingFirestore ? 'Syncing...' : firebaseCloudConnected ? 'Firestore Sync' : 'Connect Cloud Sync'}</span>
+          </button>
           <button
             type="button"
             onClick={logout}
@@ -4163,6 +4232,144 @@ export const AdminDashboard: React.FC = () => {
                   </button>
                 </div>
               </form>
+
+              {/* Local Currency Switcher & Exchange Multipliers */}
+              <div className="pt-6 border-t border-zinc-800 space-y-4 text-xs">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <h4 className="font-heading font-bold text-sm text-white flex items-center gap-2">
+                      <Coins className="w-4 h-4 text-emerald-400" />
+                      <span>Local Currency Switcher &amp; Conversion Multipliers</span>
+                    </h4>
+                    <p className="text-[11px] text-zinc-400 mt-0.5">
+                      Control multipliers applied when users switch display currency across Navbar, Dashboard Vaults, and Tesla Vehicle Sales (base = 1.00 USD).
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {currencies.map((cur) => (
+                    <div
+                      key={cur.code}
+                      className={`p-3.5 rounded-2xl border space-y-2.5 ${
+                        cur.isActive ? 'bg-zinc-900/90 border-zinc-800' : 'bg-zinc-950 border-zinc-900 opacity-70'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div>
+                          <span className="font-mono font-black text-sm text-white">
+                            {cur.symbol} {cur.code}
+                          </span>
+                          <p className="text-[10px] text-zinc-400">{cur.name}</p>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => updateCurrencyConfig(cur.code, { isActive: !cur.isActive })}
+                            disabled={cur.code === 'USD'}
+                            className={`px-2 py-1 rounded-lg text-[10px] font-bold border ${
+                              cur.isActive
+                                ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300'
+                                : 'bg-zinc-800 border-zinc-700 text-zinc-400'
+                            } disabled:opacity-60`}
+                          >
+                            {cur.isActive ? 'Active' : 'Hidden'}
+                          </button>
+                          {cur.code !== 'USD' && (
+                            <button
+                              type="button"
+                              onClick={() => deleteCurrencyConfig(cur.code)}
+                              className="p-1.5 rounded-lg bg-zinc-800 hover:bg-rose-950/60 text-zinc-400 hover:text-rose-400"
+                              title={`Delete ${cur.code}`}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <label className="text-[10px] text-zinc-400 font-mono shrink-0">1 USD ×</label>
+                        <input
+                          type="number"
+                          step="0.0001"
+                          min="0.0001"
+                          disabled={cur.code === 'USD'}
+                          value={cur.multiplier}
+                          onChange={(e) =>
+                            updateCurrencyConfig(cur.code, {
+                              multiplier: Math.max(0.0001, Number(e.target.value) || 1),
+                            })
+                          }
+                          className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-white font-mono text-xs disabled:opacity-60"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Add New Local Currency */}
+                <div className="p-4 rounded-2xl bg-zinc-900/60 border border-zinc-800 space-y-3">
+                  <p className="font-bold text-white flex items-center gap-1.5">
+                    <Plus className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Add Custom Local Currency</span>
+                  </p>
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+                    <input
+                      type="text"
+                      placeholder="Code (e.g. ZAR)"
+                      value={newCurrencyForm.code}
+                      onChange={(e) => setNewCurrencyForm({ ...newCurrencyForm, code: e.target.value.toUpperCase() })}
+                      className="bg-zinc-950 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono uppercase"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Currency Name"
+                      value={newCurrencyForm.name}
+                      onChange={(e) => setNewCurrencyForm({ ...newCurrencyForm, name: e.target.value })}
+                      className="bg-zinc-950 border border-zinc-700 rounded-xl px-3 py-2 text-white sm:col-span-2"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Symbol (e.g. R)"
+                      value={newCurrencyForm.symbol}
+                      onChange={(e) => setNewCurrencyForm({ ...newCurrencyForm, symbol: e.target.value })}
+                      className="bg-zinc-950 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono"
+                    />
+                    <div className="flex gap-2">
+                      <input
+                        type="number"
+                        step="0.0001"
+                        min="0.0001"
+                        placeholder="Multiplier"
+                        value={newCurrencyForm.multiplier}
+                        onChange={(e) => setNewCurrencyForm({ ...newCurrencyForm, multiplier: Number(e.target.value) })}
+                        className="w-full bg-zinc-950 border border-zinc-700 rounded-xl px-2.5 py-2 text-white font-mono"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!newCurrencyForm.code.trim() || !newCurrencyForm.symbol.trim()) {
+                            showToast('Currency code and symbol are required.', 'error');
+                            return;
+                          }
+                          addCurrencyConfig({
+                            code: newCurrencyForm.code.trim().toUpperCase(),
+                            name: newCurrencyForm.name.trim() || newCurrencyForm.code.trim().toUpperCase(),
+                            symbol: newCurrencyForm.symbol.trim(),
+                            multiplier: Math.max(0.0001, Number(newCurrencyForm.multiplier) || 1),
+                            isActive: true,
+                          });
+                          setNewCurrencyForm({ code: '', name: '', symbol: '', multiplier: 1 });
+                        }}
+                        className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold shrink-0 cursor-pointer"
+                      >
+                        Add
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -4237,6 +4444,19 @@ export const AdminDashboard: React.FC = () => {
 
               <button
                 type="button"
+                onClick={() => setCarSalesSubTab('won_prizes')}
+                className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 ${
+                  carSalesSubTab === 'won_prizes'
+                    ? 'bg-red-600 text-white shadow-md'
+                    : 'bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800'
+                }`}
+              >
+                <Gift className="w-3.5 h-3.5" />
+                <span>Won Prizes Shipping ({wonPrizes.length})</span>
+              </button>
+
+              <button
+                type="button"
                 onClick={() => setCarSalesSubTab('coupons')}
                 className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 ${
                   carSalesSubTab === 'coupons'
@@ -4249,6 +4469,8 @@ export const AdminDashboard: React.FC = () => {
               </button>
             </div>
           </div>
+
+          {carSalesSubTab === 'won_prizes' && <AdminWonPrizesManager />}
 
           {/* SUB-TAB 1: VEHICLE CATALOG & INVENTORY */}
           {carSalesSubTab === 'inventory' && (
@@ -7343,80 +7565,180 @@ export const AdminDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* Adjust Balance Modal */}
-      {showBalanceAdjustModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md">
-          <div className="relative w-full max-w-md bg-zinc-950 border border-zinc-800 rounded-2xl sm:rounded-3xl p-5 sm:p-6 space-y-4 text-zinc-100 shadow-2xl max-h-[92vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
-              <div className="flex items-center gap-2">
-                <DollarSign className="w-5 h-5 text-amber-400" />
-                <h3 className="font-heading font-bold text-base sm:text-lg text-white">Adjust User Balance</h3>
-              </div>
-              <button
-                onClick={() => setShowBalanceAdjustModal(null)}
-                className="p-1.5 rounded-lg text-zinc-400 hover:text-white"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+      {/* Adjust Balance Modal (Add / Subtract / Set Exact) */}
+      {showBalanceAdjustModal && (() => {
+        const userBal = getUserWalletBalances(showBalanceAdjustModal.id);
+        const currentAssetValue =
+          adjustCurrency === 'USD'
+            ? userBal.usd
+            : adjustCurrency === 'BTC'
+            ? userBal.btc
+            : adjustCurrency === 'USDT'
+            ? userBal.usdt
+            : adjustCurrency === 'XRP'
+            ? userBal.xrp
+            : userBal.bnb;
+        const projectedValue =
+          adjustMode === 'add'
+            ? currentAssetValue + Math.max(0, adjustAmount)
+            : adjustMode === 'subtract'
+            ? Math.max(0, currentAssetValue - Math.max(0, adjustAmount))
+            : Math.max(0, adjustAmount);
 
-            <div className="space-y-3 text-xs">
-              <div>
-                <label className="text-zinc-400 block mb-1">User Account</label>
-                <div className="p-2.5 rounded-xl bg-zinc-900 border border-zinc-700 text-white font-bold truncate">
-                  {showBalanceAdjustModal.name} ({showBalanceAdjustModal.email})
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md">
+            <div className="relative w-full max-w-md bg-zinc-950 border border-zinc-800 rounded-2xl sm:rounded-3xl p-5 sm:p-6 space-y-4 text-zinc-100 shadow-2xl max-h-[92vh] overflow-y-auto">
+              <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+                <div className="flex items-center gap-2">
+                  <DollarSign className="w-5 h-5 text-amber-400" />
+                  <h3 className="font-heading font-bold text-base sm:text-lg text-white">Adjust User Balance</h3>
                 </div>
-              </div>
-
-              <div>
-                <label className="text-zinc-400 block mb-1">Currency Asset</label>
-                <select
-                  value={adjustCurrency}
-                  onChange={(e) => setAdjustCurrency(e.target.value as any)}
-                  className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono"
-                >
-                  <option value="USD">Apex USD Vault</option>
-                  <option value="BTC">Bitcoin (BTC)</option>
-                  <option value="USDT">Tether USD (USDT)</option>
-                  <option value="XRP">Ripple (XRP)</option>
-                  <option value="BNB">BNB Chain (BNB)</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="text-zinc-400 block mb-1">Set New Balance Amount</label>
-                <input
-                  type="number"
-                  step="any"
-                  value={adjustAmount}
-                  onChange={(e) => setAdjustAmount(Number(e.target.value))}
-                  className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono text-sm"
-                />
-              </div>
-
-              <div className="flex gap-2 pt-2">
                 <button
-                  type="button"
                   onClick={() => setShowBalanceAdjustModal(null)}
-                  className="flex-1 py-2.5 rounded-xl bg-zinc-800 text-zinc-300 font-bold"
+                  className="p-1.5 rounded-lg text-zinc-400 hover:text-white"
                 >
-                  Cancel
+                  <X className="w-5 h-5" />
                 </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    updateUserBalance(showBalanceAdjustModal.id, adjustCurrency, adjustAmount);
-                    setShowBalanceAdjustModal(null);
-                  }}
-                  className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold"
-                >
-                  Apply Balance
-                </button>
+              </div>
+
+              <div className="space-y-3 text-xs">
+                <div>
+                  <label className="text-zinc-400 block mb-1">User Account</label>
+                  <div className="p-2.5 rounded-xl bg-zinc-900 border border-zinc-700 text-white font-bold truncate">
+                    {showBalanceAdjustModal.name} ({showBalanceAdjustModal.email})
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-zinc-400 block mb-1">Currency Asset</label>
+                  <select
+                    value={adjustCurrency}
+                    onChange={(e) => setAdjustCurrency(e.target.value as any)}
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono"
+                  >
+                    <option value="USD">Apex USD Vault</option>
+                    <option value="BTC">Bitcoin (BTC)</option>
+                    <option value="USDT">Tether USD (USDT)</option>
+                    <option value="XRP">Ripple (XRP)</option>
+                    <option value="BNB">BNB Chain (BNB)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-zinc-400 block mb-1">Adjustment Operation</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setAdjustMode('add')}
+                      className={`py-2 px-2.5 rounded-xl font-bold border transition cursor-pointer ${
+                        adjustMode === 'add'
+                          ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300'
+                          : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white'
+                      }`}
+                    >
+                      + Add Funds
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAdjustMode('subtract')}
+                      className={`py-2 px-2.5 rounded-xl font-bold border transition cursor-pointer ${
+                        adjustMode === 'subtract'
+                          ? 'bg-rose-500/20 border-rose-500 text-rose-300'
+                          : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white'
+                      }`}
+                    >
+                      - Subtract
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAdjustMode('set')}
+                      className={`py-2 px-2.5 rounded-xl font-bold border transition cursor-pointer ${
+                        adjustMode === 'set'
+                          ? 'bg-amber-500/20 border-amber-500 text-amber-300'
+                          : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white'
+                      }`}
+                    >
+                      = Set Exact
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-zinc-400 block mb-1">
+                    {adjustMode === 'add'
+                      ? `Amount to Credit (+ ${adjustCurrency})`
+                      : adjustMode === 'subtract'
+                      ? `Amount to Deduct (- ${adjustCurrency})`
+                      : `New Exact Balance (${adjustCurrency})`}
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    min={0}
+                    value={adjustAmount}
+                    onChange={(e) => setAdjustAmount(Math.max(0, Number(e.target.value) || 0))}
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono text-sm"
+                  />
+                </div>
+
+                <div className="p-3 rounded-xl bg-zinc-900/90 border border-zinc-800 flex items-center justify-between text-[11px] font-mono">
+                  <div>
+                    <span className="text-zinc-400 block">Current {adjustCurrency}</span>
+                    <span className="text-white font-bold tabular-nums">
+                      {adjustCurrency === 'USD' ? `$${currentAssetValue.toLocaleString()}` : currentAssetValue}
+                    </span>
+                  </div>
+                  <div className="text-zinc-500">→</div>
+                  <div className="text-right">
+                    <span className="text-zinc-400 block">Resulting Balance</span>
+                    <span
+                      className={`font-black tabular-nums ${
+                        adjustMode === 'subtract'
+                          ? 'text-rose-400'
+                          : adjustMode === 'add'
+                          ? 'text-emerald-400'
+                          : 'text-amber-400'
+                      }`}
+                    >
+                      {adjustCurrency === 'USD' ? `$${projectedValue.toLocaleString()}` : projectedValue}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowBalanceAdjustModal(null)}
+                    className="flex-1 py-2.5 rounded-xl bg-zinc-800 text-zinc-300 font-bold"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      updateUserBalance(showBalanceAdjustModal.id, adjustCurrency, adjustAmount, adjustMode);
+                      setShowBalanceAdjustModal(null);
+                    }}
+                    className={`flex-1 py-2.5 rounded-xl font-bold cursor-pointer ${
+                      adjustMode === 'subtract'
+                        ? 'bg-rose-600 hover:bg-rose-500 text-white'
+                        : adjustMode === 'add'
+                        ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                        : 'bg-amber-500 hover:bg-amber-400 text-black'
+                    }`}
+                  >
+                    {adjustMode === 'add'
+                      ? 'Credit Balance (+)'
+                      : adjustMode === 'subtract'
+                      ? 'Deduct Balance (-)'
+                      : 'Set Exact Balance'}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* User Investments Dossier Modal */}
       {selectedUserForInvestments && (
@@ -7759,7 +8081,9 @@ export const AdminDashboard: React.FC = () => {
                     themeGradient: 'from-zinc-950 via-red-950/80 to-zinc-950',
                     accentColor: '#ef4444',
                     targetTab: 'vehicles',
-                    imageUrl: 'https://images.unsplash.com/photo-1617788138017-80ad40651399?auto=format&fit=crop&w=1400&q=90',
+                    imageUrl: '/promo-cyberbeast.jpg',
+                    slideImages: ['/promo-cyberbeast.jpg', '/promo-plaid.jpg', '/promo-robotaxi.jpg'],
+                    slideIntervalSec: 4,
                     isActive: true,
                     isAiGenerated: false,
                     is3dHd: true,
@@ -7994,7 +8318,9 @@ export const AdminDashboard: React.FC = () => {
                             themeGradient: b.themeGradient,
                             accentColor: b.accentColor,
                             targetTab: b.targetTab,
-                            imageUrl: b.imageUrl || '',
+                            imageUrl: b.imageUrl || '/promo-cyberbeast.jpg',
+                            slideImages: b.slideImages && b.slideImages.length > 0 ? b.slideImages : [b.imageUrl || '/promo-cyberbeast.jpg'],
+                            slideIntervalSec: b.slideIntervalSec || 4,
                             isActive: b.isActive,
                             isAiGenerated: b.isAiGenerated,
                             is3dHd: b.is3dHd ?? true,
@@ -8023,6 +8349,9 @@ export const AdminDashboard: React.FC = () => {
               ))}
             </div>
           </div>
+
+          {/* Promotional Short Videos Studio (AI Generated + Admin Uploads) */}
+          <AdminPromoVideosManager />
 
           {/* Manual Create / Edit 3D HD Banner Modal */}
           {showManualBannerModal && (
@@ -8208,14 +8537,102 @@ export const AdminDashboard: React.FC = () => {
                     </div>
 
                     <div>
-                      <label className="text-zinc-400 block mb-1">HD Backdrop Image URL</label>
+                      <label className="text-zinc-400 block mb-1">Primary HD Backdrop Image URL</label>
                       <input
-                        type="url"
+                        type="text"
                         value={manualBannerForm.imageUrl || ''}
                         onChange={(e) => setManualBannerForm({ ...manualBannerForm, imageUrl: e.target.value })}
-                        placeholder="https://images.unsplash.com/..."
+                        placeholder="/promo-cyberbeast.jpg"
                         className="w-full bg-zinc-950 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono text-[11px]"
                       />
+                    </div>
+
+                    <div className="space-y-2 pt-2 border-t border-zinc-800">
+                      <div className="flex items-center justify-between gap-2">
+                        <label className="text-zinc-300 font-semibold">
+                          Multi-Slide 3D Rotating Gallery (One URL per line)
+                        </label>
+                        <select
+                          value={manualBannerForm.slideIntervalSec || 4}
+                          onChange={(e) =>
+                            setManualBannerForm({ ...manualBannerForm, slideIntervalSec: Number(e.target.value) || 4 })
+                          }
+                          className="bg-zinc-950 border border-zinc-700 rounded-lg px-2 py-1 text-[11px] text-white font-mono"
+                        >
+                          <option value={3}>Rotate 3s</option>
+                          <option value={4}>Rotate 4s</option>
+                          <option value={6}>Rotate 6s</option>
+                        </select>
+                      </div>
+
+                      <textarea
+                        rows={3}
+                        value={(manualBannerForm.slideImages || []).join('\n')}
+                        onChange={(e) => {
+                          const list = e.target.value
+                            .split('\n')
+                            .map((s) => s.trim())
+                            .filter(Boolean);
+                          setManualBannerForm({
+                            ...manualBannerForm,
+                            slideImages: list,
+                            imageUrl: list[0] || manualBannerForm.imageUrl,
+                          });
+                        }}
+                        placeholder="/promo-cyberbeast.jpg&#10;/promo-plaid.jpg&#10;/promo-robotaxi.jpg"
+                        className="w-full bg-zinc-950 border border-zinc-700 rounded-xl p-2.5 text-white font-mono text-[11px]"
+                      />
+
+                      <label className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 cursor-pointer font-semibold">
+                        <Upload className="w-3.5 h-3.5 text-amber-400" />
+                        <span>{isUploadingBannerSlides ? 'Uploading Slides...' : 'Upload Slide Images (JPG/PNG)'}</span>
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          multiple
+                          className="hidden"
+                          onChange={async (e) => {
+                            const files = Array.from(e.target.files || []);
+                            if (files.length === 0) return;
+                            setIsUploadingBannerSlides(true);
+                            try {
+                              const uploadedUrls: string[] = [];
+                              for (const file of files) {
+                                const dataUrl = await new Promise<string>((resolve, reject) => {
+                                  const reader = new FileReader();
+                                  reader.onload = () => resolve(String(reader.result || ''));
+                                  reader.onerror = reject;
+                                  reader.readAsDataURL(file);
+                                });
+                                const resp = await fetch('/api/media/upload', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({
+                                    filename: file.name,
+                                    dataUrl,
+                                  }),
+                                });
+                                const data = await resp.json();
+                                if (data?.url) uploadedUrls.push(data.url);
+                              }
+                              if (uploadedUrls.length > 0) {
+                                const merged = [...(manualBannerForm.slideImages || []), ...uploadedUrls];
+                                setManualBannerForm({
+                                  ...manualBannerForm,
+                                  slideImages: merged,
+                                  imageUrl: manualBannerForm.imageUrl || merged[0],
+                                });
+                                showToast(`Added ${uploadedUrls.length} slide image(s) to 3D banner!`, 'success');
+                              }
+                            } catch {
+                              showToast('Failed to upload slide image.', 'error');
+                            } finally {
+                              setIsUploadingBannerSlides(false);
+                              e.target.value = '';
+                            }
+                          }}
+                        />
+                      </label>
                     </div>
                   </div>
                 </div>
@@ -9816,6 +10233,16 @@ export const AdminDashboard: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* TAB: VISITOR ANALYTICS & LIVE TELEMETRY */}
+      {activeAdminTab === 'visitors_analytics' && hasAdminPrivilege('manage_users') && (
+        <AdminVisitorAnalytics />
+      )}
+
+      {/* TAB: SEO, LOGO/FAVICON, SITEMAP, RSS & FAQS CMS */}
+      {activeAdminTab === 'seo_faq_cms' && hasAdminPrivilege('manage_site_cms') && (
+        <AdminSeoFaqManager />
       )}
     </div>
   );
