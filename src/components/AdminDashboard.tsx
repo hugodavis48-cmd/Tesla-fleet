@@ -67,6 +67,7 @@ import {
   KeyRound,
   LogOut,
   ShieldAlert,
+  Award,
 } from 'lucide-react';
 import {
   SmtpConfig,
@@ -107,6 +108,7 @@ import { AdminVisitorAnalytics } from './AdminVisitorAnalytics';
 import { AdminSeoFaqManager } from './AdminSeoFaqManager';
 import { AdminWonPrizesManager } from './AdminWonPrizesManager';
 import { AdminPromoVideosManager } from './AdminPromoVideosManager';
+import { AdminCertificatesManager } from './AdminCertificatesManager';
 
 const PREBUILT_TEMPLATES: EmailTemplate[] = [
   {
@@ -230,6 +232,7 @@ type AdminTab =
   | 'car_sales'
   | 'site_editor'
   | 'seo_faq_cms'
+  | 'certificates_cms'
   | 'visitors_analytics'
   | 'email_marketing'
   | 'fleet_ops';
@@ -450,6 +453,7 @@ export const AdminDashboard: React.FC = () => {
     sitemapEntries,
     rssFeedItems,
     faqsList,
+    businessCertificates,
     // Admin RBAC & Session Controls
     sessionToken,
     adminsList,
@@ -515,6 +519,10 @@ export const AdminDashboard: React.FC = () => {
     title: 'Cybertruck VIP Referral Leaderboard',
     size: 'leaderboard',
     dimensions: '1456×180 HD',
+    customWidth: 728,
+    customHeight: 90,
+    imageMode: 'multi',
+    transitionEffect: 'fade',
     headline: 'TESLA CYBERBEAST DIRECT DELIVERY + $100 REFERRAL BONUS',
     subheadline: 'Nationwide enclosed transport, 7-day money-back protection & instant crypto settlement.',
     ctaText: 'Explore Inventory',
@@ -964,6 +972,15 @@ export const AdminDashboard: React.FC = () => {
       description: 'Upload JPG/PNG logo & favicon, manage meta/schema tags, RSS articles, XML sitemap & 24+ FAQ slider cards',
       icon: Globe,
       badge: `${faqsList.length} FAQs • ${rssFeedItems.length} RSS • ${sitemapEntries.length} URLs`,
+    },
+    {
+      id: 'certificates_cms',
+      requiredPrivilege: 'manage_site_cms',
+      label: 'Business & License Certificates CMS',
+      shortLabel: 'License Certificates',
+      description: 'Upload, edit, reorder & publish non-downloadable view-only business & operating license images',
+      icon: Award,
+      badge: `${businessCertificates.length} Docs`,
     },
     {
       id: 'visitors_analytics',
@@ -8123,6 +8140,11 @@ export const AdminDashboard: React.FC = () => {
                   <option value="square">Square ({aiBannerIs3dHd ? '1200×1200 4K' : '300×300'})</option>
                   <option value="rectangle">Rectangle ({aiBannerIs3dHd ? '1200×1000 HD' : '300×250'})</option>
                   <option value="sidebar">Sidebar ({aiBannerIs3dHd ? '640×2400 HD' : '160×600'})</option>
+                  <option value="billboard">Billboard (970×250)</option>
+                  <option value="wide_skyscraper">Half-Page (300×600)</option>
+                  <option value="social_og">Social Card (1200×628)</option>
+                  <option value="story">Story Vertical (1080×1920)</option>
+                  <option value="mobile_banner">Mobile Banner (320×100)</option>
                 </select>
               </div>
 
@@ -8311,6 +8333,10 @@ export const AdminDashboard: React.FC = () => {
                             title: b.title,
                             size: b.size,
                             dimensions: b.dimensions,
+                            customWidth: b.customWidth,
+                            customHeight: b.customHeight,
+                            imageMode: b.imageMode || ((b.slideImages?.length || 0) > 1 ? 'multi' : 'single'),
+                            transitionEffect: b.transitionEffect || 'fade',
                             headline: b.headline,
                             subheadline: b.subheadline,
                             ctaText: b.ctaText,
@@ -8389,27 +8415,123 @@ export const AdminDashboard: React.FC = () => {
                         value={manualBannerForm.size}
                         onChange={(e) => {
                           const s = e.target.value as BannerSizeType;
-                          const dimMap: Record<BannerSizeType, string> = manualBannerForm.is3dHd
-                            ? {
-                                leaderboard: '1456×180 HD',
-                                square: '1200×1200 4K',
-                                rectangle: '1200×1000 HD',
-                                sidebar: '640×2400 HD',
-                              }
-                            : {
-                                leaderboard: '728×90',
-                                square: '300×300',
-                                rectangle: '300×250',
-                                sidebar: '160×600',
-                              };
-                          setManualBannerForm({ ...manualBannerForm, size: s, dimensions: dimMap[s] });
+                          const pxMap: Record<BannerSizeType, { w: number; h: number; label: string }> = {
+                            leaderboard: { w: 728, h: 90, label: manualBannerForm.is3dHd ? '1456×180 HD' : '728×90' },
+                            square: { w: 300, h: 300, label: manualBannerForm.is3dHd ? '1200×1200 4K' : '300×300' },
+                            rectangle: { w: 300, h: 250, label: manualBannerForm.is3dHd ? '1200×1000 HD' : '300×250' },
+                            sidebar: { w: 160, h: 600, label: manualBannerForm.is3dHd ? '640×2400 HD' : '160×600' },
+                            billboard: { w: 970, h: 250, label: '970×250' },
+                            wide_skyscraper: { w: 300, h: 600, label: '300×600' },
+                            social_og: { w: 1200, h: 628, label: '1200×628' },
+                            story: { w: 1080, h: 1920, label: '1080×1920' },
+                            mobile_banner: { w: 320, h: 100, label: '320×100' },
+                            custom: {
+                              w: manualBannerForm.customWidth || 800,
+                              h: manualBannerForm.customHeight || 400,
+                              label: `${manualBannerForm.customWidth || 800}×${manualBannerForm.customHeight || 400}`,
+                            },
+                          };
+                          const picked = pxMap[s];
+                          setManualBannerForm({
+                            ...manualBannerForm,
+                            size: s,
+                            customWidth: picked.w,
+                            customHeight: picked.h,
+                            dimensions: picked.label,
+                          });
                         }}
                         className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white"
                       >
-                        <option value="leaderboard">Leaderboard (1456×180 / 728×90)</option>
-                        <option value="square">Square (1200×1200 / 300×300)</option>
-                        <option value="rectangle">Rectangle (1200×1000 / 300×250)</option>
-                        <option value="sidebar">Sidebar (640×2400 / 160×600)</option>
+                        <option value="leaderboard">Leaderboard (728×90)</option>
+                        <option value="square">Square (300×300)</option>
+                        <option value="rectangle">Rectangle (300×250)</option>
+                        <option value="sidebar">Sidebar (160×600)</option>
+                        <option value="billboard">Billboard (970×250)</option>
+                        <option value="wide_skyscraper">Half-Page (300×600)</option>
+                        <option value="social_og">Social Card (1200×628)</option>
+                        <option value="story">Story Vertical (1080×1920)</option>
+                        <option value="mobile_banner">Mobile Banner (320×100)</option>
+                        <option value="custom">Custom Dimensions (px)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {manualBannerForm.size === 'custom' && (
+                    <div className="grid grid-cols-2 gap-3 p-3 rounded-xl bg-zinc-900/70 border border-zinc-800">
+                      <div>
+                        <label className="text-zinc-400 block mb-1">Custom Width (px)</label>
+                        <input
+                          type="number"
+                          min={120}
+                          max={2400}
+                          value={manualBannerForm.customWidth || 800}
+                          onChange={(e) => {
+                            const w = Math.max(120, Math.min(2400, Number(e.target.value) || 800));
+                            const h = manualBannerForm.customHeight || 400;
+                            setManualBannerForm({
+                              ...manualBannerForm,
+                              customWidth: w,
+                              dimensions: `${w}×${h}`,
+                            });
+                          }}
+                          className="w-full bg-zinc-950 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-zinc-400 block mb-1">Custom Height (px)</label>
+                        <input
+                          type="number"
+                          min={60}
+                          max={2400}
+                          value={manualBannerForm.customHeight || 400}
+                          onChange={(e) => {
+                            const h = Math.max(60, Math.min(2400, Number(e.target.value) || 400));
+                            const w = manualBannerForm.customWidth || 800;
+                            setManualBannerForm({
+                              ...manualBannerForm,
+                              customHeight: h,
+                              dimensions: `${w}×${h}`,
+                            });
+                          }}
+                          className="w-full bg-zinc-950 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-zinc-400 block mb-1">Banner Image Type</label>
+                      <select
+                        value={manualBannerForm.imageMode || 'multi'}
+                        onChange={(e) =>
+                          setManualBannerForm({
+                            ...manualBannerForm,
+                            imageMode: e.target.value as 'single' | 'multi',
+                          })
+                        }
+                        className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white"
+                      >
+                        <option value="single">Single Static Image</option>
+                        <option value="multi">Multi-Image Switch Carousel</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-zinc-400 block mb-1">Switch Transition Effect</label>
+                      <select
+                        disabled={manualBannerForm.imageMode === 'single'}
+                        value={manualBannerForm.transitionEffect || 'fade'}
+                        onChange={(e) =>
+                          setManualBannerForm({
+                            ...manualBannerForm,
+                            transitionEffect: e.target.value as 'fade' | 'slide' | 'zoom',
+                          })
+                        }
+                        className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white disabled:opacity-50"
+                      >
+                        <option value="fade">Crossfade</option>
+                        <option value="slide">Horizontal Slide</option>
+                        <option value="zoom">Cinematic Zoom</option>
                       </select>
                     </div>
                   </div>
@@ -10243,6 +10365,11 @@ export const AdminDashboard: React.FC = () => {
       {/* TAB: SEO, LOGO/FAVICON, SITEMAP, RSS & FAQS CMS */}
       {activeAdminTab === 'seo_faq_cms' && hasAdminPrivilege('manage_site_cms') && (
         <AdminSeoFaqManager />
+      )}
+
+      {/* TAB: BUSINESS & OPERATING LICENSE CERTIFICATES CMS */}
+      {activeAdminTab === 'certificates_cms' && hasAdminPrivilege('manage_site_cms') && (
+        <AdminCertificatesManager />
       )}
     </div>
   );

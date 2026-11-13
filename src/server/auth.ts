@@ -3,7 +3,7 @@ import type { Request, Response, NextFunction } from 'express';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
-import { sendRegistrationNotificationEmail } from './mailer.js';
+import { sendRegistrationNotificationEmail } from './mailer.ts';
 
 export type AdminPrivilege =
   | 'super_admin'

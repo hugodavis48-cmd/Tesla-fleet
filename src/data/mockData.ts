@@ -34,6 +34,7 @@ import {
   RssFeedItem,
   PromoVideoItem,
   CurrencyConfig,
+  BusinessCertificate,
 } from '../types';
 
 
@@ -693,14 +694,6 @@ export const PRODUCTS_CATALOG: ProductItem[] = [
 
 export const FAQ_ITEMS: FaqItem[] = [
   {
-    id: 'faq-01',
-    category: 'Spins & Deposits',
-    order: 1,
-    isPublished: true,
-    question: 'Why is a $250 minimum deposit required to activate free-spin money wins?',
-    answer: 'To prevent multi-account automated farming and verify real wallet ownership, monetary cash/credit winnings ($$) earned from free spins or promotional scratch drops are held in your Locked Promotional Win Balance until your cumulative verified deposits reach at least $250 USD. Once your account reaches $250+ deposited, every dollar unlocks automatically into your spendable USD vault for purchases, staking, or withdrawal.',
-  },
-  {
     id: 'faq-02',
     category: 'Vehicles & Shipping',
     order: 2,
@@ -794,7 +787,7 @@ export const FAQ_ITEMS: FaqItem[] = [
     order: 13,
     isPublished: true,
     question: 'What are the withdrawal rules and processing timelines?',
-    answer: 'Crypto and wire withdrawals are processed within 15–45 minutes once approved. To comply with Anti-Money Laundering (AML) policy, accounts require verified deposit history meeting the configured threshold ($200+ minimum deposit for standard cashouts, $250+ cumulative deposit for unlocking free-spin cash rewards).',
+    answer: 'Crypto and wire withdrawals are processed within 15–45 minutes once approved. To comply with Anti-Money Laundering (AML) policy, accounts require verified deposit history meeting the configured threshold ($200+ minimum deposit requirement).',
   },
   {
     id: 'faq-14',
@@ -843,14 +836,6 @@ export const FAQ_ITEMS: FaqItem[] = [
     isPublished: true,
     question: 'How does the Local Currency Switcher calculate dashboard balances and vehicle prices?',
     answer: 'Open Site Settings in the navigation menu or your User Dashboard to switch display currencies (USD, EUR, GBP, CAD, AUD, AED, JPY, CHF, NGN). All converted vehicle MSRP prices and dashboard balances use live platform multipliers configured by our Treasury Admin, while underlying settlements remain transparently tracked in USD.',
-  },
-  {
-    id: 'faq-20',
-    category: 'Spins & Deposits',
-    order: 20,
-    isPublished: true,
-    question: 'Why are free-spin money winnings locked until $250 in deposits are completed?',
-    answer: 'To protect community jackpots against multi-account bonus abuse, cash prizes won from complimentary or promotional spins sit in your Locked Bonus Vault until your cumulative verified account deposits reach $250 USD. Once unlocked, every dollar immediately becomes spendable and withdrawable.',
   },
   {
     id: 'faq-21',
@@ -2831,8 +2816,9 @@ export const INITIAL_NAVIGATION_MENUS: NavigationMenuItem[] = [
   { id: 'menu-f-banners', label: 'Promo Marketing Banners', targetTab: 'banners', location: 'footer_legal', order: 5, isVisible: true },
   { id: 'menu-f-social', label: 'Social Channels & Share', targetTab: 'social', location: 'footer_legal', order: 6, isVisible: true },
   { id: 'menu-f-faq', label: 'Platform FAQ', targetTab: 'faq', location: 'footer_legal', order: 7, isVisible: true },
-  { id: 'menu-f-sitemap', label: 'Site Map', targetTab: 'sitemap', location: 'footer_legal', order: 8, isVisible: true },
-  { id: 'menu-f-rss', label: 'RSS Feeds & Live XML', targetTab: 'rss', location: 'footer_legal', order: 9, badge: 'XML', isVisible: true },
+  { id: 'menu-f-certificates', label: 'Business & License Certificates', targetTab: 'certificates', location: 'footer_legal', order: 8, isVisible: true },
+  { id: 'menu-f-sitemap', label: 'Site Map', targetTab: 'sitemap', location: 'footer_legal', order: 9, isVisible: true },
+  { id: 'menu-f-rss', label: 'RSS Feeds & Live XML', targetTab: 'rss', location: 'footer_legal', order: 10, badge: 'XML', isVisible: true },
 ];
 
 export const DEFAULT_SEO_CONFIG: SeoMetadataConfig = {
@@ -2942,12 +2928,19 @@ export const DEFAULT_SEO_CONFIG: SeoMetadataConfig = {
       metaDescription: 'Learn about Apex Tesla Hub cleanroom engineering bays, audited fleet reserves, and global EV logistics network.',
       keywords: 'About Apex Tesla Hub, EV Engineering Network, Fleet Proof of Reserves',
     },
+    certificates: {
+      pageKey: 'certificates',
+      pageLabel: 'Operating Licenses & Certificates',
+      metaTitle: 'Business Registration & Operating License Certificates | Apex Tesla Hub',
+      metaDescription: 'Inspect verified business formation credentials, EV automotive dealership licenses, and high-voltage fleet operating authorizations.',
+      keywords: 'Apex Tesla License Certificate, Business Operating Permit, EV Dealership Authorization',
+    },
     faq: {
       pageKey: 'faq',
       pageLabel: 'Platform FAQ',
       metaTitle: 'Frequently Asked Questions — Wins, Shipping & Staking | Apex Tesla Hub',
-      metaDescription: 'Explore detailed answers covering international prize shipping, $250 spin-win activation, fleet staking yields, and crypto deposits.',
-      keywords: 'Apex Tesla FAQ, Won Vehicle Shipping, $250 Deposit Rule, Tesla Staking FAQ',
+      metaDescription: 'Explore detailed answers covering international prize shipping, fleet staking yields, EV servicing, and crypto deposits.',
+      keywords: 'Apex Tesla FAQ, Won Vehicle Shipping, EV Servicing FAQ, Tesla Staking FAQ',
     },
     contact: {
       pageKey: 'contact',
@@ -2985,7 +2978,8 @@ export const INITIAL_SITEMAP_ENTRIES: SitemapEntry[] = [
   { id: 'sm-banners', path: 'banners', title: '3D/HD Promotional Banners & Short Videos', description: 'Interactive multi-slide 3D/HD promo banners & AI/studio short video ambassador kit.', category: 'Promotions', priority: 0.8, changeFreq: 'daily', isActive: true, lastMod: '2026-11-12' },
   { id: 'sm-shop', path: 'shop', title: 'Tesla Hardware, Forged Rims & Aero Store', description: 'Shop Monoblock forged wheels, Carbon-Ceramic brakes, Yoke wheels, and Wall Connectors.', category: 'Showroom', priority: 0.8, changeFreq: 'weekly', isActive: true, lastMod: '2026-11-10' },
   { id: 'sm-coupons', path: 'coupons', title: 'Coupons & VIP Discount Vouchers', description: 'Claim active promo codes for wraps, factory EVs, enclosed shipping & free spins.', category: 'Promotions', priority: 0.75, changeFreq: 'weekly', isActive: true, lastMod: '2026-11-10' },
-  { id: 'sm-faq', path: 'faq', title: 'Frequently Asked Questions', description: 'Detailed answers on shipping won vehicles, $250 win activation, yields, and crypto deposits.', category: 'Trust', priority: 0.7, changeFreq: 'weekly', isActive: true, lastMod: '2026-11-12' },
+  { id: 'sm-certificates', path: 'certificates', title: 'Business & License Certificates', description: 'View-only corporate registration and master EV fleet operating authorizations.', category: 'Trust', priority: 0.8, changeFreq: 'monthly', isActive: true, lastMod: '2026-11-12' },
+  { id: 'sm-faq', path: 'faq', title: 'Frequently Asked Questions', description: 'Detailed answers on shipping won vehicles, yields, servicing, and crypto deposits.', category: 'Trust', priority: 0.7, changeFreq: 'weekly', isActive: true, lastMod: '2026-11-12' },
   { id: 'sm-rss', path: 'rss', title: 'RSS Feeds & Live Syndication', description: 'Subscribe to Apex Tesla Hub RSS XML updates for yields, promotions, and fleet news.', category: 'Feeds', priority: 0.6, changeFreq: 'daily', isActive: true, lastMod: '2026-11-12' },
 ];
 
@@ -3141,4 +3135,45 @@ export const INITIAL_CURRENCIES: CurrencyConfig[] = [
   { code: 'NGN', name: 'Nigerian Naira', symbol: '₦', multiplier: 1650.0, isActive: true },
 ];
 
-
+export const INITIAL_CERTIFICATES: BusinessCertificate[] = [
+  {
+    id: 'cert-biz-formation-01',
+    title: 'Certificate of Formation & Commercial Operating Authority',
+    certificateNumber: 'CAL-23-0987654',
+    category: 'Business Operating License',
+    issuingAuthority: 'Secretary of State — Corporate Filings & Commercial Registry',
+    legalEntityName: 'Apex Tesla Hub LLC',
+    jurisdiction: 'State of California, United States',
+    issuedDate: '2023-10-26',
+    expiryDate: '2028-10-25',
+    status: 'Active & Verified',
+    summary:
+      'Authorizes Apex Tesla Hub LLC to conduct luxury EV engineering services, commercial vehicle sales, cleanroom customization, and digital fleet yield operations across domestic and international jurisdictions.',
+    imageUrl: '/cert-business-operating.jpg',
+    watermarkCode: 'VIEW ONLY · CAL-23-0987654 · APEX TESLA HUB LLC',
+    isPublished: true,
+    displayOnAbout: true,
+    order: 1,
+    updatedAt: '2026-11-12',
+  },
+  {
+    id: 'cert-ev-master-license-02',
+    title: 'Official Master EV Automotive & Fleet Operating License',
+    certificateNumber: 'EV-M-1002345',
+    category: 'EV Dealership & Service Authority',
+    issuingAuthority: 'Department of Motor Vehicles & Energy Regulation Division',
+    legalEntityName: 'Apex Tesla Hub LLC / Global Electric Motors Operations',
+    jurisdiction: 'California, Texas & Interstate Mobility Network',
+    issuedDate: '2024-10-15',
+    expiryDate: '2027-10-15',
+    status: 'Active & Verified',
+    summary:
+      'Certifies master high-voltage EV diagnostics bays, factory dealership vehicle dispatch, supervised autonomous fleet chartering, and regulated lithium-ion pack servicing compliance.',
+    imageUrl: '/cert-ev-license.jpg',
+    watermarkCode: 'VIEW ONLY · EV-M-1002345 · DMV & ENERGY REGULATED',
+    isPublished: true,
+    displayOnAbout: true,
+    order: 2,
+    updatedAt: '2026-11-12',
+  },
+];

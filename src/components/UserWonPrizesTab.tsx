@@ -13,7 +13,6 @@ import {
   Plus,
   Package,
   MapPin,
-  Lock,
   Maximize2,
 } from 'lucide-react';
 import { ImageLightbox } from './ImageLightbox';
@@ -53,6 +52,7 @@ export const UserWonPrizesTab: React.FC<UserWonPrizesTabProps> = ({ onOpenDeposi
     balances,
     lockedWinBalanceUsd,
     minDepositToActivateWinsUsd,
+    openWinActivationPopup,
     submitWonPrizeShippingAndPayFees,
     formatCurrency,
     selectedCurrencyCode,
@@ -117,6 +117,18 @@ export const UserWonPrizesTab: React.FC<UserWonPrizesTabProps> = ({ onOpenDeposi
       return;
     }
 
+    const totalFees = Number(
+      ((prize.processingFeeUsd || 0) + (prize.shippingDocFeeUsd || 0) + (prize.shippingFreightFeeUsd || 0)).toFixed(2)
+    );
+    if (balances.usd < totalFees && (currentUser?.totalDepositedUsd || 0) < minDepositToActivateWinsUsd) {
+      openWinActivationPopup({
+        actionLabel: 'Won Prize Fee Settlement',
+        prizeLabel: prize.title,
+        prizeAmountUsd: lockedWinBalanceUsd > 0 ? lockedWinBalanceUsd : undefined,
+      });
+      return;
+    }
+
     setSubmittingId(prize.id);
     try {
       await submitWonPrizeShippingAndPayFees(prize.id, form, 'wallet_usd');
@@ -124,9 +136,6 @@ export const UserWonPrizesTab: React.FC<UserWonPrizesTabProps> = ({ onOpenDeposi
       setSubmittingId(null);
     }
   };
-
-  const totalDeposited = currentUser?.totalDepositedUsd || 0;
-  const depositUnlockPct = Math.min(100, Math.round((totalDeposited / minDepositToActivateWinsUsd) * 100));
 
   const renderStatusSteps = (status: WonPrizeItem['shippingStatus']) => {
     const steps: { id: WonPrizeItem['shippingStatus']; label: string }[] = [
@@ -195,54 +204,6 @@ export const UserWonPrizesTab: React.FC<UserWonPrizesTabProps> = ({ onOpenDeposi
           </button>
         </div>
       </div>
-
-      {/* $250 Minimum Deposit Win-Activation Notice */}
-      {(lockedWinBalanceUsd > 0 || totalDeposited < minDepositToActivateWinsUsd) && (
-        <div className="p-5 rounded-3xl bg-gradient-to-r from-amber-950/35 via-zinc-950 to-zinc-950 border border-amber-500/35 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="space-y-2 flex-1">
-            <div className="flex items-center gap-2">
-              <Lock className="w-4 h-4 text-amber-400 shrink-0" />
-              <h4 className="font-heading font-bold text-sm text-amber-300">
-                Free-Spin Cash Win Activation Rule (${minDepositToActivateWinsUsd} USD Minimum Deposit)
-              </h4>
-            </div>
-            <p className="text-xs text-zinc-300 leading-relaxed">
-              Cash winnings from promotional Free Spins cannot be withdrawn or used for hardware/fee purchases until your account has completed at least{' '}
-              <strong className="text-white">{formatCurrency(minDepositToActivateWinsUsd, { includeCode: true })}</strong>{' '}
-              ({selectedCurrencyCode !== 'USD' ? `$${minDepositToActivateWinsUsd} USD` : 'USD base'}) in cumulative deposits.
-              {lockedWinBalanceUsd > 0 && (
-                <>
-                  {' '}
-                  Currently locked spin winnings:{' '}
-                  <strong className="text-amber-400">{formatCurrency(lockedWinBalanceUsd, { includeCode: true })}</strong>.
-                </>
-              )}
-            </p>
-            <div className="space-y-1 max-w-md">
-              <div className="flex justify-between text-[11px] font-mono text-zinc-400">
-                <span>Activation Progress</span>
-                <span className="text-amber-300 font-bold tabular-nums">
-                  ${totalDeposited.toFixed(0)} / ${minDepositToActivateWinsUsd} USD ({depositUnlockPct}%)
-                </span>
-              </div>
-              <div className="h-2 rounded-full bg-zinc-900 overflow-hidden border border-zinc-800">
-                <div
-                  className="h-full bg-gradient-to-r from-amber-500 to-emerald-400 transition-all duration-500"
-                  style={{ width: `${depositUnlockPct}%` }}
-                />
-              </div>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={onOpenDeposit}
-            className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs shrink-0 cursor-pointer"
-          >
-            Deposit ${Math.max(0, minDepositToActivateWinsUsd - totalDeposited).toFixed(0)}+ to Unlock
-          </button>
-        </div>
-      )}
 
       {/* Prizes List */}
       {myPrizes.length === 0 ? (
@@ -535,7 +496,7 @@ export const UserWonPrizesTab: React.FC<UserWonPrizesTabProps> = ({ onOpenDeposi
                         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-2">
                           <button
                             type="button"
-                            disabled={submittingId === prize.id || !hasEnoughBalance}
+                            disabled={submittingId === prize.id || (!hasEnoughBalance && (currentUser?.totalDepositedUsd || 0) >= minDepositToActivateWinsUsd)}
                             onClick={() => handlePayAndShip(prize, 'wallet_usd')}
                             className="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 disabled:opacity-45 disabled:cursor-not-allowed text-white font-heading font-bold text-xs shadow-lg shadow-emerald-950/40 flex items-center justify-center gap-2 transition cursor-pointer"
                           >

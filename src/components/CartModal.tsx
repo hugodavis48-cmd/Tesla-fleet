@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { X, Trash2, ShoppingBag, ArrowRight, ShieldCheck, Plus, Tag, Sparkles, Lock } from 'lucide-react';
+import { X, Trash2, ShoppingBag, ArrowRight, ShieldCheck, Plus, Tag, Sparkles } from 'lucide-react';
 
 interface CartModalProps {
   isOpen: boolean;
@@ -10,6 +10,7 @@ interface CartModalProps {
 
 export const CartModal: React.FC<CartModalProps> = ({ isOpen, onClose, onOpenDeposit }) => {
   const {
+    currentUser,
     cart,
     removeFromCart,
     addToCart,
@@ -17,6 +18,7 @@ export const CartModal: React.FC<CartModalProps> = ({ isOpen, onClose, onOpenDep
     balances,
     lockedWinBalanceUsd,
     minDepositToActivateWinsUsd,
+    openWinActivationPopup,
     activeCoupon,
     applyCoupon,
     removeCoupon,
@@ -58,6 +60,13 @@ export const CartModal: React.FC<CartModalProps> = ({ isOpen, onClose, onOpenDep
   };
 
   const handleCheckout = () => {
+    if (!hasSufficientBalance && lockedWinBalanceUsd > 0 && (currentUser?.totalDepositedUsd || 0) < minDepositToActivateWinsUsd) {
+      openWinActivationPopup({
+        actionLabel: 'Store Checkout',
+        prizeAmountUsd: lockedWinBalanceUsd,
+      });
+      return;
+    }
     if (checkoutCart()) {
       onClose();
     }
@@ -194,23 +203,24 @@ export const CartModal: React.FC<CartModalProps> = ({ isOpen, onClose, onOpenDep
               </span>
             </div>
 
-            {lockedWinBalanceUsd > 0 && (
-              <div className="flex items-start gap-2 p-2.5 rounded-xl bg-amber-950/30 border border-amber-500/40 text-[11px] text-amber-200">
-                <Lock className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                <span>
-                  You also have <strong>{formatCurrency(lockedWinBalanceUsd, { includeCode: true })}</strong> in locked spin/promo winnings. Deposit at least <strong>${minDepositToActivateWinsUsd} USD</strong> total to unlock them for checkout!
-                </span>
-              </div>
-            )}
-
             {!hasSufficientBalance ? (
               <div className="space-y-2">
+                {lockedWinBalanceUsd > 0 && (currentUser?.totalDepositedUsd || 0) < minDepositToActivateWinsUsd && (
+                  <button
+                    type="button"
+                    onClick={handleCheckout}
+                    className="w-full py-3 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 text-white font-heading font-bold text-xs shadow-lg shadow-red-900/40 flex items-center justify-center gap-2 transition cursor-pointer"
+                  >
+                    <span>Pay with Vault &amp; Promotional Winnings</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                )}
                 <button
                   onClick={() => {
                     onClose();
                     onOpenDeposit();
                   }}
-                  className="w-full py-3 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs flex items-center justify-center gap-2 transition"
+                  className="w-full py-3 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer"
                 >
                   <span>Deposit Funds via Crypto (USDT, BTC, XRP, BNB)</span>
                   <ArrowRight className="w-4 h-4" />
@@ -220,7 +230,7 @@ export const CartModal: React.FC<CartModalProps> = ({ isOpen, onClose, onOpenDep
             ) : (
               <button
                 onClick={handleCheckout}
-                className="w-full py-3 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 text-white font-heading font-bold text-sm shadow-lg shadow-red-900/40 flex items-center justify-center gap-2 transition"
+                className="w-full py-3 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 text-white font-heading font-bold text-sm shadow-lg shadow-red-900/40 flex items-center justify-center gap-2 transition cursor-pointer"
               >
                 <span>Instant Checkout from Vault Balance</span>
                 <ArrowRight className="w-4 h-4" />

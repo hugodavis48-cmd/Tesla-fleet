@@ -225,6 +225,9 @@ app.post('/api/gemini/generate-banner', async (req, res) => {
     const {
       campaignGoal,
       size = 'leaderboard',
+      customWidth,
+      customHeight,
+      imageMode = 'multi',
       tone = 'Luxury High-Tech',
       targetTab = 'stocks',
       is3dHd = true,
@@ -238,6 +241,15 @@ app.post('/api/gemini/generate-banner', async (req, res) => {
       square: is3dHd ? '1200×1200 4K' : '300×300',
       rectangle: is3dHd ? '1200×1000 HD' : '300×250',
       sidebar: is3dHd ? '640×2400 HD' : '160×600',
+      billboard: '970×250',
+      wide_skyscraper: '300×600',
+      social_og: '1200×628',
+      story: '1080×1920',
+      mobile_banner: '320×100',
+      custom:
+        customWidth && customHeight
+          ? `${Number(customWidth)}×${Number(customHeight)}`
+          : '800×400',
     };
     const dimensions = sizeDimensionMap[size] || (is3dHd ? '1456×180 HD' : '728×90');
     const cleanGoal = campaignGoal || 'Earn High Yield on TSLA Stocks, Cybertruck Sales & Referral Bonuses';
@@ -284,6 +296,9 @@ Note: Mention referral benefits or VIP rewards where natural, keep headline punc
               ...parsed,
               size,
               dimensions,
+              customWidth: customWidth ? Number(customWidth) : undefined,
+              customHeight: customHeight ? Number(customHeight) : undefined,
+              imageMode,
               isAiGenerated: true,
               is3dHd: Boolean(is3dHd),
               style3dPreset,
@@ -344,6 +359,9 @@ Note: Mention referral benefits or VIP rewards where natural, keep headline punc
         ...chosen,
         size,
         dimensions,
+        customWidth: customWidth ? Number(customWidth) : undefined,
+        customHeight: customHeight ? Number(customHeight) : undefined,
+        imageMode,
         targetTab,
         isAiGenerated: true,
         is3dHd: Boolean(is3dHd),

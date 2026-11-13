@@ -275,12 +275,8 @@ export async function loadGlobalSeoFromFirestore(): Promise<{
         schemaOrgEnabled: d.schemaOrgEnabled,
       };
     }
-  } catch (err) {
-    try {
-      handleFirestoreError(err, OperationType.GET, 'site_config/seo');
-    } catch {
-      // Non-blocking fallback when rules/project aren't configured for public read
-    }
+  } catch {
+    // Non-blocking fallback when rules/project aren't configured for public read
   }
 
   try {
@@ -303,12 +299,8 @@ export async function loadGlobalSeoFromFirestore(): Promise<{
       });
       result.pageMeta = map;
     }
-  } catch (err) {
-    try {
-      handleFirestoreError(err, OperationType.LIST, 'page_seo');
-    } catch {
-      // Non-blocking fallback
-    }
+  } catch {
+    // Non-blocking fallback when rules/project aren't configured for public read
   }
 
   return result;
@@ -332,12 +324,8 @@ export async function loadAdminSectionsFromFirestore(
             loaded[sectionId] = JSON.parse(d.payloadJson);
           }
         }
-      } catch (err) {
-        try {
-          handleFirestoreError(err, OperationType.GET, `admin_settings/${sectionId}`);
-        } catch {
-          // Graceful non-fatal hydration skip
-        }
+      } catch {
+        // Graceful non-fatal hydration skip when Firestore permissions are unavailable
       }
     })
   );
@@ -479,12 +467,8 @@ export async function listFirebaseBrandingAssets(): Promise<MediaAssetRecord[]> 
         });
       }
     });
-  } catch (err) {
-    try {
-      handleFirestoreError(err, OperationType.LIST, 'media_assets');
-    } catch {
-      // ignore if rules/offline
-    }
+  } catch {
+    // Graceful skip if rules/offline
   }
 
   // 2. Scan Firebase Storage folders directly (`branding/logo`, `branding/favicon`, `branding/og_image`, `branding/general`)

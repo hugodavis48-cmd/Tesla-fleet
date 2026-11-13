@@ -771,15 +771,36 @@ export interface StockPriceAlert {
   createdAt: string;
 }
 
-export type BannerSizeType = 'leaderboard' | 'square' | 'rectangle' | 'sidebar';
+export type BannerSizeType =
+  | 'leaderboard'
+  | 'square'
+  | 'rectangle'
+  | 'sidebar'
+  | 'billboard'
+  | 'wide_skyscraper'
+  | 'social_og'
+  | 'story'
+  | 'mobile_banner'
+  | 'custom';
 
 export type Banner3dPreset = 'cyber_perspective' | 'holographic_depth' | 'studio_4k_bevel' | 'obsidian_neon';
+
+export type BannerImageMode = 'single' | 'multi';
+
+export type BannerTransitionEffect = 'fade' | 'slide' | 'zoom';
 
 export interface MarketingBanner {
   id: string;
   title: string;
   size: BannerSizeType;
   dimensions: string;
+  customWidth?: number;
+  customHeight?: number;
+  imageMode?: BannerImageMode;
+  transitionEffect?: BannerTransitionEffect;
+  borderRadiusPx?: number;
+  overlayOpacity?: number;
+  showReferralCode?: boolean;
   headline: string;
   subheadline: string;
   ctaText: string;
@@ -1022,5 +1043,35 @@ export interface VisitorActivityLog {
   timestamp: string;
 }
 
+export type CertificateCategory =
+  | 'Business Operating License'
+  | 'EV Dealership & Service Authority'
+  | 'Fleet Investment & Custody'
+  | 'Environmental & HV Safety';
 
+export type CertificateVerificationStatus =
+  | 'Active & Verified'
+  | 'Renewed'
+  | 'Pending Audit'
+  | 'Archived';
+
+export interface BusinessCertificate {
+  id: string;
+  title: string;
+  certificateNumber: string;
+  category: CertificateCategory;
+  issuingAuthority: string;
+  legalEntityName: string;
+  jurisdiction: string;
+  issuedDate: string;
+  expiryDate: string;
+  status: CertificateVerificationStatus;
+  summary: string;
+  imageUrl: string;
+  watermarkCode: string;
+  isPublished: boolean;
+  displayOnAbout: boolean;
+  order: number;
+  updatedAt: string;
+}
 

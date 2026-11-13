@@ -123,8 +123,6 @@ export const Dashboard: React.FC<DashboardProps> = ({
     investInFeaturedStock,
     featureToggles,
     wonPrizes,
-    lockedWinBalanceUsd,
-    minDepositToActivateWinsUsd,
     currencies,
     selectedCurrencyCode,
     selectedCurrency,
@@ -1057,55 +1055,6 @@ export const Dashboard: React.FC<DashboardProps> = ({
               <span className="text-[10px] text-emerald-400 block font-mono">100% Cold Storage Backed</span>
             </div>
           </div>
-
-          {/* Locked Free-Spin Winnings Vault ($250 Minimum Deposit Win-Activation Policy) */}
-          {(lockedWinBalanceUsd > 0 || (currentUser?.totalDepositedUsd || 0) < minDepositToActivateWinsUsd) && (
-            <div className="p-5 rounded-3xl bg-gradient-to-r from-amber-950/30 via-zinc-950 to-zinc-950 border border-amber-500/35 flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div className="space-y-2 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Lock className="w-4 h-4 text-amber-400" />
-                  <h4 className="font-heading font-bold text-sm text-amber-300">
-                    Locked Free-Spin Winnings Vault
-                  </h4>
-                  <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[10px] font-mono font-bold tabular-nums">
-                    {formatCurrency(lockedWinBalanceUsd, { includeCode: true })} LOCKED
-                  </span>
-                </div>
-                <p className="text-xs text-zinc-300 leading-relaxed">
-                  Cash prizes earned from Free Spins remain locked until you complete at least{' '}
-                  <strong className="text-white">{formatCurrency(minDepositToActivateWinsUsd, { includeCode: true })}</strong>{' '}
-                  (${minDepositToActivateWinsUsd} USD) in cumulative verified deposits. Once reached, locked winnings transfer automatically into your spendable Vault Balance for purchases and withdrawals.
-                </p>
-                {(() => {
-                  const deposited = currentUser?.totalDepositedUsd || 0;
-                  const pct = Math.min(100, Math.round((deposited / minDepositToActivateWinsUsd) * 100));
-                  return (
-                    <div className="max-w-md space-y-1">
-                      <div className="flex justify-between text-[11px] font-mono text-zinc-400">
-                        <span>Cumulative Deposit Activation</span>
-                        <span className="text-amber-300 font-bold tabular-nums">
-                          ${deposited.toFixed(0)} / ${minDepositToActivateWinsUsd} USD ({pct}%)
-                        </span>
-                      </div>
-                      <div className="h-2 rounded-full bg-zinc-900 border border-zinc-800 overflow-hidden">
-                        <div
-                          className="h-full bg-gradient-to-r from-amber-500 to-emerald-400 transition-all duration-500"
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
-                    </div>
-                  );
-                })()}
-              </div>
-              <button
-                type="button"
-                onClick={onOpenDeposit}
-                className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs shrink-0 cursor-pointer"
-              >
-                Deposit ${Math.max(0, minDepositToActivateWinsUsd - (currentUser?.totalDepositedUsd || 0)).toFixed(0)}+ to Unlock
-              </button>
-            </div>
-          )}
 
           {/* Balances Grid */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">

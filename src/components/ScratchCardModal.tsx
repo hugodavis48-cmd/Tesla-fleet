@@ -24,13 +24,15 @@ function pickWeightedPrize(tier: ScratchCardTier): ScratchPrizeOption {
 }
 
 export const ScratchCardModal: React.FC<ScratchCardModalProps> = ({ tier, isOpen, onClose }) => {
-  const { awardScratchPrize } = useApp();
+  const { awardScratchPrize, currentUser, minDepositToActivateWinsUsd, openWinActivationPopup } = useApp();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [isScratching, setIsScratching] = useState(false);
   const [scratchedPercentage, setScratchedPercentage] = useState(0);
   const [revealed, setRevealed] = useState(false);
   const [assignedPrize, setAssignedPrize] = useState<ScratchPrizeOption>(() => pickWeightedPrize(tier));
   const [verifyHash, setVerifyHash] = useState<string>(() => Math.random().toString(16).substring(2, 8));
+  const popupTriggeredRef = useRef(false);
+  const popupTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -38,7 +40,14 @@ export const ScratchCardModal: React.FC<ScratchCardModalProps> = ({ tier, isOpen
       setScratchedPercentage(0);
       setAssignedPrize(pickWeightedPrize(tier));
       setVerifyHash(Math.random().toString(16).substring(2, 8));
+      popupTriggeredRef.current = false;
     }
+    return () => {
+      if (popupTimerRef.current !== null) {
+        window.clearTimeout(popupTimerRef.current);
+        popupTimerRef.current = null;
+      }
+    };
   }, [isOpen, tier]);
 
   // Audio synthesis for scratching sound
@@ -184,6 +193,41 @@ export const ScratchCardModal: React.FC<ScratchCardModalProps> = ({ tier, isOpen
       vehicleModel: assignedPrize.vehicleModel,
       isTryAgain: assignedPrize.isTryAgain || assignedPrize.amountUsd <= 0,
     });
+
+    const isCashWinOutcome =
+      !assignedPrize.isTeslaCar && !assignedPrize.isTryAgain && assignedPrize.amountUsd > 0;
+    const needsDeposit = (currentUser?.totalDepositedUsd || 0) < minDepositToActivateWinsUsd;
+    if (isCashWinOutcome && needsDeposit) {
+      popupTimerRef.current = window.setTimeout(() => {
+        if (!popupTriggeredRef.current) {
+          popupTriggeredRef.current = true;
+          openWinActivationPopup({
+            actionLabel: 'Scratch & Win Cash Prize',
+            prizeLabel: assignedPrize.label,
+            prizeAmountUsd: assignedPrize.amountUsd,
+          });
+        }
+      }, 750);
+    }
+  };
+
+  const handleCloseModal = () => {
+    if (popupTimerRef.current !== null) {
+      window.clearTimeout(popupTimerRef.current);
+      popupTimerRef.current = null;
+    }
+    const isCashWinOutcome =
+      revealed && !assignedPrize.isTeslaCar && !assignedPrize.isTryAgain && assignedPrize.amountUsd > 0;
+    const needsDeposit = (currentUser?.totalDepositedUsd || 0) < minDepositToActivateWinsUsd;
+    if (isCashWinOutcome && needsDeposit && !popupTriggeredRef.current) {
+      popupTriggeredRef.current = true;
+      openWinActivationPopup({
+        actionLabel: 'Scratch & Win Cash Prize',
+        prizeLabel: assignedPrize.label,
+        prizeAmountUsd: assignedPrize.amountUsd,
+      });
+    }
+    onClose();
   };
 
   if (!isOpen) return null;
@@ -206,7 +250,7 @@ export const ScratchCardModal: React.FC<ScratchCardModalProps> = ({ tier, isOpen
             </div>
           </div>
           <button
-            onClick={onClose}
+            onClick={handleCloseModal}
             className="p-2 rounded-full bg-black/40 hover:bg-black/60 text-white transition cursor-pointer"
           >
             <X className="w-5 h-5" />
@@ -341,7 +385,7 @@ export const ScratchCardModal: React.FC<ScratchCardModalProps> = ({ tier, isOpen
               </button>
             ) : (
               <button
-                onClick={onClose}
+                onClick={handleCloseModal}
                 className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 transition shrink-0 cursor-pointer"
               >
                 <span>Done &amp; Collect</span>

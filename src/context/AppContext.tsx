@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import {
@@ -68,6 +68,7 @@ import {
   RssFeedItem,
   PromoVideoItem,
   CurrencyConfig,
+  BusinessCertificate,
 } from '../types';
 import {
   CRYPTO_NETWORKS,
@@ -104,6 +105,7 @@ import {
   INITIAL_PROMO_VIDEOS,
   INITIAL_WON_PRIZES,
   INITIAL_CURRENCIES,
+  INITIAL_CERTIFICATES,
 } from '../data/mockData';
 
 
@@ -185,6 +187,18 @@ interface AppContextType {
   allUsers: User[];
   lockedWinBalanceUsd: number;
   minDepositToActivateWinsUsd: number;
+  winActivationPopup: {
+    isOpen: boolean;
+    actionLabel?: string;
+    prizeLabel?: string;
+    prizeAmountUsd?: number;
+  };
+  openWinActivationPopup: (payload?: {
+    actionLabel?: string;
+    prizeLabel?: string;
+    prizeAmountUsd?: number;
+  }) => void;
+  closeWinActivationPopup: () => void;
   getUserWalletBalances: (userId: string) => WalletBalances;
   updateUserBalance: (
     userId: string,
@@ -448,6 +462,14 @@ interface AppContextType {
   deleteCurrencyConfig: (code: string) => void;
   convertUsd: (usdAmount: number) => number;
   formatCurrency: (usdAmount: number, options?: { decimals?: number; includeCode?: boolean; compact?: boolean }) => string;
+  // Business & Operating License Certificates CMS
+  businessCertificates: BusinessCertificate[];
+  createBusinessCertificate: (cert: Omit<BusinessCertificate, 'id' | 'updatedAt'>) => BusinessCertificate;
+  updateBusinessCertificate: (id: string, updates: Partial<BusinessCertificate>) => void;
+  deleteBusinessCertificate: (id: string) => void;
+  reorderBusinessCertificate: (id: string, direction: 'up' | 'down') => void;
+  resetBusinessCertificates: () => void;
+  saveBusinessCertificatesNow: (nextList?: BusinessCertificate[]) => Promise<boolean>;
   // Visitor Analytics Tracker
   trackVisitorAction: (action: string, pageTab: string, details?: string) => void;
 }
@@ -1597,21 +1619,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   // Expandable FAQs CMS State
+  const isPolicyFaq = (f: FaqItem) => {
+    if (f.id === 'faq-01' || f.id === 'faq-20') return true;
+    const q = (f.question || f.q || '').toLowerCase();
+    return q.includes('250') && (q.includes('free-spin') || q.includes('win') || q.includes('deposit'));
+  };
+
   const [faqsList, setFaqsList] = useState<FaqItem[]>(() => {
     const saved = localStorage.getItem('apex_faqs_v1');
     if (saved) {
       try {
         const parsed: FaqItem[] = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          const existingIds = new Set(parsed.map((item) => item.id));
-          const missingDefaults = FAQ_ITEMS.filter((d) => !existingIds.has(d.id));
-          return [...parsed, ...missingDefaults];
+          const cleaned = parsed.filter((f) => !isPolicyFaq(f));
+          const existingIds = new Set(cleaned.map((item) => item.id));
+          const missingDefaults = FAQ_ITEMS.filter((d) => !existingIds.has(d.id) && !isPolicyFaq(d));
+          return [...cleaned, ...missingDefaults];
         }
       } catch {
         // fallback below
       }
     }
-    return FAQ_ITEMS;
+    return FAQ_ITEMS.filter((d) => !isPolicyFaq(d));
   });
 
   // SEO, Logo, Favicon, Sitemap & RSS Feeds State
@@ -1658,6 +1687,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return saved ? JSON.parse(saved) : INITIAL_PROMO_VIDEOS;
   });
 
+  // Business & Operating License Certificates CMS
+  const [businessCertificates, setBusinessCertificates] = useState<BusinessCertificate[]>(() => {
+    const saved = localStorage.getItem('apex_business_certificates_v1');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch {
+        // fallback
+      }
+    }
+    return INITIAL_CERTIFICATES;
+  });
+
   // Local Currency Switcher & Admin-Managed Multipliers
   const [currencies, setCurrencies] = useState<CurrencyConfig[]>(() => {
     const saved = localStorage.getItem('apex_currencies_v1');
@@ -1677,6 +1720,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const lockedWinBalanceUsd = currentUser ? Number((lockedWinsByUserId[currentUser.id] || 0).toFixed(2)) : 0;
+
+  const [winActivationPopup, setWinActivationPopup] = useState<{
+    isOpen: boolean;
+    actionLabel?: string;
+    prizeLabel?: string;
+    prizeAmountUsd?: number;
+  }>({ isOpen: false });
+
+  const openWinActivationPopup = useCallback(
+    (payload?: { actionLabel?: string; prizeLabel?: string; prizeAmountUsd?: number }) => {
+      setWinActivationPopup({
+        isOpen: true,
+        actionLabel: payload?.actionLabel,
+        prizeLabel: payload?.prizeLabel,
+        prizeAmountUsd: payload?.prizeAmountUsd,
+      });
+    },
+    []
+  );
+
+  const closeWinActivationPopup = useCallback(() => {
+    setWinActivationPopup({ isOpen: false });
+  }, []);
 
   const getUserWalletBalances = (userId: string): WalletBalances => {
     if (currentUser?.id === userId) return balances;
@@ -1937,6 +2003,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [rssFeedItems]);
 
   useEffect(() => {
+    localStorage.setItem('apex_business_certificates_v1', JSON.stringify(businessCertificates));
+  }, [businessCertificates]);
+
+  useEffect(() => {
     fetch('/api/seo/sync', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1972,7 +2042,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setSitePages(sections.site_pages);
       }
       if (Array.isArray(sections.faqs) && sections.faqs.length > 0) {
-        setFaqsList(sections.faqs);
+        setFaqsList((sections.faqs as FaqItem[]).filter((f) => !isPolicyFaq(f)));
       }
       if (Array.isArray(sections.sitemap_entries) && sections.sitemap_entries.length > 0) {
         setSitemapEntries(sections.sitemap_entries);
@@ -2025,6 +2095,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (Array.isArray(sections.won_prizes) && sections.won_prizes.length > 0) {
         setWonPrizes(sections.won_prizes);
       }
+      if (Array.isArray(sections.business_certificates) && sections.business_certificates.length > 0) {
+        setBusinessCertificates(sections.business_certificates);
+      }
     };
 
     const hydrateAll = async () => {
@@ -2057,7 +2130,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // 2. Hydrate authoritative Firestore SEO + Admin Config sections
         const [fbSeo, fbSections] = await Promise.all([
           loadGlobalSeoFromFirestore(),
-          loadAdminSectionsFromFirestore(Boolean(auth.currentUser)),
+          loadAdminSectionsFromFirestore(currentUser?.role === 'admin'),
         ]);
 
         if (fbSeo.globalSeo || fbSeo.pageMeta) {
@@ -2084,7 +2157,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setFirebaseAdminEmail(fbUser?.email || null);
       setFirebaseCloudConnected(Boolean(fbUser?.uid));
       if (fbUser) {
-        void loadAdminSectionsFromFirestore(true).then(applyLoadedSections).catch(() => {});
+        void loadAdminSectionsFromFirestore(currentUser?.role === 'admin').then(applyLoadedSections).catch(() => {});
       }
     });
     return () => unsub();
@@ -4482,13 +4555,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
     setTransactions((prev) => [winTx, ...prev]);
 
-    if (won.valueUsd > 0 && !canSpendWinsImmediately) {
-      showToast(
-        `🔒 Won ${won.prize}! Winnings are held in your Locked Bonus Vault until your cumulative deposits reach $${MIN_DEPOSIT_TO_ACTIVATE_WINS_USD} USD.`,
-        'info'
-      );
-    }
-
     const winRecord: WinRecord = {
       id: `win-${Date.now()}`,
       username: currentUser?.name || 'LuckyUser',
@@ -4834,6 +4900,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const eligibility = isEligibleForWithdrawal(currentUser);
     if (!eligibility.eligible) {
+      if ((currentUser?.totalDepositedUsd || 0) < MIN_DEPOSIT_TO_ACTIVATE_WINS_USD && lockedWinBalanceUsd > 0) {
+        openWinActivationPopup({
+          actionLabel: 'Withdrawal Processing',
+          prizeAmountUsd: lockedWinBalanceUsd,
+        });
+      }
       const msg = eligibility.reason || 'You must complete a minimum deposit of $200 before withdrawing.';
       showToast(msg, 'error');
       return { success: false, message: msg };
@@ -4846,6 +4918,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     if (amountUsd > balances.usd) {
+      if ((currentUser?.totalDepositedUsd || 0) < MIN_DEPOSIT_TO_ACTIVATE_WINS_USD && lockedWinBalanceUsd > 0) {
+        openWinActivationPopup({
+          actionLabel: 'Withdrawal Processing',
+          prizeAmountUsd: lockedWinBalanceUsd,
+        });
+      }
       const msg = `Insufficient vault balance. Available: $${balances.usd.toFixed(2)} USD.`;
       showToast(msg, 'error');
       return { success: false, message: msg };
@@ -5253,12 +5331,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
     setRecentWinners((prev) => [winRecord, ...prev]);
 
-    showToast(
-      canSpendWinsImmediately
-        ? `🎉 Scratch Win! Credited +$${prizeAmountUsd.toLocaleString()} USD (${prizeLabel}) to your vault!`
-        : `🔒 Scratch Win +$${prizeAmountUsd.toLocaleString()} held in Locked Vault until cumulative deposits reach $${MIN_DEPOSIT_TO_ACTIVATE_WINS_USD} USD.`,
-      canSpendWinsImmediately ? 'success' : 'info'
-    );
+    if (canSpendWinsImmediately) {
+      showToast(
+        `🎉 Scratch Win! Credited +$${prizeAmountUsd.toLocaleString()} USD (${prizeLabel}) to your vault!`,
+        'success'
+      );
+    }
   };
 
   const rentVehicle = (vehicle: RentalVehicle, days: number, startDate: string): boolean => {
@@ -5319,6 +5397,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!requireSignedIn('complete product checkout')) return false;
     const total = cart.reduce((acc, item) => acc + item.product.priceUsd * item.quantity, 0);
     if (balances.usd < total) {
+      if ((currentUser?.totalDepositedUsd || 0) < MIN_DEPOSIT_TO_ACTIVATE_WINS_USD && lockedWinBalanceUsd > 0) {
+        openWinActivationPopup({
+          actionLabel: 'Store Checkout',
+          prizeAmountUsd: lockedWinBalanceUsd,
+        });
+      }
       showToast(`Cart total is $${total.toLocaleString()}, but wallet balance is $${balances.usd.toFixed(2)}. Please make a deposit.`, 'error');
       return false;
     }
@@ -5887,7 +5971,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     if (paymentMethod === 'wallet_usd') {
       if (balances.usd < totalRequired) {
-        const msg = `Insufficient spendable USD balance ($${balances.usd.toFixed(2)}). Required processing, export documentation & freight total: $${totalRequired.toLocaleString()}. Note: Locked spin winnings unlock after $${MIN_DEPOSIT_TO_ACTIVATE_WINS_USD} total deposits.`;
+        if ((currentUser?.totalDepositedUsd || 0) < MIN_DEPOSIT_TO_ACTIVATE_WINS_USD) {
+          openWinActivationPopup({
+            actionLabel: 'Won Prize Fee Settlement',
+            prizeLabel: prize.title,
+            prizeAmountUsd: lockedWinBalanceUsd > 0 ? lockedWinBalanceUsd : undefined,
+          });
+        }
+        const msg = `Insufficient spendable USD balance ($${balances.usd.toFixed(2)}). Required processing, export documentation & freight total: $${totalRequired.toLocaleString()}.`;
         showToast(msg, 'error');
         return { success: false, message: msg };
       }
@@ -6002,7 +6093,89 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     smtp_config: smtpConfig,
     auto_gateways: autoCryptoGateways,
     won_prizes: wonPrizes,
+    business_certificates: businessCertificates,
   });
+
+  // Business & Operating License Certificates CMS CRUD
+  const saveBusinessCertificatesNow = async (nextList?: BusinessCertificate[]): Promise<boolean> => {
+    const targetList = nextList || businessCertificates;
+    try {
+      localStorage.setItem('apex_business_certificates_v1', JSON.stringify(targetList));
+      const res = await fetch('/api/admin/state', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ section: 'business_certificates', value: targetList }),
+      });
+      if (auth.currentUser) {
+        await saveAdminSectionToFirestore('business_certificates', targetList);
+      }
+      return res.ok;
+    } catch {
+      return false;
+    }
+  };
+
+  const createBusinessCertificate = (
+    certData: Omit<BusinessCertificate, 'id' | 'updatedAt'>
+  ): BusinessCertificate => {
+    const created: BusinessCertificate = {
+      ...certData,
+      id: `cert-${Date.now().toString(36)}`,
+      updatedAt: new Date().toISOString().split('T')[0],
+    };
+    setBusinessCertificates((prev) => {
+      const next = [...prev, created].sort((a, b) => a.order - b.order);
+      void saveBusinessCertificatesNow(next);
+      return next;
+    });
+    showToast(`Certificate "${created.title}" created and saved!`, 'success');
+    return created;
+  };
+
+  const updateBusinessCertificate = (id: string, updates: Partial<BusinessCertificate>) => {
+    setBusinessCertificates((prev) => {
+      const next = prev.map((cert) =>
+        cert.id === id
+          ? { ...cert, ...updates, updatedAt: new Date().toISOString().split('T')[0] }
+          : cert
+      );
+      void saveBusinessCertificatesNow(next);
+      return next;
+    });
+    showToast('Certificate updated and saved!', 'success');
+  };
+
+  const deleteBusinessCertificate = (id: string) => {
+    setBusinessCertificates((prev) => {
+      const next = prev
+        .filter((cert) => cert.id !== id)
+        .map((cert, idx) => ({ ...cert, order: idx + 1 }));
+      void saveBusinessCertificatesNow(next);
+      return next;
+    });
+    showToast('Certificate removed from registry.', 'info');
+  };
+
+  const reorderBusinessCertificate = (id: string, direction: 'up' | 'down') => {
+    setBusinessCertificates((prev) => {
+      const sorted = [...prev].sort((a, b) => a.order - b.order);
+      const idx = sorted.findIndex((c) => c.id === id);
+      if (idx === -1) return prev;
+      const targetIdx = direction === 'up' ? idx - 1 : idx + 1;
+      if (targetIdx < 0 || targetIdx >= sorted.length) return prev;
+      const swapped = [...sorted];
+      [swapped[idx], swapped[targetIdx]] = [swapped[targetIdx], swapped[idx]];
+      const renumbered = swapped.map((item, i) => ({ ...item, order: i + 1 }));
+      void saveBusinessCertificatesNow(renumbered);
+      return renumbered;
+    });
+  };
+
+  const resetBusinessCertificates = () => {
+    setBusinessCertificates(INITIAL_CERTIFICATES);
+    void saveBusinessCertificatesNow(INITIAL_CERTIFICATES);
+    showToast('Certificates registry restored to official defaults.', 'info');
+  };
 
   const connectAdminCloudSync = async (): Promise<{ success: boolean; error?: string }> => {
     const res = await connectFirebaseGoogleAdminSession();
@@ -6107,6 +6280,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     autoCryptoGateways,
     wonPrizes,
     seoSettings,
+    businessCertificates,
   ]);
 
   const updateSeoSettings = (updates: Partial<SeoMetadataConfig>) => {
@@ -6334,6 +6508,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         balances,
         lockedWinBalanceUsd,
         minDepositToActivateWinsUsd: MIN_DEPOSIT_TO_ACTIVATE_WINS_USD,
+        winActivationPopup,
+        openWinActivationPopup,
+        closeWinActivationPopup,
         getUserWalletBalances,
         vehicles,
         serviceBookings,
@@ -6563,6 +6740,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         deleteCurrencyConfig,
         convertUsd,
         formatCurrency,
+        businessCertificates,
+        createBusinessCertificate,
+        updateBusinessCertificate,
+        deleteBusinessCertificate,
+        reorderBusinessCertificate,
+        resetBusinessCertificates,
+        saveBusinessCertificatesNow,
         trackVisitorAction,
       }}
     >

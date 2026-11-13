@@ -45,6 +45,7 @@ const BUILTIN_SEO_PAGE_LIST: Array<{ key: string; label: string }> = [
   { key: 'coupons', label: 'Coupons & Vouchers' },
   { key: 'referrals', label: 'Affiliate & Referrals' },
   { key: 'about', label: 'About Apex Hub' },
+  { key: 'certificates', label: 'Business & License Certificates' },
   { key: 'faq', label: 'Platform FAQ' },
   { key: 'contact', label: 'Contact & Concierge' },
   { key: 'sitemap', label: 'HTML & XML Sitemap' },

@@ -39,6 +39,8 @@ import { UnifiedShowcaseDeck } from './components/UnifiedShowcaseDeck';
 import { PromoBannersPage } from './components/PromoBannersPage';
 import { CustomPageView } from './components/CustomPageView';
 import { SitemapRssPage } from './components/SitemapRssPage';
+import { CertificatesPage } from './components/CertificatesPage';
+import { WinActivationPolicyModal } from './components/WinActivationPolicyModal';
 import { CheckCircle2, AlertCircle, Info, AlertTriangle } from 'lucide-react';
 
 const isPathAdmin = () => {
@@ -154,6 +156,7 @@ const MainAppContent: React.FC = () => {
     'admin',
     'social',
     'about',
+    'certificates',
     'faq',
     'contact',
     'sitemap',
@@ -245,7 +248,12 @@ const MainAppContent: React.FC = () => {
             <PromotionsHub onOpenDeposit={openDepositModalGated} />
 
             {/* Information & Trust Sections */}
-            <AboutSection />
+            <AboutSection
+              onNavigateToCertificates={() => {
+                setActiveTab('certificates');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+            />
             <FaqSection />
             <ContactSection />
           </div>
@@ -386,7 +394,22 @@ const MainAppContent: React.FC = () => {
         )}
         {activeTab === 'social' && <SocialConnect />}
 
-        {activeTab === 'about' && <AboutSection />}
+        {activeTab === 'about' && (
+          <AboutSection
+            onNavigateToCertificates={() => {
+              setActiveTab('certificates');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+          />
+        )}
+        {activeTab === 'certificates' && (
+          <CertificatesPage
+            onNavigate={(tab) => {
+              setActiveTab(tab);
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+          />
+        )}
         {activeTab === 'faq' && <FaqSection />}
         {activeTab === 'contact' && <ContactSection />}
         {activeTab === 'sitemap' && (
@@ -469,6 +492,8 @@ const MainAppContent: React.FC = () => {
         isOpen={isOrderTrackingOpen}
         onClose={() => setIsOrderTrackingOpen(false)}
       />
+
+      <WinActivationPolicyModal onOpenDeposit={openDepositModalGated} />
 
       {/* Global Toast Notification */}
       {toastMessage && (

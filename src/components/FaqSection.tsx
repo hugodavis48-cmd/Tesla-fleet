@@ -61,7 +61,7 @@ export const FaqSection: React.FC = () => {
             PLATFORM PROTOCOLS &amp; FREQUENTLY ASKED QUESTIONS
           </h2>
           <p className="text-zinc-400 text-xs sm:text-sm leading-relaxed">
-            Slide through comprehensive policies covering EV servicing, Robotaxi staking yields, TSLA Fast-ROI stock dividends, $250 minimum deposit win activation, and international prize vehicle shipping.
+            Slide through comprehensive policies covering EV servicing, Robotaxi staking yields, TSLA Fast-ROI stock dividends, and international prize vehicle shipping.
           </p>
         </div>
 

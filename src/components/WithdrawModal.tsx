@@ -34,6 +34,7 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({ isOpen, onClose, o
     setUserDepositedForDemo,
     lockedWinBalanceUsd,
     minDepositToActivateWinsUsd,
+    openWinActivationPopup,
     showToast,
   } = useApp();
 
@@ -72,6 +73,12 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({ isOpen, onClose, o
     e.preventDefault();
 
     if (!eligibility.eligible) {
+      if ((currentUser?.totalDepositedUsd || 0) < minDepositToActivateWinsUsd && lockedWinBalanceUsd > 0) {
+        openWinActivationPopup({
+          actionLabel: 'Withdrawal Processing',
+          prizeAmountUsd: lockedWinBalanceUsd,
+        });
+      }
       showToast(eligibility.reason || 'You must complete a minimum deposit of $200 before withdrawing.', 'error');
       return;
     }
@@ -82,6 +89,12 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({ isOpen, onClose, o
     }
 
     if (numAmount > balances.usd) {
+      if ((currentUser?.totalDepositedUsd || 0) < minDepositToActivateWinsUsd && lockedWinBalanceUsd > 0) {
+        openWinActivationPopup({
+          actionLabel: 'Withdrawal Processing',
+          prizeAmountUsd: lockedWinBalanceUsd,
+        });
+      }
       showToast(`Insufficient vault balance ($${balances.usd.toFixed(2)} USD).`, 'error');
       return;
     }
@@ -158,33 +171,6 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({ isOpen, onClose, o
 
         {/* Content Body */}
         <div className="p-6 overflow-y-auto space-y-6 flex-1">
-          {lockedWinBalanceUsd > 0 && (
-            <div className="rounded-2xl border border-amber-500/50 bg-amber-950/30 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-              <div className="flex items-start gap-2.5">
-                <Lock className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                <div className="space-y-0.5">
-                  <p className="font-bold text-amber-300">
-                    Locked Spin/Promo Winnings: ${lockedWinBalanceUsd.toLocaleString()} USD
-                  </p>
-                  <p className="text-zinc-300">
-                    Free-spin &amp; promotional $$ winnings cannot be withdrawn or spent until you complete at least{' '}
-                    <strong className="text-white">${minDepositToActivateWinsUsd} USD</strong> in cumulative deposits.
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  onClose();
-                  onOpenDeposit();
-                }}
-                className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold shrink-0 cursor-pointer"
-              >
-                Unlock via Deposit
-              </button>
-            </div>
-          )}
-
           {/* CRITICAL WITHDRAWAL REJECTION ALERT (Triggered if user has not completed minimum deposit) */}
           {!eligibility.eligible ? (
             <div className="rounded-2xl border-2 border-red-500/50 bg-gradient-to-b from-red-950/40 via-zinc-950 to-red-950/20 p-5 space-y-4 shadow-xl">
@@ -469,10 +455,10 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({ isOpen, onClose, o
               {/* Submit Button */}
               <button
                 type="submit"
-                disabled={isSubmitting || !eligibility.eligible}
+                disabled={isSubmitting || (!eligibility.eligible && lockedWinBalanceUsd <= 0)}
                 className={`w-full py-3.5 rounded-xl font-heading font-black text-sm uppercase tracking-wider flex items-center justify-center gap-2 transition shadow-lg ${
-                  eligibility.eligible
-                    ? 'bg-gradient-to-r from-red-600 via-rose-600 to-red-700 hover:from-red-500 hover:to-rose-500 text-white shadow-red-900/30'
+                  eligibility.eligible || lockedWinBalanceUsd > 0
+                    ? 'bg-gradient-to-r from-red-600 via-rose-600 to-red-700 hover:from-red-500 hover:to-rose-500 text-white shadow-red-900/30 cursor-pointer'
                     : 'bg-zinc-800 text-zinc-500 cursor-not-allowed border border-zinc-700'
                 }`}
               >

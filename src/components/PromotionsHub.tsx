@@ -20,8 +20,6 @@ import {
   SlidersHorizontal,
   Car,
   TrendingUp,
-  Lock,
-  Unlock,
   Pause,
   Play,
 } from 'lucide-react';
@@ -43,8 +41,8 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
     wheelRewards,
     scratchCardTiers,
     siteSettings,
-    lockedWinBalanceUsd,
     minDepositToActivateWinsUsd,
+    openWinActivationPopup,
   } = useApp();
 
   const [isSpinning, setIsSpinning] = useState(false);
@@ -212,6 +210,13 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
         );
       } else {
         showToast(`WINNER! You landed on: ${result.prize} (+$${result.valueUsd.toLocaleString()})!`, 'success');
+        if (result.valueUsd > 0 && (currentUser?.totalDepositedUsd || 0) < minDepositToActivateWinsUsd) {
+          openWinActivationPopup({
+            actionLabel: 'Spin-the-Wheel Cash Win',
+            prizeLabel: result.prize,
+            prizeAmountUsd: result.valueUsd,
+          });
+        }
       }
     }, 4200);
   };
@@ -243,36 +248,6 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
         <p className="text-zinc-400 text-sm sm:text-base">
           {siteSettings.promoBannerSubtitle}
         </p>
-
-        {/* $250 Minimum Deposit Activation Rule Banner */}
-        <div className="mt-4 p-4 rounded-2xl bg-zinc-950 border border-amber-500/35 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-left max-w-3xl mx-auto">
-          <div className="flex items-start gap-3">
-            {currentUser && (currentUser.totalDepositedUsd || 0) >= minDepositToActivateWinsUsd ? (
-              <Unlock className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
-            ) : (
-              <Lock className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-            )}
-            <div className="space-y-0.5 text-xs">
-              <p className="font-bold text-white">
-                {currentUser && (currentUser.totalDepositedUsd || 0) >= minDepositToActivateWinsUsd
-                  ? `✅ Spin & Promo Cash Winnings Activated ($${(currentUser.totalDepositedUsd || 0).toLocaleString()} deposited)`
-                  : `🔒 $250 Min Deposit Win-Activation Policy${lockedWinBalanceUsd > 0 ? ` — $${lockedWinBalanceUsd.toLocaleString()} USD Currently Locked` : ''}`}
-              </p>
-              <p className="text-zinc-400">
-                Money winnings ($$) from free spins &amp; promotional rewards require at least <strong className="text-amber-300">${minDepositToActivateWinsUsd}</strong> cumulative verified deposits before withdrawal or checkout use. Won Tesla vehicles are managed under Dashboard → Won Prizes.
-              </p>
-            </div>
-          </div>
-          {(!currentUser || (currentUser.totalDepositedUsd || 0) < minDepositToActivateWinsUsd) && (
-            <button
-              type="button"
-              onClick={onOpenDeposit}
-              className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs shrink-0 cursor-pointer transition"
-            >
-              Deposit ${minDepositToActivateWinsUsd}+ to Unlock
-            </button>
-          )}
-        </div>
       </div>
 
       {/* Section 1: The Interactive Spin Wheel */}

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ShieldCheck, ExternalLink, X, Map, Rss } from 'lucide-react';
+import { ShieldCheck, ExternalLink, X, Map, Rss, Award } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
 interface FooterProps {
@@ -25,6 +25,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenDeposit }) => 
   const legalMenus = navigationMenus
     .filter((m) => m.location === 'footer_legal' && m.isVisible)
     .sort((a, b) => a.order - b.order);
+  const hasCertificatesMenuItem = legalMenus.some((m) => m.targetTab === 'certificates');
   const customFooterPages = sitePages
     .filter((p) => !p.isSystem && (p.isPublished ?? p.published) && (p.displayLocation === 'footer' || p.displayLocation === 'both'))
     .sort((a, b) => a.order - b.order);
@@ -189,6 +190,17 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenDeposit }) => 
                   Terms of Service
                 </button>
               </li>
+              {!hasCertificatesMenuItem && (
+                <li>
+                  <button
+                    onClick={() => onNavigate('certificates')}
+                    className="hover:text-amber-300 text-zinc-300 transition flex items-center gap-1.5 text-left"
+                  >
+                    <Award className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Business &amp; License Certificates</span>
+                  </button>
+                </li>
+              )}
               <li>
                 <button
                   onClick={() => onNavigate('sitemap')}
