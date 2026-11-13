@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Zap, ShieldCheck, ExternalLink, X } from 'lucide-react';
+import { ShieldCheck, ExternalLink, X, Map, Rss } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
 interface FooterProps {
@@ -8,7 +8,7 @@ interface FooterProps {
 }
 
 export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenDeposit }) => {
-  const { currentUser, navigationMenus, sitePages, siteSettings, socialLinks } = useApp();
+  const { currentUser, navigationMenus, sitePages, siteSettings, seoSettings, socialLinks } = useApp();
   const [modalContent, setModalContent] = useState<{ title: string; body: string } | null>(null);
 
   const openLegalModal = (title: string, body: string) => {
@@ -50,9 +50,13 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenDeposit }) => 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-8">
           {/* Brand info */}
           <div className="lg:col-span-2 space-y-4">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-red-600 to-rose-700 flex items-center justify-center p-0.5">
-                <Zap className="w-4 h-4 text-white fill-white" />
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-red-600 to-rose-700 p-0.5 overflow-hidden shrink-0">
+                <img
+                  src={seoSettings?.logoUrl || '/logo.jpg'}
+                  alt={siteSettings.siteName}
+                  className="w-full h-full rounded-[10px] object-cover bg-zinc-950"
+                />
               </div>
               <div className="flex items-center gap-1">
                 <span className="font-heading font-black text-lg tracking-tight text-white">{brandParts[0]}</span>
@@ -184,6 +188,33 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenDeposit }) => 
                 >
                   Terms of Service
                 </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => onNavigate('sitemap')}
+                  className="hover:text-cyan-400 text-zinc-300 transition flex items-center gap-1.5 text-left"
+                >
+                  <Map className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>Interactive Site Map</span>
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => onNavigate('rss')}
+                  className="hover:text-amber-400 text-zinc-300 transition flex items-center gap-1.5 text-left"
+                >
+                  <Rss className="w-3.5 h-3.5 text-amber-400" />
+                  <span>RSS Feeds & Live XML</span>
+                </button>
+              </li>
+              <li className="flex items-center gap-3 pt-1 text-[10px] font-mono">
+                <a href="/sitemap.xml" target="_blank" rel="noreferrer" className="text-zinc-400 hover:text-cyan-400 underline">
+                  sitemap.xml
+                </a>
+                <span className="text-zinc-700">•</span>
+                <a href="/rss.xml" target="_blank" rel="noreferrer" className="text-zinc-400 hover:text-amber-400 underline">
+                  rss.xml
+                </a>
               </li>
               {currentUser?.role === 'admin' && (
                 <li>

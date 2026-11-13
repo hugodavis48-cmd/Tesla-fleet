@@ -100,7 +100,7 @@ export const InvestmentHub: React.FC<InvestmentHubProps> = ({ onOpenDeposit, onN
           const parsed = JSON.parse(saved);
           return {
             ...parsed,
-            targetEmail: parsed.targetEmail || currentUser?.email || 'alex.vance@apex-tesla.io',
+            targetEmail: parsed.targetEmail || currentUser?.email || '',
           };
         }
       } catch (e) {
@@ -111,7 +111,7 @@ export const InvestmentHub: React.FC<InvestmentHubProps> = ({ onOpenDeposit, onN
       enabled: true,
       emailAlerts: true,
       browserAlerts: true,
-      targetEmail: currentUser?.email || 'alex.vance@apex-tesla.io',
+      targetEmail: currentUser?.email || '',
       selectedPoolIds: ['all'],
       customThresholds: {
         minApy: 18.0,
@@ -136,9 +136,9 @@ export const InvestmentHub: React.FC<InvestmentHubProps> = ({ onOpenDeposit, onN
     };
   });
 
-  // Keep target email synced with logged in user if not customized
+  // Keep target email synced with logged in user if empty
   useEffect(() => {
-    if (currentUser?.email && alertSettings.targetEmail === 'alex.vance@apex-tesla.io' && currentUser.email !== 'alex.vance@apex-tesla.io') {
+    if (currentUser?.email && !alertSettings.targetEmail) {
       const updated = { ...alertSettings, targetEmail: currentUser.email };
       setAlertSettings(updated);
       try {
@@ -307,6 +307,13 @@ export const InvestmentHub: React.FC<InvestmentHubProps> = ({ onOpenDeposit, onN
   const numStake = parseFloat(stakeAmount) || 0;
 
   const handleConfirmStake = () => {
+    if (!currentUser) {
+      showToast('Please sign in or register to stake funds into fleet pools.', 'error');
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('apex:require-auth'));
+      }
+      return;
+    }
     if (!activePoolToStake) return;
     if (numStake < activePoolToStake.minInvestmentUsd) {
       showToast(`Minimum investment for this pool is $${activePoolToStake.minInvestmentUsd}.`, 'error');
@@ -620,6 +627,13 @@ export const InvestmentHub: React.FC<InvestmentHubProps> = ({ onOpenDeposit, onN
           <form
             onSubmit={(e) => {
               e.preventDefault();
+              if (!currentUser) {
+                showToast('Please sign in or register to create TSLA price alerts.', 'error');
+                if (typeof window !== 'undefined') {
+                  window.dispatchEvent(new CustomEvent('apex:require-auth'));
+                }
+                return;
+              }
               const parsed = parseFloat(stockAlertPrice);
               if (!parsed || parsed <= 0) {
                 showToast('Please enter a valid TSLA threshold price.', 'error');
@@ -951,6 +965,13 @@ export const InvestmentHub: React.FC<InvestmentHubProps> = ({ onOpenDeposit, onN
                 <div className="p-6 pt-0 flex items-center gap-2">
                   <button
                     onClick={() => {
+                      if (!currentUser) {
+                        showToast('Please sign in or register to stake into Tesla fleet yield pools.', 'error');
+                        if (typeof window !== 'undefined') {
+                          window.dispatchEvent(new CustomEvent('apex:require-auth'));
+                        }
+                        return;
+                      }
                       setActivePoolToStake(pool);
                       setStakeAmount(pool.minInvestmentUsd.toString());
                     }}

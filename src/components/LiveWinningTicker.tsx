@@ -37,24 +37,28 @@ export const LiveWinningTicker: React.FC<LiveWinningTickerProps> = ({
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
   const activePromoCoupon = coupons.find((c) => c.isActive && c.code === 'CYBER20') || coupons[0];
+  const latestRoiDrop =
+    recentWinners.find((w) => w.type === 'Staking ROI' || w.type === 'TSLA Stock ROI') || recentWinners[0];
+  const latestGameDrop =
+    recentWinners.find((w) => w.type === 'Wheel Spin' || w.type === 'Scratch & Win') || recentWinners[0];
 
   // Combined multiple display feeds
   const slides = [
     ...(siteSettings.announcementBanner?.trim() ? [{ id: 'announcement', type: 'announcement' }] : []),
-    { id: 'stocks', type: 'stocks' },
     { id: 'roi_wins', type: 'roi_wins' },
     { id: 'winners', type: 'winners' },
+    { id: 'stocks', type: 'stocks' },
     { id: 'settlements', type: 'settlements' },
     { id: 'coupons', type: 'coupons' },
     { id: 'shipping', type: 'shipping' },
   ];
 
-  // Auto-advance slider every 4 seconds
+  // Auto-advance slider every 3.5 seconds
   useEffect(() => {
     if (isPaused) return;
     const interval = setInterval(() => {
       setCurrentSlide((prev) => (prev + 1) % slides.length);
-    }, 4200);
+    }, 3500);
     return () => clearInterval(interval);
   }, [isPaused, slides.length]);
 
@@ -132,63 +136,68 @@ export const LiveWinningTicker: React.FC<LiveWinningTickerProps> = ({
             </div>
           )}
 
-          {/* FEED 1: COMBINED INVESTMENT ROI WINS & DAILY CRON PAYOUTS */}
-          {slides[currentSlide % slides.length]?.id === 'roi_wins' && (
+          {/* FEED 1: LIVE STAKING & TSLA STOCK ROI EARNINGS */}
+          {slides[currentSlide % slides.length]?.id === 'roi_wins' && latestRoiDrop && (
             <div className="flex items-center gap-2.5 truncate animate-in fade-in slide-in-from-right-4 duration-300">
               <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-600/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold uppercase shrink-0">
                 <TrendingUp className="w-3 h-3 text-emerald-400 inline" />
-                <span>ROI Win Payout</span>
+                <span>{latestRoiDrop.type}</span>
               </span>
 
-              <span className="text-zinc-300 truncate">
-                <strong className="text-white">Alex V.</strong> received{' '}
-                <strong className="text-emerald-400 font-mono">+$71.03 USD</strong> daily dividend payout from{' '}
-                <span className="text-cyan-300">Robotaxi Fleet Staking Pool (18.5% APY)</span>
+              <span className="text-zinc-300 truncate flex items-center gap-1.5">
+                <strong className="text-white">{latestRoiDrop.username}</strong> earned{' '}
+                <strong className="text-emerald-400 font-mono">
+                  +${latestRoiDrop.valueUsd.toLocaleString()} USD
+                </strong>
+                {latestRoiDrop.roiPercent ? (
+                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-950/70 border border-emerald-500/30 text-emerald-300">
+                    +{latestRoiDrop.roiPercent}% ROI
+                  </span>
+                ) : null}
+                <span className="text-cyan-300 hidden sm:inline">• {latestRoiDrop.prize}</span>
               </span>
 
               {onNavigateToInvestment && (
                 <button
-                  onClick={onNavigateToInvestment}
+                  onClick={latestRoiDrop.type === 'TSLA Stock ROI' && onNavigateToStocks ? onNavigateToStocks : onNavigateToInvestment}
                   className="shrink-0 px-2 py-0.5 rounded bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 hover:text-white text-[10px] font-bold hidden sm:block transition"
                 >
-                  View Yields
+                  {latestRoiDrop.type === 'TSLA Stock ROI' ? 'TSLA Yield' : 'View Yields'}
                 </button>
               )}
             </div>
           )}
 
           {/* FEED 2: LIVE PROVABLY FAIR WINNERS (SPINS & SCRATCH CARDS) */}
-          {slides[currentSlide % slides.length]?.id === 'winners' && (
+          {slides[currentSlide % slides.length]?.id === 'winners' && latestGameDrop && (
             <div className="flex items-center gap-2.5 truncate animate-in fade-in slide-in-from-right-4 duration-300">
               <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-red-600/20 text-red-400 border border-red-500/30 text-[10px] font-bold uppercase shrink-0">
                 <Trophy className="w-3 h-3 text-yellow-400 inline" />
-                <span>Promotion Winner</span>
+                <span>{latestGameDrop.type}</span>
               </span>
 
-              {recentWinners.slice(0, 1).map((winner) => (
-                <div key={winner.id} className="flex items-center gap-2 text-zinc-300 truncate">
-                  <div className="w-5 h-5 rounded-full overflow-hidden border border-red-500/40 bg-zinc-800 shrink-0">
-                    <img
-                      src={winner.avatar}
-                      alt={winner.username}
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        e.currentTarget.style.display = 'none';
-                      }}
-                    />
-                  </div>
-                  <strong className="text-white font-medium truncate">{winner.username}</strong>
-                  <span className="text-zinc-400 hidden sm:inline">won</span>
-                  <span className="font-bold text-yellow-400 flex items-center gap-1 shrink-0">
-                    <Sparkles className="w-3 h-3" />
-                    <span>{winner.prize}</span>
-                  </span>
-                  <span className="text-emerald-400 text-[10px] font-mono hidden md:inline-flex items-center gap-0.5">
-                    <ShieldCheck className="w-3 h-3" />
-                    <span>{winner.verifiedHash}</span>
-                  </span>
+              <div className="flex items-center gap-2 text-zinc-300 truncate">
+                <div className="w-5 h-5 rounded-full overflow-hidden border border-red-500/40 bg-zinc-800 shrink-0">
+                  <img
+                    src={latestGameDrop.avatar}
+                    alt={latestGameDrop.username}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                    }}
+                  />
                 </div>
-              ))}
+                <strong className="text-white font-medium truncate">{latestGameDrop.username}</strong>
+                <span className="text-zinc-400 hidden sm:inline">won</span>
+                <span className="font-bold text-yellow-400 flex items-center gap-1 shrink-0">
+                  <Sparkles className="w-3 h-3" />
+                  <span>{latestGameDrop.prize}</span>
+                </span>
+                <span className="text-emerald-400 text-[10px] font-mono hidden md:inline-flex items-center gap-0.5">
+                  <ShieldCheck className="w-3 h-3" />
+                  <span>{latestGameDrop.verifiedHash}</span>
+                </span>
+              </div>
 
               {onNavigateToPromotions && (
                 <button

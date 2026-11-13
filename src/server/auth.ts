@@ -3,6 +3,7 @@ import type { Request, Response, NextFunction } from 'express';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
+import { sendRegistrationNotificationEmail } from './mailer.js';
 
 export type AdminPrivilege =
   | 'super_admin'
@@ -226,6 +227,170 @@ function seedInitialUsers() {
       referredUsers: [],
     };
     usersDatabase.set(adminUser.email.toLowerCase(), adminUser);
+
+    // 3-10. Additional Global Demo Customers for Realistic Fleet & User Activity
+    const demoCustCreds = hashPassword('TeslaPlaid2026!');
+    const additionalDemoUsers: Array<{
+      id: string;
+      name: string;
+      email: string;
+      location: string;
+      preferredServiceCenter: string;
+      phone: string;
+      avatar: string;
+      bio: string;
+      tier: 'Standard' | 'Plaid Member' | 'Founders Club';
+      referralCode: string;
+      memberSince: string;
+      referralEarningsUsd: number;
+      referralCount: number;
+    }> = [
+      {
+        id: 'usr-003',
+        name: 'Marcus Vance',
+        email: 'marcus.v@tesla-club.org',
+        location: 'San Jose, CA',
+        preferredServiceCenter: 'Apex Fremont Technology Center',
+        phone: '+1 (408) 555-0199',
+        avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80',
+        bio: 'Model 3 Performance track driver. Carbon fiber addict.',
+        tier: 'Standard',
+        referralCode: 'APEX-MARC-44',
+        memberSince: 'October 2026',
+        referralEarningsUsd: 120.0,
+        referralCount: 1,
+      },
+      {
+        id: 'usr-004',
+        name: 'Sarah Connor',
+        email: 'sarah.c@cyberbeast.io',
+        location: 'Reno, NV',
+        preferredServiceCenter: 'Apex Nevada Battery Operations',
+        phone: '+1 (775) 555-4012',
+        avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=200&q=80',
+        bio: 'Cybertruck Cyberbeast daily driver. Overland camping enthusiast.',
+        tier: 'Plaid Member',
+        referralCode: 'APEX-CYBR-99',
+        memberSince: 'October 2026',
+        referralEarningsUsd: 100.0,
+        referralCount: 1,
+      },
+      {
+        id: 'usr-005',
+        name: 'Kenji Sato',
+        email: 'kenji.sato@plaid-tokyo.jp',
+        location: 'Tokyo, Japan',
+        preferredServiceCenter: 'Apex Berlin Super-Hub Europe',
+        phone: '+81 90 5555 4321',
+        avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=200&q=80',
+        bio: 'Tesla Roadster reservation holder and Supercharger node staker.',
+        tier: 'Standard',
+        referralCode: 'APEX-KENJI-01',
+        memberSince: 'November 2026',
+        referralEarningsUsd: 0,
+        referralCount: 0,
+      },
+      {
+        id: 'usr-006',
+        name: 'Elena Rostova',
+        email: 'elena.r@apex-ev.de',
+        location: 'Berlin, Germany',
+        preferredServiceCenter: 'Apex Berlin Super-Hub Europe',
+        phone: '+49 30 5558 1920',
+        avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=200&q=80',
+        bio: 'Gigafactory Berlin fleet investor & Model Y Performance owner.',
+        tier: 'Founders Club',
+        referralCode: 'APEX-ELENA-88',
+        memberSince: 'June 2025',
+        referralEarningsUsd: 640.0,
+        referralCount: 5,
+      },
+      {
+        id: 'usr-007',
+        name: 'Mateo Silva',
+        email: 'mateo.silva@miami-plaid.com',
+        location: 'Miami, FL',
+        preferredServiceCenter: 'Apex Austin Gigafactory Hub',
+        phone: '+1 (305) 555-7741',
+        avatar: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&w=200&q=80',
+        bio: 'Cybertruck Foundation owner • Crypto treasury & TSLA options trader.',
+        tier: 'Plaid Member',
+        referralCode: 'APEX-MATEO-77',
+        memberSince: 'February 2026',
+        referralEarningsUsd: 420.0,
+        referralCount: 4,
+      },
+      {
+        id: 'usr-008',
+        name: 'Chloe Beaumont',
+        email: 'chloe.b@ev-london.co.uk',
+        location: 'London, UK',
+        preferredServiceCenter: 'Apex Berlin Super-Hub Europe',
+        phone: '+44 20 7946 0821',
+        avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=200&q=80',
+        bio: 'Right-hand drive Model X Plaid owner & Robotaxi yield pool partner.',
+        tier: 'Plaid Member',
+        referralCode: 'APEX-CHLOE-21',
+        memberSince: 'April 2026',
+        referralEarningsUsd: 210.0,
+        referralCount: 2,
+      },
+      {
+        id: 'usr-009',
+        name: 'Liam O\'Connor',
+        email: 'liam.oc@pacific-ev.io',
+        location: 'Seattle, WA',
+        preferredServiceCenter: 'Apex Fremont Technology Center',
+        phone: '+1 (206) 555-3194',
+        avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=200&q=80',
+        bio: 'Model 3 Highland Stealth PPF collector & Supercharger staker.',
+        tier: 'Standard',
+        referralCode: 'APEX-LIAM-55',
+        memberSince: 'August 2026',
+        referralEarningsUsd: 75.0,
+        referralCount: 1,
+      },
+      {
+        id: 'usr-010',
+        name: 'Priya Nair',
+        email: 'priya.nair@austin-grid.io',
+        location: 'Austin, TX',
+        preferredServiceCenter: 'Apex Austin Gigafactory Hub',
+        phone: '+1 (512) 555-8830',
+        avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=200&q=80',
+        bio: 'Grid energy engineer • Megapack & Model Y dual-motor fleet partner.',
+        tier: 'Founders Club',
+        referralCode: 'APEX-PRIYA-10',
+        memberSince: 'May 2025',
+        referralEarningsUsd: 890.0,
+        referralCount: 7,
+      },
+    ];
+
+    for (const demo of additionalDemoUsers) {
+      usersDatabase.set(demo.email.toLowerCase(), {
+        id: demo.id,
+        name: demo.name,
+        email: demo.email,
+        passwordHash: demoCustCreds.hash,
+        passwordSalt: demoCustCreds.salt,
+        role: 'customer',
+        avatar: demo.avatar,
+        bio: demo.bio,
+        location: demo.location,
+        preferredServiceCenter: demo.preferredServiceCenter,
+        phone: demo.phone,
+        walletAddress: `0x${crypto.createHash('sha256').update(demo.email).digest('hex').slice(0, 40)}`,
+        twoFactorEnabled: false,
+        pinSet: false,
+        memberSince: demo.memberSince,
+        tier: demo.tier,
+        referralCode: demo.referralCode,
+        referralEarningsUsd: demo.referralEarningsUsd,
+        referralCount: demo.referralCount,
+        referredUsers: [],
+      });
+    }
   }
 }
 
@@ -391,9 +556,26 @@ authRouter.post('/signup', async (req: Request, res: Response) => {
 
     sessionsDatabase.set(token, session);
 
+    // Dispatch SMTP registration welcome alert via .env SMTP mailer utility
+    let emailNotificationStatus: string = 'queued';
+    try {
+      const mailRes = await sendRegistrationNotificationEmail({
+        email: newUser.email,
+        name: newUser.name,
+        tier: newUser.tier,
+        location: newUser.location,
+        referralCode: newUser.referralCode,
+        provider: 'email',
+      });
+      emailNotificationStatus = mailRes.status;
+    } catch (mailErr) {
+      console.warn('[Signup Mailer] Failed to dispatch welcome email:', mailErr);
+    }
+
     return res.status(201).json({
       success: true,
       message: 'Account successfully registered and secured session established.',
+      emailNotificationStatus,
       token,
       user: sanitizeUser(newUser, token),
       session: {
@@ -525,9 +707,27 @@ authRouter.post('/google', async (req: Request, res: Response) => {
 
     sessionsDatabase.set(token, session);
 
+    let emailNotificationStatus: string | undefined;
+    if (isNewUser) {
+      try {
+        const mailRes = await sendRegistrationNotificationEmail({
+          email: user.email,
+          name: user.name,
+          tier: user.tier,
+          location: user.location,
+          referralCode: user.referralCode,
+          provider: 'google',
+        });
+        emailNotificationStatus = mailRes.status;
+      } catch (mailErr) {
+        console.warn('[Google Signup Mailer] Failed to dispatch welcome email:', mailErr);
+      }
+    }
+
     return res.status(isNewUser ? 201 : 200).json({
       success: true,
       isNewUser,
+      emailNotificationStatus,
       message: isNewUser
         ? `Google account verified! Welcome to Apex Tesla Hub, ${user.name}.`
         : `Welcome back via Google, ${user.name}!`,
@@ -975,3 +1175,105 @@ authRouter.delete(
     });
   }
 );
+
+// 12. UPGRADE EXISTING USER TO ADMIN WITH ASSIGNED PRIVILEGES
+authRouter.post(
+  '/admins/upgrade',
+  authenticateToken,
+  requireAdmin,
+  requirePrivilege('manage_admins'),
+  (req: Request, res: Response) => {
+    try {
+      const {
+        userId,
+        email,
+        name,
+        avatar,
+        location,
+        phone,
+        preferredServiceCenter,
+        tier,
+        adminRoleLabel,
+        adminPrivileges,
+        newPassword,
+      } = req.body;
+
+      const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+      let target =
+        (normalizedEmail ? usersDatabase.get(normalizedEmail) : undefined) ||
+        Array.from(usersDatabase.values()).find((u) => u.id === userId);
+
+      const requestedPrivileges: AdminPrivilege[] = Array.isArray(adminPrivileges)
+        ? Array.from(new Set(adminPrivileges.filter((p): p is AdminPrivilege => ALL_ADMIN_PRIVILEGES.includes(p))))
+        : [];
+
+      if (requestedPrivileges.length === 0) {
+        return res.status(400).json({ error: 'Select at least one admin privilege when upgrading a user.' });
+      }
+
+      const actor = (req as any).user as StoredUser;
+      const actorIsSuper = actor.adminPrivileges?.includes('super_admin');
+      if (requestedPrivileges.includes('super_admin') && !actorIsSuper) {
+        return res.status(403).json({ error: 'Only a Super-Admin can grant super_admin privilege.' });
+      }
+
+      if (!target) {
+        if (!normalizedEmail || !normalizedEmail.includes('@')) {
+          return res.status(404).json({ error: 'Target user email not found.' });
+        }
+        const seedPass = typeof newPassword === 'string' && newPassword.length >= 8 ? newPassword : 'TeslaPlaid2026!';
+        const { salt, hash } = hashPassword(seedPass);
+        target = {
+          id: userId || `usr-adm-${Date.now()}`,
+          name: (name && String(name).trim()) || normalizedEmail.split('@')[0],
+          email: normalizedEmail,
+          passwordHash: hash,
+          passwordSalt: salt,
+          role: 'admin',
+          adminRoleLabel: (adminRoleLabel && String(adminRoleLabel).trim()) || 'Upgraded Administrator',
+          adminPrivileges: requestedPrivileges,
+          avatar: avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80',
+          bio: `${(adminRoleLabel && String(adminRoleLabel).trim()) || 'Upgraded Administrator'} at Apex Tesla Hub.`,
+          location: location || 'United States',
+          preferredServiceCenter: preferredServiceCenter || 'Apex Austin Gigafactory Hub',
+          phone: phone || '',
+          walletAddress: `0x${crypto.createHash('sha256').update(normalizedEmail).digest('hex').slice(0, 40)}`,
+          twoFactorEnabled: true,
+          pinSet: false,
+          memberSince: new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+          tier: tier || 'Founders Club',
+          referralCode: `APEX-ADM-${Math.floor(100 + Math.random() * 899)}`,
+          referralEarningsUsd: 0,
+          referralCount: 0,
+          referredUsers: [],
+        };
+        usersDatabase.set(normalizedEmail, target);
+      } else {
+        target.role = 'admin';
+        target.adminRoleLabel = (adminRoleLabel && String(adminRoleLabel).trim()) || target.adminRoleLabel || 'Upgraded Administrator';
+        target.adminPrivileges = requestedPrivileges;
+        if (typeof newPassword === 'string' && newPassword.length >= 8) {
+          const { salt, hash } = hashPassword(newPassword);
+          target.passwordHash = hash;
+          target.passwordSalt = salt;
+        }
+        // Revoke existing customer portal sessions when elevating to admin
+        for (const sess of sessionsDatabase.values()) {
+          if (sess.userId === target.id && actor.id !== target.id) {
+            sess.status = 'revoked';
+          }
+        }
+      }
+
+      return res.json({
+        success: true,
+        message: `${target.name} has been upgraded to Administrator (${target.adminRoleLabel}).`,
+        admin: sanitizeUser(target),
+      });
+    } catch (error: any) {
+      console.error('Error upgrading user to admin:', error);
+      return res.status(500).json({ error: 'Failed to upgrade user to administrator.' });
+    }
+  }
+);
+

@@ -37,6 +37,7 @@ export const UnifiedShowcaseDeck: React.FC<UnifiedShowcaseDeckProps> = ({
     productsList,
     addToCart,
     showToast,
+    currentUser,
   } = useApp();
 
   const [currentSlide, setCurrentSlide] = useState<number>(0);
@@ -562,6 +563,13 @@ export const UnifiedShowcaseDeck: React.FC<UnifiedShowcaseDeckProps> = ({
 
                     <button
                       onClick={() => {
+                        if (!currentUser) {
+                          showToast('Please sign in or register to purchase Tesla upgrades.', 'error');
+                          if (typeof window !== 'undefined') {
+                            window.dispatchEvent(new CustomEvent('apex:require-auth'));
+                          }
+                          return;
+                        }
                         addToCart({
                           id: item.id,
                           name: item.name,
@@ -571,7 +579,6 @@ export const UnifiedShowcaseDeck: React.FC<UnifiedShowcaseDeckProps> = ({
                           description: item.desc,
                           inStock: true,
                         });
-                        showToast(`Added ${item.name} to cart!`, 'success');
                         if (onOpenCart) onOpenCart();
                       }}
                       className="w-full py-2.5 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 text-white font-bold text-xs uppercase tracking-wider transition"

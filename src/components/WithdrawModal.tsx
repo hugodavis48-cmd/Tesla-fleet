@@ -32,6 +32,8 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({ isOpen, onClose, o
     requestWithdrawal,
     isEligibleForWithdrawal,
     setUserDepositedForDemo,
+    lockedWinBalanceUsd,
+    minDepositToActivateWinsUsd,
     showToast,
   } = useApp();
 
@@ -41,12 +43,12 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({ isOpen, onClose, o
   const [bankName, setBankName] = useState<string>('');
   const [accountNumber, setAccountNumber] = useState<string>('');
   const [routingNumber, setRoutingNumber] = useState<string>('');
-  const [accountName, setAccountName] = useState<string>(currentUser?.name || 'Alex Vance');
+  const [accountName, setAccountName] = useState<string>(currentUser?.name || '');
   const [securityPin, setSecurityPin] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [showHistory, setShowHistory] = useState<boolean>(false);
 
-  if (!isOpen) return null;
+  if (!isOpen || !currentUser) return null;
 
   const eligibility = isEligibleForWithdrawal(currentUser);
   const numAmount = parseFloat(withdrawAmount) || 0;
@@ -156,7 +158,34 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({ isOpen, onClose, o
 
         {/* Content Body */}
         <div className="p-6 overflow-y-auto space-y-6 flex-1">
-          {/* CRITICAL WITHDRAWAL REJECTION ALERT (Triggered if user has not completed minimum $200 deposit) */}
+          {lockedWinBalanceUsd > 0 && (
+            <div className="rounded-2xl border border-amber-500/50 bg-amber-950/30 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+              <div className="flex items-start gap-2.5">
+                <Lock className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                <div className="space-y-0.5">
+                  <p className="font-bold text-amber-300">
+                    Locked Spin/Promo Winnings: ${lockedWinBalanceUsd.toLocaleString()} USD
+                  </p>
+                  <p className="text-zinc-300">
+                    Free-spin &amp; promotional $$ winnings cannot be withdrawn or spent until you complete at least{' '}
+                    <strong className="text-white">${minDepositToActivateWinsUsd} USD</strong> in cumulative deposits.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenDeposit();
+                }}
+                className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold shrink-0 cursor-pointer"
+              >
+                Unlock via Deposit
+              </button>
+            </div>
+          )}
+
+          {/* CRITICAL WITHDRAWAL REJECTION ALERT (Triggered if user has not completed minimum deposit) */}
           {!eligibility.eligible ? (
             <div className="rounded-2xl border-2 border-red-500/50 bg-gradient-to-b from-red-950/40 via-zinc-950 to-red-950/20 p-5 space-y-4 shadow-xl">
               <div className="flex items-start gap-3.5">

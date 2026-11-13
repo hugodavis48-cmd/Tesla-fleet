@@ -18,6 +18,12 @@ import {
   ChevronLeft,
   ChevronRight,
   SlidersHorizontal,
+  Car,
+  TrendingUp,
+  Lock,
+  Unlock,
+  Pause,
+  Play,
 } from 'lucide-react';
 
 interface PromotionsHubProps {
@@ -26,6 +32,7 @@ interface PromotionsHubProps {
 
 export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) => {
   const {
+    currentUser,
     availableSpins,
     executeSpin,
     recentWinners,
@@ -36,14 +43,55 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
     wheelRewards,
     scratchCardTiers,
     siteSettings,
+    lockedWinBalanceUsd,
+    minDepositToActivateWinsUsd,
   } = useApp();
 
   const [isSpinning, setIsSpinning] = useState(false);
   const [wheelRotation, setWheelRotation] = useState(0);
-  const [lastWonPrize, setLastWonPrize] = useState<{ prize: string; valueUsd: number } | null>(null);
+  const [lastWonPrize, setLastWonPrize] = useState<{
+    prize: string;
+    valueUsd: number;
+    type?: string;
+    vehicleModel?: string;
+  } | null>(null);
   const [selectedScratchTier, setSelectedScratchTier] = useState<ScratchCardTier | null>(null);
   const [activeSlideIndex, setActiveSlideIndex] = useState(0);
   const scratchSliderRef = useRef<HTMLDivElement>(null);
+
+  // Live Community Win Ledger slider & filter state
+  const [winFilter, setWinFilter] = useState<'all' | 'staking' | 'stock' | 'vehicle' | 'spin_scratch'>('all');
+  const [winSlideIndex, setWinSlideIndex] = useState(0);
+  const [winAutoSlide, setWinAutoSlide] = useState(true);
+  const winSliderRef = useRef<HTMLDivElement>(null);
+
+  const filteredWinners = React.useMemo(() => {
+    if (winFilter === 'all') return recentWinners;
+    return recentWinners.filter((w) => {
+      if (winFilter === 'staking') return w.type === 'Staking ROI' || w.category === 'staking';
+      if (winFilter === 'stock') return w.type === 'TSLA Stock ROI' || w.category === 'stock';
+      if (winFilter === 'vehicle') return w.category === 'vehicle' || w.prize.toLowerCase().includes('tesla') || w.prize.toLowerCase().includes('cybertruck');
+      return w.category === 'spin_scratch' || w.type === 'Wheel Spin' || w.type === 'Scratch & Win';
+    });
+  }, [recentWinners, winFilter]);
+
+  React.useEffect(() => {
+    if (!winAutoSlide || filteredWinners.length <= 1) return;
+    const t = setInterval(() => {
+      setWinSlideIndex((prev) => {
+        const next = (prev + 1) % filteredWinners.length;
+        if (winSliderRef.current && winSliderRef.current.children[next]) {
+          (winSliderRef.current.children[next] as HTMLElement).scrollIntoView({
+            behavior: 'smooth',
+            block: 'nearest',
+            inline: 'start',
+          });
+        }
+        return next;
+      });
+    }, 4500);
+    return () => clearInterval(t);
+  }, [winAutoSlide, filteredWinners.length]);
 
   // Dynamic wheel slices from admin-editable rewards
   const activeRewards = wheelRewards.filter((r) => r.isActive);
@@ -79,6 +127,11 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
 
   const handleSpinClick = () => {
     if (isSpinning) return;
+    if (!currentUser) {
+      window.dispatchEvent(new CustomEvent('apex:require-auth', { detail: 'spin the promotional wheel' }));
+      showToast('Please sign in or register to spin the promotional wheel.', 'error');
+      return;
+    }
     if (balances.usd < spinCostUsd) {
       showToast(`Spin cost is $${spinCostUsd} USD per spin. Please deposit funds to spin.`, 'error');
       onOpenDeposit();
@@ -88,8 +141,15 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
     setIsSpinning(true);
     setLastWonPrize(null);
 
-    // Pick outcome with $150 configurable spin fee deducted from balance
-    let result: { prize: string; valueUsd: number; type: string };
+    // Pick outcome with configurable spin fee deducted from balance
+    let result: {
+      prize: string;
+      valueUsd: number;
+      type: string;
+      sliceId?: string;
+      sliceIndex?: number;
+      vehicleModel?: string;
+    };
     try {
       result = executeSpin();
     } catch (err: unknown) {
@@ -107,28 +167,55 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
       if (tickCount > 24) clearInterval(tickInterval);
     }, 150);
 
-    // Spin 5 to 7 full revolutions plus random angle
+    // Compute exact wheel rotation so pointer at top (0 deg) lands on selected slice
+    const count = wheelSlices.length;
+    const sliceAngle = 360 / count;
+    const idx =
+      typeof result.sliceIndex === 'number' && result.sliceIndex >= 0 && result.sliceIndex < count
+        ? result.sliceIndex
+        : Math.max(0, wheelSlices.findIndex((s) => s.id === result.sliceId));
+    const centerDeg = idx * sliceAngle + sliceAngle / 2;
+    const jitter = (Math.random() - 0.5) * (sliceAngle * 0.4);
+    const targetMod = (360 - (centerDeg % 360) + jitter + 360) % 360;
+    const currentMod = ((wheelRotation % 360) + 360) % 360;
+    const deltaToTarget = (targetMod - currentMod + 360) % 360;
     const extraRounds = 360 * 6;
-    const randomAngle = Math.floor(Math.random() * 360);
-    const totalNewRotation = wheelRotation + extraRounds + randomAngle;
+    const totalNewRotation = wheelRotation + extraRounds + deltaToTarget;
     setWheelRotation(totalNewRotation);
 
     setTimeout(() => {
       setIsSpinning(false);
       setLastWonPrize(result);
 
+      if (result.type === 'try_again') {
+        showToast('Wheel landed on Try Again! Better luck on your next spin.', 'info');
+        return;
+      }
+
       confetti({
-        particleCount: 100,
-        spread: 70,
+        particleCount: result.type === 'car' ? 160 : 100,
+        spread: result.type === 'car' ? 95 : 70,
         origin: { y: 0.6 },
         colors: ['#e82127', '#00f3ff', '#f59e0b', '#ffffff'],
       });
 
-      showToast(`WINNER! You landed on: ${result.prize} (+$${result.valueUsd.toLocaleString()})!`, 'success');
+      if (result.type === 'car') {
+        showToast(
+          `🚗 JACKPOT TESLA WIN! You won a ${result.vehicleModel || result.prize}! Added to your garage & delivery order confirmed.`,
+          'success'
+        );
+      } else {
+        showToast(`WINNER! You landed on: ${result.prize} (+$${result.valueUsd.toLocaleString()})!`, 'success');
+      }
     }, 4200);
   };
 
   const handleBuyScratchCard = (tier: ScratchCardTier) => {
+    if (!currentUser) {
+      window.dispatchEvent(new CustomEvent('apex:require-auth', { detail: 'purchase scratch cards' }));
+      showToast('Please sign in or register to purchase and play Scratch & Win cards.', 'error');
+      return;
+    }
     if (purchaseScratchCard(tier)) {
       setSelectedScratchTier(tier);
     } else {
@@ -150,6 +237,36 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
         <p className="text-zinc-400 text-sm sm:text-base">
           {siteSettings.promoBannerSubtitle}
         </p>
+
+        {/* $250 Minimum Deposit Activation Rule Banner */}
+        <div className="mt-4 p-4 rounded-2xl bg-zinc-950 border border-amber-500/35 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-left max-w-3xl mx-auto">
+          <div className="flex items-start gap-3">
+            {currentUser && (currentUser.totalDepositedUsd || 0) >= minDepositToActivateWinsUsd ? (
+              <Unlock className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+            ) : (
+              <Lock className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+            )}
+            <div className="space-y-0.5 text-xs">
+              <p className="font-bold text-white">
+                {currentUser && (currentUser.totalDepositedUsd || 0) >= minDepositToActivateWinsUsd
+                  ? `✅ Spin & Promo Cash Winnings Activated ($${(currentUser.totalDepositedUsd || 0).toLocaleString()} deposited)`
+                  : `🔒 $250 Min Deposit Win-Activation Policy${lockedWinBalanceUsd > 0 ? ` — $${lockedWinBalanceUsd.toLocaleString()} USD Currently Locked` : ''}`}
+              </p>
+              <p className="text-zinc-400">
+                Money winnings ($$) from free spins &amp; promotional rewards require at least <strong className="text-amber-300">${minDepositToActivateWinsUsd}</strong> cumulative verified deposits before withdrawal or checkout use. Won Tesla vehicles are managed under Dashboard → Won Prizes.
+              </p>
+            </div>
+          </div>
+          {(!currentUser || (currentUser.totalDepositedUsd || 0) < minDepositToActivateWinsUsd) && (
+            <button
+              type="button"
+              onClick={onOpenDeposit}
+              className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs shrink-0 cursor-pointer transition"
+            >
+              Deposit ${minDepositToActivateWinsUsd}+ to Unlock
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Section 1: The Interactive Spin Wheel */}
@@ -247,8 +364,17 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
                 SPIN TO WIN TESLA PERKS
               </h3>
               <p className="text-xs text-zinc-400 leading-relaxed">
-                Win Tesla Cybertruck rental passes, $1,000 USDT instant wallet credits, custom body wrap vouchers ($3,500), and free Supercharging kWh!
+                Features <strong className="text-amber-400">2 Grand Tesla Car Win slices</strong> (Model 3 &amp; Cybertruck), instant USDT credits, full body wraps, Supercharging passes &amp; a Try Again slice!
               </p>
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                <span className="inline-flex items-center gap-1 text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-red-600/20 border border-red-500/40 text-red-300">
+                  <Car className="w-3 h-3" />
+                  2 Tesla Car Jackpots
+                </span>
+                <span className="inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded bg-zinc-800 border border-zinc-700 text-zinc-300">
+                  Try Again Slice Active
+                </span>
+              </div>
             </div>
 
             {/* Spin cost banner */}
@@ -261,7 +387,7 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
               </div>
               <div className="text-right">
                 <span className="text-[10px] px-2.5 py-1 rounded-full bg-red-600/20 text-red-400 border border-red-500/30 font-mono font-bold block mb-1">
-                  NO FREE SPINS
+                  {currentUser ? 'READY TO SPIN' : 'SIGN IN REQUIRED'}
                 </span>
                 <span className="text-[10px] text-zinc-400 font-mono">Deducted from Vault</span>
               </div>
@@ -269,18 +395,46 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
 
             {/* Last Won Prize Callout */}
             {lastWonPrize && (
-              <div className="p-4 rounded-2xl bg-gradient-to-r from-red-950/60 to-zinc-900 border border-red-500/50 space-y-1 animate-in zoom-in-95">
-                <div className="flex items-center gap-2 text-yellow-400 text-xs font-bold uppercase tracking-wider">
-                  <Trophy className="w-4 h-4 text-yellow-400" />
-                  <span>JUST WON ON WHEEL</span>
+              lastWonPrize.type === 'try_again' ? (
+                <div className="p-4 rounded-2xl bg-zinc-900 border border-zinc-700 space-y-1 animate-in zoom-in-95">
+                  <div className="flex items-center gap-2 text-zinc-300 text-xs font-bold uppercase tracking-wider">
+                    <RefreshCw className="w-4 h-4 text-zinc-400" />
+                    <span>WHEEL RESULT: TRY AGAIN</span>
+                  </div>
+                  <h4 className="font-heading font-black text-xl text-white">
+                    {lastWonPrize.prize}
+                  </h4>
+                  <p className="text-zinc-400 text-xs">
+                    No prize credited this round ($0.00 USD) — spin again to land on a Tesla car or USDT vault slice!
+                  </p>
                 </div>
-                <h4 className="font-heading font-black text-xl text-white">
-                  {lastWonPrize.prize}
-                </h4>
-                <p className="text-emerald-400 text-xs font-semibold">
-                  +${lastWonPrize.valueUsd.toLocaleString()} USD credited to your dashboard wallet!
-                </p>
-              </div>
+              ) : lastWonPrize.type === 'car' ? (
+                <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-950/80 via-zinc-900 to-amber-950/60 border border-emerald-500/60 space-y-1.5 animate-in zoom-in-95">
+                  <div className="flex items-center gap-2 text-yellow-300 text-xs font-bold uppercase tracking-wider">
+                    <Car className="w-4 h-4 text-emerald-400" />
+                    <span>TESLA VEHICLE JACKPOT WON!</span>
+                  </div>
+                  <h4 className="font-heading font-black text-xl text-white">
+                    {lastWonPrize.vehicleModel || lastWonPrize.prize}
+                  </h4>
+                  <p className="text-emerald-300 text-xs font-semibold">
+                    Added to your Digital Garage &amp; VIP Delivery Queue (Est. Value ${lastWonPrize.valueUsd.toLocaleString()})!
+                  </p>
+                </div>
+              ) : (
+                <div className="p-4 rounded-2xl bg-gradient-to-r from-red-950/60 to-zinc-900 border border-red-500/50 space-y-1 animate-in zoom-in-95">
+                  <div className="flex items-center gap-2 text-yellow-400 text-xs font-bold uppercase tracking-wider">
+                    <Trophy className="w-4 h-4 text-yellow-400" />
+                    <span>JUST WON ON WHEEL</span>
+                  </div>
+                  <h4 className="font-heading font-black text-xl text-white">
+                    {lastWonPrize.prize}
+                  </h4>
+                  <p className="text-emerald-400 text-xs font-semibold">
+                    +${lastWonPrize.valueUsd.toLocaleString()} USD credited to your dashboard wallet!
+                  </p>
+                </div>
+              )
             )}
 
             {/* Spin CTA Button */}
@@ -445,9 +599,18 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
                           Top Prize Payouts:
                         </span>
                         {tier.possiblePrizes.slice(0, 3).map((p, i) => (
-                          <div key={i} className="flex justify-between items-center py-0.5">
-                            <span>{p.label}</span>
-                            <span className="text-yellow-400 font-mono font-semibold">+${p.amountUsd}</span>
+                          <div key={i} className="flex justify-between items-center py-0.5 gap-2">
+                            <span className="flex items-center gap-1 truncate text-zinc-200">
+                              {p.isTeslaCar && <Car className="w-3 h-3 text-emerald-400 shrink-0" />}
+                              <span className="truncate">{p.label}</span>
+                            </span>
+                            {p.isTeslaCar ? (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-mono font-bold shrink-0">
+                                TESLA WIN
+                              </span>
+                            ) : (
+                              <span className="text-yellow-400 font-mono font-semibold shrink-0">+${p.amountUsd.toLocaleString()}</span>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -497,56 +660,182 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
         )}
       </div>
 
-      {/* Section 3: Live Community Winnings & Random Win History Feed */}
+      {/* Section 3: Modern Interactive Live Community Win History & ROI Ledger Slider */}
       <div className="rounded-3xl border border-zinc-800 bg-zinc-950 p-6 sm:p-8 space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-800 pb-4">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-zinc-800 pb-4">
           <div>
             <div className="flex items-center gap-2">
               <Trophy className="w-5 h-5 text-yellow-400" />
               <h3 className="font-heading font-bold text-xl text-white">
-                Live Community Win History & Ledger
+                Live Community Win History, Staking &amp; TSLA Stock ROI Ledger
               </h3>
             </div>
             <p className="text-xs text-zinc-400 mt-1">
-              Transparent real-time payout feed across Spin-and-Win Wheel & Scratch Cards with verifiable cryptographic hashes.
+              High-frequency real-time drops across Spin-and-Win jackpots, Scratch cards, Fleet Staking ROI yields, and TSLA Stock dividends.
             </p>
           </div>
 
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-600/10 border border-emerald-500/30 text-emerald-400 text-xs font-semibold">
-            <span className="h-2 w-2 rounded-full bg-emerald-400 animate-ping" />
-            <span>Feed Synchronized Live</span>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-600/10 border border-emerald-500/30 text-emerald-400 text-xs font-semibold">
+              <span className="h-2 w-2 rounded-full bg-emerald-400 animate-ping" />
+              <span>Live Drops Every 10s</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setWinAutoSlide((v) => !v)}
+              className="px-3 py-1.5 rounded-xl bg-zinc-900 border border-zinc-700 hover:border-zinc-500 text-xs text-zinc-200 flex items-center gap-1.5 cursor-pointer"
+            >
+              {winAutoSlide ? <Pause className="w-3.5 h-3.5 text-amber-400" /> : <Play className="w-3.5 h-3.5 text-emerald-400" />}
+              <span>{winAutoSlide ? 'Auto-Slide On' : 'Paused'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const next = Math.max(0, winSlideIndex - 1);
+                setWinSlideIndex(next);
+                if (winSliderRef.current?.children[next]) {
+                  (winSliderRef.current.children[next] as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'start' });
+                }
+              }}
+              className="p-2 rounded-xl bg-zinc-900 border border-zinc-700 hover:border-yellow-500 text-zinc-200 cursor-pointer"
+              aria-label="Previous win card"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const next = Math.min(filteredWinners.length - 1, winSlideIndex + 1);
+                setWinSlideIndex(next);
+                if (winSliderRef.current?.children[next]) {
+                  (winSliderRef.current.children[next] as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'start' });
+                }
+              }}
+              className="p-2 rounded-xl bg-zinc-900 border border-zinc-700 hover:border-yellow-500 text-zinc-200 cursor-pointer"
+              aria-label="Next win card"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
           </div>
         </div>
 
-        {/* Winners Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {recentWinners.slice(0, 9).map((win) => (
-            <div
-              key={win.id}
-              className="p-4 rounded-2xl bg-zinc-900/60 border border-zinc-800/80 hover:border-zinc-700 transition flex items-center gap-3.5"
+        {/* Ledger Filter Chips */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {(
+            [
+              { id: 'all', label: `All Drops (${recentWinners.length})` },
+              { id: 'staking', label: 'Staking ROI' },
+              { id: 'stock', label: 'TSLA Stock ROI' },
+              { id: 'vehicle', label: 'Tesla Vehicle Jackpots' },
+              { id: 'spin_scratch', label: 'Spin & Scratch' },
+            ] as const
+          ).map((chip) => (
+            <button
+              key={chip.id}
+              type="button"
+              onClick={() => {
+                setWinFilter(chip.id);
+                setWinSlideIndex(0);
+              }}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold shrink-0 whitespace-nowrap border transition cursor-pointer ${
+                winFilter === chip.id
+                  ? 'bg-amber-500 border-amber-400 text-black'
+                  : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white'
+              }`}
             >
-              <img
-                src={win.avatar}
-                alt={win.username}
-                className="w-11 h-11 rounded-xl object-cover border border-red-500/30 shrink-0"
-              />
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-semibold text-xs text-white truncate">{win.username}</h4>
-                  <span className="text-[10px] text-zinc-500">{win.timestamp}</span>
+              {chip.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Modern Horizontal Ledger Slider */}
+        <div
+          ref={winSliderRef}
+          className="flex gap-4 overflow-x-auto pb-3 snap-x snap-mandatory scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
+          {filteredWinners.map((win, idx) => {
+            const isRoi = win.type === 'Staking ROI' || win.type === 'TSLA Stock ROI';
+            const isVehicle = win.category === 'vehicle' || win.prize.toLowerCase().includes('cybertruck') || win.prize.toLowerCase().includes('model');
+            return (
+              <div
+                key={win.id}
+                onClick={() => setWinSlideIndex(idx)}
+                className={`w-[285px] sm:w-[320px] shrink-0 snap-start p-4 rounded-2xl border transition flex flex-col justify-between gap-3 cursor-pointer ${
+                  isRoi
+                    ? 'bg-gradient-to-br from-emerald-950/35 to-zinc-900 border-emerald-500/35 hover:border-emerald-400/60'
+                    : isVehicle
+                    ? 'bg-gradient-to-br from-red-950/40 to-zinc-900 border-red-500/40 hover:border-red-400'
+                    : 'bg-zinc-900/70 border-zinc-800 hover:border-zinc-700'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <img
+                    src={win.avatar}
+                    alt={win.username}
+                    className="w-11 h-11 rounded-xl object-cover border border-red-500/30 shrink-0"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <h4 className="font-semibold text-xs text-white truncate">{win.username}</h4>
+                      <span className="text-[10px] text-zinc-500 shrink-0">{win.timestamp}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <span
+                        className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border ${
+                          win.type === 'Staking ROI'
+                            ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300'
+                            : win.type === 'TSLA Stock ROI'
+                            ? 'bg-cyan-500/15 border-cyan-500/40 text-cyan-300'
+                            : 'bg-amber-500/15 border-amber-500/40 text-amber-300'
+                        }`}
+                      >
+                        {win.type}
+                      </span>
+                      {win.roiPercent ? (
+                        <span className="text-[10px] font-mono font-bold text-emerald-400 flex items-center gap-0.5">
+                          <TrendingUp className="w-3 h-3" />+{win.roiPercent}%
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
                 </div>
-                <p className="font-heading font-bold text-xs text-yellow-400 truncate mt-0.5">
-                  {win.prize}
-                </p>
-                <div className="flex items-center justify-between mt-1 text-[10px] text-zinc-500 font-mono">
-                  <span>{win.type}</span>
-                  <span className="text-emerald-400 flex items-center gap-0.5">
-                    <ShieldCheck className="w-3 h-3" />
-                    {win.verifiedHash}
-                  </span>
+
+                <div>
+                  <p className="font-heading font-bold text-sm text-yellow-400 line-clamp-1">
+                    {win.prize}
+                  </p>
+                  <div className="flex items-center justify-between mt-1.5 pt-2 border-t border-zinc-800/80 text-[11px] font-mono">
+                    <span className="text-white font-bold">
+                      +${win.valueUsd.toLocaleString()} USD
+                    </span>
+                    <span className="text-emerald-400 flex items-center gap-1">
+                      <ShieldCheck className="w-3 h-3" />
+                      {win.verifiedHash}
+                    </span>
+                  </div>
                 </div>
               </div>
-            </div>
+            );
+          })}
+        </div>
+
+        {/* Slider Pagination Indicator */}
+        <div className="flex items-center justify-center gap-1.5">
+          {filteredWinners.slice(0, 10).map((w, idx) => (
+            <button
+              key={`wd-${w.id}`}
+              type="button"
+              onClick={() => {
+                setWinSlideIndex(idx);
+                if (winSliderRef.current?.children[idx]) {
+                  (winSliderRef.current.children[idx] as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'start' });
+                }
+              }}
+              className={`h-1.5 rounded-full transition-all cursor-pointer ${
+                winSlideIndex === idx ? 'w-6 bg-yellow-400' : 'w-1.5 bg-zinc-700'
+              }`}
+              aria-label={`Slide ${idx + 1}`}
+            />
           ))}
         </div>
       </div>

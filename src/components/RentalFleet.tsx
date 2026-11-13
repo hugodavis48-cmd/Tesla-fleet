@@ -10,16 +10,30 @@ interface RentalFleetProps {
 }
 
 export const RentalFleet: React.FC<RentalFleetProps> = ({ onOpenDeposit, onNavigateToDashboard }) => {
-  const { rentVehicle, balances } = useApp();
+  const { rentVehicle, balances, currentUser, showToast } = useApp();
   const [selectedRental, setSelectedRental] = useState<RentalVehicle | null>(null);
   const [rentalDays, setRentalDays] = useState<number>(3);
   const [startDate, setStartDate] = useState<string>('2026-11-09');
 
   const handleOpenBooking = (vehicle: RentalVehicle) => {
+    if (!currentUser) {
+      showToast('Please sign in or register to reserve a performance Tesla rental.', 'error');
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('apex:require-auth'));
+      }
+      return;
+    }
     setSelectedRental(vehicle);
   };
 
   const handleConfirmReservation = () => {
+    if (!currentUser) {
+      showToast('Please sign in or register to reserve a performance Tesla rental.', 'error');
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('apex:require-auth'));
+      }
+      return;
+    }
     if (!selectedRental) return;
     const success = rentVehicle(selectedRental, rentalDays, startDate);
     if (success) {

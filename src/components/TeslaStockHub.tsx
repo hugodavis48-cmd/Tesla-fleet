@@ -40,6 +40,7 @@ export const TeslaStockHub: React.FC<TeslaStockHubProps> = ({ onOpenDeposit, onN
     balances,
     showToast,
     featureToggles,
+    currentUser,
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<'featured' | 'spot'>('featured');
@@ -55,8 +56,19 @@ export const TeslaStockHub: React.FC<TeslaStockHubProps> = ({ onOpenDeposit, onN
   const numSpot = parseFloat(spotAmountUsd) || 0;
   const estimatedShares = numSpot > 0 ? (numSpot / currentPrice).toFixed(4) : '0.0000';
 
+  const promptAuth = (action: string) => {
+    showToast(`Please sign in or register to ${action}.`, 'error');
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('apex:require-auth'));
+    }
+  };
+
   const handleSpotBuySubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!currentUser) {
+      promptAuth('buy TSLA spot shares');
+      return;
+    }
     if (numSpot < 500) {
       showToast('Minimum Tesla stock investment is strictly $500.00 USD and above.', 'error');
       return;
@@ -71,6 +83,10 @@ export const TeslaStockHub: React.FC<TeslaStockHubProps> = ({ onOpenDeposit, onN
 
   const handleSellSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!currentUser) {
+      promptAuth('sell TSLA shares');
+      return;
+    }
     const numSell = parseFloat(sharesToSell) || 0;
     if (numSell <= 0 || numSell > userSpotHolding.shares) {
       showToast(`Invalid shares amount. You currently hold ${userSpotHolding.shares.toFixed(4)} shares.`, 'error');
@@ -83,6 +99,10 @@ export const TeslaStockHub: React.FC<TeslaStockHubProps> = ({ onOpenDeposit, onN
 
   const handleFeaturedInvestSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!currentUser) {
+      promptAuth('invest in accelerated TSLA contracts');
+      return;
+    }
     if (!selectedPlanForInvest) return;
     const numPlan = parseFloat(planAmountUsd) || 0;
     const minRequired = Math.max(500, selectedPlanForInvest.minInvestmentUsd);
@@ -411,6 +431,10 @@ export const TeslaStockHub: React.FC<TeslaStockHubProps> = ({ onOpenDeposit, onN
                 <button
                   type="button"
                   onClick={() => {
+                    if (!currentUser) {
+                      promptAuth('invest in accelerated TSLA contracts');
+                      return;
+                    }
                     setSelectedPlanForInvest(plan);
                     setPlanAmountUsd(plan.minInvestmentUsd.toString());
                   }}

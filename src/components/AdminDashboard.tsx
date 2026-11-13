@@ -94,12 +94,14 @@ import {
   AutoCryptoGateway,
   MarketingBanner,
   BannerSizeType,
+  Banner3dPreset,
   NavigationMenuItem,
   MenuLocation,
   ProductItem,
   ScratchCardTier,
   SiteSettings,
   AdminPrivilege,
+  CronDispatchedEmail,
 } from '../types';
 
 const PREBUILT_TEMPLATES: EmailTemplate[] = [
@@ -432,9 +434,11 @@ export const AdminDashboard: React.FC = () => {
     updateMarketingBanner,
     deleteMarketingBanner,
     // Admin RBAC & Session Controls
+    sessionToken,
     adminsList,
     fetchAdmins,
     createAdminAccount,
+    upgradeUserToAdmin,
     updateAdminPrivileges,
     deleteAdminAccount,
     hasAdminPrivilege,
@@ -444,6 +448,8 @@ export const AdminDashboard: React.FC = () => {
   const [activeAdminTab, setActiveAdminTab] = useState<AdminTab>('users_kyc');
 
   // Admin Team & Privileges State
+  const [adminProvisionMode, setAdminProvisionMode] = useState<'create' | 'upgrade'>('create');
+  const [upgradeTargetUserId, setUpgradeTargetUserId] = useState<string>('');
   const [newAdminForm, setNewAdminForm] = useState<{
     name: string;
     email: string;
@@ -471,28 +477,37 @@ export const AdminDashboard: React.FC = () => {
   const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
   const categoryDropdownRef = useRef<HTMLDivElement>(null);
 
-  // AI & Manual Promotional Banner Generator State
+  // AI & Manual Promotional Banner Generator State (with 3D / HD Support)
   const [aiBannerGoal, setAiBannerGoal] = useState('Promote TSLA 28.5% Fast ROI Pools, Cybertruck Sales & $100 Referral Rewards');
   const [aiBannerSize, setAiBannerSize] = useState<BannerSizeType>('leaderboard');
   const [aiBannerTone, setAiBannerTone] = useState('Luxury High-Octane EV');
   const [aiBannerTargetTab, setAiBannerTargetTab] = useState('stocks');
+  const [aiBannerIs3dHd, setAiBannerIs3dHd] = useState(true);
+  const [aiBannerStyle3d, setAiBannerStyle3d] = useState<Banner3dPreset>('cyber_perspective');
+  const [aiBannerQuality, setAiBannerQuality] = useState<'4K UHD' | 'HD 1080p'>('4K UHD');
+  const [aiBannerCarModel, setAiBannerCarModel] = useState('Cybertruck Cyberbeast');
   const [isGeneratingAiBanner, setIsGeneratingAiBanner] = useState(false);
   const [isGeneratingAllSizes, setIsGeneratingAllSizes] = useState(false);
   const [showManualBannerModal, setShowManualBannerModal] = useState(false);
+  const [editingBannerId, setEditingBannerId] = useState<string | null>(null);
   const [manualBannerForm, setManualBannerForm] = useState<Omit<MarketingBanner, 'id' | 'createdAt' | 'clicksCount'>>({
     title: 'Cybertruck VIP Referral Leaderboard',
     size: 'leaderboard',
-    dimensions: '728×90',
+    dimensions: '1456×180 HD',
     headline: 'TESLA CYBERBEAST DIRECT DELIVERY + $100 REFERRAL BONUS',
     subheadline: 'Nationwide enclosed transport, 7-day money-back protection & instant crypto settlement.',
     ctaText: 'Explore Inventory',
-    badgeText: '728×90 LEADERBOARD',
+    badgeText: '3D 4K UHD • LEADERBOARD',
     themeGradient: 'from-zinc-950 via-red-950/80 to-zinc-950',
     accentColor: '#ef4444',
     targetTab: 'vehicles',
-    imageUrl: 'https://images.unsplash.com/photo-1617788138017-80ad40651399?auto=format&fit=crop&w=900&q=80',
+    imageUrl: 'https://images.unsplash.com/photo-1617788138017-80ad40651399?auto=format&fit=crop&w=1400&q=90',
     isActive: true,
     isAiGenerated: false,
+    is3dHd: true,
+    style3dPreset: 'cyber_perspective',
+    resolutionQuality: '4K UHD',
+    carRenderModel: 'Cybertruck Cyberbeast',
   });
 
   // Auto Crypto Gateways Admin Local State
@@ -589,9 +604,10 @@ export const AdminDashboard: React.FC = () => {
   const [localShippingSettings, setLocalShippingSettings] = useState<NationwideShippingSettings>(nationwideShippingSettings);
   const [localRefundPolicy, setLocalRefundPolicy] = useState<VehicleRefundPolicySettings>(vehicleRefundPolicy);
 
-  // User Profile & KYC modal state
+  // User Profile, Activity & KYC modal state
   const [selectedUserForKyc, setSelectedUserForKyc] = useState<User | null>(null);
   const [selectedUserForInvestments, setSelectedUserForInvestments] = useState<User | null>(null);
+  const [selectedUserForActivity, setSelectedUserForActivity] = useState<User | null>(null);
   const [directNotificationUser, setDirectNotificationUser] = useState<User | null>(null);
   const [kycRejectionReason, setKycRejectionReason] = useState('Photo ID blur on document number edge. Please provide higher resolution color scan.');
   const [showBalanceAdjustModal, setShowBalanceAdjustModal] = useState<User | null>(null);
@@ -713,13 +729,47 @@ export const AdminDashboard: React.FC = () => {
   const [adminCopilotResponse, setAdminCopilotResponse] = useState<string | null>(null);
   const [isLoadingCopilot, setIsLoadingCopilot] = useState(false);
 
-  // SMTP Settings state
+  // SMTP Settings & Automated Dispatch Logs state
   const [localSmtp, setLocalSmtp] = useState<SmtpConfig>(smtpConfig);
   const [testEmailRecipient, setTestEmailRecipient] = useState(currentUser?.email || 'admin@apex-tesla.io');
   const [isSendingTestEmail, setIsSendingTestEmail] = useState(false);
   const [testEmailScenario, setTestEmailScenario] = useState<string>('normal');
   const [lastTestEmailResult, setLastTestEmailResult] = useState<TestEmailResult | null>(null);
   const [smtpServerLog, setSmtpServerLog] = useState<string | null>(null);
+  const [mailerLogs, setMailerLogs] = useState<CronDispatchedEmail[]>([]);
+  const [smtpEnvSummary, setSmtpEnvSummary] = useState<{
+    configured: boolean;
+    host: string;
+    port: number;
+    secure: boolean;
+    fromEmail: string;
+  } | null>(null);
+  const [isLoadingMailerLogs, setIsLoadingMailerLogs] = useState(false);
+
+  const fetchMailerLogs = React.useCallback(async () => {
+    setIsLoadingMailerLogs(true);
+    try {
+      const token = sessionToken || localStorage.getItem('apex_session_token');
+      const res = await fetch('/api/mailer/logs', {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.logs)) setMailerLogs(data.logs);
+        if (data.smtpSummary) setSmtpEnvSummary(data.smtpSummary);
+      }
+    } catch {
+      // keep existing logs
+    } finally {
+      setIsLoadingMailerLogs(false);
+    }
+  }, [sessionToken]);
+
+  useEffect(() => {
+    if (activeAdminTab === 'email_marketing') {
+      fetchMailerLogs();
+    }
+  }, [activeAdminTab, fetchMailerLogs]);
 
   // Email Marketing Campaign state
   const [selectedTemplate, setSelectedTemplate] = useState<EmailTemplate>(PREBUILT_TEMPLATES[0]);
@@ -791,6 +841,7 @@ export const AdminDashboard: React.FC = () => {
     valueUsd: 100,
     value: 100,
     type: 'usd',
+    vehicleModel: 'Tesla Model 3 Performance',
     color: '#06b6d4',
     textColor: '#ffffff',
     weight: 8,
@@ -1131,6 +1182,10 @@ export const AdminDashboard: React.FC = () => {
           size: sizeToUse,
           tone: aiBannerTone,
           targetTab: aiBannerTargetTab,
+          is3dHd: aiBannerIs3dHd,
+          style3dPreset: aiBannerStyle3d,
+          resolutionQuality: aiBannerQuality,
+          carRenderModel: aiBannerCarModel,
         }),
       });
       const data = await res.json();
@@ -1146,9 +1201,13 @@ export const AdminDashboard: React.FC = () => {
           themeGradient: data.banner.themeGradient || 'from-zinc-950 via-red-950/80 to-zinc-950',
           accentColor: data.banner.accentColor || '#ef4444',
           targetTab: data.banner.targetTab || aiBannerTargetTab,
-          imageUrl: 'https://images.unsplash.com/photo-1560958089-b8a1929cea89?auto=format&fit=crop&w=900&q=80',
+          imageUrl: data.banner.imageUrl || 'https://images.unsplash.com/photo-1560958089-b8a1929cea89?auto=format&fit=crop&w=1400&q=90',
           isActive: true,
           isAiGenerated: true,
+          is3dHd: data.banner.is3dHd ?? aiBannerIs3dHd,
+          style3dPreset: data.banner.style3dPreset || aiBannerStyle3d,
+          resolutionQuality: data.banner.resolutionQuality || aiBannerQuality,
+          carRenderModel: data.banner.carRenderModel || aiBannerCarModel,
         });
       } else {
         showToast(data.error || 'AI banner generation failed.', 'error');
@@ -1380,6 +1439,10 @@ export const AdminDashboard: React.FC = () => {
                     const isOnline = u.isOnline ?? true;
                     const accountStatus = u.accountStatus || 'active';
                     const userInvestmentsCount = allInvestments.filter((inv: UserInvestment) => inv.userId === u.id).length;
+                    const userBookingsCount = localBookings.filter((b) => b.userId === u.id).length;
+                    const userOrdersCount = vehicleOrders.filter((o) => o.userId === u.id).length;
+                    const userWithdrawalsCount = withdrawalRequests.filter((w) => w.userId === u.id).length;
+                    const userTotalActivity = userInvestmentsCount + userBookingsCount + userOrdersCount + userWithdrawalsCount;
 
                     return (
                       <tr key={u.id} className="hover:bg-zinc-900/50 transition">
@@ -1408,7 +1471,10 @@ export const AdminDashboard: React.FC = () => {
                                 )}
                               </div>
                               <span className="text-[11px] text-zinc-400 font-mono">{u.email}</span>
-                              <span className="text-[10px] text-zinc-500 block">{u.location || 'United States'}</span>
+                              <span className="text-[10px] text-zinc-400 flex items-center gap-1 mt-0.5">
+                                <MapPin className="w-2.5 h-2.5 text-red-400 shrink-0" />
+                                <span>{u.location || 'Austin, TX, USA'}</span>
+                              </span>
                             </div>
                           </div>
                         </td>
@@ -1424,6 +1490,11 @@ export const AdminDashboard: React.FC = () => {
                             {u.role.toUpperCase()}
                           </span>
                           <span className="text-[10px] text-red-400 font-bold block">{u.tier}</span>
+                          {u.preferredServiceCenter && (
+                            <span className="text-[9px] text-zinc-500 block mt-0.5 truncate max-w-[140px]">
+                              {u.preferredServiceCenter}
+                            </span>
+                          )}
                         </td>
 
                         <td className="p-4 font-mono text-[11px]">
@@ -1437,8 +1508,8 @@ export const AdminDashboard: React.FC = () => {
                             <span className="text-[10px] text-zinc-500 block">
                               Active: {u.lastActiveAt ? new Date(u.lastActiveAt).toLocaleTimeString() : 'Just now'}
                             </span>
-                            <span className="text-[9px] text-zinc-600 block">
-                              IP: 198.51.100.{u.id.charCodeAt(u.id.length - 1) % 250} • MacOS/Chrome
+                            <span className="text-[9px] text-zinc-500 block">
+                              IP: {u.ipAddress || `198.51.100.${u.id.charCodeAt(u.id.length - 1) % 250}`} • {u.deviceInfo || 'MacOS/Chrome'}
                             </span>
                           </div>
                         </td>
@@ -1467,15 +1538,23 @@ export const AdminDashboard: React.FC = () => {
 
                         <td className="p-4 font-mono text-xs">
                           <span className="text-emerald-400 font-bold block">
-                            ${balances.usd.toFixed(2)} USD
+                            ${(u.id === currentUser?.id ? balances.usd : (u.totalDepositedUsd ?? 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
                           </span>
-                          <span className="text-[10px] text-zinc-400">
-                            Stakes: {userInvestmentsCount} active
+                          <span className="text-[10px] text-zinc-400 block">
+                            Stakes: {userInvestmentsCount} • Bays: {userBookingsCount} • Orders: {userOrdersCount}
                           </span>
                         </td>
 
                         <td className="p-4 text-right">
                           <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                            <button
+                              onClick={() => setSelectedUserForActivity(u)}
+                              title="Inspect User Bookings, Orders, Stakes & Telemetry"
+                              className="px-2 py-1 rounded-lg bg-indigo-950/50 hover:bg-indigo-900/60 text-indigo-300 border border-indigo-500/40 text-[11px] font-semibold flex items-center gap-1 cursor-pointer"
+                            >
+                              <Activity className="w-3 h-3" />
+                              <span>Activity ({userTotalActivity})</span>
+                            </button>
                             <button
                               onClick={() => setSelectedUserForInvestments(u)}
                               title="View & Edit User Investments"
@@ -1484,6 +1563,21 @@ export const AdminDashboard: React.FC = () => {
                               <TrendingUp className="w-3 h-3" />
                               <span>Stakes ({userInvestmentsCount})</span>
                             </button>
+                            {u.role !== 'admin' && hasAdminPrivilege('manage_admins') && (
+                              <button
+                                onClick={() => {
+                                  setAdminProvisionMode('upgrade');
+                                  setUpgradeTargetUserId(u.id);
+                                  setAdminCreateError(null);
+                                  setActiveAdminTab('admins_mgmt');
+                                }}
+                                title="Upgrade User to Administrator"
+                                className="px-2 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/40 text-[11px] font-semibold flex items-center gap-1 cursor-pointer"
+                              >
+                                <UserPlus className="w-3 h-3" />
+                                <span>Make Admin</span>
+                              </button>
+                            )}
                             <button
                               onClick={() => {
                                 setNotifTargetType('user');
@@ -1537,6 +1631,9 @@ export const AdminDashboard: React.FC = () => {
               const isOnline = u.isOnline ?? true;
               const accountStatus = u.accountStatus || 'active';
               const userInvestmentsCount = allInvestments.filter((inv: UserInvestment) => inv.userId === u.id).length;
+              const userBookingsCount = localBookings.filter((b) => b.userId === u.id).length;
+              const userOrdersCount = vehicleOrders.filter((o) => o.userId === u.id).length;
+              const userTotalActivity = userInvestmentsCount + userBookingsCount + userOrdersCount;
 
               return (
                 <div
@@ -1608,19 +1705,40 @@ export const AdminDashboard: React.FC = () => {
                       </span>
                     </div>
                     <div>
-                      <span className="text-[10px] text-zinc-500 block">INVESTMENTS</span>
-                      <span className="text-white font-bold">{userInvestmentsCount} Active</span>
+                      <span className="text-[10px] text-zinc-500 block">ACTIVITIES</span>
+                      <span className="text-white font-bold">{userTotalActivity} Logged</span>
                     </div>
                   </div>
 
                   <div className="flex items-center justify-between gap-1.5 pt-1 flex-wrap">
                     <button
+                      onClick={() => setSelectedUserForActivity(u)}
+                      className="px-3 py-1.5 rounded-xl bg-indigo-950/50 hover:bg-indigo-900/60 text-indigo-300 border border-indigo-500/40 text-xs font-semibold flex items-center gap-1"
+                    >
+                      <Activity className="w-3 h-3" />
+                      <span>Activity ({userTotalActivity})</span>
+                    </button>
+                    <button
                       onClick={() => setSelectedUserForInvestments(u)}
                       className="px-3 py-1.5 rounded-xl bg-cyan-950/40 hover:bg-cyan-900/50 text-cyan-300 border border-cyan-500/40 text-xs font-semibold flex items-center gap-1"
                     >
                       <TrendingUp className="w-3 h-3" />
-                      <span>Investments</span>
+                      <span>Stakes</span>
                     </button>
+                    {u.role !== 'admin' && hasAdminPrivilege('manage_admins') && (
+                      <button
+                        onClick={() => {
+                          setAdminProvisionMode('upgrade');
+                          setUpgradeTargetUserId(u.id);
+                          setAdminCreateError(null);
+                          setActiveAdminTab('admins_mgmt');
+                        }}
+                        className="px-2.5 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/40 text-xs font-semibold flex items-center gap-1"
+                      >
+                        <UserPlus className="w-3 h-3" />
+                        <span>Make Admin</span>
+                      </button>
+                    )}
                     <button
                       onClick={() => {
                         setNotifTargetType('user');
@@ -2615,6 +2733,101 @@ export const AdminDashboard: React.FC = () => {
             </div>
           </div>
 
+          {/* Automated .env SMTP Status & Dispatch Audit Log */}
+          <div className="p-4 sm:p-6 rounded-2xl sm:rounded-3xl bg-zinc-950 border border-zinc-800 space-y-4 shadow-xl">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-800 pb-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <Activity className="w-5 h-5 text-emerald-400" />
+                  <h4 className="font-heading font-bold text-sm sm:text-base text-white">
+                    Automated .env SMTP Notification Dispatch Log
+                  </h4>
+                </div>
+                <p className="text-xs text-zinc-400 mt-0.5">
+                  Real-time audit of registration welcome emails, deposit confirmations, and maturity settlements dispatched via <code className="text-zinc-200">.env</code> SMTP configuration.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                {smtpEnvSummary && (
+                  <span
+                    className={`px-2.5 py-1 rounded-xl text-[10px] font-mono font-bold border ${
+                      smtpEnvSummary.configured
+                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                        : 'bg-amber-500/10 text-amber-300 border-amber-500/30'
+                    }`}
+                  >
+                    {smtpEnvSummary.configured
+                      ? `LIVE SMTP: ${smtpEnvSummary.host}:${smtpEnvSummary.port}`
+                      : 'LOCAL AUDIT LOG MODE (.env SMTP fallback)'}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={fetchMailerLogs}
+                  disabled={isLoadingMailerLogs}
+                  className="px-3 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-xs font-bold text-white flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isLoadingMailerLogs ? 'animate-spin' : ''}`} />
+                  <span>Refresh</span>
+                </button>
+              </div>
+            </div>
+
+            {mailerLogs.length === 0 && dispatchedCronEmails.length === 0 ? (
+              <div className="p-6 text-center rounded-2xl bg-zinc-900/60 border border-zinc-800 text-xs text-zinc-400">
+                No automated transactional dispatches logged yet. Register a new account or complete a vault deposit to trigger an automated SMTP alert.
+              </div>
+            ) : (
+              <div className="overflow-x-auto rounded-2xl border border-zinc-800">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-zinc-900 text-zinc-400 font-mono text-[10px] uppercase border-b border-zinc-800">
+                    <tr>
+                      <th className="p-3">Event Type</th>
+                      <th className="p-3">Recipient</th>
+                      <th className="p-3">Subject & Summary</th>
+                      <th className="p-3">Status</th>
+                      <th className="p-3 text-right">Dispatched At</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-800/70 font-mono">
+                    {(mailerLogs.length > 0 ? mailerLogs : dispatchedCronEmails).slice(0, 25).map((log) => (
+                      <tr key={log.id} className="hover:bg-zinc-900/40">
+                        <td className="p-3">
+                          <span className="px-2 py-0.5 rounded bg-zinc-900 border border-zinc-700 text-[10px] uppercase text-cyan-300 font-bold">
+                            {log.type.replace('_', ' ')}
+                          </span>
+                        </td>
+                        <td className="p-3 text-white">{log.recipient}</td>
+                        <td className="p-3 text-zinc-300">
+                          <span className="block truncate max-w-xs">{log.subject}</span>
+                          {log.detail && (
+                            <span className="text-[10px] text-zinc-500 block truncate max-w-xs">{log.detail}</span>
+                          )}
+                        </td>
+                        <td className="p-3">
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                              log.status === 'delivered'
+                                ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                                : log.status === 'simulated'
+                                ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                                : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
+                            }`}
+                          >
+                            {log.status}
+                          </span>
+                        </td>
+                        <td className="p-3 text-right text-zinc-400 text-[10px]">
+                          {new Date(log.dispatchedAt).toLocaleString()}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
           {/* AI Marketing Copywriter & Selectable Templates */}
           <div className="p-4 sm:p-6 rounded-2xl sm:rounded-3xl bg-zinc-950 border border-zinc-800 space-y-6 shadow-xl">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-800 pb-4">
@@ -3471,10 +3684,17 @@ export const AdminDashboard: React.FC = () => {
                         </div>
                         <p className="text-[11px] text-zinc-400 line-clamp-2">{tier.description}</p>
                         <div className="space-y-1 text-[11px] text-zinc-300 border-t border-zinc-800 pt-2">
-                          {tier.possiblePrizes.slice(0, 3).map((p, i) => (
-                            <div key={i} className="flex justify-between">
-                              <span className="truncate pr-2">{p.label}</span>
-                              <span className="font-mono text-amber-400 shrink-0">${p.amountUsd}</span>
+                          {tier.possiblePrizes.slice(0, 4).map((p, i) => (
+                            <div key={i} className="flex justify-between items-center gap-2">
+                              <span className="truncate flex items-center gap-1">
+                                {p.isTeslaCar && (
+                                  <span className="px-1.5 py-0.2 rounded bg-red-600/20 border border-red-500/40 text-red-300 text-[9px] font-mono font-bold shrink-0">
+                                    TESLA CAR
+                                  </span>
+                                )}
+                                <span className="truncate">{p.label}</span>
+                              </span>
+                              <span className="font-mono text-amber-400 shrink-0">${p.amountUsd.toLocaleString()}</span>
                             </div>
                           ))}
                         </div>
@@ -6104,18 +6324,33 @@ export const AdminDashboard: React.FC = () => {
                         </div>
                       </td>
                       <td className="py-3 pr-2 font-bold text-white">
-                        {reward.label}
+                        <span>{reward.label}</span>
+                        {reward.type === 'car' && reward.vehicleModel && (
+                          <span className="block text-[10px] text-red-400 font-normal">
+                            Vehicle: {reward.vehicleModel}
+                          </span>
+                        )}
                       </td>
                       <td className="py-3 pr-2">
-                        <span className="px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 uppercase text-[10px] font-bold">
+                        <span
+                          className={`px-2 py-0.5 rounded uppercase text-[10px] font-bold ${
+                            reward.type === 'car'
+                              ? 'bg-red-600/20 text-red-300 border border-red-500/40'
+                              : reward.type === 'try_again'
+                              ? 'bg-zinc-800 text-zinc-400 border border-zinc-700'
+                              : 'bg-zinc-800 text-zinc-300'
+                          }`}
+                        >
                           {reward.type}
                         </span>
                       </td>
                       <td className="py-3 pr-2 font-bold text-emerald-400">
-                        {reward.type === 'usd' ? `$${reward.value}` : reward.value}
+                        {reward.type === 'try_again'
+                          ? '$0 (Try Again)'
+                          : `$${(reward.valueUsd ?? reward.value ?? 0).toLocaleString()}`}
                       </td>
                       <td className="py-3 pr-2 text-zinc-300">
-                        {reward.probabilityWeight} pts
+                        {reward.weight ?? reward.probabilityWeight ?? 1} pts
                       </td>
                       <td className="py-3 pr-2">
                         <button
@@ -6137,6 +6372,7 @@ export const AdminDashboard: React.FC = () => {
                               valueUsd: reward.valueUsd ?? reward.value ?? 100,
                               value: reward.value ?? reward.valueUsd ?? 100,
                               type: reward.type,
+                              vehicleModel: reward.vehicleModel || 'Tesla Model 3 Performance',
                               color: reward.color,
                               textColor: reward.textColor || '#ffffff',
                               weight: reward.weight ?? reward.probabilityWeight ?? 8,
@@ -6144,19 +6380,17 @@ export const AdminDashboard: React.FC = () => {
                               isActive: reward.isActive,
                             });
                             setIsAddingReward(true);
-
                           }}
-                          className="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 inline-block"
+                          className="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 inline-block cursor-pointer"
                         >
                           <Edit3 className="w-3.5 h-3.5" />
                         </button>
                         <button
                           onClick={() => {
-                            if (window.confirm(`Delete reward ${reward.label}?`)) {
-                              deleteWheelReward(reward.id);
-                            }
+                            deleteWheelReward(reward.id);
+                            showToast(`Removed wheel slice "${reward.label}".`, 'info');
                           }}
-                          className="p-1.5 rounded-lg bg-zinc-800 hover:bg-red-600/30 text-zinc-400 hover:text-red-400 inline-block"
+                          className="p-1.5 rounded-lg bg-zinc-800 hover:bg-red-600/30 text-zinc-400 hover:text-red-400 inline-block cursor-pointer"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -6188,38 +6422,67 @@ export const AdminDashboard: React.FC = () => {
 
                   <div className="space-y-3 text-xs">
                     <div>
-                      <label className="text-zinc-300 font-bold block mb-1">Prize Label</label>
+                      <label className="text-zinc-300 font-bold block mb-1">Prize Label (Wheel Slice & Announcement)</label>
                       <input
                         type="text"
                         value={newRewardForm.label}
-                        onChange={(e) => setNewRewardForm({ ...newRewardForm, label: e.target.value })}
+                        onChange={(e) => setNewRewardForm({ ...newRewardForm, label: e.target.value, text: e.target.value })}
                         className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-white"
                       />
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="text-zinc-300 font-bold block mb-1">Type</label>
+                        <label className="text-zinc-300 font-bold block mb-1">Slice Outcome Type</label>
                         <select
                           value={newRewardForm.type}
-                          onChange={(e) => setNewRewardForm({ ...newRewardForm, type: e.target.value as any })}
+                          onChange={(e) => {
+                            const nextType = e.target.value as WheelReward['type'];
+                            setNewRewardForm({
+                              ...newRewardForm,
+                              type: nextType,
+                              value: nextType === 'try_again' ? 0 : (newRewardForm.valueUsd || 100),
+                              valueUsd: nextType === 'try_again' ? 0 : (newRewardForm.valueUsd || 100),
+                            });
+                          }}
                           className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-white"
                         >
+                          <option value="car">Tesla Car Win</option>
+                          <option value="try_again">Try Again ($0)</option>
                           <option value="usd">USD Cash</option>
+                          <option value="credits">Vault Credits</option>
                           <option value="coupon">Discount Coupon</option>
                           <option value="points">Points / XP</option>
                           <option value="free_spin">Free Spin</option>
                         </select>
                       </div>
                       <div>
-                        <label className="text-zinc-300 font-bold block mb-1">Reward Value</label>
+                        <label className="text-zinc-300 font-bold block mb-1">Prize Value ($USD)</label>
                         <input
                           type="number"
-                          value={newRewardForm.value}
-                          onChange={(e) => setNewRewardForm({ ...newRewardForm, value: Number(e.target.value) })}
-                          className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-white font-mono"
+                          disabled={newRewardForm.type === 'try_again'}
+                          value={newRewardForm.valueUsd ?? newRewardForm.value ?? 0}
+                          onChange={(e) => {
+                            const v = Math.max(0, Number(e.target.value) || 0);
+                            setNewRewardForm({ ...newRewardForm, value: v, valueUsd: v });
+                          }}
+                          className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-white font-mono disabled:opacity-50"
                         />
                       </div>
                     </div>
+
+                    {newRewardForm.type === 'car' && (
+                      <div>
+                        <label className="text-zinc-300 font-bold block mb-1">Awarded Tesla Vehicle Model</label>
+                        <input
+                          type="text"
+                          value={newRewardForm.vehicleModel || ''}
+                          onChange={(e) => setNewRewardForm({ ...newRewardForm, vehicleModel: e.target.value })}
+                          placeholder="e.g. Tesla Model 3 Performance or Cybertruck Cyberbeast"
+                          className="w-full bg-zinc-900 border border-red-500/40 rounded-lg px-3 py-2 text-white"
+                        />
+                      </div>
+                    )}
+
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="text-zinc-300 font-bold block mb-1">Slice Hex Color</label>
@@ -6239,12 +6502,15 @@ export const AdminDashboard: React.FC = () => {
                         </div>
                       </div>
                       <div>
-                        <label className="text-zinc-300 font-bold block mb-1">Weight (Probability)</label>
+                        <label className="text-zinc-300 font-bold block mb-1">Probability Weight</label>
                         <input
                           type="number"
                           min="1"
-                          value={newRewardForm.probabilityWeight}
-                          onChange={(e) => setNewRewardForm({ ...newRewardForm, probabilityWeight: Math.max(1, Number(e.target.value)) })}
+                          value={newRewardForm.weight ?? newRewardForm.probabilityWeight ?? 1}
+                          onChange={(e) => {
+                            const w = Math.max(1, Number(e.target.value) || 1);
+                            setNewRewardForm({ ...newRewardForm, weight: w, probabilityWeight: w });
+                          }}
                           className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-white font-mono"
                         />
                       </div>
@@ -7259,6 +7525,205 @@ export const AdminDashboard: React.FC = () => {
         </div>
       )}
 
+      {/* User Full Activity & Location Inspector Modal */}
+      {selectedUserForActivity && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md">
+          <div className="relative w-full max-w-3xl bg-zinc-950 border border-indigo-500/30 rounded-3xl p-6 space-y-5 text-zinc-100 shadow-2xl max-h-[92vh] overflow-y-auto">
+            <div className="flex items-start justify-between gap-4 border-b border-zinc-800 pb-4">
+              <div className="flex items-center gap-3">
+                <img
+                  src={selectedUserForActivity.avatar}
+                  alt={selectedUserForActivity.name}
+                  className="w-12 h-12 rounded-2xl object-cover border border-indigo-500/40"
+                />
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="font-heading font-black text-lg text-white">
+                      {selectedUserForActivity.name}
+                    </h3>
+                    <span className="px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-[10px] font-mono uppercase">
+                      {selectedUserForActivity.tier} • {selectedUserForActivity.role.toUpperCase()}
+                    </span>
+                  </div>
+                  <p className="text-xs text-zinc-400 font-mono">{selectedUserForActivity.email}</p>
+                  <p className="text-[11px] text-zinc-400 flex items-center gap-1.5 mt-1">
+                    <MapPin className="w-3.5 h-3.5 text-red-400" />
+                    <span>{selectedUserForActivity.location || 'Austin, TX, USA'}</span>
+                    {selectedUserForActivity.preferredServiceCenter && (
+                      <span className="text-zinc-500">• {selectedUserForActivity.preferredServiceCenter}</span>
+                    )}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedUserForActivity(null)}
+                className="p-1.5 rounded-lg text-zinc-400 hover:text-white cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono">
+              <div className="p-3 rounded-2xl bg-zinc-900 border border-zinc-800">
+                <span className="text-[10px] text-zinc-500 block">LAST PATH</span>
+                <span className="text-cyan-400 font-bold">{selectedUserForActivity.lastVisitedPath || '/dashboard'}</span>
+              </div>
+              <div className="p-3 rounded-2xl bg-zinc-900 border border-zinc-800">
+                <span className="text-[10px] text-zinc-500 block">DEVICE / IP</span>
+                <span className="text-zinc-200 truncate block">
+                  {selectedUserForActivity.deviceInfo || 'Desktop Browser'}
+                </span>
+              </div>
+              <div className="p-3 rounded-2xl bg-zinc-900 border border-zinc-800">
+                <span className="text-[10px] text-zinc-500 block">DEPOSITED / WITHDRAWN</span>
+                <span className="text-emerald-400 font-bold">
+                  ${(selectedUserForActivity.totalDepositedUsd ?? 0).toLocaleString()} / ${(selectedUserForActivity.totalWithdrawnUsd ?? 0).toLocaleString()}
+                </span>
+              </div>
+              <div className="p-3 rounded-2xl bg-zinc-900 border border-zinc-800">
+                <span className="text-[10px] text-zinc-500 block">REFERRALS</span>
+                <span className="text-amber-300 font-bold">
+                  {selectedUserForActivity.referralCount} (${selectedUserForActivity.referralEarningsUsd})
+                </span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+              {/* Service Bookings */}
+              <div className="p-4 rounded-2xl bg-zinc-900/70 border border-zinc-800 space-y-2.5">
+                <h4 className="font-heading font-bold text-white flex items-center gap-1.5">
+                  <Clock className="w-4 h-4 text-amber-400" />
+                  <span>Service & Wrap Bookings</span>
+                </h4>
+                {localBookings.filter((b) => b.userId === selectedUserForActivity.id).length === 0 ? (
+                  <p className="text-zinc-500 text-[11px]">No bay or ranger bookings recorded.</p>
+                ) : (
+                  localBookings
+                    .filter((b) => b.userId === selectedUserForActivity.id)
+                    .map((b) => (
+                      <div key={b.id} className="p-2.5 rounded-xl bg-black/50 border border-zinc-800 space-y-1">
+                        <div className="flex justify-between font-bold text-white">
+                          <span>{b.serviceType}</span>
+                          <span className="text-emerald-400 font-mono">${b.totalCostUsd}</span>
+                        </div>
+                        <div className="text-[10px] text-zinc-400 flex justify-between">
+                          <span>{b.vehicleName} • {b.location}</span>
+                          <span className="text-cyan-300">{b.status}</span>
+                        </div>
+                      </div>
+                    ))
+                )}
+              </div>
+
+              {/* Vehicle Orders */}
+              <div className="p-4 rounded-2xl bg-zinc-900/70 border border-zinc-800 space-y-2.5">
+                <h4 className="font-heading font-bold text-white flex items-center gap-1.5">
+                  <Car className="w-4 h-4 text-red-400" />
+                  <span>Vehicle Orders & Deliveries</span>
+                </h4>
+                {vehicleOrders.filter((o) => o.userId === selectedUserForActivity.id).length === 0 ? (
+                  <p className="text-zinc-500 text-[11px]">No Tesla vehicle purchases or prize orders recorded.</p>
+                ) : (
+                  vehicleOrders
+                    .filter((o) => o.userId === selectedUserForActivity.id)
+                    .map((o) => (
+                      <div key={o.id} className="p-2.5 rounded-xl bg-black/50 border border-zinc-800 space-y-1">
+                        <div className="flex justify-between font-bold text-white">
+                          <span>{o.vehicleName}</span>
+                          <span className="text-emerald-400 font-mono">${o.totalUsd.toLocaleString()}</span>
+                        </div>
+                        <div className="text-[10px] text-zinc-400 flex justify-between font-mono">
+                          <span>{o.trackingNumber}</span>
+                          <span className="uppercase text-amber-300">{o.status.replace(/_/g, ' ')}</span>
+                        </div>
+                      </div>
+                    ))
+                )}
+              </div>
+
+              {/* Investments */}
+              <div className="p-4 rounded-2xl bg-zinc-900/70 border border-zinc-800 space-y-2.5">
+                <h4 className="font-heading font-bold text-white flex items-center gap-1.5">
+                  <TrendingUp className="w-4 h-4 text-emerald-400" />
+                  <span>Fleet & Stock Investments</span>
+                </h4>
+                {allInvestments.filter((i: UserInvestment) => i.userId === selectedUserForActivity.id).length === 0 ? (
+                  <p className="text-zinc-500 text-[11px]">No staking positions recorded.</p>
+                ) : (
+                  allInvestments
+                    .filter((i: UserInvestment) => i.userId === selectedUserForActivity.id)
+                    .map((i: UserInvestment) => (
+                      <div key={i.id} className="p-2.5 rounded-xl bg-black/50 border border-zinc-800 space-y-1">
+                        <div className="flex justify-between font-bold text-white">
+                          <span>{i.poolTitle || i.poolName}</span>
+                          <span className="text-emerald-400 font-mono">${(i.amountInvestedUsd || 0).toLocaleString()}</span>
+                        </div>
+                        <div className="text-[10px] text-zinc-400 flex justify-between font-mono">
+                          <span>APY {i.apy}% ({i.daysElapsed}/{i.durationDays}d)</span>
+                          <span className="uppercase text-emerald-300">{i.status}</span>
+                        </div>
+                      </div>
+                    ))
+                )}
+              </div>
+
+              {/* Withdrawals */}
+              <div className="p-4 rounded-2xl bg-zinc-900/70 border border-zinc-800 space-y-2.5">
+                <h4 className="font-heading font-bold text-white flex items-center gap-1.5">
+                  <DollarSign className="w-4 h-4 text-cyan-400" />
+                  <span>Withdrawal Requests</span>
+                </h4>
+                {withdrawalRequests.filter((w) => w.userId === selectedUserForActivity.id).length === 0 ? (
+                  <p className="text-zinc-500 text-[11px]">No withdrawal requests submitted.</p>
+                ) : (
+                  withdrawalRequests
+                    .filter((w) => w.userId === selectedUserForActivity.id)
+                    .map((w) => (
+                      <div key={w.id} className="p-2.5 rounded-xl bg-black/50 border border-zinc-800 space-y-1">
+                        <div className="flex justify-between font-bold text-white">
+                          <span>{w.currency} Payout</span>
+                          <span className="text-cyan-300 font-mono">${w.amountUsd.toLocaleString()}</span>
+                        </div>
+                        <div className="text-[10px] text-zinc-400 flex justify-between font-mono">
+                          <span className="truncate max-w-[180px]">{w.destinationAddress}</span>
+                          <span className="uppercase text-amber-300">{w.status}</span>
+                        </div>
+                      </div>
+                    ))
+                )}
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-zinc-800">
+              {selectedUserForActivity.role !== 'admin' && hasAdminPrivilege('manage_admins') && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const targetId = selectedUserForActivity.id;
+                    setSelectedUserForActivity(null);
+                    setAdminProvisionMode('upgrade');
+                    setUpgradeTargetUserId(targetId);
+                    setAdminCreateError(null);
+                    setActiveAdminTab('admins_mgmt');
+                  }}
+                  className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs flex items-center gap-1.5 cursor-pointer"
+                >
+                  <UserPlus className="w-3.5 h-3.5" />
+                  <span>Upgrade User to Admin</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setSelectedUserForActivity(null)}
+                className="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white text-xs font-bold cursor-pointer"
+              >
+                Close Inspector
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* TAB: PROMOTIONAL BANNERS & GEMINI AI GENERATOR */}
       {activeAdminTab === 'promo_banners' && (
         <div className="space-y-6 w-full">
@@ -7281,11 +7746,33 @@ export const AdminDashboard: React.FC = () => {
 
               <button
                 type="button"
-                onClick={() => setShowManualBannerModal(true)}
+                onClick={() => {
+                  setEditingBannerId(null);
+                  setManualBannerForm({
+                    title: 'Cybertruck VIP Referral Leaderboard',
+                    size: 'leaderboard',
+                    dimensions: '1456×180 HD',
+                    headline: 'TESLA CYBERBEAST DIRECT DELIVERY + $100 REFERRAL BONUS',
+                    subheadline: 'Nationwide enclosed transport, 7-day money-back protection & instant crypto settlement.',
+                    ctaText: 'Explore Inventory',
+                    badgeText: '3D 4K UHD • LEADERBOARD',
+                    themeGradient: 'from-zinc-950 via-red-950/80 to-zinc-950',
+                    accentColor: '#ef4444',
+                    targetTab: 'vehicles',
+                    imageUrl: 'https://images.unsplash.com/photo-1617788138017-80ad40651399?auto=format&fit=crop&w=1400&q=90',
+                    isActive: true,
+                    isAiGenerated: false,
+                    is3dHd: true,
+                    style3dPreset: 'cyber_perspective',
+                    resolutionQuality: '4K UHD',
+                    carRenderModel: 'Cybertruck Cyberbeast',
+                  });
+                  setShowManualBannerModal(true);
+                }}
                 className="px-4 py-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-white text-xs font-bold flex items-center gap-1.5 shrink-0 cursor-pointer"
               >
                 <Plus className="w-4 h-4 text-amber-400" />
-                <span>Create Custom Banner</span>
+                <span>Create 3D / HD Banner</span>
               </button>
             </div>
 
@@ -7308,10 +7795,10 @@ export const AdminDashboard: React.FC = () => {
                   onChange={(e) => setAiBannerSize(e.target.value as BannerSizeType)}
                   className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2.5 text-white"
                 >
-                  <option value="leaderboard">Leaderboard (728×90)</option>
-                  <option value="square">Square (300×300)</option>
-                  <option value="rectangle">Rectangle (300×250)</option>
-                  <option value="sidebar">Sidebar (160×600)</option>
+                  <option value="leaderboard">Leaderboard ({aiBannerIs3dHd ? '1456×180 HD' : '728×90'})</option>
+                  <option value="square">Square ({aiBannerIs3dHd ? '1200×1200 4K' : '300×300'})</option>
+                  <option value="rectangle">Rectangle ({aiBannerIs3dHd ? '1200×1000 HD' : '300×250'})</option>
+                  <option value="sidebar">Sidebar ({aiBannerIs3dHd ? '640×2400 HD' : '160×600'})</option>
                 </select>
               </div>
 
@@ -7339,10 +7826,61 @@ export const AdminDashboard: React.FC = () => {
                   <option value="stocks">TSLA Stocks</option>
                   <option value="vehicles">Car Sales</option>
                   <option value="investment">Fleet Yield</option>
-                  <option value="promotions">Spin & Win ($150)</option>
+                  <option value="promotions">Spin & Win</option>
                   <option value="referrals">Referrals (+$100)</option>
                   <option value="shop">Hardware Store</option>
                 </select>
+              </div>
+            </div>
+
+            {/* 3D / HD Render Studio Options */}
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 p-3.5 rounded-2xl bg-zinc-900/70 border border-zinc-800 text-xs">
+              <label className="flex items-center gap-2.5 text-zinc-200 font-semibold cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={aiBannerIs3dHd}
+                  onChange={(e) => setAiBannerIs3dHd(e.target.checked)}
+                  className="rounded text-red-500 focus:ring-0"
+                />
+                <span>Enable 3D Depth &amp; HD Export</span>
+              </label>
+
+              <div>
+                <label className="text-[10px] text-zinc-400 font-mono uppercase block mb-1">3D Perspective Preset</label>
+                <select
+                  disabled={!aiBannerIs3dHd}
+                  value={aiBannerStyle3d}
+                  onChange={(e) => setAiBannerStyle3d(e.target.value as Banner3dPreset)}
+                  className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-white disabled:opacity-50"
+                >
+                  <option value="cyber_perspective">Cyber Tilt Perspective</option>
+                  <option value="holographic_depth">Holographic Iridescent Depth</option>
+                  <option value="studio_4k_bevel">Studio 4K Carbon Bevel</option>
+                  <option value="obsidian_neon">Obsidian Neon Reflection</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[10px] text-zinc-400 font-mono uppercase block mb-1">Render Quality</label>
+                <select
+                  value={aiBannerQuality}
+                  onChange={(e) => setAiBannerQuality(e.target.value as '4K UHD' | 'HD 1080p')}
+                  className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-white"
+                >
+                  <option value="4K UHD">4K UHD (Hi-DPI 2x)</option>
+                  <option value="HD 1080p">HD 1080p</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[10px] text-zinc-400 font-mono uppercase block mb-1">Featured Tesla Showcase</label>
+                <input
+                  type="text"
+                  value={aiBannerCarModel}
+                  onChange={(e) => setAiBannerCarModel(e.target.value)}
+                  placeholder="Cybertruck Cyberbeast"
+                  className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-white"
+                />
               </div>
             </div>
 
@@ -7355,7 +7893,7 @@ export const AdminDashboard: React.FC = () => {
               >
                 <Sparkles className="w-4 h-4" />
                 <span>
-                  {isGeneratingAiBanner ? 'Generating AI Banner...' : `Auto-Generate ${aiBannerSize.toUpperCase()} Banner`}
+                  {isGeneratingAiBanner ? 'Generating 3D / HD Banner...' : `Auto-Generate ${aiBannerIs3dHd ? '3D HD ' : ''}${aiBannerSize.toUpperCase()} Banner`}
                 </span>
               </button>
 
@@ -7381,7 +7919,7 @@ export const AdminDashboard: React.FC = () => {
                   Active & Draft Promotional Banners ({marketingBanners.length})
                 </h4>
                 <p className="text-xs text-zinc-400">
-                  Every published banner is displayed on the user Promotional Banners page with their referral link automatically attached.
+                  Every published banner is rendered in interactive 3D / HD perspective on the Promotional Banners page with user referral links attached.
                 </p>
               </div>
             </div>
@@ -7394,7 +7932,7 @@ export const AdminDashboard: React.FC = () => {
                 >
                   <div className="space-y-2">
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         <span
                           className="w-3 h-3 rounded-full shrink-0"
                           style={{ backgroundColor: b.accentColor }}
@@ -7402,6 +7940,11 @@ export const AdminDashboard: React.FC = () => {
                         <span className="px-2 py-0.5 rounded bg-zinc-950 border border-zinc-700 text-[10px] font-mono font-bold text-white uppercase">
                           {b.size} ({b.dimensions})
                         </span>
+                        {b.is3dHd && (
+                          <span className="px-2 py-0.5 rounded bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 text-[10px] font-mono font-bold">
+                            3D • {b.resolutionQuality || '4K UHD'}
+                          </span>
+                        )}
                         {b.isAiGenerated && (
                           <span className="px-2 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 text-[10px] font-mono font-bold">
                             AI
@@ -7424,33 +7967,78 @@ export const AdminDashboard: React.FC = () => {
 
                     <h5 className="font-heading font-bold text-sm text-white">{b.headline}</h5>
                     <p className="text-xs text-zinc-400 line-clamp-2">{b.subheadline}</p>
+                    {b.carRenderModel && (
+                      <span className="inline-block text-[10px] font-mono text-red-400">
+                        Showcase: {b.carRenderModel}
+                      </span>
+                    )}
                   </div>
 
                   <div className="pt-3 border-t border-zinc-800 flex items-center justify-between text-[11px]">
                     <span className="font-mono text-zinc-400">
                       CTA: <strong className="text-white">{b.ctaText}</strong> • /{b.targetTab}
                     </span>
-                    <button
-                      type="button"
-                      onClick={() => deleteMarketingBanner(b.id)}
-                      className="p-1.5 rounded-lg bg-zinc-950 hover:bg-rose-950/60 text-zinc-400 hover:text-rose-400 cursor-pointer"
-                      title="Delete banner"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingBannerId(b.id);
+                          setManualBannerForm({
+                            title: b.title,
+                            size: b.size,
+                            dimensions: b.dimensions,
+                            headline: b.headline,
+                            subheadline: b.subheadline,
+                            ctaText: b.ctaText,
+                            badgeText: b.badgeText,
+                            themeGradient: b.themeGradient,
+                            accentColor: b.accentColor,
+                            targetTab: b.targetTab,
+                            imageUrl: b.imageUrl || '',
+                            isActive: b.isActive,
+                            isAiGenerated: b.isAiGenerated,
+                            is3dHd: b.is3dHd ?? true,
+                            style3dPreset: b.style3dPreset || 'cyber_perspective',
+                            resolutionQuality: b.resolutionQuality || '4K UHD',
+                            carRenderModel: b.carRenderModel || 'Cybertruck Cyberbeast',
+                          });
+                          setShowManualBannerModal(true);
+                        }}
+                        className="p-1.5 rounded-lg bg-zinc-950 hover:bg-zinc-800 text-zinc-300 cursor-pointer"
+                        title="Edit banner"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => deleteMarketingBanner(b.id)}
+                        className="p-1.5 rounded-lg bg-zinc-950 hover:bg-rose-950/60 text-zinc-400 hover:text-rose-400 cursor-pointer"
+                        title="Delete banner"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* Manual Create Banner Modal */}
+          {/* Manual Create / Edit 3D HD Banner Modal */}
           {showManualBannerModal && (
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
-              <div className="bg-zinc-950 border border-zinc-800 rounded-3xl p-6 w-full max-w-lg space-y-4 text-xs">
+              <div className="bg-zinc-950 border border-zinc-800 rounded-3xl p-6 w-full max-w-xl space-y-4 text-xs max-h-[92vh] overflow-y-auto">
                 <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
-                  <h3 className="font-heading font-bold text-base text-white">Create Custom Promotional Banner</h3>
-                  <button onClick={() => setShowManualBannerModal(false)} className="text-zinc-400 hover:text-white">
+                  <h3 className="font-heading font-bold text-base text-white">
+                    {editingBannerId ? 'Edit 3D / HD Promotional Banner' : 'Create 3D / HD Promotional Banner'}
+                  </h3>
+                  <button
+                    onClick={() => {
+                      setShowManualBannerModal(false);
+                      setEditingBannerId(null);
+                    }}
+                    className="text-zinc-400 hover:text-white"
+                  >
                     <X className="w-5 h-5" />
                   </button>
                 </div>
@@ -7472,20 +8060,27 @@ export const AdminDashboard: React.FC = () => {
                         value={manualBannerForm.size}
                         onChange={(e) => {
                           const s = e.target.value as BannerSizeType;
-                          const dimMap: Record<BannerSizeType, string> = {
-                            leaderboard: '728×90',
-                            square: '300×300',
-                            rectangle: '300×250',
-                            sidebar: '160×600',
-                          };
+                          const dimMap: Record<BannerSizeType, string> = manualBannerForm.is3dHd
+                            ? {
+                                leaderboard: '1456×180 HD',
+                                square: '1200×1200 4K',
+                                rectangle: '1200×1000 HD',
+                                sidebar: '640×2400 HD',
+                              }
+                            : {
+                                leaderboard: '728×90',
+                                square: '300×300',
+                                rectangle: '300×250',
+                                sidebar: '160×600',
+                              };
                           setManualBannerForm({ ...manualBannerForm, size: s, dimensions: dimMap[s] });
                         }}
                         className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white"
                       >
-                        <option value="leaderboard">Leaderboard (728×90)</option>
-                        <option value="square">Square (300×300)</option>
-                        <option value="rectangle">Rectangle (300×250)</option>
-                        <option value="sidebar">Sidebar (160×600)</option>
+                        <option value="leaderboard">Leaderboard (1456×180 / 728×90)</option>
+                        <option value="square">Square (1200×1200 / 300×300)</option>
+                        <option value="rectangle">Rectangle (1200×1000 / 300×250)</option>
+                        <option value="sidebar">Sidebar (640×2400 / 160×600)</option>
                       </select>
                     </div>
                   </div>
@@ -7510,7 +8105,7 @@ export const AdminDashboard: React.FC = () => {
                     />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-3 gap-3">
                     <div>
                       <label className="text-zinc-400 block mb-1">CTA Button Text</label>
                       <input
@@ -7519,6 +8114,21 @@ export const AdminDashboard: React.FC = () => {
                         onChange={(e) => setManualBannerForm({ ...manualBannerForm, ctaText: e.target.value })}
                         className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white"
                       />
+                    </div>
+                    <div>
+                      <label className="text-zinc-400 block mb-1">Target Route</label>
+                      <select
+                        value={manualBannerForm.targetTab}
+                        onChange={(e) => setManualBannerForm({ ...manualBannerForm, targetTab: e.target.value })}
+                        className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white"
+                      >
+                        <option value="vehicles">Car Sales</option>
+                        <option value="stocks">TSLA Stocks</option>
+                        <option value="investment">Fleet Yield</option>
+                        <option value="promotions">Spin & Scratch</option>
+                        <option value="referrals">Referrals</option>
+                        <option value="shop">Store</option>
+                      </select>
                     </div>
                     <div>
                       <label className="text-zinc-400 block mb-1">Accent Color</label>
@@ -7530,12 +8140,93 @@ export const AdminDashboard: React.FC = () => {
                       />
                     </div>
                   </div>
+
+                  {/* 3D / HD Configuration */}
+                  <div className="p-3 rounded-2xl bg-zinc-900/70 border border-zinc-800 space-y-3">
+                    <label className="flex items-center gap-2 text-zinc-200 font-semibold cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(manualBannerForm.is3dHd)}
+                        onChange={(e) =>
+                          setManualBannerForm({
+                            ...manualBannerForm,
+                            is3dHd: e.target.checked,
+                          })
+                        }
+                        className="rounded text-red-500"
+                      />
+                      <span>Enable Interactive 3D Tilt &amp; HD Export Mode</span>
+                    </label>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                      <div>
+                        <label className="text-zinc-400 block mb-1">3D Shader Style</label>
+                        <select
+                          value={manualBannerForm.style3dPreset || 'cyber_perspective'}
+                          onChange={(e) =>
+                            setManualBannerForm({
+                              ...manualBannerForm,
+                              style3dPreset: e.target.value as Banner3dPreset,
+                            })
+                          }
+                          className="w-full bg-zinc-950 border border-zinc-700 rounded-xl px-2.5 py-2 text-white"
+                        >
+                          <option value="cyber_perspective">Cyber Tilt Perspective</option>
+                          <option value="holographic_depth">Holographic Depth</option>
+                          <option value="studio_4k_bevel">Studio 4K Bevel</option>
+                          <option value="obsidian_neon">Obsidian Neon</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-zinc-400 block mb-1">Quality</label>
+                        <select
+                          value={manualBannerForm.resolutionQuality || '4K UHD'}
+                          onChange={(e) =>
+                            setManualBannerForm({
+                              ...manualBannerForm,
+                              resolutionQuality: e.target.value as '4K UHD' | 'HD 1080p',
+                            })
+                          }
+                          className="w-full bg-zinc-950 border border-zinc-700 rounded-xl px-2.5 py-2 text-white"
+                        >
+                          <option value="4K UHD">4K UHD</option>
+                          <option value="HD 1080p">HD 1080p</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-zinc-400 block mb-1">Tesla Showcase</label>
+                        <input
+                          type="text"
+                          value={manualBannerForm.carRenderModel || ''}
+                          onChange={(e) =>
+                            setManualBannerForm({ ...manualBannerForm, carRenderModel: e.target.value })
+                          }
+                          placeholder="Model S Plaid"
+                          className="w-full bg-zinc-950 border border-zinc-700 rounded-xl px-2.5 py-2 text-white"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-zinc-400 block mb-1">HD Backdrop Image URL</label>
+                      <input
+                        type="url"
+                        value={manualBannerForm.imageUrl || ''}
+                        onChange={(e) => setManualBannerForm({ ...manualBannerForm, imageUrl: e.target.value })}
+                        placeholder="https://images.unsplash.com/..."
+                        className="w-full bg-zinc-950 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono text-[11px]"
+                      />
+                    </div>
+                  </div>
                 </div>
 
                 <div className="flex gap-2 pt-2">
                   <button
                     type="button"
-                    onClick={() => setShowManualBannerModal(false)}
+                    onClick={() => {
+                      setShowManualBannerModal(false);
+                      setEditingBannerId(null);
+                    }}
                     className="flex-1 py-2.5 rounded-xl bg-zinc-800 text-zinc-300 font-bold"
                   >
                     Cancel
@@ -7543,12 +8234,18 @@ export const AdminDashboard: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => {
-                      createMarketingBanner(manualBannerForm);
+                      if (editingBannerId) {
+                        updateMarketingBanner(editingBannerId, manualBannerForm);
+                        showToast('3D / HD banner updated successfully!', 'success');
+                      } else {
+                        createMarketingBanner(manualBannerForm);
+                      }
                       setShowManualBannerModal(false);
+                      setEditingBannerId(null);
                     }}
-                    className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold"
+                    className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold cursor-pointer"
                   >
-                    Publish Banner
+                    {editingBannerId ? 'Save Changes' : 'Publish 3D / HD Banner'}
                   </button>
                 </div>
               </div>
@@ -7584,7 +8281,7 @@ export const AdminDashboard: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-            {/* Create New Admin Form */}
+            {/* Create New Admin OR Upgrade Existing User Form */}
             <div className="lg:col-span-5 p-6 rounded-3xl bg-zinc-950 border border-amber-500/30 space-y-4">
               <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
                 <div className="flex items-center gap-2.5">
@@ -7592,8 +8289,14 @@ export const AdminDashboard: React.FC = () => {
                     <UserPlus className="w-4 h-4" />
                   </div>
                   <div>
-                    <h3 className="font-heading font-bold text-base text-white">Create New Admin</h3>
-                    <p className="text-[11px] text-zinc-400">Provision an administrator & assign permissions</p>
+                    <h3 className="font-heading font-bold text-base text-white">
+                      {adminProvisionMode === 'upgrade' ? 'Upgrade Existing User to Admin' : 'Create New Admin'}
+                    </h3>
+                    <p className="text-[11px] text-zinc-400">
+                      {adminProvisionMode === 'upgrade'
+                        ? 'Promote a registered member & assign admin role privileges'
+                        : 'Provision a new administrator & assign permissions'}
+                    </p>
                   </div>
                 </div>
                 <button
@@ -7603,6 +8306,42 @@ export const AdminDashboard: React.FC = () => {
                   title="Refresh admin roster"
                 >
                   <RefreshCw className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              {/* Mode Switcher */}
+              <div className="grid grid-cols-2 gap-2 p-1 rounded-xl bg-zinc-900 border border-zinc-800 text-xs">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAdminProvisionMode('create');
+                    setAdminCreateError(null);
+                  }}
+                  className={`py-2 rounded-lg font-bold transition cursor-pointer ${
+                    adminProvisionMode === 'create'
+                      ? 'bg-amber-500 text-black'
+                      : 'text-zinc-400 hover:text-white'
+                  }`}
+                >
+                  Create New Admin
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAdminProvisionMode('upgrade');
+                    setAdminCreateError(null);
+                    if (!upgradeTargetUserId) {
+                      const firstNonAdmin = allUsers.find((u) => u.role !== 'admin');
+                      if (firstNonAdmin) setUpgradeTargetUserId(firstNonAdmin.id);
+                    }
+                  }}
+                  className={`py-2 rounded-lg font-bold transition cursor-pointer ${
+                    adminProvisionMode === 'upgrade'
+                      ? 'bg-amber-500 text-black'
+                      : 'text-zinc-400 hover:text-white'
+                  }`}
+                >
+                  Upgrade Existing User
                 </button>
               </div>
 
@@ -7617,16 +8356,43 @@ export const AdminDashboard: React.FC = () => {
                 onSubmit={async (e) => {
                   e.preventDefault();
                   setAdminCreateError(null);
+                  if (newAdminForm.adminPrivileges.length === 0) {
+                    setAdminCreateError('Select at least one privilege scope.');
+                    return;
+                  }
+
+                  if (adminProvisionMode === 'upgrade') {
+                    const targetUser = allUsers.find((u) => u.id === upgradeTargetUserId);
+                    if (!targetUser) {
+                      setAdminCreateError('Please select an existing registered user to upgrade.');
+                      return;
+                    }
+                    setIsCreatingAdmin(true);
+                    const res = await upgradeUserToAdmin({
+                      userId: targetUser.id,
+                      email: targetUser.email,
+                      name: targetUser.name,
+                      adminRoleLabel: newAdminForm.adminRoleLabel || 'Operations Admin',
+                      adminPrivileges: newAdminForm.adminPrivileges,
+                      location: targetUser.location || newAdminForm.location,
+                      phone: targetUser.phone || newAdminForm.phone,
+                    });
+                    setIsCreatingAdmin(false);
+                    if (!res.success) {
+                      setAdminCreateError(res.error || 'Failed to upgrade user to admin.');
+                    } else {
+                      setUpgradeTargetUserId('');
+                      fetchAdmins();
+                    }
+                    return;
+                  }
+
                   if (!newAdminForm.name.trim() || !newAdminForm.email.trim()) {
                     setAdminCreateError('Admin full name and email are required.');
                     return;
                   }
                   if (newAdminForm.password.length < 8) {
                     setAdminCreateError('Password must be at least 8 characters.');
-                    return;
-                  }
-                  if (newAdminForm.adminPrivileges.length === 0) {
-                    setAdminCreateError('Select at least one privilege scope.');
                     return;
                   }
                   setIsCreatingAdmin(true);
@@ -7648,99 +8414,134 @@ export const AdminDashboard: React.FC = () => {
                 }}
                 className="space-y-3.5 text-xs"
               >
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-zinc-400 block mb-1">Full Name</label>
-                    <input
-                      type="text"
-                      required
-                      value={newAdminForm.name}
-                      onChange={(e) => setNewAdminForm({ ...newAdminForm, name: e.target.value })}
-                      placeholder="e.g. Elena Rostova"
-                      className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-zinc-400 block mb-1">Role Title</label>
-                    <input
-                      type="text"
-                      required
-                      value={newAdminForm.adminRoleLabel}
-                      onChange={(e) => setNewAdminForm({ ...newAdminForm, adminRoleLabel: e.target.value })}
-                      placeholder="e.g. Finance Officer"
-                      className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white"
-                    />
-                  </div>
-                </div>
+                {adminProvisionMode === 'upgrade' ? (
+                  <>
+                    <div>
+                      <label className="text-zinc-400 block mb-1">Select Registered User to Promote</label>
+                      <select
+                        value={upgradeTargetUserId}
+                        onChange={(e) => setUpgradeTargetUserId(e.target.value)}
+                        className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2.5 text-white"
+                      >
+                        <option value="">-- Choose Existing User --</option>
+                        {allUsers
+                          .filter((u) => u.role !== 'admin')
+                          .map((u) => (
+                            <option key={u.id} value={u.id}>
+                              {u.name} ({u.email}) — {u.location || 'Global'}
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-zinc-400 block mb-1">Assigned Admin Role Title</label>
+                      <input
+                        type="text"
+                        required
+                        value={newAdminForm.adminRoleLabel}
+                        onChange={(e) => setNewAdminForm({ ...newAdminForm, adminRoleLabel: e.target.value })}
+                        placeholder="e.g. Regional Operations Admin"
+                        className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white"
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-zinc-400 block mb-1">Full Name</label>
+                        <input
+                          type="text"
+                          required
+                          value={newAdminForm.name}
+                          onChange={(e) => setNewAdminForm({ ...newAdminForm, name: e.target.value })}
+                          placeholder="e.g. Elena Rostova"
+                          className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-zinc-400 block mb-1">Role Title</label>
+                        <input
+                          type="text"
+                          required
+                          value={newAdminForm.adminRoleLabel}
+                          onChange={(e) => setNewAdminForm({ ...newAdminForm, adminRoleLabel: e.target.value })}
+                          placeholder="e.g. Finance Officer"
+                          className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white"
+                        />
+                      </div>
+                    </div>
 
-                <div>
-                  <label className="text-zinc-400 block mb-1">Admin Login Email</label>
-                  <input
-                    type="email"
-                    required
-                    value={newAdminForm.email}
-                    onChange={(e) => setNewAdminForm({ ...newAdminForm, email: e.target.value })}
-                    placeholder="elena.finance@apex-tesla.io"
-                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono"
-                  />
-                </div>
+                    <div>
+                      <label className="text-zinc-400 block mb-1">Admin Login Email</label>
+                      <input
+                        type="email"
+                        required
+                        value={newAdminForm.email}
+                        onChange={(e) => setNewAdminForm({ ...newAdminForm, email: e.target.value })}
+                        placeholder="elena.finance@apex-tesla.io"
+                        className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono"
+                      />
+                    </div>
 
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="text-zinc-400">Password (min 8 chars)</label>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const rand = `ApexAdm!${Math.floor(1000 + Math.random() * 9000)}`;
-                        setNewAdminForm({ ...newAdminForm, password: rand });
-                        setShowNewAdminPassword(true);
-                      }}
-                      className="text-[10px] text-amber-400 hover:underline font-semibold cursor-pointer"
-                    >
-                      Generate Strong Password
-                    </button>
-                  </div>
-                  <div className="relative">
-                    <input
-                      type={showNewAdminPassword ? 'text' : 'password'}
-                      required
-                      minLength={8}
-                      value={newAdminForm.password}
-                      onChange={(e) => setNewAdminForm({ ...newAdminForm, password: e.target.value })}
-                      placeholder="Minimum 8 characters"
-                      className="w-full bg-zinc-900 border border-zinc-700 rounded-xl pl-3 pr-9 py-2 text-white font-mono"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowNewAdminPassword(!showNewAdminPassword)}
-                      className="absolute right-2.5 top-2 text-zinc-400 hover:text-white cursor-pointer"
-                    >
-                      {showNewAdminPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                </div>
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-zinc-400">Password (min 8 chars)</label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const rand = `ApexAdm!${Math.floor(1000 + Math.random() * 9000)}`;
+                            setNewAdminForm({ ...newAdminForm, password: rand });
+                            setShowNewAdminPassword(true);
+                          }}
+                          className="text-[10px] text-amber-400 hover:underline font-semibold cursor-pointer"
+                        >
+                          Generate Strong Password
+                        </button>
+                      </div>
+                      <div className="relative">
+                        <input
+                          type={showNewAdminPassword ? 'text' : 'password'}
+                          required
+                          minLength={8}
+                          value={newAdminForm.password}
+                          onChange={(e) => setNewAdminForm({ ...newAdminForm, password: e.target.value })}
+                          placeholder="Minimum 8 characters"
+                          className="w-full bg-zinc-900 border border-zinc-700 rounded-xl pl-3 pr-9 py-2 text-white font-mono"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowNewAdminPassword(!showNewAdminPassword)}
+                          className="absolute right-2.5 top-2 text-zinc-400 hover:text-white cursor-pointer"
+                        >
+                          {showNewAdminPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-zinc-400 block mb-1">Hub Location</label>
-                    <input
-                      type="text"
-                      value={newAdminForm.location}
-                      onChange={(e) => setNewAdminForm({ ...newAdminForm, location: e.target.value })}
-                      className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-zinc-400 block mb-1">Phone (Optional)</label>
-                    <input
-                      type="text"
-                      value={newAdminForm.phone}
-                      onChange={(e) => setNewAdminForm({ ...newAdminForm, phone: e.target.value })}
-                      placeholder="+1 (555) ..."
-                      className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white"
-                    />
-                  </div>
-                </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-zinc-400 block mb-1">Hub Location</label>
+                        <input
+                          type="text"
+                          value={newAdminForm.location}
+                          onChange={(e) => setNewAdminForm({ ...newAdminForm, location: e.target.value })}
+                          className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-zinc-400 block mb-1">Phone (Optional)</label>
+                        <input
+                          type="text"
+                          value={newAdminForm.phone}
+                          onChange={(e) => setNewAdminForm({ ...newAdminForm, phone: e.target.value })}
+                          placeholder="+1 (555) ..."
+                          className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white"
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
 
                 {/* Role Presets */}
                 <div className="pt-1">
@@ -7821,11 +8622,15 @@ export const AdminDashboard: React.FC = () => {
                   className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-black font-heading font-black text-xs shadow-lg flex items-center justify-center gap-2 transition disabled:opacity-50 cursor-pointer"
                 >
                   {isCreatingAdmin ? (
-                    <span>Provisioning Admin Account...</span>
+                    <span>{adminProvisionMode === 'upgrade' ? 'Upgrading User to Admin...' : 'Provisioning Admin Account...'}</span>
                   ) : (
                     <>
                       <UserPlus className="w-4 h-4" />
-                      <span>Create Administrator & Assign Privileges</span>
+                      <span>
+                        {adminProvisionMode === 'upgrade'
+                          ? 'Upgrade User to Admin & Grant Privileges'
+                          : 'Create Administrator & Assign Privileges'}
+                      </span>
                     </>
                   )}
                 </button>
@@ -8681,41 +9486,145 @@ export const AdminDashboard: React.FC = () => {
                 />
               </div>
 
-              <div className="space-y-2 pt-1">
-                <span className="text-[10px] font-mono uppercase text-zinc-400 block">Top Prize Payout Tiers</span>
+              <div className="space-y-2.5 pt-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-mono uppercase text-zinc-400 block">
+                    Prize Payout &amp; Tesla Car Jackpot Outcomes
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setScratchForm({
+                        ...scratchForm,
+                        possiblePrizes: [
+                          ...scratchForm.possiblePrizes,
+                          {
+                            amountUsd: 48990,
+                            label: 'TESLA MODEL Y PERFORMANCE WIN',
+                            weight: 3,
+                            isTeslaCar: true,
+                            vehicleModel: 'Tesla Model Y Performance',
+                          },
+                        ],
+                      })
+                    }
+                    className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 text-[10px] font-bold flex items-center gap-1 cursor-pointer"
+                  >
+                    <Plus className="w-3 h-3" />
+                    <span>Add Prize / Car Win</span>
+                  </button>
+                </div>
+
                 {scratchForm.possiblePrizes.map((p, idx) => (
-                  <div key={idx} className="grid grid-cols-12 gap-2 items-center">
-                    <input
-                      type="text"
-                      value={p.label}
-                      onChange={(e) => {
-                        const updated = [...scratchForm.possiblePrizes];
-                        updated[idx] = { ...updated[idx], label: e.target.value };
-                        setScratchForm({ ...scratchForm, possiblePrizes: updated });
-                      }}
-                      className="col-span-6 bg-zinc-900 border border-zinc-700 rounded-lg px-2 py-1.5 text-white"
-                    />
-                    <input
-                      type="number"
-                      value={p.amountUsd}
-                      onChange={(e) => {
-                        const updated = [...scratchForm.possiblePrizes];
-                        updated[idx] = { ...updated[idx], amountUsd: parseFloat(e.target.value) || 0 };
-                        setScratchForm({ ...scratchForm, possiblePrizes: updated });
-                      }}
-                      className="col-span-3 bg-zinc-900 border border-zinc-700 rounded-lg px-2 py-1.5 text-amber-400 font-mono"
-                    />
-                    <input
-                      type="number"
-                      value={p.weight}
-                      onChange={(e) => {
-                        const updated = [...scratchForm.possiblePrizes];
-                        updated[idx] = { ...updated[idx], weight: parseFloat(e.target.value) || 1 };
-                        setScratchForm({ ...scratchForm, possiblePrizes: updated });
-                      }}
-                      title="Probability weight"
-                      className="col-span-3 bg-zinc-900 border border-zinc-700 rounded-lg px-2 py-1.5 text-zinc-300 font-mono"
-                    />
+                  <div key={idx} className="p-2.5 rounded-xl bg-zinc-900/70 border border-zinc-800 space-y-2">
+                    <div className="grid grid-cols-12 gap-2 items-center">
+                      <input
+                        type="text"
+                        value={p.label}
+                        onChange={(e) => {
+                          const updated = [...scratchForm.possiblePrizes];
+                          updated[idx] = { ...updated[idx], label: e.target.value };
+                          setScratchForm({ ...scratchForm, possiblePrizes: updated });
+                        }}
+                        placeholder="Prize Label"
+                        className="col-span-6 bg-zinc-950 border border-zinc-700 rounded-lg px-2 py-1.5 text-white"
+                      />
+                      <input
+                        type="number"
+                        value={p.amountUsd}
+                        onChange={(e) => {
+                          const updated = [...scratchForm.possiblePrizes];
+                          updated[idx] = { ...updated[idx], amountUsd: parseFloat(e.target.value) || 0 };
+                          setScratchForm({ ...scratchForm, possiblePrizes: updated });
+                        }}
+                        title="Prize USD Value"
+                        className="col-span-3 bg-zinc-950 border border-zinc-700 rounded-lg px-2 py-1.5 text-amber-400 font-mono"
+                      />
+                      <input
+                        type="number"
+                        min="1"
+                        value={p.weight}
+                        onChange={(e) => {
+                          const updated = [...scratchForm.possiblePrizes];
+                          updated[idx] = { ...updated[idx], weight: Math.max(1, parseFloat(e.target.value) || 1) };
+                          setScratchForm({ ...scratchForm, possiblePrizes: updated });
+                        }}
+                        title="Probability weight"
+                        className="col-span-2 bg-zinc-950 border border-zinc-700 rounded-lg px-2 py-1.5 text-zinc-300 font-mono"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (scratchForm.possiblePrizes.length <= 1) return;
+                          setScratchForm({
+                            ...scratchForm,
+                            possiblePrizes: scratchForm.possiblePrizes.filter((_, i) => i !== idx),
+                          });
+                        }}
+                        className="col-span-1 p-1.5 rounded-lg bg-zinc-950 hover:bg-rose-950/60 text-zinc-400 hover:text-rose-400 flex items-center justify-center cursor-pointer"
+                        title="Delete prize row"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-3 text-[11px]">
+                      <label className="flex items-center gap-1.5 text-red-300 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(p.isTeslaCar)}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            const updated = [...scratchForm.possiblePrizes];
+                            updated[idx] = {
+                              ...updated[idx],
+                              isTeslaCar: checked,
+                              isTryAgain: checked ? false : updated[idx].isTryAgain,
+                              vehicleModel: checked
+                                ? updated[idx].vehicleModel || 'Tesla Model 3 Performance'
+                                : updated[idx].vehicleModel,
+                            };
+                            setScratchForm({ ...scratchForm, possiblePrizes: updated });
+                          }}
+                          className="rounded text-red-500"
+                        />
+                        <span>Tesla Car Jackpot</span>
+                      </label>
+
+                      <label className="flex items-center gap-1.5 text-zinc-400 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(p.isTryAgain)}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            const updated = [...scratchForm.possiblePrizes];
+                            updated[idx] = {
+                              ...updated[idx],
+                              isTryAgain: checked,
+                              isTeslaCar: checked ? false : updated[idx].isTeslaCar,
+                              amountUsd: checked ? 0 : updated[idx].amountUsd,
+                            };
+                            setScratchForm({ ...scratchForm, possiblePrizes: updated });
+                          }}
+                          className="rounded text-zinc-500"
+                        />
+                        <span>Try Again ($0)</span>
+                      </label>
+
+                      {p.isTeslaCar && (
+                        <input
+                          type="text"
+                          value={p.vehicleModel || ''}
+                          onChange={(e) => {
+                            const updated = [...scratchForm.possiblePrizes];
+                            updated[idx] = { ...updated[idx], vehicleModel: e.target.value };
+                            setScratchForm({ ...scratchForm, possiblePrizes: updated });
+                          }}
+                          placeholder="e.g. Cybertruck Cyberbeast"
+                          className="flex-1 min-w-[160px] bg-zinc-950 border border-red-500/40 rounded-lg px-2 py-1 text-white text-[11px]"
+                        />
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>

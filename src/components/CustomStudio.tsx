@@ -8,7 +8,7 @@ interface CustomStudioProps {
 }
 
 export const CustomStudio: React.FC<CustomStudioProps> = ({ onNavigateToServices, onOpenDeposit }) => {
-  const { bookService, balances, showToast } = useApp();
+  const { bookService, balances, showToast, currentUser } = useApp();
 
   const wrapColors = [
     {
@@ -96,6 +96,13 @@ export const CustomStudio: React.FC<CustomStudioProps> = ({ onNavigateToServices
   const grandTotal = wrapCalculatedPrice + accessoriesTotal;
 
   const handleBookCustomization = () => {
+    if (!currentUser) {
+      showToast('Please sign in or register to reserve a Custom Wrap Studio bay.', 'error');
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('apex:require-auth'));
+      }
+      return;
+    }
     bookService({
       vehicleId: `veh-custom-${Date.now()}`,
       vehicleName: `${selectedModel} (${selectedWrap.name})`,
@@ -108,7 +115,6 @@ export const CustomStudio: React.FC<CustomStudioProps> = ({ onNavigateToServices
       totalCostUsd: grandTotal,
       paidWith: 'Apex Dashboard Vault',
     });
-    showToast(`Customization package reserved for your ${selectedModel}!`);
   };
 
   return (

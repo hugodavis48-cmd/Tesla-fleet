@@ -38,6 +38,7 @@ import { TeslaStockHub } from './components/TeslaStockHub';
 import { UnifiedShowcaseDeck } from './components/UnifiedShowcaseDeck';
 import { PromoBannersPage } from './components/PromoBannersPage';
 import { CustomPageView } from './components/CustomPageView';
+import { SitemapRssPage } from './components/SitemapRssPage';
 import { CheckCircle2, AlertCircle, Info, AlertTriangle } from 'lucide-react';
 
 const isPathAdmin = () => {
@@ -47,7 +48,7 @@ const isPathAdmin = () => {
 };
 
 const MainAppContent: React.FC = () => {
-  const { currentUser, userRole, toastMessage, sitePages, siteSettings } = useApp();
+  const { currentUser, userRole, toastMessage, sitePages, siteSettings, showToast } = useApp();
   const { isLight } = useTheme();
 
   const [activeTab, setActiveTabState] = useState<string>(() => (isPathAdmin() ? 'admin' : 'home'));
@@ -59,6 +60,11 @@ const MainAppContent: React.FC = () => {
   const [chatbotPrompt, setChatbotPrompt] = useState<string | null>(null);
 
   const setActiveTab = React.useCallback((tab: string) => {
+    if (tab === 'dashboard' && !currentUser) {
+      setIsAuthModalOpen(true);
+      showToast('Please sign in or register to access your User Dashboard.', 'error');
+      return;
+    }
     setActiveTabState(tab);
     if (typeof window !== 'undefined') {
       const targetUrl = tab === 'admin' ? '/admin' : '/';
@@ -67,7 +73,25 @@ const MainAppContent: React.FC = () => {
         window.history.pushState({ tab }, '', targetUrl);
       }
     }
-  }, []);
+  }, [currentUser, showToast]);
+
+  const openDepositModalGated = React.useCallback(() => {
+    if (!currentUser) {
+      setIsAuthModalOpen(true);
+      showToast('Please sign in or register to make a deposit.', 'error');
+      return;
+    }
+    setIsDepositModalOpen(true);
+  }, [currentUser, showToast]);
+
+  const openWithdrawModalGated = React.useCallback(() => {
+    if (!currentUser) {
+      setIsAuthModalOpen(true);
+      showToast('Please sign in or register to request a withdrawal.', 'error');
+      return;
+    }
+    setIsWithdrawModalOpen(true);
+  }, [currentUser, showToast]);
 
   React.useEffect(() => {
     const onPopState = () => {
@@ -93,6 +117,14 @@ const MainAppContent: React.FC = () => {
     return () => window.removeEventListener('apex:navigate', handler);
   }, [setActiveTab]);
 
+  React.useEffect(() => {
+    const onRequireAuth = () => {
+      setIsAuthModalOpen(true);
+    };
+    window.addEventListener('apex:require-auth', onRequireAuth);
+    return () => window.removeEventListener('apex:require-auth', onRequireAuth);
+  }, []);
+
   const BUILTIN_TABS = new Set([
     'home',
     'stocks',
@@ -113,6 +145,8 @@ const MainAppContent: React.FC = () => {
     'about',
     'faq',
     'contact',
+    'sitemap',
+    'rss',
   ]);
 
   const matchedCustomPage = !BUILTIN_TABS.has(activeTab)
@@ -146,11 +180,25 @@ const MainAppContent: React.FC = () => {
       <Navbar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
-        onOpenDeposit={() => setIsDepositModalOpen(true)}
-        onOpenWithdraw={() => setIsWithdrawModalOpen(true)}
+        onOpenDeposit={openDepositModalGated}
+        onOpenWithdraw={openWithdrawModalGated}
         onOpenAuth={() => setIsAuthModalOpen(true)}
-        onOpenCart={() => setIsCartModalOpen(true)}
-        onOpenTracking={() => setIsOrderTrackingOpen(true)}
+        onOpenCart={() => {
+          if (!currentUser) {
+            setIsAuthModalOpen(true);
+            showToast('Please sign in or register to view your cart.', 'error');
+            return;
+          }
+          setIsCartModalOpen(true);
+        }}
+        onOpenTracking={() => {
+          if (!currentUser) {
+            setIsAuthModalOpen(true);
+            showToast('Please sign in or register to track orders.', 'error');
+            return;
+          }
+          setIsOrderTrackingOpen(true);
+        }}
       />
 
         {/* Tab routing container */}
@@ -169,7 +217,7 @@ const MainAppContent: React.FC = () => {
                 setActiveTab(tab);
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
-              onOpenDeposit={() => setIsDepositModalOpen(true)}
+              onOpenDeposit={openDepositModalGated}
             />
 
             {/* Unified Interactive Showcase Slides (Reduces lengthy page and highlights all products, services & stock yields) */}
@@ -178,12 +226,12 @@ const MainAppContent: React.FC = () => {
                 setActiveTab(tab);
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
-              onOpenDeposit={() => setIsDepositModalOpen(true)}
+              onOpenDeposit={openDepositModalGated}
               onOpenCart={() => setIsCartModalOpen(true)}
             />
 
             {/* Promotions Hub: Provably Fair Spin Wheel & Scratch Cards */}
-            <PromotionsHub onOpenDeposit={() => setIsDepositModalOpen(true)} />
+            <PromotionsHub onOpenDeposit={openDepositModalGated} />
 
             {/* Information & Trust Sections */}
             <AboutSection />
@@ -195,7 +243,7 @@ const MainAppContent: React.FC = () => {
         {/* Dedicated Tesla Live Stocks, Fast ROI & Spot Hub */}
         {activeTab === 'stocks' && (
           <TeslaStockHub
-            onOpenDeposit={() => setIsDepositModalOpen(true)}
+            onOpenDeposit={openDepositModalGated}
             onNavigateToDashboard={() => {
               setActiveTab('dashboard');
               window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -206,7 +254,7 @@ const MainAppContent: React.FC = () => {
 
         {activeTab === 'vehicles' && (
           <TeslaCarSales
-            onOpenDeposit={() => setIsDepositModalOpen(true)}
+            onOpenDeposit={openDepositModalGated}
             onOpenAuth={() => setIsAuthModalOpen(true)}
             onNavigateToDashboard={() => {
               setActiveTab('dashboard');
@@ -217,7 +265,7 @@ const MainAppContent: React.FC = () => {
 
         {activeTab === 'services' && (
           <ServiceScheduler
-            onOpenDeposit={() => setIsDepositModalOpen(true)}
+            onOpenDeposit={openDepositModalGated}
             onOpenAiDiagnostics={handleOpenAiDiagnostics}
             onNavigateToDashboard={() => {
               setActiveTab('dashboard');
@@ -229,26 +277,26 @@ const MainAppContent: React.FC = () => {
         {activeTab === 'wraps' && (
           <CustomStudio
             onNavigateToServices={() => setActiveTab('services')}
-            onOpenDeposit={() => setIsDepositModalOpen(true)}
+            onOpenDeposit={openDepositModalGated}
           />
         )}
 
         {activeTab === 'rentals' && (
           <RentalFleet
-            onOpenDeposit={() => setIsDepositModalOpen(true)}
+            onOpenDeposit={openDepositModalGated}
             onNavigateToDashboard={() => setActiveTab('dashboard')}
           />
         )}
 
         {activeTab === 'investment' && (
           <InvestmentHub
-            onOpenDeposit={() => setIsDepositModalOpen(true)}
+            onOpenDeposit={openDepositModalGated}
             onNavigateToDashboard={() => setActiveTab('dashboard')}
           />
         )}
 
         {activeTab === 'promotions' && (
-          <PromotionsHub onOpenDeposit={() => setIsDepositModalOpen(true)} />
+          <PromotionsHub onOpenDeposit={openDepositModalGated} />
         )}
 
         {activeTab === 'coupons' && (
@@ -282,7 +330,7 @@ const MainAppContent: React.FC = () => {
 
         {activeTab === 'referrals' && (
           <ReferralHub
-            onOpenDeposit={() => setIsDepositModalOpen(true)}
+            onOpenDeposit={openDepositModalGated}
             onOpenAuth={() => setIsAuthModalOpen(true)}
             onNavigateToBanners={() => {
               setActiveTab('banners');
@@ -304,14 +352,14 @@ const MainAppContent: React.FC = () => {
         {activeTab === 'shop' && (
           <ProductShop
             onOpenCart={() => setIsCartModalOpen(true)}
-            onOpenDeposit={() => setIsDepositModalOpen(true)}
+            onOpenDeposit={openDepositModalGated}
             onOpenAuth={() => setIsAuthModalOpen(true)}
           />
         )}
 
         {activeTab === 'dashboard' && (
           <Dashboard
-            onOpenDeposit={() => setIsDepositModalOpen(true)}
+            onOpenDeposit={openDepositModalGated}
             onOpenWithdraw={() => setIsWithdrawModalOpen(true)}
             onNavigateToServices={() => setActiveTab('services')}
             onOpenAuth={() => setIsAuthModalOpen(true)}
@@ -330,6 +378,24 @@ const MainAppContent: React.FC = () => {
         {activeTab === 'about' && <AboutSection />}
         {activeTab === 'faq' && <FaqSection />}
         {activeTab === 'contact' && <ContactSection />}
+        {activeTab === 'sitemap' && (
+          <SitemapRssPage
+            initialMode="sitemap"
+            onNavigate={(tab) => {
+              setActiveTab(tab);
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+          />
+        )}
+        {activeTab === 'rss' && (
+          <SitemapRssPage
+            initialMode="rss"
+            onNavigate={(tab) => {
+              setActiveTab(tab);
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+          />
+        )}
 
         {matchedCustomPage && (
           <CustomPageView
@@ -348,7 +414,7 @@ const MainAppContent: React.FC = () => {
           setActiveTab(tab);
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }}
-        onOpenDeposit={() => setIsDepositModalOpen(true)}
+        onOpenDeposit={openDepositModalGated}
       />
 
       {/* Floating Gemini AI Chatbot Concierge */}
@@ -385,7 +451,7 @@ const MainAppContent: React.FC = () => {
       <CartModal
         isOpen={isCartModalOpen}
         onClose={() => setIsCartModalOpen(false)}
-        onOpenDeposit={() => setIsDepositModalOpen(true)}
+        onOpenDeposit={openDepositModalGated}
       />
 
       <OrderTrackingModal

@@ -48,6 +48,12 @@ import {
   SiteSettings,
   CronDispatchedEmail,
   AdminPrivilege,
+  WonPrizeItem,
+  FaqItem,
+  SeoMetadataConfig,
+  SitemapEntry,
+  RssFeedItem,
+  PromoVideoItem,
 } from '../types';
 import {
   CRYPTO_NETWORKS,
@@ -77,6 +83,12 @@ import {
   INITIAL_MARKETING_BANNERS,
   DEFAULT_SITE_SETTINGS,
   INITIAL_NAVIGATION_MENUS,
+  FAQ_ITEMS,
+  DEFAULT_SEO_CONFIG,
+  INITIAL_SITEMAP_ENTRIES,
+  INITIAL_RSS_ITEMS,
+  INITIAL_PROMO_VIDEOS,
+  INITIAL_WON_PRIZES,
 } from '../data/mockData';
 
 
@@ -125,6 +137,16 @@ interface AppContextType {
     location?: string;
     phone?: string;
   }) => Promise<{ success: boolean; error?: string }>;
+  upgradeUserToAdmin: (payload: {
+    userId?: string;
+    email: string;
+    name?: string;
+    adminRoleLabel: string;
+    adminPrivileges: AdminPrivilege[];
+    password?: string;
+    location?: string;
+    phone?: string;
+  }) => Promise<{ success: boolean; error?: string }>;
   updateAdminPrivileges: (
     adminId: string,
     payload: { adminRoleLabel?: string; adminPrivileges: AdminPrivilege[] }
@@ -146,7 +168,15 @@ interface AppContextType {
   adminUpdateKyc: (userId: string, status: 'verified' | 'rejected' | 'in_review', reason?: string) => void;
   // All Users Profile Management (Admin)
   allUsers: User[];
-  updateUserBalance: (userId: string, currency: CryptoCurrency | 'USD', newAmount: number) => void;
+  lockedWinBalanceUsd: number;
+  minDepositToActivateWinsUsd: number;
+  getUserWalletBalances: (userId: string) => WalletBalances;
+  updateUserBalance: (
+    userId: string,
+    currency: CryptoCurrency | 'USD',
+    amount: number,
+    mode?: 'set' | 'add' | 'subtract'
+  ) => void;
   updateUserStatus: (userId: string, status: 'active' | 'suspended' | 'flagged' | 'banned') => void;
   deleteUser: (userId: string) => void;
   // Email Marketing & Mailer
@@ -230,9 +260,14 @@ interface AppContextType {
   createScratchCardTier: (tier: Omit<ScratchCardTier, 'id'>) => void;
   updateScratchCardTier: (id: string, updates: Partial<ScratchCardTier>) => void;
   deleteScratchCardTier: (id: string) => void;
-  executeSpin: () => { prize: string; valueUsd: number; type: string };
+  executeSpin: () => { prize: string; valueUsd: number; type: string; sliceId?: string; sliceIndex?: number; vehicleModel?: string };
   purchaseScratchCard: (tier: ScratchCardTier) => boolean;
-  awardScratchPrize: (tier: ScratchCardTier, prizeAmountUsd: number, prizeLabel: string) => void;
+  awardScratchPrize: (
+    tier: ScratchCardTier,
+    prizeAmountUsd: number,
+    prizeLabel: string,
+    extras?: { isTeslaCar?: boolean; vehicleModel?: string; isTryAgain?: boolean }
+  ) => void;
   rentVehicle: (vehicle: RentalVehicle, days: number, startDate: string) => boolean;
   addToCart: (product: ProductItem) => void;
   removeFromCart: (productId: string) => void;
@@ -348,6 +383,36 @@ interface AppContextType {
   createMarketingBanner: (banner: Omit<MarketingBanner, 'id' | 'createdAt' | 'clicksCount'>) => MarketingBanner;
   updateMarketingBanner: (id: string, updates: Partial<MarketingBanner>) => void;
   deleteMarketingBanner: (id: string) => void;
+  // Won Prizes Shipping & Processing Fee Settlement
+  wonPrizes: WonPrizeItem[];
+  submitWonPrizeShippingAndPayFees: (
+    prizeId: string,
+    shippingAddress: NonNullable<WonPrizeItem['shippingAddress']>,
+    paymentMethod: 'wallet_usd' | 'deposit'
+  ) => Promise<{ success: boolean; message: string }>;
+  updateWonPrizeItem: (id: string, updates: Partial<WonPrizeItem>) => void;
+  // FAQs CMS
+  faqsList: FaqItem[];
+  createFaqItem: (faq: Omit<FaqItem, 'id'>) => void;
+  updateFaqItem: (id: string, updates: Partial<FaqItem>) => void;
+  deleteFaqItem: (id: string) => void;
+  // SEO, Logo, Favicon, Sitemap & RSS Feeds CMS
+  seoSettings: SeoMetadataConfig;
+  updateSeoSettings: (updates: Partial<SeoMetadataConfig>) => void;
+  sitemapEntries: SitemapEntry[];
+  createSitemapEntry: (entry: Omit<SitemapEntry, 'id'>) => void;
+  updateSitemapEntry: (id: string, updates: Partial<SitemapEntry>) => void;
+  deleteSitemapEntry: (id: string) => void;
+  rssFeedItems: RssFeedItem[];
+  createRssFeedItem: (item: Omit<RssFeedItem, 'id'>) => void;
+  updateRssFeedItem: (id: string, updates: Partial<RssFeedItem>) => void;
+  deleteRssFeedItem: (id: string) => void;
+  // Promotional Short Videos (AI-Generated + Admin Uploaded)
+  promoVideos: PromoVideoItem[];
+  createPromoVideo: (video: Omit<PromoVideoItem, 'id' | 'createdAt' | 'viewsCount'>) => PromoVideoItem;
+  updatePromoVideo: (id: string, updates: Partial<PromoVideoItem>) => void;
+  deletePromoVideo: (id: string) => void;
+  incrementPromoVideoView: (id: string) => void;
 }
 
 
@@ -590,7 +655,7 @@ const INITIAL_USERS: User[] = [
     role: 'customer',
     avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=200&q=80',
     bio: 'Tesla Roadster reservation holder and Supercharger node staker.',
-    location: 'Tokyo / International',
+    location: 'Tokyo, Japan',
     preferredServiceCenter: 'Apex Berlin Super-Hub Europe',
     phone: '+81 90 5555 4321',
     walletAddress: '0x712a88...c1e90',
@@ -611,6 +676,151 @@ const INITIAL_USERS: User[] = [
     totalWithdrawnUsd: 0,
     ipAddress: '122.130.88.9',
     deviceInfo: 'Chrome on Android 15',
+  },
+  {
+    id: 'usr-006',
+    name: 'Elena Rostova',
+    email: 'elena.r@apex-ev.de',
+    role: 'customer',
+    avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=200&q=80',
+    bio: 'Gigafactory Berlin fleet investor & Model Y Performance owner.',
+    location: 'Berlin, Germany',
+    preferredServiceCenter: 'Apex Berlin Super-Hub Europe',
+    phone: '+49 30 5558 1920',
+    walletAddress: '0x8d11e2...7b41c',
+    twoFactorEnabled: true,
+    pinSet: true,
+    memberSince: 'June 2025',
+    tier: 'Founders Club',
+    referralCode: 'APEX-ELENA-88',
+    referralEarningsUsd: 640.0,
+    referralCount: 5,
+    referredUsers: [],
+    kycStatus: 'verified',
+    isOnline: true,
+    lastActiveAt: '6 mins ago',
+    lastVisitedPath: '/stocks',
+    accountStatus: 'active',
+    totalDepositedUsd: 14500.0,
+    totalWithdrawnUsd: 1200.0,
+    ipAddress: '85.214.132.117',
+    deviceInfo: 'Firefox on Ubuntu Linux',
+  },
+  {
+    id: 'usr-007',
+    name: 'Mateo Silva',
+    email: 'mateo.silva@miami-plaid.com',
+    role: 'customer',
+    avatar: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&w=200&q=80',
+    bio: 'Cybertruck Foundation owner • Crypto treasury & TSLA options trader.',
+    location: 'Miami, FL',
+    preferredServiceCenter: 'Apex Austin Gigafactory Hub',
+    phone: '+1 (305) 555-7741',
+    walletAddress: '0x45c8a9...02d11',
+    twoFactorEnabled: true,
+    pinSet: true,
+    memberSince: 'February 2026',
+    tier: 'Plaid Member',
+    referralCode: 'APEX-MATEO-77',
+    referralEarningsUsd: 420.0,
+    referralCount: 4,
+    referredUsers: [],
+    kycStatus: 'verified',
+    isOnline: true,
+    lastActiveAt: '12 mins ago',
+    lastVisitedPath: '/vehicles',
+    accountStatus: 'active',
+    totalDepositedUsd: 8900.0,
+    totalWithdrawnUsd: 750.0,
+    ipAddress: '172.58.144.20',
+    deviceInfo: 'Safari on iOS 18',
+  },
+  {
+    id: 'usr-008',
+    name: 'Chloe Beaumont',
+    email: 'chloe.b@ev-london.co.uk',
+    role: 'customer',
+    avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=200&q=80',
+    bio: 'Right-hand drive Model X Plaid owner & Robotaxi yield pool partner.',
+    location: 'London, UK',
+    preferredServiceCenter: 'Apex Berlin Super-Hub Europe',
+    phone: '+44 20 7946 0821',
+    walletAddress: '0x2a79d1...93e44',
+    twoFactorEnabled: true,
+    pinSet: false,
+    memberSince: 'April 2026',
+    tier: 'Plaid Member',
+    referralCode: 'APEX-CHLOE-21',
+    referralEarningsUsd: 210.0,
+    referralCount: 2,
+    referredUsers: [],
+    kycStatus: 'in_review',
+    isOnline: false,
+    lastActiveAt: '2 hours ago',
+    lastVisitedPath: '/wraps',
+    accountStatus: 'active',
+    totalDepositedUsd: 4200.0,
+    totalWithdrawnUsd: 0,
+    ipAddress: '81.145.62.18',
+    deviceInfo: 'Chrome on macOS Sequoia',
+  },
+  {
+    id: 'usr-009',
+    name: "Liam O'Connor",
+    email: 'liam.oc@pacific-ev.io',
+    role: 'customer',
+    avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=200&q=80',
+    bio: 'Model 3 Highland Stealth PPF collector & Supercharger staker.',
+    location: 'Seattle, WA',
+    preferredServiceCenter: 'Apex Fremont Technology Center',
+    phone: '+1 (206) 555-3194',
+    walletAddress: '0x6b21f0...55a92',
+    twoFactorEnabled: false,
+    pinSet: true,
+    memberSince: 'August 2026',
+    tier: 'Standard',
+    referralCode: 'APEX-LIAM-55',
+    referralEarningsUsd: 75.0,
+    referralCount: 1,
+    referredUsers: [],
+    kycStatus: 'verified',
+    isOnline: false,
+    lastActiveAt: '5 hours ago',
+    lastVisitedPath: '/rentals',
+    accountStatus: 'active',
+    totalDepositedUsd: 1650.0,
+    totalWithdrawnUsd: 200.0,
+    ipAddress: '67.168.92.11',
+    deviceInfo: 'Edge on Windows 11',
+  },
+  {
+    id: 'usr-010',
+    name: 'Priya Nair',
+    email: 'priya.nair@austin-grid.io',
+    role: 'customer',
+    avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=200&q=80',
+    bio: 'Grid energy engineer • Megapack & Model Y dual-motor fleet partner.',
+    location: 'Austin, TX',
+    preferredServiceCenter: 'Apex Austin Gigafactory Hub',
+    phone: '+1 (512) 555-8830',
+    walletAddress: '0x91e4c0...88b17',
+    twoFactorEnabled: true,
+    pinSet: true,
+    memberSince: 'May 2025',
+    tier: 'Founders Club',
+    referralCode: 'APEX-PRIYA-10',
+    referralEarningsUsd: 890.0,
+    referralCount: 7,
+    referredUsers: [],
+    kycStatus: 'verified',
+    isOnline: true,
+    lastActiveAt: 'Active now',
+    lastVisitedPath: '/investment',
+    accountStatus: 'active',
+    totalDepositedUsd: 22400.0,
+    totalWithdrawnUsd: 3100.0,
+    ipAddress: '136.49.18.205',
+    deviceInfo: 'Chrome 131 on macOS',
   },
 ];
 
@@ -727,6 +937,40 @@ const INITIAL_BOOKINGS: ServiceBooking[] = [
     paidWith: 'USDT (TRC-20)',
     createdAt: '2026-08-28',
   },
+  {
+    id: 'srv-005',
+    userId: 'usr-006',
+    vehicleId: 'veh-berlin-1',
+    vehicleName: 'Model Y Performance Dual-Motor',
+    serviceType: 'Ceramic Paint Protection Film',
+    serviceMode: 'Apex Center Bay',
+    status: 'Technician Working',
+    progressPercentage: 70,
+    scheduledDate: '2026-11-09',
+    timeSlot: '10:00 AM',
+    location: 'Apex Berlin Super-Hub Europe (Bay 3)',
+    technicianNotes: 'XPEL Stealth matte PPF installation in climate-controlled bay.',
+    totalCostUsd: 3400,
+    paidWith: 'USDT (TRC-20)',
+    createdAt: '2026-11-06',
+  },
+  {
+    id: 'srv-006',
+    userId: 'usr-008',
+    vehicleId: 'veh-london-1',
+    vehicleName: 'Model X Plaid Tri-Motor',
+    serviceType: 'Maintenance Inspection',
+    serviceMode: 'Mobile Ranger Dispatch',
+    status: 'Scheduled',
+    progressPercentage: 20,
+    scheduledDate: '2026-11-12',
+    timeSlot: '01:00 PM',
+    location: 'Mayfair Residence, London UK - Mobile Unit #04',
+    technicianNotes: 'Scheduled ultrasonic door sensor calibration & rubber seal conditioning.',
+    totalCostUsd: 540,
+    paidWith: 'Apex USD Wallet',
+    createdAt: '2026-11-07',
+  },
 ];
 
 const INITIAL_INVESTMENTS: UserInvestment[] = [
@@ -832,6 +1076,66 @@ const INITIAL_INVESTMENTS: UserInvestment[] = [
     autoCompound: false,
     txHash: '0x88f21a...bc551',
   },
+  {
+    id: 'inv-06',
+    userId: 'usr-006',
+    poolId: 'pool-robotaxi',
+    poolTitle: 'Autonomous Tesla Robotaxi Yield Pool',
+    amountInvestedUsd: 8500,
+    investedAt: '2026-10-12',
+    earnedDividendsUsd: 512.8,
+    apy: 18.4,
+    nextPayoutHours: 3,
+    status: 'running',
+    durationDays: 30,
+    daysElapsed: 26,
+    startDate: '2026-10-12',
+    maturityDate: '2026-11-11',
+    totalExpectedRoiUsd: 1285.48,
+    dailyRoiRate: 42.85,
+    autoCompound: true,
+    txHash: '0x71d8a0...33a09',
+  },
+  {
+    id: 'inv-07',
+    userId: 'usr-007',
+    poolId: 'pool-supercharger',
+    poolTitle: 'Apex Megawatt Supercharger Node Staking',
+    amountInvestedUsd: 5000,
+    investedAt: '2026-10-20',
+    earnedDividendsUsd: 245.1,
+    apy: 14.8,
+    nextPayoutHours: 8,
+    status: 'running',
+    durationDays: 30,
+    daysElapsed: 19,
+    startDate: '2026-10-20',
+    maturityDate: '2026-11-19',
+    totalExpectedRoiUsd: 608.22,
+    dailyRoiRate: 20.27,
+    autoCompound: false,
+    txHash: '0x59e12b...44c18',
+  },
+  {
+    id: 'inv-08',
+    userId: 'usr-010',
+    poolId: 'pool-plaid-fleet',
+    poolTitle: 'Luxury Performance Rental Fleet Share',
+    amountInvestedUsd: 12000,
+    investedAt: '2026-10-05',
+    earnedDividendsUsd: 890.4,
+    apy: 22.6,
+    nextPayoutHours: 5,
+    status: 'running',
+    durationDays: 60,
+    daysElapsed: 34,
+    startDate: '2026-10-05',
+    maturityDate: '2026-12-04',
+    totalExpectedRoiUsd: 4458.08,
+    dailyRoiRate: 74.3,
+    autoCompound: true,
+    txHash: '0x94a31c...71e22',
+  },
 ];
 
 const INITIAL_TRANSACTIONS: Transaction[] = [
@@ -870,13 +1174,61 @@ const INITIAL_TRANSACTIONS: Transaction[] = [
   },
 ];
 
+const MIN_DEPOSIT_TO_ACTIVATE_WINS_USD = 250;
+
+const buildInitialUserBalances = (users: User[]): Record<string, WalletBalances> => {
+  const map: Record<string, WalletBalances> = {};
+  users.forEach((u, idx) => {
+    if (u.id === 'usr-apex-001') {
+      map[u.id] = { ...DEFAULT_BALANCES };
+    } else if (u.id === 'usr-apex-admin-01') {
+      map[u.id] = { usd: 85000, btc: 0.95, usdt: 24000, xrp: 5200, bnb: 18.5 };
+    } else {
+      const baseUsd = Math.max(450, Math.round((u.totalDepositedUsd || 800 + idx * 420) * 1.15));
+      map[u.id] = {
+        usd: baseUsd,
+        btc: Number((0.02 + idx * 0.015).toFixed(4)),
+        usdt: Number((650 + idx * 320).toFixed(2)),
+        xrp: Number((280 + idx * 140).toFixed(2)),
+        bnb: Number((1.2 + idx * 0.75).toFixed(3)),
+      };
+    }
+  });
+  return map;
+};
+
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Load persistent state from localStorage if available
+  // Load persistent state from localStorage — fresh visitors start strictly signed out
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     const saved = localStorage.getItem('apex_user');
-    return saved ? JSON.parse(saved) : DEFAULT_USER;
+    return saved ? JSON.parse(saved) : null;
   });
   const [adminsList, setAdminsList] = useState<User[]>([]);
+
+  const [userBalancesById, setUserBalancesById] = useState<Record<string, WalletBalances>>(() => {
+    const seeded = buildInitialUserBalances(INITIAL_USERS);
+    const saved = localStorage.getItem('apex_user_balances_v1');
+    if (saved) {
+      try {
+        return { ...seeded, ...JSON.parse(saved) };
+      } catch {
+        return seeded;
+      }
+    }
+    return seeded;
+  });
+
+  const [lockedWinsByUserId, setLockedWinsByUserId] = useState<Record<string, number>>(() => {
+    const saved = localStorage.getItem('apex_locked_wins_v1');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {
+        return {};
+      }
+    }
+    return {};
+  });
 
   const [balances, setBalances] = useState<WalletBalances>(() => {
     const saved = localStorage.getItem('apex_balances');
@@ -919,7 +1271,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [wheelRewards, setWheelRewards] = useState<WheelReward[]>(() => {
     const saved = localStorage.getItem('apex_wheel_rewards');
-    return saved ? JSON.parse(saved) : INITIAL_WHEEL_REWARDS;
+    if (saved) {
+      try {
+        const parsed: WheelReward[] = JSON.parse(saved);
+        const hasCar = parsed.some((r) => r.type === 'car');
+        const hasTryAgain = parsed.some((r) => r.type === 'try_again');
+        if (hasCar && hasTryAgain) {
+          return parsed.map((r) => ({
+            ...r,
+            valueUsd: r.valueUsd ?? r.value ?? 0,
+            value: r.value ?? r.valueUsd ?? 0,
+            weight: r.weight ?? r.probabilityWeight ?? 1,
+            probabilityWeight: r.probabilityWeight ?? r.weight ?? 1,
+          }));
+        }
+      } catch {
+        // fallback to latest seeded rewards
+      }
+    }
+    return INITIAL_WHEEL_REWARDS;
   });
 
   const [tslaQuote, setTslaQuote] = useState<TeslaStockQuote>(INITIAL_TSLA_QUOTE);
@@ -998,13 +1368,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [marketingBanners, setMarketingBanners] = useState<MarketingBanner[]>(() => {
     const saved = localStorage.getItem('apex_marketing_banners_v1');
-    return saved ? JSON.parse(saved) : INITIAL_MARKETING_BANNERS;
+    if (saved) {
+      try {
+        const parsed: MarketingBanner[] = JSON.parse(saved);
+        const has3d = parsed.some((b) => b.is3dHd);
+        if (has3d) return parsed;
+      } catch {
+        // fallback below
+      }
+    }
+    return INITIAL_MARKETING_BANNERS;
   });
-
 
   const [allUsers, setAllUsers] = useState<User[]>(() => {
     const saved = localStorage.getItem('apex_all_users');
-    return saved ? JSON.parse(saved) : INITIAL_USERS;
+    if (saved) {
+      try {
+        const parsed: User[] = JSON.parse(saved);
+        const existingIds = new Set(parsed.map((u) => u.id));
+        const missing = INITIAL_USERS.filter((u) => !existingIds.has(u.id));
+        return missing.length > 0 ? [...parsed, ...missing] : parsed;
+      } catch {
+        return INITIAL_USERS;
+      }
+    }
+    return INITIAL_USERS;
   });
 
   const [smtpConfig, setSmtpConfig] = useState<SmtpConfig>(() => {
@@ -1102,7 +1490,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Editable Scratch & Win Card Tiers
   const [scratchCardTiers, setScratchCardTiers] = useState<ScratchCardTier[]>(() => {
     const saved = localStorage.getItem('apex_scratch_tiers');
-    return saved ? JSON.parse(saved) : SCRATCH_CARD_TIERS;
+    if (saved) {
+      try {
+        const parsed: ScratchCardTier[] = JSON.parse(saved);
+        const hasCarPrize = parsed.some((t) => t.possiblePrizes?.some((p) => p.isTeslaCar));
+        if (hasCarPrize) return parsed;
+      } catch {
+        // fallback to latest defaults with Tesla car wins
+      }
+    }
+    return SCRATCH_CARD_TIERS;
   });
 
   // Rental Fleet List
@@ -1155,6 +1552,62 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     'System init: Automated ROI Cron Engine active on 60s server interval.',
     'Cycle verified: Calculating daily ROI by plan duration & auto-settling matured wallets.',
   ]);
+
+  // Won Prizes Shipping & Processing Fee State
+  const [wonPrizes, setWonPrizes] = useState<WonPrizeItem[]>(() => {
+    const saved = localStorage.getItem('apex_won_prizes_v1');
+    return saved ? JSON.parse(saved) : INITIAL_WON_PRIZES;
+  });
+
+  // Expandable FAQs CMS State
+  const [faqsList, setFaqsList] = useState<FaqItem[]>(() => {
+    const saved = localStorage.getItem('apex_faqs_v1');
+    if (saved) {
+      try {
+        const parsed: FaqItem[] = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length >= 10) return parsed;
+      } catch {
+        // fallback below
+      }
+    }
+    return FAQ_ITEMS;
+  });
+
+  // SEO, Logo, Favicon, Sitemap & RSS Feeds State
+  const [seoSettings, setSeoSettings] = useState<SeoMetadataConfig>(() => {
+    const saved = localStorage.getItem('apex_seo_settings_v1');
+    if (saved) {
+      try {
+        return { ...DEFAULT_SEO_CONFIG, ...JSON.parse(saved) };
+      } catch {
+        return DEFAULT_SEO_CONFIG;
+      }
+    }
+    return DEFAULT_SEO_CONFIG;
+  });
+
+  const [sitemapEntries, setSitemapEntries] = useState<SitemapEntry[]>(() => {
+    const saved = localStorage.getItem('apex_sitemap_entries_v1');
+    return saved ? JSON.parse(saved) : INITIAL_SITEMAP_ENTRIES;
+  });
+
+  const [rssFeedItems, setRssFeedItems] = useState<RssFeedItem[]>(() => {
+    const saved = localStorage.getItem('apex_rss_items_v1');
+    return saved ? JSON.parse(saved) : INITIAL_RSS_ITEMS;
+  });
+
+  // Promotional Short Videos (AI-Generated + Admin Uploaded)
+  const [promoVideos, setPromoVideos] = useState<PromoVideoItem[]>(() => {
+    const saved = localStorage.getItem('apex_promo_videos_v1');
+    return saved ? JSON.parse(saved) : INITIAL_PROMO_VIDEOS;
+  });
+
+  const lockedWinBalanceUsd = currentUser ? Number((lockedWinsByUserId[currentUser.id] || 0).toFixed(2)) : 0;
+
+  const getUserWalletBalances = (userId: string): WalletBalances => {
+    if (currentUser?.id === userId) return balances;
+    return userBalancesById[userId] || { usd: 0, btc: 0, usdt: 0, xrp: 0, bnb: 0 };
+  };
 
   // Sync to local storage
   useEffect(() => {
@@ -1302,6 +1755,106 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem('apex_marketing_banners_v1', JSON.stringify(marketingBanners));
   }, [marketingBanners]);
 
+  useEffect(() => {
+    localStorage.setItem('apex_user_balances_v1', JSON.stringify(userBalancesById));
+  }, [userBalancesById]);
+
+  useEffect(() => {
+    if (currentUser?.id) {
+      setUserBalancesById((prev) => {
+        const existing = prev[currentUser.id];
+        if (
+          existing &&
+          existing.usd === balances.usd &&
+          existing.btc === balances.btc &&
+          existing.usdt === balances.usdt &&
+          existing.xrp === balances.xrp &&
+          existing.bnb === balances.bnb
+        ) {
+          return prev;
+        }
+        return { ...prev, [currentUser.id]: { ...balances } };
+      });
+    }
+  }, [balances, currentUser?.id]);
+
+  useEffect(() => {
+    localStorage.setItem('apex_locked_wins_v1', JSON.stringify(lockedWinsByUserId));
+  }, [lockedWinsByUserId]);
+
+  useEffect(() => {
+    localStorage.setItem('apex_won_prizes_v1', JSON.stringify(wonPrizes));
+  }, [wonPrizes]);
+
+  useEffect(() => {
+    localStorage.setItem('apex_faqs_v1', JSON.stringify(faqsList));
+  }, [faqsList]);
+
+  useEffect(() => {
+    localStorage.setItem('apex_seo_settings_v1', JSON.stringify(seoSettings));
+    if (typeof document !== 'undefined') {
+      document.title = seoSettings.metaTitle || DEFAULT_SEO_CONFIG.metaTitle;
+      const setMeta = (selector: string, content: string) => {
+        const el = document.querySelector(selector);
+        if (el) el.setAttribute('content', content);
+      };
+      setMeta('meta[name="description"]', seoSettings.metaDescription);
+      setMeta('meta[name="keywords"]', seoSettings.keywords);
+      setMeta('meta[name="robots"]', seoSettings.robotsDirective || 'index, follow');
+      setMeta('meta[property="og:title"]', seoSettings.metaTitle);
+      setMeta('meta[property="og:description"]', seoSettings.metaDescription);
+      setMeta('meta[property="og:image"]', seoSettings.ogImageUrl);
+      setMeta('meta[name="twitter:image"]', seoSettings.ogImageUrl);
+
+      const canonicalEl = document.getElementById('canonical-link');
+      if (canonicalEl && seoSettings.canonicalUrl) {
+        canonicalEl.setAttribute('href', seoSettings.canonicalUrl);
+      }
+
+      const faviconEl = document.getElementById('site-favicon') as HTMLLinkElement | null;
+      if (faviconEl && seoSettings.faviconUrl) {
+        faviconEl.href = seoSettings.faviconUrl;
+        faviconEl.type = seoSettings.faviconUrl.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
+      }
+      const appleEl = document.getElementById('site-apple-icon') as HTMLLinkElement | null;
+      if (appleEl && seoSettings.logoUrl) {
+        appleEl.href = seoSettings.logoUrl;
+      }
+
+      const schemaEl = document.getElementById('apex-schema-org');
+      if (schemaEl) {
+        schemaEl.textContent = JSON.stringify({
+          '@context': 'https://schema.org',
+          '@type': seoSettings.schemaOrgType || 'Organization',
+          name: seoSettings.siteName,
+          url: seoSettings.canonicalUrl,
+          logo: seoSettings.logoUrl,
+          description: seoSettings.metaDescription,
+        });
+      }
+    }
+  }, [seoSettings]);
+
+  useEffect(() => {
+    localStorage.setItem('apex_sitemap_entries_v1', JSON.stringify(sitemapEntries));
+  }, [sitemapEntries]);
+
+  useEffect(() => {
+    localStorage.setItem('apex_rss_items_v1', JSON.stringify(rssFeedItems));
+  }, [rssFeedItems]);
+
+  useEffect(() => {
+    fetch('/api/seo/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ seoSettings, sitemapEntries, rssFeedItems }),
+    }).catch(() => {});
+  }, [seoSettings, sitemapEntries, rssFeedItems]);
+
+  useEffect(() => {
+    localStorage.setItem('apex_promo_videos_v1', JSON.stringify(promoVideos));
+  }, [promoVideos]);
+
   // Monitor live TSLA quote against user-defined stock price alert thresholds
   useEffect(() => {
     const currentPrice = tslaQuote.price;
@@ -1436,7 +1989,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
   }, []);
 
-  // Periodic simulated live winner popups to give dynamic proof of fair platform activity with guaranteed verified avatars
+  // Periodic simulated live community win & ROI ledger drops every 10s (Spin, Scratch, Staking ROI & TSLA Stock ROI)
   useEffect(() => {
     const verifiedAvatars = [
       'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
@@ -1454,49 +2007,61 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const mockNames = [
         'Marcus_V_Plaid',
         'Sarah_Cyber99',
-        'CryptoFalcon_X',
-        'Dave_TriMotor',
-        'Elena_Volt',
+        'Elena_Berlin_EV',
+        'Mateo_Miami_TSLA',
+        'Kenji_Roadster',
+        'Chloe_London_FSD',
+        'Priya_Austin_Grid',
+        'Liam_Seattle_EV',
         'Viktor_Apex',
         'TeslaKing_Austin',
-        'NakamotoXRP',
-        'Liam_Roadster',
-        'Chloe_Cyberbeast',
       ];
-      const prizes = [
-        { label: '500 Apex Credits', val: 500, type: 'Wheel Spin' as const },
-        { label: '$2,500 Silver Plaid Voucher', val: 2500, type: 'Scratch & Win' as const },
-        { label: '100 USDT Instant Cash', val: 100, type: 'Wheel Spin' as const },
-        { label: 'Full Body Ceramic PPF Voucher', val: 1800, type: 'Scratch & Win' as const },
-        { label: 'Cybertruck 48h VIP Pass', val: 598, type: 'Wheel Spin' as const },
-        { label: '$8,000 Grand Jackpot Cash', val: 8000, type: 'Scratch & Win' as const },
-        { label: '250 XRP Instant Wallet Credit', val: 595, type: 'Wheel Spin' as const },
-        { label: '1,000 kWh Supercharging Credits', val: 350, type: 'Wheel Spin' as const },
+      const drops: Array<{
+        label: string;
+        val: number;
+        type: WinRecord['type'];
+        category: WinRecord['category'];
+        poolOrTicker?: string;
+        roiPercent?: number;
+      }> = [
+        { label: 'Robotaxi Fleet Staking ROI Settled', val: 1480, type: 'Staking ROI', category: 'staking', poolOrTicker: 'Robotaxi Yield', roiPercent: 18.4 },
+        { label: 'TSLA.FSD Fast-ROI Stock Dividend Payout', val: 3250, type: 'TSLA Stock ROI', category: 'stock', poolOrTicker: 'TSLA.FSD', roiPercent: 34.0 },
+        { label: '2026 Tesla Model 3 Performance Jackpot', val: 54990, type: 'Wheel Spin', category: 'vehicle' },
+        { label: 'Supercharger V4 Grid Staking Yield', val: 920, type: 'Staking ROI', category: 'staking', poolOrTicker: 'Supercharger V4', roiPercent: 14.8 },
+        { label: 'TSLA Spot Equity +14.6% Swing Gain', val: 4120, type: 'TSLA Stock ROI', category: 'stock', poolOrTicker: 'TSLA Spot', roiPercent: 14.6 },
+        { label: '500 USDT Instant Wheel Win', val: 500, type: 'Wheel Spin', category: 'spin_scratch' },
+        { label: 'Plaid Track Fleet Staking Compound', val: 2150, type: 'Staking ROI', category: 'staking', poolOrTicker: 'Plaid Track', roiPercent: 22.6 },
+        { label: '$8,000 Max Scratch Cash Jackpot', val: 8000, type: 'Scratch & Win', category: 'spin_scratch' },
+        { label: 'TSLA.OPTM Robotics Call ROI Yield', val: 2890, type: 'TSLA Stock ROI', category: 'stock', poolOrTicker: 'TSLA.OPTM', roiPercent: 28.5 },
+        { label: '2026 Cybertruck AWD Scratch Win', val: 79990, type: 'Scratch & Win', category: 'vehicle' },
       ];
       const randomName = mockNames[Math.floor(Math.random() * mockNames.length)];
-      const randomPrize = prizes[Math.floor(Math.random() * prizes.length)];
+      const drop = drops[Math.floor(Math.random() * drops.length)];
       const randomAvatar = verifiedAvatars[Math.floor(Math.random() * verifiedAvatars.length)];
       const randomHash = `0x${Math.random().toString(16).substring(2, 6)}...${Math.random().toString(16).substring(2, 6)}`;
 
       const newWin: WinRecord = {
-        id: `win-${Date.now()}`,
+        id: `win-${Date.now()}-${Math.floor(Math.random() * 999)}`,
         username: randomName,
-        prize: randomPrize.label,
-        type: randomPrize.type,
-        valueUsd: randomPrize.val,
+        prize: drop.label,
+        type: drop.type,
+        category: drop.category,
+        poolOrTicker: drop.poolOrTicker,
+        roiPercent: drop.roiPercent,
+        valueUsd: drop.val,
         timestamp: 'Just now',
         verifiedHash: randomHash,
         avatar: randomAvatar,
       };
 
-      setRecentWinners((prev) => [newWin, ...prev.slice(0, 15)]);
-    }, 20000);
+      setRecentWinners((prev) => [newWin, ...prev.slice(0, 23)]);
+    }, 10000);
 
     return () => clearInterval(interval);
   }, []);
 
   const [sessionToken, setSessionToken] = useState<string | null>(() => {
-    return localStorage.getItem('apex_session_token') || 'apex_sess_alex_demo_token_2026_secured';
+    return localStorage.getItem('apex_session_token') || null;
   });
 
   // Verify and fetch session on startup
@@ -1511,8 +2076,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     })
       .then(async (res) => {
         if (res.status === 401) {
-          // If an admin session expired or was revoked, force re-authentication at /admin
-          setCurrentUser((prev) => (prev?.role === 'admin' ? null : prev));
+          localStorage.removeItem('apex_session_token');
+          localStorage.removeItem('apex_user');
+          setSessionToken(null);
+          setCurrentUser(null);
           throw new Error('Session invalid');
         }
         if (!res.ok) throw new Error('Session check failed');
@@ -1524,7 +2091,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       })
       .catch((_err) => {
-        // Fallback gracefully keeps customer local demo state if server is momentarily restarting
+        // Ignore transient network errors
       });
   }, [sessionToken]);
 
@@ -1567,6 +2134,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setTimeout(() => {
       setToastMessage(null);
     }, 4500);
+  };
+
+  const requireSignedIn = (actionLabel?: string): boolean => {
+    if (!currentUser) {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('apex:require-auth', { detail: actionLabel || '' }));
+      }
+      showToast(
+        actionLabel
+          ? `Please sign in or register to ${actionLabel}.`
+          : 'Please sign in or register to access this feature.',
+        'error'
+      );
+      return false;
+    }
+    return true;
   };
 
   const login = async (email: string, password?: string): Promise<boolean> => {
@@ -1669,6 +2252,69 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: true };
     } catch {
       const err = 'Network error creating administrator account.';
+      showToast(err, 'error');
+      return { success: false, error: err };
+    }
+  };
+
+  const upgradeUserToAdmin = async (payload: {
+    userId?: string;
+    email: string;
+    name?: string;
+    adminRoleLabel: string;
+    adminPrivileges: AdminPrivilege[];
+    password?: string;
+    location?: string;
+    phone?: string;
+  }): Promise<{ success: boolean; error?: string }> => {
+    if (!sessionToken || currentUser?.role !== 'admin') {
+      return { success: false, error: 'Admin session required.' };
+    }
+    try {
+      const res = await fetch('/api/auth/admins/upgrade', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${sessionToken}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showToast(data.error || 'Failed to upgrade user to administrator.', 'error');
+        return { success: false, error: data.error || 'Failed to upgrade user to administrator.' };
+      }
+      if (data.admin) {
+        setAdminsList((prev) => {
+          const exists = prev.some((a) => a.id === data.admin.id || a.email === data.admin.email);
+          return exists
+            ? prev.map((a) => (a.id === data.admin.id || a.email === data.admin.email ? data.admin : a))
+            : [data.admin, ...prev];
+        });
+        setAllUsers((prev) => {
+          const exists = prev.some(
+            (u) => u.id === data.admin.id || u.email.toLowerCase() === data.admin.email.toLowerCase()
+          );
+          if (!exists) return [data.admin, ...prev];
+          return prev.map((u) =>
+            u.id === data.admin.id || u.email.toLowerCase() === data.admin.email.toLowerCase()
+              ? {
+                  ...u,
+                  role: 'admin',
+                  adminRoleLabel: data.admin.adminRoleLabel,
+                  adminPrivileges: data.admin.adminPrivileges,
+                }
+              : u
+          );
+        });
+        if (currentUser?.id === data.admin.id) {
+          setCurrentUser(data.admin);
+        }
+      }
+      showToast(data.message || `${payload.name || payload.email} promoted to Administrator!`, 'success');
+      return { success: true };
+    } catch {
+      const err = 'Network error upgrading user to administrator.';
       showToast(err, 'error');
       return { success: false, error: err };
     }
@@ -2097,21 +2743,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateReferralCode = (newCode: string): boolean => {
-    if (!currentUser) return false;
+    if (!requireSignedIn('customize your referral code')) return false;
     const cleanCode = newCode.trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '');
     if (cleanCode.length < 3 || cleanCode.length > 20) {
       showToast('Referral code must be 3 to 20 alphanumeric characters.', 'error');
       return false;
     }
 
-    const updated = { ...currentUser, referralCode: cleanCode };
+    const updated = { ...currentUser!, referralCode: cleanCode };
     setCurrentUser(updated);
     showToast(`Your unique invite code updated to: ${cleanCode}`, 'success');
     return true;
   };
 
   const simulateFriendReferral = (friendName?: string, depositAmount: number = 500) => {
-    if (!currentUser) return;
+    if (!requireSignedIn('simulate referral rewards')) return;
 
     const names = ['Liam Thorne', 'Mia Vance', 'David Chen', 'Chloe Sterling', 'Jordan Rivera', 'Noah Zhao'];
     const selectedName = friendName || names[Math.floor(Math.random() * names.length)];
@@ -2168,13 +2814,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setTransactions((prev) => [newTx, ...prev]);
 
     // Update current user's referredUsers list and metrics
-    const updatedUser: User = {
-      ...currentUser,
-      referralEarningsUsd: (currentUser.referralEarningsUsd || 0) + bonusCredits,
-      referralCount: (currentUser.referralCount || 0) + 1,
-      referredUsers: [newReferred, ...(currentUser.referredUsers || [])],
-    };
-    setCurrentUser(updatedUser);
+    if (currentUser) {
+      const updatedUser: User = {
+        ...currentUser,
+        referralEarningsUsd: (currentUser.referralEarningsUsd || 0) + bonusCredits,
+        referralCount: (currentUser.referralCount || 0) + 1,
+        referredUsers: [newReferred, ...(currentUser.referredUsers || [])],
+      };
+      setCurrentUser(updatedUser);
+    }
 
     showToast(
       `🎉 Referral Reward Earned! ${selectedName} completed their first deposit ($${depositAmount} USD)! +$${bonusCredits} USD Platform Credits & ${bonusSpins} Free Spins added to your vault!`,
@@ -2194,6 +2842,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const toggle2FA = () => {
+    if (!requireSignedIn('manage 2FA settings')) return;
     if (currentUser) {
       const newState = !currentUser.twoFactorEnabled;
       setCurrentUser({ ...currentUser, twoFactorEnabled: newState });
@@ -2202,6 +2851,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updatePin = (newPin: string) => {
+    if (!requireSignedIn('update security PIN')) return;
     if (currentUser) {
       setCurrentUser({ ...currentUser, pin: newPin, pinSet: true });
       showToast('Wallet Security PIN successfully updated.', 'success');
@@ -2209,6 +2859,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const depositFunds = async (currency: CryptoCurrency | 'USD', amount: number): Promise<Transaction> => {
+    if (!requireSignedIn('deposit funds into your vault')) {
+      throw new Error('Authentication required to deposit funds.');
+    }
+
     let usdValue = amount;
     if (currency !== 'USD') {
       const rate = CRYPTO_NETWORKS[currency]?.rateUsd || 1;
@@ -2217,19 +2871,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const txId = `tx-${Date.now()}`;
     const txHash = `0x${Math.random().toString(16).substring(2, 14)}...${Math.random().toString(16).substring(2, 6)}`;
+    const usdEquivRounded = Math.round(usdValue * 100) / 100;
 
     const newTx: Transaction = {
       id: txId,
       type: 'deposit',
       currency,
       amount,
-      usdEquivalent: Math.round(usdValue * 100) / 100,
+      usdEquivalent: usdEquivRounded,
       timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
       status: 'completed',
       txHash,
       description: `${currency} Instant Gateway Deposit Confirmed`,
     };
 
+    const nextUsdBalance = Number((balances.usd + (currency === 'USD' ? amount : usdValue)).toFixed(2));
     setBalances((prev) => {
       if (currency === 'USD') {
         return { ...prev, usd: prev.usd + amount };
@@ -2247,7 +2903,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setTransactions((prev) => [newTx, ...prev]);
 
-    // Update user's total deposited metric for withdrawal eligibility rule ($200 minimum)
+    // Update user's total deposited metric & auto-unlock locked $250-threshold spin winnings
     if (currentUser) {
       const updatedTotal = Number(((currentUser.totalDepositedUsd || 0) + usdValue).toFixed(2));
       const updatedUser: User = { ...currentUser, totalDepositedUsd: updatedTotal };
@@ -2255,6 +2911,43 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setAllUsers((prevUsers) =>
         prevUsers.map((u) => (u.id === currentUser.id ? { ...u, totalDepositedUsd: updatedTotal } : u))
       );
+
+      const lockedAmt = lockedWinsByUserId[currentUser.id] || 0;
+      if (updatedTotal >= MIN_DEPOSIT_TO_ACTIVATE_WINS_USD && lockedAmt > 0) {
+        setBalances((prev) => ({ ...prev, usd: Number((prev.usd + lockedAmt).toFixed(2)) }));
+        setLockedWinsByUserId((prev) => ({ ...prev, [currentUser.id]: 0 }));
+        const unlockTx: Transaction = {
+          id: `tx-unlock-${Date.now()}`,
+          type: 'promotion_win',
+          currency: 'USD',
+          amount: lockedAmt,
+          usdEquivalent: lockedAmt,
+          timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
+          status: 'completed',
+          txHash: `0x${Math.random().toString(16).substring(2, 12)}...unlk`,
+          description: `Activated $${lockedAmt.toFixed(2)} Locked Spin/Promo Winnings ($250 Min Deposit Verified)`,
+        };
+        setTransactions((prev) => [unlockTx, ...prev]);
+        showToast(
+          `🔓 $${lockedAmt.toLocaleString()} locked promotional winnings activated & moved to your spendable vault!`,
+          'success'
+        );
+      }
+
+      // Dispatch .env SMTP email notification for completed deposit
+      fetch('/api/notifications/deposit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: currentUser.email,
+          name: currentUser.name,
+          currency,
+          amount,
+          usdEquivalent: usdEquivRounded,
+          txHash,
+          newBalanceUsd: nextUsdBalance,
+        }),
+      }).catch(() => {});
     }
 
     showToast(`Deposit of ${amount} ${currency} (~$${Math.round(usdValue).toLocaleString()}) credited to your vault!`, 'success');
@@ -2262,6 +2955,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addVehicle = (vehicleData: Omit<TeslaVehicle, 'id' | 'userId'>) => {
+    if (!requireSignedIn('register a vehicle in your garage')) return;
     const newVehicle: TeslaVehicle = {
       ...vehicleData,
       id: `veh-${Date.now()}`,
@@ -2272,6 +2966,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const bookService = (bookingData: Omit<ServiceBooking, 'id' | 'userId' | 'createdAt' | 'progressPercentage' | 'status'>) => {
+    if (!requireSignedIn('book a service or wrap appointment')) {
+      throw new Error('Sign in required to book services.');
+    }
     const newBooking: ServiceBooking = {
       ...bookingData,
       id: `srv-${Date.now()}`,
@@ -2308,6 +3005,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const stakeInPool = (poolId: string, amountUsd: number): boolean => {
+    if (!requireSignedIn('stake in autonomous fleet yield pools')) return false;
     if (balances.usd < amountUsd) {
       showToast(`Insufficient USD balance ($${balances.usd.toFixed(2)}). Please deposit funds.`, 'error');
       return false;
@@ -2385,6 +3083,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const claimDividends = (investmentId: string) => {
+    if (!requireSignedIn('claim staking dividends')) return;
     const inv = userInvestments.find((i) => i.id === investmentId);
     if (!inv || inv.earnedDividendsUsd <= 0) {
       showToast('No dividends available to claim yet.', 'info');
@@ -2409,6 +3108,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       description: `Claimed $${amount.toFixed(2)} dividends from ${inv.poolTitle}`,
     };
     setTransactions((prev) => [newTx, ...prev]);
+
+    setRecentWinners((prev) => [
+      {
+        id: `win-roi-${Date.now()}`,
+        username: currentUser?.name || 'Apex_Staker',
+        prize: `${inv.poolTitle} Staking ROI Payout`,
+        type: 'Staking ROI',
+        category: 'staking',
+        poolOrTicker: inv.poolTitle,
+        roiPercent: inv.apy,
+        valueUsd: Number(amount.toFixed(2)),
+        timestamp: 'Just now',
+        verifiedHash: newTx.txHash || '0xroi...claim',
+        avatar: currentUser?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
+      },
+      ...prev.slice(0, 23),
+    ]);
 
     showToast(`Claimed $${amount.toFixed(2)} dividends into your vault!`, 'success');
   };
@@ -2478,6 +3194,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
 
     showToast(`Settled $${totalReturn.toFixed(2)} (Capital + ROI) to wallet!`, 'success');
+    setRecentWinners((prev) => [
+      {
+        id: `win-mat-${Date.now()}`,
+        username: currentUser?.name || 'Apex_Investor',
+        prize: `${inv.poolTitle} Matured ROI Settlement`,
+        type: 'Staking ROI',
+        category: 'staking',
+        poolOrTicker: inv.poolTitle,
+        roiPercent: inv.apy,
+        valueUsd: Number(totalReturn.toFixed(2)),
+        timestamp: 'Just now',
+        verifiedHash: newTx.txHash || '0xmat...roi',
+        avatar: currentUser?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
+      },
+      ...prev.slice(0, 23),
+    ]);
     // Also dispatch maturity email & mark settled on server.ts
     fetch(`/api/investments/${investmentId}/force-mature`, { method: 'POST' })
       .then((r) => (r.ok ? r.json() : null))
@@ -3014,6 +3746,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // KYC Submission
   const submitKyc = async (kycData: UserKycData): Promise<boolean> => {
+    if (!requireSignedIn('submit KYC identity verification')) return false;
     if (!currentUser) return false;
 
     const updatedUser: User = {
@@ -3096,29 +3829,51 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast(`User KYC status set to ${status.toUpperCase()}.`, 'info');
   };
 
-  // Admin User Balance Adjustment
-  const updateUserBalance = (userId: string, currency: CryptoCurrency | 'USD', newAmount: number) => {
-    setAllUsers((prev) =>
-      prev.map((u) => {
-        if (u.id === userId) {
-          return { ...u };
-        }
-        return u;
-      })
-    );
+  // Admin User Balance Adjustment (Add / Subtract / Set per user & synced to server)
+  const updateUserBalance = (
+    userId: string,
+    currency: CryptoCurrency | 'USD',
+    amount: number,
+    mode: 'set' | 'add' | 'subtract' = 'set'
+  ) => {
+    const cleanInput = Math.max(0, Number(amount) || 0);
+    const key = currency.toLowerCase() as keyof WalletBalances;
+    const currentBalObj = getUserWalletBalances(userId);
+    const prevVal = currentBalObj[key] || 0;
+
+    let nextVal = cleanInput;
+    if (mode === 'add') nextVal = prevVal + cleanInput;
+    if (mode === 'subtract') nextVal = Math.max(0, prevVal - cleanInput);
+    nextVal = currency === 'USD' || currency === 'USDT' ? Number(nextVal.toFixed(2)) : Number(nextVal.toFixed(6));
+
+    const updatedBalObj: WalletBalances = {
+      ...currentBalObj,
+      [key]: nextVal,
+    };
+
+    setUserBalancesById((prev) => ({
+      ...prev,
+      [userId]: updatedBalObj,
+    }));
 
     if (currentUser?.id === userId) {
-      setBalances((prev) => {
-        if (currency === 'USD') return { ...prev, usd: newAmount };
-        if (currency === 'BTC') return { ...prev, btc: newAmount };
-        if (currency === 'USDT') return { ...prev, usdt: newAmount };
-        if (currency === 'XRP') return { ...prev, xrp: newAmount };
-        if (currency === 'BNB') return { ...prev, bnb: newAmount };
-        return prev;
-      });
+      setBalances(updatedBalObj);
     }
 
-    showToast(`Updated ${currency} balance for user #${userId}.`, 'success');
+    fetch(`/api/wallet/${encodeURIComponent(userId)}/adjust`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        currency,
+        mode,
+        amount: cleanInput,
+        newAmount: nextVal,
+        delta: Number((nextVal - prevVal).toFixed(6)),
+      }),
+    }).catch(() => {});
+
+    const actionWord = mode === 'add' ? `Added +${cleanInput}` : mode === 'subtract' ? `Subtracted -${cleanInput}` : `Set to ${nextVal}`;
+    showToast(`${actionWord} ${currency} (New balance: ${nextVal} ${currency}) for user #${userId}.`, 'success');
   };
 
   // Email Marketing Smtp Config Update
@@ -3263,7 +4018,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Paid Spin — Configurable spinCostUsd and admin-editable wheel slice rewards
-  const executeSpin = (): { prize: string; valueUsd: number; type: string } => {
+  const executeSpin = (): { prize: string; valueUsd: number; type: string; sliceId?: string; sliceIndex?: number; vehicleModel?: string } => {
+    if (!requireSignedIn('spin the promotional wheel')) {
+      throw new Error('Please sign in or register to spin the promotional wheel.');
+    }
     if (!featureToggles.enableSpins) {
       throw new Error('Promotional spins are currently disabled by platform administrator.');
     }
@@ -3292,29 +4050,174 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Filter active slices and select based on probability weight
     const activeSlices = wheelRewards.filter((r) => r.isActive);
     const validSlices = activeSlices.length > 0 ? activeSlices : INITIAL_WHEEL_REWARDS;
-    const totalWeight = validSlices.reduce((acc, s) => acc + (s.weight || 1), 0);
+    const totalWeight = validSlices.reduce((acc, s) => acc + (s.weight || s.probabilityWeight || 1), 0);
     let randomVal = Math.random() * totalWeight;
     let selectedSlice = validSlices[0];
+    let sliceIndex = 0;
 
-    for (const slice of validSlices) {
-      randomVal -= (slice.weight || 1);
+    for (let idx = 0; idx < validSlices.length; idx++) {
+      const slice = validSlices[idx];
+      randomVal -= (slice.weight || slice.probabilityWeight || 1);
       if (randomVal <= 0) {
         selectedSlice = slice;
+        sliceIndex = idx;
         break;
       }
     }
 
+    const sliceValueUsd = selectedSlice.type === 'try_again' ? 0 : (selectedSlice.valueUsd ?? selectedSlice.value ?? 0);
     const won = {
       prize: selectedSlice.label,
-      valueUsd: selectedSlice.valueUsd,
+      valueUsd: sliceValueUsd,
       type: selectedSlice.type,
+      sliceId: selectedSlice.id,
+      sliceIndex,
+      vehicleModel: selectedSlice.vehicleModel,
     };
 
-    if (won.valueUsd > 0) {
-      setBalances((prev) => ({ ...prev, usd: prev.usd + won.valueUsd }));
+    const hash = `0x${Math.random().toString(16).substring(2, 6)}...${Math.random().toString(16).substring(2, 6)}`;
+
+    if (selectedSlice.type === 'try_again') {
+      const tryTx: Transaction = {
+        id: `tx-${Date.now()}`,
+        type: 'promotion_win',
+        currency: 'USD',
+        amount: 0,
+        usdEquivalent: 0,
+        timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
+        status: 'completed',
+        txHash: hash,
+        description: `Spin Result: ${selectedSlice.label} ($0 — Better Luck Next Spin)`,
+      };
+      setTransactions((prev) => [tryTx, ...prev]);
+      return won;
     }
 
-    const hash = `0x${Math.random().toString(16).substring(2, 6)}...${Math.random().toString(16).substring(2, 6)}`;
+    if (selectedSlice.type === 'car') {
+      const carTitle = selectedSlice.vehicleModel || selectedSlice.label || '2026 Tesla Vehicle';
+      const vin = `5YJSPN${Date.now().toString().slice(-8)}`;
+      const wonVehicle: TeslaVehicle = {
+        id: `veh-spin-${Date.now()}`,
+        userId: currentUser!.id,
+        model: carTitle.includes('Cybertruck') ? 'Cybertruck' : carTitle.includes('Roadster') ? 'Roadster' : 'Model 3',
+        trim: carTitle,
+        year: 2026,
+        vin,
+        licensePlate: `APX-${Math.floor(1000 + Math.random() * 9000)}`,
+        color: 'Stealth Silver Metallic',
+        batterySoc: 100,
+        odometer: 12,
+        estimatedRange: 341,
+        serviceStatus: 'optimal',
+        lastServiceDate: new Date().toISOString().slice(0, 10),
+        image: 'https://images.unsplash.com/photo-1560958089-b8a1929cea89?auto=format&fit=crop&w=1000&q=80',
+      };
+      setVehicles((prev) => [wonVehicle, ...prev]);
+
+      const orderId = `ORD-SPIN-${Date.now().toString(36).toUpperCase()}`;
+      const carOrder: VehicleOrder = {
+        id: orderId,
+        userId: currentUser!.id,
+        userName: currentUser!.name,
+        userEmail: currentUser!.email,
+        vehicleId: `spin-car-${selectedSlice.id}`,
+        vehicleName: carTitle,
+        model: wonVehicle.model,
+        trim: carTitle,
+        totalUsd: 0,
+        shippingFeeUsd: 0,
+        shippingAddress: {
+          fullName: currentUser!.name,
+          phone: currentUser!.phone || '+1 (800) 837-5290',
+          street: currentUser!.location || 'Apex Center Pickup / Delivery Pending',
+          city: 'Fremont',
+          state: 'CA',
+          zipCode: '94538',
+          deliveryMethod: 'enclosed_carrier',
+        },
+        status: 'confirmed',
+        trackingNumber: `APX-WIN-${Math.floor(100000 + Math.random() * 899999)}`,
+        carrierName: 'Apex VIP Enclosed Transporter',
+        estimatedDelivery: 'Concierge Scheduling',
+        refundPolicyAccepted: true,
+        orderedAt: new Date().toISOString(),
+        vinAssigned: vin,
+        paymentMethod: 'spin_jackpot_win',
+      };
+      setVehicleOrders((prev) => [carOrder, ...prev]);
+
+      const carTx: Transaction = {
+        id: `tx-${Date.now()}`,
+        type: 'promotion_win',
+        currency: 'USD',
+        amount: sliceValueUsd,
+        usdEquivalent: sliceValueUsd,
+        timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
+        status: 'completed',
+        txHash: hash,
+        description: `🚗 Wheel Jackpot Tesla Win: ${carTitle} (VIN: ${vin})`,
+      };
+      setTransactions((prev) => [carTx, ...prev]);
+
+      const winRecord: WinRecord = {
+        id: `win-${Date.now()}`,
+        username: currentUser!.name,
+        prize: `🚗 ${carTitle}`,
+        type: 'Wheel Spin',
+        valueUsd: sliceValueUsd,
+        timestamp: 'Just now',
+        verifiedHash: hash,
+        avatar: currentUser!.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
+      };
+      setRecentWinners((prev) => [winRecord, ...prev]);
+
+      const wonPrizeEntry: WonPrizeItem = {
+        id: `prize-spin-${Date.now()}`,
+        userId: currentUser!.id,
+        userName: currentUser!.name,
+        userEmail: currentUser!.email,
+        prizeTitle: carTitle,
+        prizeType: 'tesla_vehicle',
+        source: 'wheel_spin',
+        estimatedValueUsd: sliceValueUsd || 54990,
+        vehicleModel: wonVehicle.model,
+        vinAssigned: vin,
+        image: wonVehicle.image,
+        wonAt: new Date().toISOString().split('T')[0],
+        processingFeeUsd: 495,
+        shippingDocFeeUsd: 350,
+        shippingCostUsd: 1450,
+        feesPaid: false,
+        status: 'awaiting_details',
+      };
+      setWonPrizes((prev) => [wonPrizeEntry, ...prev]);
+
+      sendNotification({
+        title: `🏆 You Won a Tesla on the Spin Wheel: ${carTitle}!`,
+        message: `Congratulations! Your wheel spin landed on ${carTitle} (est. $${sliceValueUsd.toLocaleString()}). Complete your international shipping details & documentation/processing fees in Dashboard -> Won Prizes to dispatch.`,
+        type: 'payout',
+        priority: 'urgent',
+        targetType: 'individual',
+        targetUserId: currentUser!.id,
+        targetUserEmail: currentUser!.email,
+        actionUrl: 'dashboard',
+        actionLabel: 'Complete Shipping',
+      });
+      return won;
+    }
+
+    const canSpendWinsImmediately = (currentUser?.totalDepositedUsd || 0) >= MIN_DEPOSIT_TO_ACTIVATE_WINS_USD;
+    if (won.valueUsd > 0) {
+      if (canSpendWinsImmediately) {
+        setBalances((prev) => ({ ...prev, usd: prev.usd + won.valueUsd }));
+      } else {
+        setLockedWinsByUserId((prev) => ({
+          ...prev,
+          [currentUser!.id]: Number(((prev[currentUser!.id] || 0) + won.valueUsd).toFixed(2)),
+        }));
+      }
+    }
+
     const winTx: Transaction = {
       id: `tx-${Date.now()}`,
       type: 'promotion_win',
@@ -3324,15 +4227,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
       status: 'completed',
       txHash: hash,
-      description: `Spin-and-Win Prize: ${won.prize}`,
+      description:
+        won.valueUsd > 0 && !canSpendWinsImmediately
+          ? `Spin-and-Win Prize: ${won.prize} (Locked until $${MIN_DEPOSIT_TO_ACTIVATE_WINS_USD} min deposit)`
+          : `Spin-and-Win Prize: ${won.prize}`,
     };
     setTransactions((prev) => [winTx, ...prev]);
+
+    if (won.valueUsd > 0 && !canSpendWinsImmediately) {
+      showToast(
+        `🔒 Won ${won.prize}! Winnings are held in your Locked Bonus Vault until your cumulative deposits reach $${MIN_DEPOSIT_TO_ACTIVATE_WINS_USD} USD.`,
+        'info'
+      );
+    }
 
     const winRecord: WinRecord = {
       id: `win-${Date.now()}`,
       username: currentUser?.name || 'LuckyUser',
       prize: won.prize,
       type: 'Wheel Spin',
+      category: 'spin_scratch',
       valueUsd: won.valueUsd,
       timestamp: 'Just now',
       verifiedHash: hash,
@@ -3382,6 +4296,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Buy Direct Tesla Stock Shares (Spot Buy - strictly minimum $500)
   const buySpotStock = (usdAmount: number): boolean => {
+    if (!requireSignedIn('purchase TSLA spot shares')) return false;
     if (!featureToggles.enableStockTrading || !featureToggles.enableSpotBuy) {
       showToast('Tesla stock spot buying is currently disabled by administrator.', 'error');
       return false;
@@ -3441,6 +4356,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Sell / Liquidate Spot Stock back to USD Vault Balance
   const sellSpotStock = (sharesToSell: number): boolean => {
+    if (!requireSignedIn('sell TSLA spot shares')) return false;
     if (sharesToSell <= 0 || sharesToSell > userSpotHolding.shares) {
       showToast(`Invalid shares amount. Available: ${userSpotHolding.shares.toFixed(4)} TSLA`, 'error');
       return false;
@@ -3479,12 +4395,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
     setTransactions((prev) => [tx, ...prev]);
 
+    setRecentWinners((prev) => [
+      {
+        id: `win-tsla-${Date.now()}`,
+        username: currentUser?.name || 'TSLA_Trader',
+        prize: `TSLA Spot Sale (+$${proceeds.toLocaleString()})`,
+        type: 'TSLA Stock ROI',
+        category: 'stock',
+        poolOrTicker: 'TSLA Spot',
+        roiPercent: Number((tslaQuote.changePercent || 4.2).toFixed(2)),
+        valueUsd: proceeds,
+        timestamp: 'Just now',
+        verifiedHash: tx.txHash,
+        avatar: currentUser?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
+      },
+      ...prev.slice(0, 23),
+    ]);
+
     showToast(`Liquidated ${sharesToSell.toFixed(3)} TSLA shares. +$${proceeds.toLocaleString(undefined, { minimumFractionDigits: 2 })} credited to vault!`, 'success');
     return true;
   };
 
   // Invest in Featured Stock for Faster ROI (min $500 and above!)
   const investInFeaturedStock = (planId: string, amountUsd: number): boolean => {
+    if (!requireSignedIn('invest in Fast-ROI stock plans')) return false;
     if (!featureToggles.enableFastRoiStocks) {
       showToast('Featured Fast-ROI stock plans are currently disabled by administrator.', 'error');
       return false;
@@ -3614,10 +4548,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setAllUsers((prevUsers) =>
         prevUsers.map((u) => (u.id === currentUser.id ? { ...u, totalDepositedUsd: amountUsd } : u))
       );
+
+      const lockedAmt = lockedWinsByUserId[currentUser.id] || 0;
+      if (amountUsd >= MIN_DEPOSIT_TO_ACTIVATE_WINS_USD && lockedAmt > 0) {
+        setBalances((prev) => ({ ...prev, usd: Number((prev.usd + lockedAmt).toFixed(2)) }));
+        setLockedWinsByUserId((prev) => ({ ...prev, [currentUser.id]: 0 }));
+      }
+
       showToast(
-        amountUsd >= 200
-          ? `Demo Profile: Set total deposits to $${amountUsd} USD (Withdrawals UNLOCKED).`
-          : `Demo Profile: Set total deposits to $${amountUsd} USD (Withdrawals REJECTED).`,
+        amountUsd >= MIN_DEPOSIT_TO_ACTIVATE_WINS_USD
+          ? `Demo Profile: Deposits set to $${amountUsd} USD (Withdrawals & Promo Winnings UNLOCKED).`
+          : `Demo Profile: Deposits set to $${amountUsd} USD (Min $${MIN_DEPOSIT_TO_ACTIVATE_WINS_USD} required to unlock spin $$ wins).`,
         'info'
       );
     }
@@ -3634,6 +4575,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     destinationAddress: string,
     details?: any
   ): Promise<{ success: boolean; message: string }> => {
+    if (!requireSignedIn('request a withdrawal')) {
+      return { success: false, message: 'Please sign in or register to request a withdrawal.' };
+    }
     if (!featureToggles.enableWithdrawals || !withdrawalSettings.enabled) {
       const msg = 'Withdrawals are temporarily disabled by the platform administrator.';
       showToast(msg, 'error');
@@ -3751,13 +4695,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateWheelReward = (id: string, updates: Partial<WheelReward>) => {
-    setWheelRewards((prev) => prev.map((r) => (r.id === id ? { ...r, ...updates } : r)));
+    setWheelRewards((prev) =>
+      prev.map((r) => {
+        if (r.id !== id) return r;
+        const mergedVal = updates.valueUsd ?? updates.value ?? r.valueUsd ?? r.value ?? 0;
+        const mergedWeight = updates.weight ?? updates.probabilityWeight ?? r.weight ?? r.probabilityWeight ?? 1;
+        return {
+          ...r,
+          ...updates,
+          valueUsd: mergedVal,
+          value: mergedVal,
+          weight: mergedWeight,
+          probabilityWeight: mergedWeight,
+        };
+      })
+    );
     showToast('Wheel reward slice updated.', 'success');
   };
 
   const addWheelReward = (reward: Omit<WheelReward, 'id'>) => {
+    const val = reward.valueUsd ?? reward.value ?? 0;
+    const wt = reward.weight ?? reward.probabilityWeight ?? 10;
     const newSlice: WheelReward = {
       ...reward,
+      valueUsd: val,
+      value: val,
+      weight: wt,
+      probabilityWeight: wt,
       id: `w-${Date.now()}`,
     };
     setWheelRewards((prev) => [...prev, newSlice]);
@@ -3835,6 +4799,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
 
   const purchaseScratchCard = (tier: ScratchCardTier): boolean => {
+    if (!requireSignedIn('purchase scratch cards')) return false;
     if (balances.usd < tier.priceUsd) {
       showToast(`Insufficient balance ($${balances.usd.toFixed(2)}) for ${tier.name} ($${tier.priceUsd}). Please deposit.`, 'error');
       return false;
@@ -3858,29 +4823,197 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return true;
   };
 
-  // Scratch cards configured to strictly have ZERO wins after users scratch cards
-  const awardScratchPrize = (tier: ScratchCardTier, _prizeAmountUsd: number, _prizeLabel: string) => {
-    const zeroPrize = 0;
-    const zeroLabel = 'Zero Payout - Better Luck Next Time';
+  // Dynamic weighted Scratch & Win award (Cash Vault, Tesla Car Jackpot on high tiers, or Try Again)
+  const awardScratchPrize = (
+    tier: ScratchCardTier,
+    prizeAmountUsd: number,
+    prizeLabel: string,
+    extras?: { isTeslaCar?: boolean; vehicleModel?: string; isTryAgain?: boolean }
+  ) => {
+    if (!requireSignedIn('claim scratch card rewards')) return;
 
     const hash = `0x${Math.random().toString(16).substring(2, 6)}...${Math.random().toString(16).substring(2, 6)}`;
-    const newTx: Transaction = {
+
+    if (extras?.isTeslaCar) {
+      const carTitle = extras.vehicleModel || prizeLabel || '2026 Tesla Vehicle';
+      const vin = `5YJSCR${Date.now().toString().slice(-8)}`;
+      const wonVehicle: TeslaVehicle = {
+        id: `veh-scratch-${Date.now()}`,
+        userId: currentUser!.id,
+        model: carTitle.includes('Roadster') ? 'Roadster' : carTitle.includes('Model S') ? 'Model S' : 'Model 3',
+        trim: carTitle,
+        year: 2026,
+        vin,
+        licensePlate: `WIN-${Math.floor(1000 + Math.random() * 9000)}`,
+        color: 'Founders Signature Red',
+        batterySoc: 100,
+        odometer: 8,
+        estimatedRange: carTitle.includes('Roadster') ? 620 : 359,
+        serviceStatus: 'optimal',
+        lastServiceDate: new Date().toISOString().slice(0, 10),
+        image: 'https://images.unsplash.com/photo-1617788138017-80ad40651399?auto=format&fit=crop&w=1000&q=80',
+      };
+      setVehicles((prev) => [wonVehicle, ...prev]);
+
+      const orderId = `ORD-SCR-${Date.now().toString(36).toUpperCase()}`;
+      const carOrder: VehicleOrder = {
+        id: orderId,
+        userId: currentUser!.id,
+        userName: currentUser!.name,
+        userEmail: currentUser!.email,
+        vehicleId: `scratch-car-${tier.id}`,
+        vehicleName: carTitle,
+        model: wonVehicle.model,
+        trim: carTitle,
+        totalUsd: 0,
+        shippingFeeUsd: 0,
+        shippingAddress: {
+          fullName: currentUser!.name,
+          phone: currentUser!.phone || '+1 (800) 837-5290',
+          street: currentUser!.location || 'Apex Center VIP Delivery',
+          city: 'Fremont',
+          state: 'CA',
+          zipCode: '94538',
+          deliveryMethod: 'enclosed_carrier',
+        },
+        status: 'confirmed',
+        trackingNumber: `APX-SCR-${Math.floor(100000 + Math.random() * 899999)}`,
+        carrierName: 'Apex VIP Enclosed Transporter',
+        estimatedDelivery: '3 - 5 Business Days',
+        refundPolicyAccepted: true,
+        orderedAt: new Date().toISOString(),
+        vinAssigned: vin,
+        paymentMethod: 'scratch_card_jackpot',
+      };
+      setVehicleOrders((prev) => [carOrder, ...prev]);
+
+      const carTx: Transaction = {
+        id: `tx-${Date.now()}`,
+        type: 'promotion_win',
+        currency: 'USD',
+        amount: prizeAmountUsd,
+        usdEquivalent: prizeAmountUsd,
+        timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
+        status: 'completed',
+        txHash: hash,
+        description: `🚗 Scratch Jackpot [${tier.name}]: Won ${carTitle} ($${prizeAmountUsd.toLocaleString()})`,
+      };
+      setTransactions((prev) => [carTx, ...prev]);
+
+      const winRecord: WinRecord = {
+        id: `win-${Date.now()}`,
+        username: currentUser!.name,
+        prize: `🚗 ${carTitle}`,
+        type: 'Scratch & Win',
+        valueUsd: prizeAmountUsd,
+        timestamp: 'Just now',
+        verifiedHash: hash,
+        avatar: currentUser!.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
+      };
+      setRecentWinners((prev) => [winRecord, ...prev]);
+
+      const wonPrizeEntry: WonPrizeItem = {
+        id: `prize-scr-${Date.now()}`,
+        userId: currentUser!.id,
+        userName: currentUser!.name,
+        userEmail: currentUser!.email,
+        prizeTitle: carTitle,
+        prizeType: 'tesla_vehicle',
+        source: 'scratch_card',
+        estimatedValueUsd: prizeAmountUsd || 79990,
+        vehicleModel: wonVehicle.model,
+        vinAssigned: vin,
+        image: wonVehicle.image,
+        wonAt: new Date().toISOString().split('T')[0],
+        processingFeeUsd: 595,
+        shippingDocFeeUsd: 420,
+        shippingCostUsd: 1650,
+        feesPaid: false,
+        status: 'awaiting_details',
+      };
+      setWonPrizes((prev) => [wonPrizeEntry, ...prev]);
+
+      sendNotification({
+        title: `🏆 Max Scratch Card Tesla Win: ${carTitle}!`,
+        message: `Your ${tier.name} scratch card unlocked a ${carTitle} (MSRP $${prizeAmountUsd.toLocaleString()}). Fill your destination country & pay processing/shipping documentation fees in Dashboard -> Won Prizes!`,
+        type: 'payout',
+        priority: 'urgent',
+        targetType: 'individual',
+        targetUserId: currentUser!.id,
+        targetUserEmail: currentUser!.email,
+        actionUrl: 'dashboard',
+        actionLabel: 'Complete Shipping',
+      });
+
+      showToast(`🚗 JACKPOT! You won a ${carTitle} from ${tier.name}! Manage international shipping in Dashboard -> Won Prizes.`, 'success');
+      return;
+    }
+
+    if (extras?.isTryAgain || prizeAmountUsd <= 0) {
+      const zeroTx: Transaction = {
+        id: `tx-${Date.now()}`,
+        type: 'promotion_win',
+        currency: 'USD',
+        amount: 0,
+        usdEquivalent: 0,
+        timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
+        status: 'completed',
+        txHash: hash,
+        description: `Scratch & Win [${tier.name}]: ${prizeLabel || 'Try Again ($0)'}`,
+      };
+      setTransactions((prev) => [zeroTx, ...prev]);
+      showToast(`${tier.name}: ${prizeLabel || 'Try Again — Better luck next card!'}`, 'info');
+      return;
+    }
+
+    const canSpendWinsImmediately = (currentUser?.totalDepositedUsd || 0) >= MIN_DEPOSIT_TO_ACTIVATE_WINS_USD;
+    if (canSpendWinsImmediately) {
+      setBalances((prev) => ({ ...prev, usd: prev.usd + prizeAmountUsd }));
+    } else {
+      setLockedWinsByUserId((prev) => ({
+        ...prev,
+        [currentUser!.id]: Number(((prev[currentUser!.id] || 0) + prizeAmountUsd).toFixed(2)),
+      }));
+    }
+
+    const winTx: Transaction = {
       id: `tx-${Date.now()}`,
       type: 'promotion_win',
       currency: 'USD',
-      amount: zeroPrize,
-      usdEquivalent: zeroPrize,
+      amount: prizeAmountUsd,
+      usdEquivalent: prizeAmountUsd,
       timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
       status: 'completed',
       txHash: hash,
-      description: `Scratch & Win [${tier.name}]: ${zeroLabel}`,
+      description: canSpendWinsImmediately
+        ? `Scratch & Win [${tier.name}]: ${prizeLabel}`
+        : `Scratch & Win [${tier.name}]: ${prizeLabel} (Locked until $${MIN_DEPOSIT_TO_ACTIVATE_WINS_USD} min deposit)`,
     };
-    setTransactions((prev) => [newTx, ...prev]);
+    setTransactions((prev) => [winTx, ...prev]);
 
-    showToast(`Card Expended: ${zeroLabel} ($0 USD credited).`, 'info');
+    const winRecord: WinRecord = {
+      id: `win-${Date.now()}`,
+      username: currentUser?.name || 'LuckyUser',
+      prize: prizeLabel,
+      type: 'Scratch & Win',
+      category: 'spin_scratch',
+      valueUsd: prizeAmountUsd,
+      timestamp: 'Just now',
+      verifiedHash: hash,
+      avatar: currentUser?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
+    };
+    setRecentWinners((prev) => [winRecord, ...prev]);
+
+    showToast(
+      canSpendWinsImmediately
+        ? `🎉 Scratch Win! Credited +$${prizeAmountUsd.toLocaleString()} USD (${prizeLabel}) to your vault!`
+        : `🔒 Scratch Win +$${prizeAmountUsd.toLocaleString()} held in Locked Vault until cumulative deposits reach $${MIN_DEPOSIT_TO_ACTIVATE_WINS_USD} USD.`,
+      canSpendWinsImmediately ? 'success' : 'info'
+    );
   };
 
   const rentVehicle = (vehicle: RentalVehicle, days: number, startDate: string): boolean => {
+    if (!requireSignedIn('reserve a Tesla rental vehicle')) return false;
     const totalCost = vehicle.dailyRateUsd * days;
     if (balances.usd < totalCost) {
       showToast(`Insufficient balance ($${balances.usd.toFixed(2)}) for reservation ($${totalCost.toLocaleString()}). Please deposit crypto or USD.`, 'error');
@@ -3916,6 +5049,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addToCart = (product: ProductItem) => {
+    if (!requireSignedIn('add items to your cart')) return;
     setCart((prev) => {
       const existing = prev.find((item) => item.product.id === product.id);
       if (existing) {
@@ -3933,6 +5067,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const checkoutCart = (): boolean => {
+    if (!requireSignedIn('complete product checkout')) return false;
     const total = cart.reduce((acc, item) => acc + item.product.priceUsd * item.quantity, 0);
     if (balances.usd < total) {
       showToast(`Cart total is $${total.toLocaleString()}, but wallet balance is $${balances.usd.toFixed(2)}. Please make a deposit.`, 'error');
@@ -4056,6 +5191,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     paymentMethod: string = 'vault_balance',
     appliedCoupon: Coupon | null = null
   ): Promise<{ success: boolean; orderId?: string; message: string }> => {
+    if (!requireSignedIn('purchase a Tesla vehicle')) {
+      return { success: false, message: 'Sign in required to purchase a vehicle.' };
+    }
     const shippingFee = appliedCoupon?.discountType === 'free_shipping'
       ? 0
       : (vehicle.nationwideShippingFeeUsd ?? nationwideShippingSettings.flatFeeUsd);
@@ -4241,6 +5379,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Coupons & Promo Codes Engine
   const claimCoupon = (code: string) => {
+    if (!requireSignedIn('claim promotional coupon codes')) return;
     const upper = code.trim().toUpperCase();
     if (!claimedCoupons.includes(upper)) {
       setClaimedCoupons((prev) => {
@@ -4257,6 +5396,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     code: string,
     context?: 'products' | 'vehicles' | 'spins' | 'services'
   ): { success: boolean; message: string; discountAmount?: number; freeSpins?: number } => {
+    if (!requireSignedIn('apply promotional coupon codes')) {
+      return { success: false, message: 'Sign in required to apply coupon codes' };
+    }
     const upper = code.trim().toUpperCase();
     const found = coupons.find((c) => c.code.toUpperCase() === upper);
 
@@ -4369,8 +5511,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     title: string;
     comment: string;
   }): boolean => {
-    if (!currentUser) {
-      showToast('Please sign in to submit a verified rating and review.', 'error');
+    if (!requireSignedIn('submit a verified rating and review') || !currentUser) {
       return false;
     }
     const newReview: ReviewItem = {
@@ -4410,6 +5551,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // TSLA Stock Price Alerts CRUD
   const addStockPriceAlert = (condition: 'above' | 'below', targetPriceUsd: number, note?: string) => {
+    if (!requireSignedIn('create TSLA price alerts')) return;
     const cleanPrice = Number(targetPriceUsd.toFixed(2));
     if (!cleanPrice || cleanPrice <= 0) {
       showToast('Enter a valid TSLA target price in USD.', 'error');
@@ -4476,12 +5618,184 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast('Promotional banner deleted.', 'info');
   };
 
+  // Won Prizes International Shipping & Processing/Documentation Fee Settlement
+  const submitWonPrizeShippingAndPayFees = async (
+    prizeId: string,
+    shippingAddress: NonNullable<WonPrizeItem['shippingAddress']>,
+    paymentMethod: 'wallet_usd' | 'deposit'
+  ): Promise<{ success: boolean; message: string }> => {
+    if (!requireSignedIn('submit shipping details and pay processing fees')) {
+      return { success: false, message: 'Sign in required to manage won prize shipping.' };
+    }
+    const prize = wonPrizes.find((p) => p.id === prizeId);
+    if (!prize) {
+      return { success: false, message: 'Won prize record not found.' };
+    }
+
+    const totalRequired = Number(
+      ((prize.processingFeeUsd || 0) + (prize.shippingDocFeeUsd || 0) + (prize.shippingCostUsd || 0)).toFixed(2)
+    );
+
+    if (paymentMethod === 'wallet_usd') {
+      if (balances.usd < totalRequired) {
+        const msg = `Insufficient spendable USD balance ($${balances.usd.toFixed(2)}). Required processing, export documentation & freight total: $${totalRequired.toLocaleString()}. Note: Locked spin winnings unlock after $${MIN_DEPOSIT_TO_ACTIVATE_WINS_USD} total deposits.`;
+        showToast(msg, 'error');
+        return { success: false, message: msg };
+      }
+      setBalances((prev) => ({ ...prev, usd: Number((prev.usd - totalRequired).toFixed(2)) }));
+    }
+
+    const trackingNum = prize.trackingNumber || `APX-INTL-${Math.floor(100000 + Math.random() * 899999)}`;
+    const nowIso = new Date().toISOString().split('T')[0];
+
+    setWonPrizes((prev) =>
+      prev.map((item) =>
+        item.id === prizeId
+          ? {
+              ...item,
+              shippingAddress,
+              feesPaid: true,
+              feesPaidAt: nowIso,
+              paymentMethod,
+              trackingNumber: trackingNum,
+              carrierName: 'Apex Global Enclosed & Air/RoRo Freight',
+              estimatedDelivery: '7 - 14 Business Days International',
+              status: 'fees_paid_processing',
+            }
+          : item
+      )
+    );
+
+    const feeTx: Transaction = {
+      id: `tx-prize-fee-${Date.now()}`,
+      type: 'service_payment',
+      currency: 'USD',
+      amount: totalRequired,
+      usdEquivalent: totalRequired,
+      timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
+      status: 'completed',
+      txHash: `0x${Math.random().toString(16).substring(2, 12)}...ship`,
+      description: `Won Prize Dispatch Fees (${prize.prizeTitle} -> ${shippingAddress.country}): Processing + Docs + Freight`,
+    };
+    setTransactions((prev) => [feeTx, ...prev]);
+
+    sendNotification({
+      title: `📦 International Dispatch Initiated: ${prize.prizeTitle}`,
+      message: `Shipping details for ${shippingAddress.country} saved and $${totalRequired.toLocaleString()} USD processing, documentation & freight fees confirmed. Tracking #${trackingNum}.`,
+      type: 'system',
+      priority: 'normal',
+      targetType: 'individual',
+      targetUserId: currentUser?.id,
+      actionUrl: 'dashboard',
+      actionLabel: 'Track Shipment',
+    });
+
+    showToast(`Shipping submitted & $${totalRequired.toLocaleString()} fees paid! Tracking: ${trackingNum}`, 'success');
+    return { success: true, message: `Fees paid & international dispatch scheduled (Tracking #${trackingNum}).` };
+  };
+
+  const updateWonPrizeItem = (id: string, updates: Partial<WonPrizeItem>) => {
+    setWonPrizes((prev) => prev.map((p) => (p.id === id ? { ...p, ...updates } : p)));
+    showToast('Won prize shipping record updated.', 'success');
+  };
+
+  // FAQs CMS CRUD
+  const createFaqItem = (faqData: Omit<FaqItem, 'id'>) => {
+    const newFaq: FaqItem = { ...faqData, id: `faq-${Date.now().toString(36)}` };
+    setFaqsList((prev) => [newFaq, ...prev]);
+    showToast(`FAQ "${newFaq.q}" added!`, 'success');
+  };
+
+  const updateFaqItem = (id: string, updates: Partial<FaqItem>) => {
+    setFaqsList((prev) => prev.map((f) => (f.id === id ? { ...f, ...updates } : f)));
+    showToast('FAQ updated.', 'success');
+  };
+
+  const deleteFaqItem = (id: string) => {
+    setFaqsList((prev) => prev.filter((f) => f.id !== id));
+    showToast('FAQ removed.', 'info');
+  };
+
+  // SEO, Logo, Favicon, Sitemap & RSS CMS CRUD
+  const updateSeoSettings = (updates: Partial<SeoMetadataConfig>) => {
+    setSeoSettings((prev) => ({
+      ...prev,
+      ...updates,
+      updatedAt: new Date().toISOString().split('T')[0],
+    }));
+    showToast('SEO metadata & branding saved and synchronized!', 'success');
+  };
+
+  const createSitemapEntry = (entryData: Omit<SitemapEntry, 'id'>) => {
+    const created: SitemapEntry = { ...entryData, id: `sm-${Date.now().toString(36)}` };
+    setSitemapEntries((prev) => [...prev, created]);
+    showToast(`Sitemap entry ${created.path} added.`, 'success');
+  };
+
+  const updateSitemapEntry = (id: string, updates: Partial<SitemapEntry>) => {
+    setSitemapEntries((prev) => prev.map((s) => (s.id === id ? { ...s, ...updates } : s)));
+    showToast('Sitemap entry updated.', 'success');
+  };
+
+  const deleteSitemapEntry = (id: string) => {
+    setSitemapEntries((prev) => prev.filter((s) => s.id !== id));
+    showToast('Sitemap entry removed.', 'info');
+  };
+
+  const createRssFeedItem = (itemData: Omit<RssFeedItem, 'id'>) => {
+    const created: RssFeedItem = { ...itemData, id: `rss-${Date.now().toString(36)}` };
+    setRssFeedItems((prev) => [created, ...prev]);
+    showToast(`RSS article "${created.title}" published to /rss.xml!`, 'success');
+  };
+
+  const updateRssFeedItem = (id: string, updates: Partial<RssFeedItem>) => {
+    setRssFeedItems((prev) => prev.map((r) => (r.id === id ? { ...r, ...updates } : r)));
+    showToast('RSS feed entry updated.', 'success');
+  };
+
+  const deleteRssFeedItem = (id: string) => {
+    setRssFeedItems((prev) => prev.filter((r) => r.id !== id));
+    showToast('RSS feed entry removed.', 'info');
+  };
+
+  // Promotional Short Videos CMS CRUD
+  const createPromoVideo = (
+    videoData: Omit<PromoVideoItem, 'id' | 'createdAt' | 'viewsCount'>
+  ): PromoVideoItem => {
+    const created: PromoVideoItem = {
+      ...videoData,
+      id: `pvid-${Date.now().toString(36)}`,
+      viewsCount: 0,
+      createdAt: new Date().toISOString().split('T')[0],
+    };
+    setPromoVideos((prev) => [created, ...prev]);
+    showToast(`Promotional short video "${created.title}" published!`, 'success');
+    return created;
+  };
+
+  const updatePromoVideo = (id: string, updates: Partial<PromoVideoItem>) => {
+    setPromoVideos((prev) => prev.map((v) => (v.id === id ? { ...v, ...updates } : v)));
+    showToast('Promotional video updated.', 'success');
+  };
+
+  const deletePromoVideo = (id: string) => {
+    setPromoVideos((prev) => prev.filter((v) => v.id !== id));
+    showToast('Promotional video deleted.', 'info');
+  };
+
+  const incrementPromoVideoView = (id: string) => {
+    setPromoVideos((prev) => prev.map((v) => (v.id === id ? { ...v, viewsCount: (v.viewsCount || 0) + 1 } : v)));
+  };
+
   return (
     <AppContext.Provider
       value={{
         currentUser,
         userRole: currentUser?.role || 'customer',
         balances,
+        lockedWinBalanceUsd,
+        minDepositToActivateWinsUsd: MIN_DEPOSIT_TO_ACTIVATE_WINS_USD,
+        getUserWalletBalances,
         vehicles,
         serviceBookings,
         userInvestments,
@@ -4502,6 +5816,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         adminsList,
         fetchAdmins,
         createAdminAccount,
+        upgradeUserToAdmin,
         updateAdminPrivileges,
         deleteAdminAccount,
         hasAdminPrivilege,
@@ -4664,6 +5979,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         createMarketingBanner,
         updateMarketingBanner,
         deleteMarketingBanner,
+        // Won Prizes Shipping & Fees
+        wonPrizes,
+        submitWonPrizeShippingAndPayFees,
+        updateWonPrizeItem,
+        // FAQs CMS
+        faqsList,
+        createFaqItem,
+        updateFaqItem,
+        deleteFaqItem,
+        // SEO, Logo, Favicon, Sitemap & RSS Feeds
+        seoSettings,
+        updateSeoSettings,
+        sitemapEntries,
+        createSitemapEntry,
+        updateSitemapEntry,
+        deleteSitemapEntry,
+        rssFeedItems,
+        createRssFeedItem,
+        updateRssFeedItem,
+        deleteRssFeedItem,
+        // Promotional Short Videos
+        promoVideos,
+        createPromoVideo,
+        updatePromoVideo,
+        deletePromoVideo,
+        incrementPromoVideoView,
       }}
     >
 

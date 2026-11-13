@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { X, Trash2, ShoppingBag, ArrowRight, ShieldCheck, Plus, Tag, Check, Sparkles } from 'lucide-react';
+import { X, Trash2, ShoppingBag, ArrowRight, ShieldCheck, Plus, Tag, Sparkles, Lock } from 'lucide-react';
 
 interface CartModalProps {
   isOpen: boolean;
@@ -9,7 +9,18 @@ interface CartModalProps {
 }
 
 export const CartModal: React.FC<CartModalProps> = ({ isOpen, onClose, onOpenDeposit }) => {
-  const { cart, removeFromCart, addToCart, checkoutCart, balances, activeCoupon, applyCoupon, removeCoupon } = useApp();
+  const {
+    cart,
+    removeFromCart,
+    addToCart,
+    checkoutCart,
+    balances,
+    lockedWinBalanceUsd,
+    minDepositToActivateWinsUsd,
+    activeCoupon,
+    applyCoupon,
+    removeCoupon,
+  } = useApp();
   const [couponInput, setCouponInput] = useState('');
   const [couponError, setCouponError] = useState<string | null>(null);
 
@@ -176,11 +187,20 @@ export const CartModal: React.FC<CartModalProps> = ({ isOpen, onClose, onOpenDep
             </div>
 
             <div className="flex justify-between items-center text-xs p-2.5 rounded-xl bg-zinc-950 border border-zinc-800">
-              <span className="text-zinc-400">Available Vault Balance:</span>
+              <span className="text-zinc-400">Spendable Vault Balance:</span>
               <span className={`font-semibold ${hasSufficientBalance ? 'text-emerald-400' : 'text-amber-400'}`}>
                 ${balances.usd.toFixed(2)} USD
               </span>
             </div>
+
+            {lockedWinBalanceUsd > 0 && (
+              <div className="flex items-start gap-2 p-2.5 rounded-xl bg-amber-950/30 border border-amber-500/40 text-[11px] text-amber-200">
+                <Lock className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                <span>
+                  You also have <strong>${lockedWinBalanceUsd.toLocaleString()} USD</strong> in locked spin/promo winnings. Deposit at least <strong>${minDepositToActivateWinsUsd} USD</strong> total to unlock them for checkout!
+                </span>
+              </div>
+            )}
 
             {!hasSufficientBalance ? (
               <div className="space-y-2">

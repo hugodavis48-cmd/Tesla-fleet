@@ -11,7 +11,7 @@ interface DepositModalProps {
 }
 
 export const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose, defaultCurrency = 'USDT' }) => {
-  const { depositFunds, manualDepositMethods, showToast } = useApp();
+  const { depositFunds, manualDepositMethods, showToast, currentUser } = useApp();
   const [depositMode, setDepositMode] = useState<'crypto' | 'manual'>('crypto');
   const [selectedCurrency, setSelectedCurrency] = useState<CryptoCurrency>(defaultCurrency);
   const [depositAmount, setDepositAmount] = useState<string>('500');
@@ -24,7 +24,7 @@ export const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose, def
   const [isConfirming, setIsConfirming] = useState<boolean>(false);
   const [confirmationStep, setConfirmationStep] = useState<number>(0);
 
-  if (!isOpen) return null;
+  if (!isOpen || !currentUser) return null;
 
   const activeManualMethod = manualDepositMethods.find((m) => m.id === selectedManualMethodId) || manualDepositMethods[0];
   const currentNetwork = CRYPTO_NETWORKS[selectedCurrency];

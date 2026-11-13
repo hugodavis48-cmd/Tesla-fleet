@@ -12,7 +12,7 @@ interface ProductShopProps {
 }
 
 export const ProductShop: React.FC<ProductShopProps> = ({ onOpenCart, onOpenAuth }) => {
-  const { addToCart, showToast, reviews, productsList } = useApp();
+  const { addToCart, showToast, reviews, productsList, currentUser } = useApp();
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [reviewingProduct, setReviewingProduct] = useState<ProductItem | null>(null);
 
@@ -33,7 +33,28 @@ export const ProductShop: React.FC<ProductShopProps> = ({ onOpenCart, onOpenAuth
       ? catalog
       : catalog.filter((p) => p.category === selectedCategory);
 
+  const promptAuth = (action: string) => {
+    showToast(`Please sign in or register to ${action}.`, 'error');
+    if (onOpenAuth) {
+      onOpenAuth();
+    } else if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('apex:require-auth'));
+    }
+  };
+
+  const handleAddToCart = (product: ProductItem) => {
+    if (!currentUser) {
+      promptAuth('add products to your cart');
+      return;
+    }
+    addToCart(product);
+  };
+
   const handleInstantBuy = (product: ProductItem) => {
+    if (!currentUser) {
+      promptAuth('purchase Tesla hardware and accessories');
+      return;
+    }
     addToCart(product);
     onOpenCart();
   };
@@ -158,7 +179,7 @@ export const ProductShop: React.FC<ProductShopProps> = ({ onOpenCart, onOpenAuth
 
                 <div className="grid grid-cols-2 gap-2">
                   <button
-                    onClick={() => addToCart(product)}
+                    onClick={() => handleAddToCart(product)}
                     className="py-2.5 px-3 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-200 text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
                   >
                     <ShoppingBag className="w-3.5 h-3.5 text-zinc-400" />

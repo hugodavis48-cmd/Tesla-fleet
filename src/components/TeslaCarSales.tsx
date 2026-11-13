@@ -70,13 +70,13 @@ export const TeslaCarSales: React.FC<TeslaCarSalesProps> = ({
 
   // Order submission form state
   const [shippingAddress, setShippingAddress] = useState<ShippingAddress>({
-    fullName: currentUser?.name || 'Alex Vance',
+    fullName: currentUser?.name || '',
     street: '45500 Fremont Blvd',
     apartmentOrSuite: 'Executive Suite 400',
     city: 'Fremont',
     state: 'CA',
     zipCode: '94538',
-    phone: currentUser?.phone || '+1 (555) 837-5290',
+    phone: currentUser?.phone || '',
     deliveryMethod: 'enclosed_carrier',
     deliveryNotes: 'Gated private estate, call 1 hour prior to arrival.',
   });
@@ -139,7 +139,20 @@ export const TeslaCarSales: React.FC<TeslaCarSalesProps> = ({
 
   const displayedCars = isHomeTeaser ? filteredCars.slice(0, 6) : filteredCars;
 
+  const promptAuth = (action: string) => {
+    showToast(`Please sign in or register to ${action}.`, 'error');
+    if (onOpenAuth) {
+      onOpenAuth();
+    } else if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('apex:require-auth'));
+    }
+  };
+
   const handleStartOrder = (car: TeslaCarListing) => {
+    if (!currentUser) {
+      promptAuth('place a Tesla vehicle order');
+      return;
+    }
     setOrderingCar(car);
     setOrderSuccessDetails(null);
     setRefundPolicyAccepted(false);
@@ -150,6 +163,10 @@ export const TeslaCarSales: React.FC<TeslaCarSalesProps> = ({
 
   const handleApplyVehicleCoupon = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!currentUser) {
+      promptAuth('apply promo coupons');
+      return;
+    }
     if (!vehicleCouponInput.trim()) return;
     setVehicleCouponError(null);
     const code = vehicleCouponInput.trim().toUpperCase();
@@ -168,6 +185,10 @@ export const TeslaCarSales: React.FC<TeslaCarSalesProps> = ({
   };
 
   const handleConfirmOrder = async () => {
+    if (!currentUser) {
+      promptAuth('confirm a vehicle order');
+      return;
+    }
     if (!orderingCar) return;
 
     if (!shippingAddress.fullName || !shippingAddress.street || !shippingAddress.city || !shippingAddress.zipCode) {
@@ -217,6 +238,10 @@ export const TeslaCarSales: React.FC<TeslaCarSalesProps> = ({
   };
 
   const handleAddToCartAsMerch = (car: TeslaCarListing) => {
+    if (!currentUser) {
+      promptAuth('add a Tesla vehicle to your cart');
+      return;
+    }
     // Add vehicle deposit / reservation token to cart
     addToCart({
       id: car.id,

@@ -392,33 +392,43 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
   const kycStatus = displayUser.kycStatus || 'unverified';
 
+  if (!currentUser) {
+    return (
+      <div className="py-16 px-4 sm:px-6 lg:px-8 max-w-3xl mx-auto">
+        <div className="p-8 sm:p-10 rounded-3xl bg-zinc-950 border border-red-500/30 shadow-2xl text-center space-y-6 relative overflow-hidden">
+          <div className="absolute -top-24 -right-24 w-72 h-72 bg-red-600/10 rounded-full blur-3xl pointer-events-none" />
+          <div className="w-16 h-16 rounded-2xl bg-red-600/15 border border-red-500/40 flex items-center justify-center mx-auto text-red-400">
+            <Lock className="w-8 h-8" />
+          </div>
+          <div className="space-y-2 max-w-lg mx-auto">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-500/10 border border-red-500/30 text-red-400 text-[11px] font-mono uppercase font-bold tracking-wider">
+              <ShieldCheck className="w-3.5 h-3.5" />
+              Protected Member Area
+            </span>
+            <h2 className="font-heading font-black text-2xl sm:text-3xl text-white tracking-tight">
+              Sign In Required to Access Your Dashboard
+            </h2>
+            <p className="text-sm text-zinc-400 leading-relaxed">
+              Your Tesla digital garage, multi-currency crypto vault, deposits, withdrawals, fleet yield stakes, and order tracking are restricted exclusively to signed-in members.
+            </p>
+          </div>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+            <button
+              type="button"
+              onClick={onOpenAuth}
+              className="w-full sm:w-auto px-7 py-3 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-bold text-sm shadow-lg shadow-red-950/50 flex items-center justify-center gap-2 transition cursor-pointer"
+            >
+              <Zap className="w-4 h-4" />
+              <span>Sign In / Create Account</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="py-10 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto space-y-8">
-      {/* Guest Preview Mode Banner (Non-blocking for Signed-Out Visitors) */}
-      {isGuestView && (
-        <div className="p-4 rounded-2xl bg-gradient-to-r from-red-950/60 via-zinc-900 to-zinc-950 border border-red-500/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg">
-          <div className="flex items-start sm:items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-red-600/20 border border-red-500/40 flex items-center justify-center text-red-400 shrink-0">
-              <Zap className="w-4 h-4" />
-            </div>
-            <div>
-              <p className="text-xs font-bold text-white">
-                Public Guest Dashboard Preview — Signed Out Mode
-              </p>
-              <p className="text-[11px] text-zinc-400">
-                Browse the digital garage, live TSLA stock ROI, fleet investments, services, and vault layout freely. Sign in to save personal profile changes.
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={onOpenAuth}
-            className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold shrink-0 shadow-md transition cursor-pointer"
-          >
-            Sign In / Demo User
-          </button>
-        </div>
-      )}
 
       {/* User Header Profile Card with Editable Avatar & Bio */}
       <div className="p-6 sm:p-8 rounded-3xl bg-zinc-950 border border-zinc-800 shadow-2xl relative overflow-hidden">

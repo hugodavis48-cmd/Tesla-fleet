@@ -26,7 +26,7 @@ export const ServiceScheduler: React.FC<ServiceSchedulerProps> = ({
   onOpenAiDiagnostics,
   onNavigateToDashboard,
 }) => {
-  const { vehicles, bookService, balances, showToast } = useApp();
+  const { vehicles, bookService, balances, showToast, currentUser } = useApp();
 
   const [selectedVehicleId, setSelectedVehicleId] = useState<string>(vehicles[0]?.id || 'custom-model');
   const [customModel, setCustomModel] = useState<string>('Tesla Model S Plaid');
@@ -95,6 +95,13 @@ export const ServiceScheduler: React.FC<ServiceSchedulerProps> = ({
   ];
 
   const handleBooking = () => {
+    if (!currentUser) {
+      showToast('Please sign in or register to schedule certified Tesla service.', 'error');
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('apex:require-auth'));
+      }
+      return;
+    }
     setIsSubmitting(true);
 
     const vehicleObj = vehicles.find((v) => v.id === selectedVehicleId);

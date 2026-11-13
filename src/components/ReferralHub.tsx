@@ -52,6 +52,11 @@ export const ReferralHub: React.FC<ReferralHubProps> = ({ onOpenDeposit, onOpenA
   };
 
   const handleCopyLink = () => {
+    if (!currentUser) {
+      showToast('Please sign in or register to get your personal referral link.', 'error');
+      onOpenAuth?.();
+      return;
+    }
     navigator.clipboard.writeText(referralLink);
     setCopiedLink(true);
     showToast('Unique invite link copied to clipboard!');
@@ -59,6 +64,11 @@ export const ReferralHub: React.FC<ReferralHubProps> = ({ onOpenDeposit, onOpenA
   };
 
   const handleCopyCode = () => {
+    if (!currentUser) {
+      showToast('Please sign in or register to access your personal referral code.', 'error');
+      onOpenAuth?.();
+      return;
+    }
     navigator.clipboard.writeText(displayUser.referralCode || 'APEX-ALEX-99');
     setCopiedCode(true);
     showToast('Referral code copied!');

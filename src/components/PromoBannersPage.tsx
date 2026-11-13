@@ -17,6 +17,8 @@ import {
   Square,
   RectangleHorizontal,
   PanelLeft,
+  Box,
+  Car,
 } from 'lucide-react';
 
 interface PromoBannersPageProps {
@@ -37,6 +39,7 @@ export const PromoBannersPage: React.FC<PromoBannersPageProps> = ({ onOpenAuth, 
   const [sizeFilter, setSizeFilter] = useState<'all' | BannerSizeType>('all');
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [openCodeId, setOpenCodeId] = useState<string | null>(null);
+  const [tiltState, setTiltState] = useState<{ id: string; rx: number; ry: number; gx: number; gy: number } | null>(null);
 
   const activeBanners = useMemo(() => {
     return marketingBanners
@@ -157,32 +160,163 @@ export const PromoBannersPage: React.FC<PromoBannersPageProps> = ({ onOpenAuth, 
     showToast(`Downloaded ${banner.dimensions} SVG banner graphic!`, 'success');
   };
 
+  const handleDownloadHdPng = (banner: MarketingBanner) => {
+    const dim = SIZE_DIMENSIONS[banner.size];
+    const scale = 2; // 2x Hi-DPI crisp render
+    const canvas = document.createElement('canvas');
+    canvas.width = dim.w * scale;
+    canvas.height = dim.h * scale;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    ctx.scale(scale, scale);
+
+    const bgGrad = ctx.createLinearGradient(0, 0, dim.w, dim.h);
+    bgGrad.addColorStop(0, '#07090e');
+    bgGrad.addColorStop(0.55, '#141720');
+    bgGrad.addColorStop(1, '#0b0e16');
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, dim.w, dim.h);
+
+    const glow = ctx.createRadialGradient(dim.w * 0.8, dim.h * 0.25, 10, dim.w * 0.8, dim.h * 0.25, dim.w * 0.7);
+    glow.addColorStop(0, `${banner.accentColor}44`);
+    glow.addColorStop(1, 'transparent');
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, dim.w, dim.h);
+
+    // Metallic 3D border sheen
+    ctx.strokeStyle = banner.accentColor;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(1, 1, dim.w - 2, dim.h - 2);
+
+    ctx.fillStyle = banner.accentColor;
+    ctx.font = 'bold 10px monospace';
+    const qualityTag = banner.is3dHd ? `${banner.resolutionQuality || '4K UHD'} • 3D` : 'HD';
+    ctx.fillText(`APEX TESLA HUB • ${qualityTag} • REF: ${userRefCode}`, 18, banner.size === 'leaderboard' ? 22 : 28);
+
+    ctx.fillStyle = '#ffffff';
+    if (banner.size === 'leaderboard') {
+      ctx.font = '900 15px "Space Grotesk", Arial, sans-serif';
+      ctx.fillText(banner.headline.slice(0, 48), 18, 46);
+      ctx.fillStyle = '#cbd5e1';
+      ctx.font = '11px Arial, sans-serif';
+      ctx.fillText(banner.subheadline.slice(0, 68), 18, 66);
+
+      ctx.fillStyle = banner.accentColor;
+      ctx.fillRect(dim.w - 170, 22, 152, 46);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 11px Arial, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(banner.ctaText, dim.w - 94, 49);
+    } else if (banner.size === 'sidebar') {
+      ctx.font = '900 15px Arial, sans-serif';
+      ctx.fillText(banner.headline.slice(0, 16), 16, 84);
+      ctx.fillText(banner.headline.slice(16, 32), 16, 104);
+      ctx.fillStyle = '#cbd5e1';
+      ctx.font = '11px Arial, sans-serif';
+      ctx.fillText(banner.subheadline.slice(0, 22), 16, 146);
+      ctx.fillText(banner.subheadline.slice(22, 44), 16, 162);
+      if (banner.carRenderModel) {
+        ctx.fillStyle = '#a1a1aa';
+        ctx.font = 'bold 10px monospace';
+        ctx.fillText(banner.carRenderModel, 16, dim.h - 90);
+      }
+      ctx.fillStyle = banner.accentColor;
+      ctx.fillRect(14, dim.h - 62, dim.w - 28, 42);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 11px Arial, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(banner.ctaText, dim.w / 2, dim.h - 37);
+    } else {
+      ctx.font = '900 17px Arial, sans-serif';
+      ctx.fillText(banner.headline.slice(0, 24), 18, 68);
+      ctx.fillText(banner.headline.slice(24, 48), 18, 90);
+      ctx.fillStyle = '#cbd5e1';
+      ctx.font = '11px Arial, sans-serif';
+      ctx.fillText(banner.subheadline.slice(0, 38), 18, 124);
+      ctx.fillText(banner.subheadline.slice(38, 76), 18, 140);
+      if (banner.carRenderModel) {
+        ctx.fillStyle = '#facc15';
+        ctx.font = 'bold 10px monospace';
+        ctx.fillText(`Model: ${banner.carRenderModel}`, 18, dim.h - 76);
+      }
+      ctx.fillStyle = banner.accentColor;
+      ctx.fillRect(18, dim.h - 56, dim.w - 36, 38);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 12px Arial, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(banner.ctaText, dim.w / 2, dim.h - 33);
+    }
+
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `apex-tesla-3d-hd-${banner.size}-${userRefCode.toLowerCase()}.png`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast(`Downloaded 2x HD PNG (${dim.w * 2}×${dim.h * 2}) promotional graphic!`, 'success');
+    }, 'image/png');
+  };
+
+  const handle3dMouseMove = (id: string, e: React.MouseEvent<HTMLElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const px = (e.clientX - rect.left) / Math.max(1, rect.width);
+    const py = (e.clientY - rect.top) / Math.max(1, rect.height);
+    const ry = Number(((px - 0.5) * 14).toFixed(2));
+    const rx = Number(((0.5 - py) * 12).toFixed(2));
+    setTiltState({ id, rx, ry, gx: Math.round(px * 100), gy: Math.round(py * 100) });
+  };
+
   const renderBannerVisual = (banner: MarketingBanner) => {
     const destUrl = getBannerReferralUrl(banner);
+    const activeTilt = tiltState?.id === banner.id ? tiltState : null;
+    const is3d = banner.is3dHd !== false;
+    const tiltStyle: React.CSSProperties = is3d
+      ? {
+          transform: activeTilt
+            ? `rotateX(${activeTilt.rx}deg) rotateY(${activeTilt.ry}deg) scale(1.015)`
+            : 'rotateX(1.5deg) rotateY(-1.5deg)',
+          transition: activeTilt ? 'transform 80ms ease-out' : 'transform 400ms ease-out',
+          transformStyle: 'preserve-3d',
+          boxShadow: `0 22px 50px -12px ${banner.accentColor}44, inset 0 1px 0 rgba(255,255,255,0.22)`,
+        }
+      : {};
 
     if (banner.size === 'leaderboard') {
       return (
-        <div className="w-full overflow-x-auto pb-2">
+        <div className="w-full overflow-x-auto pb-2" style={{ perspective: '1200px' }}>
           <a
             href={destUrl}
             onClick={(e) => {
               e.preventDefault();
               if (onNavigate) onNavigate(banner.targetTab);
             }}
+            onMouseMove={(e) => is3d && handle3dMouseMove(banner.id, e)}
+            onMouseLeave={() => setTiltState(null)}
             className={`mx-auto flex items-center justify-between gap-4 px-5 py-3 rounded-2xl border bg-gradient-to-r ${banner.themeGradient} relative overflow-hidden group shadow-2xl`}
-            style={{ width: 728, height: 90, borderColor: `${banner.accentColor}66` }}
+            style={{ width: 728, height: 90, borderColor: `${banner.accentColor}88`, ...tiltStyle }}
           >
             {banner.imageUrl && (
               <img
                 src={banner.imageUrl}
                 alt={banner.title}
-                className="absolute inset-0 w-full h-full object-cover opacity-20 group-hover:scale-105 transition duration-500 pointer-events-none"
+                className="absolute inset-0 w-full h-full object-cover opacity-25 group-hover:scale-105 transition duration-500 pointer-events-none"
+              />
+            )}
+            {is3d && (
+              <div
+                className="absolute inset-0 pointer-events-none opacity-60"
+                style={{
+                  background: `radial-gradient(circle at ${activeTilt?.gx ?? 25}% ${activeTilt?.gy ?? 30}%, rgba(255,255,255,0.2), transparent 55%)`,
+                }}
               />
             )}
             <div className="relative z-10 flex items-center gap-3 min-w-0 flex-1">
               <div
-                className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border"
-                style={{ backgroundColor: `${banner.accentColor}22`, borderColor: `${banner.accentColor}66` }}
+                className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border shadow-lg"
+                style={{ backgroundColor: `${banner.accentColor}22`, borderColor: `${banner.accentColor}88` }}
               >
                 <Zap className="w-5 h-5" style={{ color: banner.accentColor }} />
               </div>
@@ -191,8 +325,18 @@ export const PromoBannersPage: React.FC<PromoBannersPageProps> = ({ onOpenAuth, 
                   <span className="text-[9px] font-mono font-bold uppercase tracking-wider" style={{ color: banner.accentColor }}>
                     APEX // TESLA • REF: {userRefCode}
                   </span>
+                  {banner.is3dHd && (
+                    <span className="text-[8px] font-mono font-bold px-1.5 py-0.2 rounded bg-white/10 text-white border border-white/20">
+                      3D • {banner.resolutionQuality || '4K UHD'}
+                    </span>
+                  )}
+                  {banner.carRenderModel && (
+                    <span className="text-[8px] font-mono text-zinc-300 hidden sm:inline">
+                      [{banner.carRenderModel}]
+                    </span>
+                  )}
                 </div>
-                <h4 className="font-heading font-black text-sm text-white truncate">{banner.headline}</h4>
+                <h4 className="font-heading font-black text-sm text-white truncate drop-shadow">{banner.headline}</h4>
                 <p className="text-[11px] text-zinc-300 truncate">{banner.subheadline}</p>
               </div>
             </div>
@@ -209,28 +353,43 @@ export const PromoBannersPage: React.FC<PromoBannersPageProps> = ({ onOpenAuth, 
 
     if (banner.size === 'sidebar') {
       return (
-        <div className="w-full flex justify-center py-2">
+        <div className="w-full flex justify-center py-2" style={{ perspective: '1200px' }}>
           <a
             href={destUrl}
             onClick={(e) => {
               e.preventDefault();
               if (onNavigate) onNavigate(banner.targetTab);
             }}
+            onMouseMove={(e) => is3d && handle3dMouseMove(banner.id, e)}
+            onMouseLeave={() => setTiltState(null)}
             className={`flex flex-col justify-between p-4 rounded-2xl border bg-gradient-to-b ${banner.themeGradient} relative overflow-hidden group shadow-2xl`}
-            style={{ width: 160, height: 600, borderColor: `${banner.accentColor}66` }}
+            style={{ width: 160, height: 600, borderColor: `${banner.accentColor}88`, ...tiltStyle }}
           >
             {banner.imageUrl && (
               <img
                 src={banner.imageUrl}
                 alt={banner.title}
-                className="absolute inset-0 w-full h-full object-cover opacity-25 group-hover:scale-105 transition duration-500 pointer-events-none"
+                className="absolute inset-0 w-full h-full object-cover opacity-28 group-hover:scale-105 transition duration-500 pointer-events-none"
               />
             )}
-            <div className="relative z-10 space-y-3">
+            {is3d && (
+              <div
+                className="absolute inset-0 pointer-events-none opacity-60"
+                style={{
+                  background: `radial-gradient(circle at ${activeTilt?.gx ?? 30}% ${activeTilt?.gy ?? 20}%, rgba(255,255,255,0.2), transparent 55%)`,
+                }}
+              />
+            )}
+            <div className="relative z-10 space-y-2.5">
               <div className="flex items-center gap-1.5">
                 <Zap className="w-4 h-4" style={{ color: banner.accentColor }} />
                 <span className="font-heading font-black text-xs text-white">APEX TESLA</span>
               </div>
+              {banner.is3dHd && (
+                <span className="inline-block px-1.5 py-0.5 rounded bg-white/10 border border-white/20 text-[8px] font-mono font-bold text-white">
+                  3D • {banner.resolutionQuality || '4K UHD'}
+                </span>
+              )}
               <span
                 className="inline-block px-2 py-0.5 rounded text-[9px] font-mono font-bold uppercase border"
                 style={{
@@ -244,8 +403,14 @@ export const PromoBannersPage: React.FC<PromoBannersPageProps> = ({ onOpenAuth, 
             </div>
 
             <div className="relative z-10 space-y-3 my-auto">
-              <h4 className="font-heading font-black text-lg text-white leading-tight">{banner.headline}</h4>
+              <h4 className="font-heading font-black text-lg text-white leading-tight drop-shadow">{banner.headline}</h4>
               <p className="text-xs text-zinc-300 leading-relaxed">{banner.subheadline}</p>
+              {banner.carRenderModel && (
+                <div className="text-[9px] font-mono text-amber-300 flex items-center gap-1">
+                  <Car className="w-3 h-3 shrink-0" />
+                  <span className="truncate">{banner.carRenderModel}</span>
+                </div>
+              )}
             </div>
 
             <div className="relative z-10 space-y-2">
@@ -266,35 +431,58 @@ export const PromoBannersPage: React.FC<PromoBannersPageProps> = ({ onOpenAuth, 
 
     const dim = SIZE_DIMENSIONS[banner.size];
     return (
-      <div className="w-full flex justify-center py-2 overflow-x-auto">
+      <div className="w-full flex justify-center py-2 overflow-x-auto" style={{ perspective: '1200px' }}>
         <a
           href={destUrl}
           onClick={(e) => {
             e.preventDefault();
             if (onNavigate) onNavigate(banner.targetTab);
           }}
+          onMouseMove={(e) => is3d && handle3dMouseMove(banner.id, e)}
+          onMouseLeave={() => setTiltState(null)}
           className={`flex flex-col justify-between p-5 rounded-2xl border bg-gradient-to-br ${banner.themeGradient} relative overflow-hidden group shadow-2xl shrink-0`}
-          style={{ width: dim.w, height: dim.h, borderColor: `${banner.accentColor}66` }}
+          style={{ width: dim.w, height: dim.h, borderColor: `${banner.accentColor}88`, ...tiltStyle }}
         >
           {banner.imageUrl && (
             <img
               src={banner.imageUrl}
               alt={banner.title}
-              className="absolute inset-0 w-full h-full object-cover opacity-25 group-hover:scale-105 transition duration-500 pointer-events-none"
+              className="absolute inset-0 w-full h-full object-cover opacity-30 group-hover:scale-105 transition duration-500 pointer-events-none"
+            />
+          )}
+          {is3d && (
+            <div
+              className="absolute inset-0 pointer-events-none opacity-65"
+              style={{
+                background: `radial-gradient(circle at ${activeTilt?.gx ?? 30}% ${activeTilt?.gy ?? 25}%, rgba(255,255,255,0.22), transparent 58%)`,
+              }}
             />
           )}
           <div className="relative z-10 flex items-center justify-between gap-2">
             <span className="text-[10px] font-mono font-bold uppercase tracking-wider" style={{ color: banner.accentColor }}>
               APEX // TESLA
             </span>
-            <span className="text-[9px] font-mono px-2 py-0.5 rounded bg-black/70 text-zinc-300 border border-zinc-700">
-              {userRefCode}
-            </span>
+            <div className="flex items-center gap-1">
+              {banner.is3dHd && (
+                <span className="text-[8px] font-mono font-bold px-1.5 py-0.5 rounded bg-white/15 text-white border border-white/25">
+                  3D {banner.resolutionQuality || '4K UHD'}
+                </span>
+              )}
+              <span className="text-[9px] font-mono px-2 py-0.5 rounded bg-black/70 text-zinc-300 border border-zinc-700">
+                {userRefCode}
+              </span>
+            </div>
           </div>
 
           <div className="relative z-10 space-y-1.5 my-auto">
-            <h4 className="font-heading font-black text-lg text-white leading-snug">{banner.headline}</h4>
+            <h4 className="font-heading font-black text-lg text-white leading-snug drop-shadow">{banner.headline}</h4>
             <p className="text-xs text-zinc-300 leading-relaxed line-clamp-3">{banner.subheadline}</p>
+            {banner.carRenderModel && (
+              <span className="inline-flex items-center gap-1 text-[9px] font-mono font-bold text-amber-300">
+                <Car className="w-3 h-3" />
+                {banner.carRenderModel}
+              </span>
+            )}
           </div>
 
           <div
@@ -403,6 +591,12 @@ export const PromoBannersPage: React.FC<PromoBannersPageProps> = ({ onOpenAuth, 
                     <span className="px-2.5 py-0.5 rounded-lg bg-zinc-900 border border-zinc-700 text-[10px] font-mono font-bold text-zinc-200 uppercase">
                       {SIZE_DIMENSIONS[banner.size].label}
                     </span>
+                    {banner.is3dHd && (
+                      <span className="px-2.5 py-0.5 rounded-lg bg-indigo-500/20 border border-indigo-400/40 text-[10px] font-mono font-bold text-indigo-300 flex items-center gap-1">
+                        <Box className="w-3 h-3" />
+                        3D • {banner.resolutionQuality || '4K UHD'}
+                      </span>
+                    )}
                     {banner.isAiGenerated && (
                       <span className="px-2.5 py-0.5 rounded-lg bg-amber-500/15 border border-amber-500/30 text-[10px] font-mono font-bold text-amber-300 flex items-center gap-1">
                         <Sparkles className="w-3 h-3" />
@@ -442,6 +636,15 @@ export const PromoBannersPage: React.FC<PromoBannersPageProps> = ({ onOpenAuth, 
                       <Copy className="w-3.5 h-3.5 text-zinc-400" />
                     )}
                     <span>Copy Ref Link</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleDownloadHdPng(banner)}
+                    className="px-3 py-2 rounded-xl bg-indigo-950/60 hover:bg-indigo-900/60 border border-indigo-500/40 text-indigo-200 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
+                  >
+                    <Download className="w-3.5 h-3.5 text-indigo-300" />
+                    <span>HD PNG</span>
                   </button>
 
                   <button

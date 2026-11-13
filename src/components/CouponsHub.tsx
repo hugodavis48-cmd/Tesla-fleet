@@ -34,7 +34,7 @@ export const CouponsHub: React.FC<CouponsHubProps> = ({
   onNavigateToServices,
   onOpenCart,
 }) => {
-  const { coupons, claimCoupon, applyCoupon, activeCoupon } = useApp();
+  const { coupons, claimCoupon, applyCoupon, activeCoupon, currentUser, showToast } = useApp();
 
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -67,13 +67,28 @@ export const CouponsHub: React.FC<CouponsHubProps> = ({
     })
     .sort((a, b) => (b.isActive ? 1 : 0) - (a.isActive ? 1 : 0));
 
+  const promptAuth = () => {
+    showToast('Please sign in or register to claim or apply promo codes.', 'error');
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('apex:require-auth'));
+    }
+  };
+
   const handleCopy = (code: string) => {
+    if (!currentUser) {
+      promptAuth();
+      return;
+    }
     claimCoupon(code);
     setCopiedCode(code);
     setTimeout(() => setCopiedCode(null), 2500);
   };
 
   const handleApplyCouponDirectly = (coupon: Coupon) => {
+    if (!currentUser) {
+      promptAuth();
+      return;
+    }
     const res = applyCoupon(coupon.code, coupon.validFor === 'all' ? undefined : (coupon.validFor as any));
     if (res.success) {
       if (coupon.validFor === 'spins' && onNavigateToPromotions) {
@@ -88,6 +103,10 @@ export const CouponsHub: React.FC<CouponsHubProps> = ({
 
   const handleManualTestSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!currentUser) {
+      promptAuth();
+      return;
+    }
     if (!testCodeInput.trim()) return;
     applyCoupon(testCodeInput.trim());
     setTestCodeInput('');

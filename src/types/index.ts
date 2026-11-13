@@ -285,11 +285,23 @@ export interface WinRecord {
   id: string;
   username: string;
   prize: string;
-  type: 'Wheel Spin' | 'Scratch & Win';
+  type: 'Wheel Spin' | 'Scratch & Win' | 'Staking ROI' | 'TSLA Stock ROI';
+  category?: 'Wheel Spin' | 'Scratch & Win' | 'Staking ROI' | 'TSLA Stock ROI' | 'Vehicle Jackpot';
+  poolOrTicker?: string;
+  roiPercent?: number;
   valueUsd: number;
   timestamp: string;
   verifiedHash: string;
   avatar: string;
+}
+
+export interface ScratchPrizeOption {
+  amountUsd: number;
+  label: string;
+  weight: number;
+  isTeslaCar?: boolean;
+  vehicleModel?: string;
+  isTryAgain?: boolean;
 }
 
 export interface ScratchCardTier {
@@ -300,7 +312,7 @@ export interface ScratchCardTier {
   gradient: string;
   textColor: string;
   description: string;
-  possiblePrizes: { amountUsd: number; label: string; weight: number }[];
+  possiblePrizes: ScratchPrizeOption[];
 }
 
 export interface ChatMessage {
@@ -480,13 +492,14 @@ export interface TeslaCarListing {
 
 export interface ShippingAddress {
   fullName: string;
+  country?: string;
   street: string;
   apartmentOrSuite?: string;
   city: string;
   state: string;
   zipCode: string;
   phone: string;
-  deliveryMethod: 'enclosed_carrier' | 'apex_flatbed' | 'delivery_hub_pickup';
+  deliveryMethod: 'enclosed_carrier' | 'apex_flatbed' | 'delivery_hub_pickup' | 'air_freight_intl' | 'ocean_roro_intl';
   deliveryNotes?: string;
 }
 
@@ -662,7 +675,9 @@ export interface WheelReward {
   text?: string;
   valueUsd: number;
   value?: number;
-  type: 'credits' | 'crypto' | 'service' | 'merch' | 'pass' | 'usd' | 'coupon' | 'points' | 'free_spin';
+  type: 'credits' | 'crypto' | 'service' | 'merch' | 'pass' | 'usd' | 'coupon' | 'points' | 'free_spin' | 'car' | 'try_again';
+  vehicleModel?: string;
+  image?: string;
   color: string;
   textColor: string;
   weight: number;
@@ -749,6 +764,8 @@ export interface StockPriceAlert {
 
 export type BannerSizeType = 'leaderboard' | 'square' | 'rectangle' | 'sidebar';
 
+export type Banner3dPreset = 'cyber_perspective' | 'holographic_depth' | 'studio_4k_bevel' | 'obsidian_neon';
+
 export interface MarketingBanner {
   id: string;
   title: string;
@@ -762,8 +779,15 @@ export interface MarketingBanner {
   accentColor: string;
   targetTab: string;
   imageUrl?: string;
+  slideImages?: string[];
+  slideIntervalSec?: number;
   isActive: boolean;
   isAiGenerated?: boolean;
+  is3dHd?: boolean;
+  style3dPreset?: Banner3dPreset;
+  resolutionQuality?: '4K UHD' | 'HD 1080p';
+  depthAngle?: number;
+  carRenderModel?: string;
   clicksCount?: number;
   createdAt: string;
 }
@@ -807,13 +831,126 @@ export interface SiteSettings {
 
 export interface CronDispatchedEmail {
   id: string;
-  type: string;
+  type: 'registration_welcome' | 'deposit_confirmation' | 'maturity_settlement' | 'test_dispatch' | string;
   recipient: string;
   subject: string;
   amountUsd: number;
   investmentId: string;
   certificateId: string;
   dispatchedAt: string;
-  status: 'delivered' | 'simulated';
+  status: 'delivered' | 'simulated' | 'failed';
+  detail?: string;
+  host?: string;
 }
+
+export interface WonPrizeItem {
+  id: string;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  prizeType: 'vehicle' | 'product';
+  title: string;
+  modelOrSku?: string;
+  image: string;
+  estimatedValueUsd: number;
+  wonAt: string;
+  source: 'Wheel Spin' | 'Scratch & Win';
+  vinAssigned?: string;
+  processingFeeUsd: number;
+  shippingDocFeeUsd: number;
+  shippingFreightFeeUsd: number;
+  totalFeesUsd: number;
+  feesPaid: boolean;
+  paidAt?: string;
+  paymentMethod?: 'wallet_usd' | 'deposit';
+  shippingStatus: 'awaiting_details' | 'fees_paid_processing' | 'documentation_ready' | 'shipped' | 'delivered';
+  shippingAddress?: {
+    fullName: string;
+    country: string;
+    street: string;
+    apartmentOrSuite?: string;
+    city: string;
+    state: string;
+    zipCode: string;
+    phone: string;
+    deliveryMethod: string;
+    deliveryNotes?: string;
+  };
+  trackingNumber?: string;
+  carrierName?: string;
+  notes?: string;
+}
+
+export interface FaqItem {
+  id: string;
+  category: string;
+  question: string;
+  answer: string;
+  isPublished: boolean;
+  order: number;
+}
+
+export interface SeoMetadataConfig {
+  siteTitle: string;
+  metaDescription: string;
+  keywords: string;
+  ogTitle: string;
+  ogDescription: string;
+  ogImageUrl: string;
+  twitterCard: 'summary_large_image' | 'summary';
+  canonicalUrl: string;
+  logoUrl: string;
+  faviconUrl: string;
+  robotsDirective: string;
+  schemaOrgEnabled: boolean;
+}
+
+export interface SitemapEntry {
+  id: string;
+  path: string;
+  title: string;
+  description: string;
+  category: string;
+  priority: number;
+  changeFreq: 'daily' | 'weekly' | 'monthly';
+  isActive: boolean;
+  lastMod: string;
+}
+
+export interface RssFeedItem {
+  id: string;
+  title: string;
+  linkTab: string;
+  description: string;
+  category: string;
+  pubDate: string;
+  guid: string;
+  isPublished: boolean;
+}
+
+export interface PromoVideoScene {
+  title: string;
+  subtitle: string;
+  metric: string;
+  bgImage: string;
+}
+
+export interface PromoVideoItem {
+  id: string;
+  title: string;
+  headline: string;
+  subheadline: string;
+  ctaText: string;
+  targetTab: string;
+  durationSec: number;
+  videoType: 'ai_generated' | 'uploaded';
+  videoUrl?: string;
+  thumbnailUrl: string;
+  accentColor: string;
+  scenes: PromoVideoScene[];
+  isActive: boolean;
+  createdAt: string;
+  viewsCount: number;
+}
+
 

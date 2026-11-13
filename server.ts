@@ -2,20 +2,36 @@ import express from 'express';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI, Type } from '@google/genai';
 import dotenv from 'dotenv';
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
 import { authRouter } from './src/server/auth.ts';
+import {
+  setRuntimeSmtpConfig,
+  sendDepositNotificationEmail,
+  sendMaturityNotificationEmail,
+  getDispatchedEmailLogs,
+  getEffectiveSmtpSummary,
+} from './src/server/mailer.ts';
 
 dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+const publicDir = path.join(__dirname, 'public');
+const uploadsDir = path.join(publicDir, 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
 const app = express();
 const PORT = 3000;
 
-app.use(express.json());
+app.use(express.json({ limit: '25mb' }));
+app.use('/uploads', express.static(uploadsDir));
+app.use(express.static(publicDir));
 app.use('/api/auth', authRouter);
 
 // Initialize Gemini Client conditionally when API key is provided
@@ -203,33 +219,44 @@ Provide a concise breakdown:
   }
 });
 
-// Admin AI Promotional Banner Generator (Gemini 4 Hydrogen)
+// Admin AI Promotional Banner Generator (Gemini 4 Hydrogen — Supports 3D / HD Studio Banners)
 app.post('/api/gemini/generate-banner', async (req, res) => {
   try {
-    const { campaignGoal, size = 'leaderboard', tone = 'Luxury High-Tech', targetTab = 'stocks' } = req.body;
+    const {
+      campaignGoal,
+      size = 'leaderboard',
+      tone = 'Luxury High-Tech',
+      targetTab = 'stocks',
+      is3dHd = true,
+      style3dPreset = 'cyber_perspective',
+      resolutionQuality = '4K UHD',
+      carRenderModel = 'Cybertruck Cyberbeast',
+    } = req.body;
 
     const sizeDimensionMap: Record<string, string> = {
-      leaderboard: '728×90',
-      square: '300×300',
-      rectangle: '300×250',
-      sidebar: '160×600',
+      leaderboard: is3dHd ? '1456×180 HD' : '728×90',
+      square: is3dHd ? '1200×1200 4K' : '300×300',
+      rectangle: is3dHd ? '1200×1000 HD' : '300×250',
+      sidebar: is3dHd ? '640×2400 HD' : '160×600',
     };
-    const dimensions = sizeDimensionMap[size] || '728×90';
+    const dimensions = sizeDimensionMap[size] || (is3dHd ? '1456×180 HD' : '728×90');
     const cleanGoal = campaignGoal || 'Earn High Yield on TSLA Stocks, Cybertruck Sales & Referral Bonuses';
 
     if (ai) {
       try {
         const response = await ai.models.generateContent({
           model: 'gemini-4-hydrogen',
-          contents: `Create a high-converting digital marketing banner specification for Apex Tesla Hub.
+          contents: `Create a high-converting ${is3dHd ? '3D / HD ' : ''}digital marketing banner specification for Apex Tesla Hub.
 Campaign Goal: ${cleanGoal}
 Banner Format: ${size} (${dimensions} px)
+Featured Vehicle: ${carRenderModel}
+Visual Depth: ${is3dHd ? `3D Interactive Perspective (${style3dPreset}, ${resolutionQuality})` : 'Flat 2D'}
 Brand Tone: ${tone}
 Target Section: ${targetTab}
 Note: Mention referral benefits or VIP rewards where natural, keep headline punchy (max 8-10 words), subheadline concise (max 18 words), and CTA under 4 words.`,
           config: {
             systemInstruction:
-              'You are a senior growth designer and conversion copywriter for Apex Tesla Hub (Tesla car sales, wraps, fleet staking, TSLA fast ROI plans, Spin & Win $150, $100 referral rewards). Output strictly valid JSON matching the schema.',
+              'You are a senior growth designer and conversion copywriter for Apex Tesla Hub (Tesla car sales, wraps, fleet staking, TSLA fast ROI plans, Spin & Win Tesla car jackpots, $100 referral rewards). Output strictly valid JSON matching the schema.',
             responseMimeType: 'application/json',
             responseSchema: {
               type: Type.OBJECT,
@@ -258,6 +285,10 @@ Note: Mention referral benefits or VIP rewards where natural, keep headline punc
               size,
               dimensions,
               isAiGenerated: true,
+              is3dHd: Boolean(is3dHd),
+              style3dPreset,
+              resolutionQuality,
+              carRenderModel,
             },
           });
         }
@@ -268,8 +299,8 @@ Note: Mention referral benefits or VIP rewards where natural, keep headline punc
 
     const presetsBySize: Record<string, any> = {
       leaderboard: {
-        title: `AI Campaign: ${cleanGoal.slice(0, 32)}`,
-        badgeText: '728×90 LEADERBOARD • AI',
+        title: `AI 3D Campaign: ${cleanGoal.slice(0, 32)}`,
+        badgeText: is3dHd ? `3D ${resolutionQuality} • LEADERBOARD` : '728×90 LEADERBOARD • AI',
         headline: 'ACCELERATE WEALTH WITH TSLA & ROBOTAXI YIELDS',
         subheadline: `${cleanGoal.slice(0, 90)} — Invite friends via your VIP referral link for +$100 vault bonus.`,
         ctaText: 'Launch Now',
@@ -277,8 +308,8 @@ Note: Mention referral benefits or VIP rewards where natural, keep headline punc
         themeGradient: 'from-zinc-950 via-red-950/85 to-zinc-950',
       },
       square: {
-        title: `AI Square Promo: ${cleanGoal.slice(0, 30)}`,
-        badgeText: '300×300 SQUARE • AI',
+        title: `AI 3D Square Promo: ${cleanGoal.slice(0, 30)}`,
+        badgeText: is3dHd ? `3D ${resolutionQuality} • SQUARE` : '300×300 SQUARE • AI',
         headline: 'VIP TESLA SALES & FLEET YIELD ACCESS',
         subheadline: `${cleanGoal.slice(0, 85)} • Instant crypto checkout & $25 welcome invite bonus.`,
         ctaText: 'Claim VIP Access',
@@ -286,17 +317,17 @@ Note: Mention referral benefits or VIP rewards where natural, keep headline punc
         themeGradient: 'from-zinc-950 via-emerald-950/70 to-zinc-950',
       },
       rectangle: {
-        title: `AI Rectangle Unit: ${cleanGoal.slice(0, 28)}`,
-        badgeText: '300×250 RECTANGLE • AI',
-        headline: 'TSLA FAST ROI + $150 SPIN JACKPOTS',
+        title: `AI 3D Rectangle Unit: ${cleanGoal.slice(0, 28)}`,
+        badgeText: is3dHd ? `3D ${resolutionQuality} • RECTANGLE` : '300×250 RECTANGLE • AI',
+        headline: 'WIN TESLA CARS + TSLA FAST ROI POOLS',
         subheadline: `${cleanGoal.slice(0, 85)} • Automated payouts & enclosed nationwide Tesla shipping.`,
         ctaText: 'Activate Referral',
         accentColor: '#f59e0b',
         themeGradient: 'from-zinc-950 via-amber-950/75 to-red-950/75',
       },
       sidebar: {
-        title: `AI Sidebar Skyscraper: ${cleanGoal.slice(0, 24)}`,
-        badgeText: '160×600 SIDEBAR • AI',
+        title: `AI 3D Sidebar Skyscraper: ${cleanGoal.slice(0, 24)}`,
+        badgeText: is3dHd ? `3D ${resolutionQuality} • SIDEBAR` : '160×600 SIDEBAR • AI',
         headline: 'TESLA INVESTOR & BUYER CLUB',
         subheadline: 'TSLA Stocks • Cyberbeast Delivery • 18.5% APY Fleet Pools',
         ctaText: 'Join With Invite',
@@ -315,6 +346,10 @@ Note: Mention referral benefits or VIP rewards where natural, keep headline punc
         dimensions,
         targetTab,
         isAiGenerated: true,
+        is3dHd: Boolean(is3dHd),
+        style3dPreset,
+        resolutionQuality,
+        carRenderModel,
       },
     });
   } catch (err: unknown) {
@@ -806,21 +841,22 @@ function seedServerInvestments() {
     serverInvestments.set(inv2.id, inv2);
     serverInvestments.set(inv3.id, inv3);
 
-    // Initial wallet balance for Alex Vance
-    serverWallets.set('usr-alex-001', {
-      usd: 12450.0,
-      btc: 0.45,
-      usdt: 14200.0,
-      xrp: 4200.0,
-      bnb: 18.5,
-    });
-    serverWallets.set('usr-apex-001', {
-      usd: 12450.0,
-      btc: 0.45,
-      usdt: 14200.0,
-      xrp: 4200.0,
-      bnb: 18.5,
-    });
+    // Initial wallet balance for Alex Vance & Demo Users
+    const defaultDemoWallets: Record<string, { usd: number; btc: number; usdt: number; xrp: number; bnb: number }> = {
+      'usr-alex-001': { usd: 12450.0, btc: 0.45, usdt: 14200.0, xrp: 4200.0, bnb: 18.5 },
+      'usr-apex-001': { usd: 12450.0, btc: 0.45, usdt: 14200.0, xrp: 4200.0, bnb: 18.5 },
+      'usr-003': { usd: 4280.0, btc: 0.04, usdt: 3100.0, xrp: 1500.0, bnb: 4.0 },
+      'usr-004': { usd: 9850.0, btc: 0.18, usdt: 6400.0, xrp: 3200.0, bnb: 11.2 },
+      'usr-005': { usd: 1820.0, btc: 0.02, usdt: 950.0, xrp: 800.0, bnb: 1.5 },
+      'usr-006': { usd: 24500.0, btc: 0.62, usdt: 18500.0, xrp: 6800.0, bnb: 22.0 },
+      'usr-007': { usd: 15400.0, btc: 0.31, usdt: 9200.0, xrp: 4100.0, bnb: 9.4 },
+      'usr-008': { usd: 7600.0, btc: 0.11, usdt: 5100.0, xrp: 2100.0, bnb: 5.8 },
+      'usr-009': { usd: 2940.0, btc: 0.05, usdt: 1800.0, xrp: 1100.0, bnb: 2.3 },
+      'usr-010': { usd: 31200.0, btc: 0.85, usdt: 22000.0, xrp: 9500.0, bnb: 31.0 },
+    };
+    for (const [uid, bal] of Object.entries(defaultDemoWallets)) {
+      serverWallets.set(uid, bal);
+    }
   }
 }
 
@@ -838,11 +874,57 @@ app.post('/api/mailer/config', (req, res) => {
       fromName: smtpConfig.fromName,
       fromEmail: smtpConfig.fromEmail,
     };
+    setRuntimeSmtpConfig({
+      host: smtpConfig.host,
+      port: Number(smtpConfig.port) || 587,
+      secure: Boolean(smtpConfig.secure),
+      username: smtpConfig.username,
+      password: smtpConfig.password,
+      fromName: smtpConfig.fromName,
+      fromEmail: smtpConfig.fromEmail,
+      replyTo: smtpConfig.replyTo,
+    });
   }
-  return res.json({ success: true });
+  return res.json({ success: true, summary: getEffectiveSmtpSummary() });
 });
 
-// Automated Maturity Email Dispatcher
+app.get('/api/mailer/logs', (_req, res) => {
+  return res.json({
+    success: true,
+    smtpSummary: getEffectiveSmtpSummary(),
+    logs: getDispatchedEmailLogs(),
+  });
+});
+
+app.post('/api/notifications/deposit', async (req, res) => {
+  try {
+    const { email, name, currency, amount, usdEquivalent, txHash, newBalanceUsd } = req.body || {};
+    if (!email || typeof email !== 'string' || !email.includes('@')) {
+      return res.status(400).json({ error: 'Valid recipient email is required for deposit alert.' });
+    }
+    const result = await sendDepositNotificationEmail({
+      email: email.trim(),
+      name: name ? String(name) : undefined,
+      currency: String(currency || 'USD'),
+      amount: Number(amount) || 0,
+      usdEquivalent: Number(usdEquivalent) || Number(amount) || 0,
+      txHash: String(txHash || `0x${Date.now().toString(16)}`),
+      newBalanceUsd: typeof newBalanceUsd === 'number' ? newBalanceUsd : undefined,
+    });
+    return res.json({
+      success: true,
+      status: result.status,
+      messageId: result.messageId,
+      detail: result.detail,
+      logEntry: result.logEntry,
+    });
+  } catch (err: any) {
+    console.error('[Deposit Mailer] Error sending deposit alert:', err);
+    return res.status(500).json({ error: 'Failed to dispatch deposit confirmation email.' });
+  }
+});
+
+// Automated Maturity Email Dispatcher (delegates to shared .env SMTP mailer utility)
 async function dispatchMaturityEmail(params: {
   toEmail: string;
   userName: string;
@@ -854,104 +936,29 @@ async function dispatchMaturityEmail(params: {
   investmentId: string;
   certificateId?: string;
 }): Promise<boolean> {
-  const { toEmail, userName, poolTitle, principalUsd, roiUsd, totalPayoutUsd, newWalletBalanceUsd, investmentId } = params;
+  const { toEmail, userName, poolTitle, principalUsd, roiUsd, totalPayoutUsd, investmentId } = params;
   const certId = params.certificateId || `CERT-SETTLE-${Date.now().toString(36).toUpperCase()}`;
-  const subject = `⚡ [MATURITY SETTLEMENT] ${poolTitle} Yield Plan Complete • $${totalPayoutUsd.toFixed(2)} USD Credited`;
 
-  console.log(`[CRON AUTOMATED EMAIL DISPATCH] To: ${toEmail} | Asset: ${poolTitle} | Payout: $${totalPayoutUsd.toFixed(2)}`);
+  const result = await sendMaturityNotificationEmail({
+    recipientEmail: toEmail,
+    recipientName: userName,
+    investmentId,
+    poolTitle,
+    principalUsd,
+    yieldUsd: roiUsd,
+    certificateId: certId,
+  });
 
-  let delivered = false;
-
-  const smtpHost = serverSmtpConfig?.host || process.env.SMTP_HOST;
-  const smtpPort = serverSmtpConfig?.port || Number(process.env.SMTP_PORT) || 587;
-  const smtpSecure = serverSmtpConfig?.secure ?? Boolean(process.env.SMTP_SECURE);
-  const smtpUser = serverSmtpConfig?.username || process.env.SMTP_USER;
-  const smtpPass =
-    serverSmtpConfig?.password && !serverSmtpConfig.password.includes('•••') && serverSmtpConfig.password.length > 3
-      ? serverSmtpConfig.password
-      : process.env.SMTP_PASS;
-  const fromName = serverSmtpConfig?.fromName || 'Apex Tesla Hub Settlement Operations';
-  const fromEmail = serverSmtpConfig?.fromEmail || process.env.SMTP_FROM || 'concierge@apex-tesla.io';
-
-  // If live SMTP credentials exist in environment or admin settings, send real email
-  if (smtpHost && smtpUser && smtpPass) {
-    try {
-      const nodemailer = await import('nodemailer');
-      const transporter = nodemailer.default.createTransport({
-        host: smtpHost,
-        port: smtpPort,
-        secure: smtpSecure,
-        auth: { user: smtpUser, pass: smtpPass },
-        tls: { rejectUnauthorized: false },
-      });
-
-      await transporter.sendMail({
-        from: `"${fromName}" <${fromEmail}>`,
-        to: toEmail,
-        subject,
-        html: `
-          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 620px; margin: 0 auto; background: #07090e; color: #f4f4f5; padding: 32px; border-radius: 20px; border: 1px solid #10b981;">
-            <div style="text-align: center; margin-bottom: 24px;">
-              <h1 style="color: #10b981; margin: 0; font-size: 24px; letter-spacing: -0.5px;">⚡ APEX TESLA HUB</h1>
-              <p style="color: #a1a1aa; font-size: 13px; margin-top: 4px;">AUTOMATED ON-CHAIN SETTLEMENT PROTOCOL</p>
-            </div>
-
-            <div style="background: #0f172a; padding: 24px; border-radius: 16px; border: 1px solid #1e293b; margin-bottom: 24px;">
-              <h2 style="color: #ffffff; font-size: 18px; margin-top: 0;">Congratulations, ${userName}!</h2>
-              <p style="color: #cbd5e1; font-size: 14px; line-height: 1.6;">
-                Your investment plan in <strong style="color: #38bdf8;">${poolTitle}</strong> has reached full maturity.
-                Our automated ROI cron engine has executed on-chain settlement, returning your initial principal and accrued yield earnings directly into your vault balance.
-              </p>
-
-              <div style="background: #020617; padding: 18px; border-radius: 12px; font-family: monospace; font-size: 13px; margin: 20px 0; border: 1px solid #334155;">
-                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                  <span style="color: #94a3b8;">ORIGINAL PRINCIPAL:</span>
-                  <span style="color: #ffffff; font-weight: bold;">$${principalUsd.toLocaleString()} USD</span>
-                </div>
-                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                  <span style="color: #94a3b8;">ACCRUED ROI YIELD:</span>
-                  <span style="color: #10b981; font-weight: bold;">+$${roiUsd.toFixed(2)} USD</span>
-                </div>
-                <hr style="border: 0; border-top: 1px dashed #334155; margin: 12px 0;" />
-                <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 15px;">
-                  <span style="color: #e2e8f0; font-weight: bold;">TOTAL CREDITED:</span>
-                  <span style="color: #38bdf8; font-weight: bold;">$${totalPayoutUsd.toFixed(2)} USD</span>
-                </div>
-                <div style="display: flex; justify-content: space-between;">
-                  <span style="color: #94a3b8;">NEW VAULT BALANCE:</span>
-                  <span style="color: #ffffff;">$${newWalletBalanceUsd.toFixed(2)} USD</span>
-                </div>
-              </div>
-
-              <div style="font-size: 11px; color: #64748b; font-family: monospace;">
-                SETTLEMENT CERTIFICATE ID: ${certId}<br/>
-                TIMESTAMP: ${new Date().toUTCString()}
-              </div>
-            </div>
-
-            <p style="color: #94a3b8; font-size: 12px; text-align: center; margin: 0;">
-              Funds are instantly available for reinvestment in new high-yield Tesla fleet pools or external crypto withdrawal.
-            </p>
-          </div>
-        `,
-      });
-      delivered = true;
-    } catch (err: any) {
-      console.warn('Live SMTP send failed during cron maturity email:', err?.message);
-    }
-  }
-
-  // Record into dispatched emails audit log
   serverDispatchedEmails.unshift({
-    id: `email-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    id: result.logEntry.id,
     type: 'maturity_settlement',
     recipient: toEmail,
-    subject,
+    subject: result.logEntry.subject,
     amountUsd: totalPayoutUsd,
     investmentId,
     certificateId: certId,
-    dispatchedAt: new Date().toISOString(),
-    status: delivered ? 'delivered' : 'simulated',
+    dispatchedAt: result.logEntry.dispatchedAt,
+    status: result.status === 'delivered' ? 'delivered' : 'simulated',
   });
   if (serverDispatchedEmails.length > 50) serverDispatchedEmails.length = 50;
 
@@ -1079,7 +1086,7 @@ app.get('/api/cron/status', (_req, res) => {
     completedCount,
     totalStakedUsd,
     logs: serverCronLogs.slice(0, 20),
-    dispatchedEmails: serverDispatchedEmails.slice(0, 15),
+    dispatchedEmails: getDispatchedEmailLogs().length > 0 ? getDispatchedEmailLogs().slice(0, 20) : serverDispatchedEmails.slice(0, 15),
     investments,
     settlementEvents: serverSettlementEvents.slice(0, 20),
   });
@@ -1231,7 +1238,7 @@ app.get('/api/wallet/:userId', (req, res) => {
 
 app.post('/api/wallet/:userId/adjust', (req, res) => {
   const { userId } = req.params;
-  const { currency, newAmount, delta } = req.body;
+  const { currency, newAmount, delta, mode, amount } = req.body;
 
   let wallet = serverWallets.get(userId);
   if (!wallet) {
@@ -1240,10 +1247,16 @@ app.post('/api/wallet/:userId/adjust', (req, res) => {
   }
 
   const currKey = (currency || 'USD').toLowerCase() as keyof ServerWallet;
-  if (typeof newAmount === 'number') {
-    (wallet as any)[currKey] = newAmount;
+  const currentVal = Number((wallet as any)[currKey] || 0);
+
+  if (mode === 'add' && typeof amount === 'number') {
+    (wallet as any)[currKey] = Number(Math.max(0, currentVal + Math.abs(amount)).toFixed(4));
+  } else if (mode === 'subtract' && typeof amount === 'number') {
+    (wallet as any)[currKey] = Number(Math.max(0, currentVal - Math.abs(amount)).toFixed(4));
+  } else if (typeof newAmount === 'number') {
+    (wallet as any)[currKey] = Number(Math.max(0, newAmount).toFixed(4));
   } else if (typeof delta === 'number') {
-    (wallet as any)[currKey] = Number(((wallet as any)[currKey] + delta).toFixed(4));
+    (wallet as any)[currKey] = Number(Math.max(0, currentVal + delta).toFixed(4));
   }
 
   return res.json({ success: true, wallet });
@@ -1931,6 +1944,333 @@ app.post('/api/orders', (req, res) => {
     message: `Order #${orderId} confirmed! Tesla ${vehicle.model} is assigned for nationwide delivery. VIN: ${vinAssigned}`,
     order,
   });
+});
+
+// ============================================================================
+// MEDIA UPLOAD (JPG/PNG/WEBP LOGO, FAVICON, SLIDES, MP4/WEBM PROMO VIDEOS)
+// ============================================================================
+app.post('/api/media/upload', (req, res) => {
+  try {
+    const { filename, dataUrl } = req.body || {};
+    if (!filename || !dataUrl || typeof dataUrl !== 'string') {
+      return res.status(400).json({ error: 'filename and dataUrl are required.' });
+    }
+
+    const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+    if (!match) {
+      return res.status(400).json({ error: 'Invalid base64 dataUrl payload.' });
+    }
+
+    const mimeType = match[1].toLowerCase();
+    const base64Data = match[2];
+    const allowedExtMap: Record<string, string> = {
+      'image/jpeg': '.jpg',
+      'image/jpg': '.jpg',
+      'image/png': '.png',
+      'image/webp': '.webp',
+      'video/mp4': '.mp4',
+      'video/webm': '.webm',
+      'video/quicktime': '.mp4',
+    };
+
+    const inferredExt = allowedExtMap[mimeType];
+    if (!inferredExt) {
+      return res.status(400).json({
+        error: 'Unsupported media format. Upload JPG, PNG, WEBP images or MP4/WEBM videos.',
+      });
+    }
+
+    const cleanBase = path
+      .basename(String(filename), path.extname(String(filename)))
+      .replace(/[^a-zA-Z0-9_-]/g, '_')
+      .slice(0, 48);
+    const outName = `${cleanBase || 'media'}_${Date.now()}${inferredExt}`;
+    const outPath = path.join(uploadsDir, outName);
+
+    fs.writeFileSync(outPath, Buffer.from(base64Data, 'base64'));
+    const publicUrl = `/uploads/${outName}`;
+
+    return res.json({
+      success: true,
+      url: publicUrl,
+      mimeType,
+      filename: outName,
+    });
+  } catch (err: unknown) {
+    const error = err as Error;
+    return res.status(500).json({ error: error.message || 'Media upload failed' });
+  }
+});
+
+// ============================================================================
+// SEO METADATA, SITEMAP.XML & RSS.XML SYNDICATION
+// ============================================================================
+let serverSeoState = {
+  siteTitle: 'Apex Tesla Hub - Service, Customization, Rentals & Fleet Yield',
+  metaDescription:
+    'Comprehensive Tesla vehicle hub for certified maintenance, 3M vinyl wraps & custom accessories, exotic fleet rentals, decentralized staking yields, TSLA stocks, and spin & scratch Tesla giveaways.',
+  canonicalUrl: 'https://apex-tesla.io/',
+  logoUrl: '/logo.jpg',
+  faviconUrl: '/favicon.jpg',
+};
+
+let serverSitemapEntries: Array<{
+  path: string;
+  title: string;
+  priority: number;
+  changeFreq: string;
+  isActive: boolean;
+  lastMod: string;
+}> = [
+  { path: 'home', title: 'Apex Tesla Hub Home', priority: 1.0, changeFreq: 'daily', isActive: true, lastMod: '2026-11-12' },
+  { path: 'vehicles', title: 'Buy Factory Tesla Vehicles', priority: 0.95, changeFreq: 'daily', isActive: true, lastMod: '2026-11-12' },
+  { path: 'stocks', title: 'TSLA Stocks & Fast-ROI Plans', priority: 0.9, changeFreq: 'daily', isActive: true, lastMod: '2026-11-12' },
+  { path: 'investment', title: 'Autonomous Fleet Staking', priority: 0.9, changeFreq: 'daily', isActive: true, lastMod: '2026-11-12' },
+  { path: 'services', title: 'Certified Tesla Service & Ranger', priority: 0.85, changeFreq: 'weekly', isActive: true, lastMod: '2026-11-11' },
+  { path: 'wraps', title: 'Custom 3M Wrap Studio', priority: 0.85, changeFreq: 'weekly', isActive: true, lastMod: '2026-11-11' },
+  { path: 'rentals', title: 'Exotic Tesla Rental Fleet', priority: 0.85, changeFreq: 'weekly', isActive: true, lastMod: '2026-11-11' },
+  { path: 'promotions', title: 'Spin & Win + Scratch Cards', priority: 0.85, changeFreq: 'daily', isActive: true, lastMod: '2026-11-12' },
+  { path: 'banners', title: '3D/HD Banners & Short Promo Videos', priority: 0.8, changeFreq: 'daily', isActive: true, lastMod: '2026-11-12' },
+  { path: 'faq', title: 'Frequently Asked Questions', priority: 0.7, changeFreq: 'weekly', isActive: true, lastMod: '2026-11-12' },
+];
+
+let serverRssItems: Array<{
+  id: string;
+  title: string;
+  linkTab: string;
+  description: string;
+  category: string;
+  pubDate: string;
+  guid: string;
+  isPublished: boolean;
+}> = [
+  {
+    id: 'rss-01',
+    title: '2026 Cybertruck Cyberbeast & Model S Plaid Multi-Slide 3D Promo Suite Live',
+    linkTab: 'banners',
+    description: 'Ambassadors can now share rotating 3D/HD promotional banners and AI-generated short promo videos with instant $100 referral tracking.',
+    category: 'Promotions',
+    pubDate: '2026-11-12T10:30:00Z',
+    guid: 'apex-rss-2026-11-12-01',
+    isPublished: true,
+  },
+  {
+    id: 'rss-02',
+    title: 'Robotaxi 18.4% APY & TSLA.FSD 34% Fast-ROI Settlement Cycle Completed',
+    linkTab: 'investment',
+    description: 'Automated daily ROI distributions settled directly into participant USD vaults across autonomous Robotaxi and TSLA Fast-ROI pools.',
+    category: 'Yield & Stocks',
+    pubDate: '2026-11-12T08:15:00Z',
+    guid: 'apex-rss-2026-11-12-02',
+    isPublished: true,
+  },
+];
+
+const escapeXml = (str: string) =>
+  String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+
+app.post('/api/seo/sync', (req, res) => {
+  const { seoSettings, sitemapEntries, rssFeedItems } = req.body || {};
+  if (seoSettings) {
+    serverSeoState = { ...serverSeoState, ...seoSettings };
+  }
+  if (Array.isArray(sitemapEntries)) {
+    serverSitemapEntries = sitemapEntries;
+  }
+  if (Array.isArray(rssFeedItems)) {
+    serverRssItems = rssFeedItems;
+  }
+  return res.json({ success: true });
+});
+
+app.get('/sitemap.xml', (req, res) => {
+  const baseUrl = (serverSeoState.canonicalUrl || `${req.protocol}://${req.get('host')}/`).replace(/\/+$/, '');
+  const active = serverSitemapEntries.filter((e) => e.isActive !== false);
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${active
+  .map(
+    (entry) => `  <url>
+    <loc>${escapeXml(`${baseUrl}/?tab=${encodeURIComponent(entry.path)}`)}</loc>
+    <lastmod>${escapeXml(entry.lastMod || new Date().toISOString().slice(0, 10))}</lastmod>
+    <changefreq>${escapeXml(entry.changeFreq || 'weekly')}</changefreq>
+    <priority>${Number(entry.priority || 0.8).toFixed(2)}</priority>
+  </url>`
+  )
+  .join('\n')}
+</urlset>`;
+  res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+  return res.send(xml);
+});
+
+app.get('/rss.xml', (req, res) => {
+  const baseUrl = (serverSeoState.canonicalUrl || `${req.protocol}://${req.get('host')}/`).replace(/\/+$/, '');
+  const published = serverRssItems.filter((item) => item.isPublished !== false);
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>${escapeXml(serverSeoState.siteTitle)}</title>
+    <link>${escapeXml(baseUrl)}</link>
+    <description>${escapeXml(serverSeoState.metaDescription)}</description>
+    <language>en-us</language>
+    <lastBuildDate>${new Date().toUTCString()}</lastBuildDate>
+    <atom:link href="${escapeXml(`${baseUrl}/rss.xml`)}" rel="self" type="application/rss+xml" />
+${published
+  .map(
+    (item) => `    <item>
+      <title>${escapeXml(item.title)}</title>
+      <link>${escapeXml(`${baseUrl}/?tab=${encodeURIComponent(item.linkTab || 'home')}`)}</link>
+      <guid isPermaLink="false">${escapeXml(item.guid || item.id)}</guid>
+      <category>${escapeXml(item.category || 'Updates')}</category>
+      <pubDate>${new Date(item.pubDate || Date.now()).toUTCString()}</pubDate>
+      <description>${escapeXml(item.description)}</description>
+    </item>`
+  )
+  .join('\n')}
+  </channel>
+</rss>`;
+  res.setHeader('Content-Type', 'application/rss+xml; charset=utf-8');
+  return res.send(xml);
+});
+
+// ============================================================================
+// AI PROMOTIONAL SHORT VIDEO GENERATOR (GEMINI 4 HYDROGEN)
+// ============================================================================
+app.post('/api/gemini/generate-promo-video', async (req, res) => {
+  try {
+    const {
+      topic = '2026 Tesla Cybertruck Cyberbeast & 28.5% APY Autonomous Fleet Yield',
+      targetTab = 'vehicles',
+      accentColor = '#ef4444',
+      durationSec = 12,
+    } = req.body || {};
+
+    const slidePool = ['/promo-cyberbeast.jpg', '/promo-plaid.jpg', '/promo-robotaxi.jpg'];
+
+    if (ai) {
+      try {
+        const response = await ai.models.generateContent({
+          model: 'gemini-4-hydrogen',
+          contents: `Create a punchy 3-scene high-converting promotional short video storyboard for Apex Tesla Hub.
+Campaign Topic: ${topic}
+Target Route: ${targetTab}
+Duration: ${durationSec} seconds
+Each scene needs a crisp title (max 5 words), short subtitle (max 14 words), and a bold metric badge (max 4 words).`,
+          config: {
+            systemInstruction:
+              'You are a creative director producing short vertical/widescreen Tesla EV & fintech reels for Apex Tesla Hub. Output strictly valid JSON matching the schema.',
+            responseMimeType: 'application/json',
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                title: { type: Type.STRING },
+                headline: { type: Type.STRING },
+                subheadline: { type: Type.STRING },
+                ctaText: { type: Type.STRING },
+                scenes: {
+                  type: Type.ARRAY,
+                  items: {
+                    type: Type.OBJECT,
+                    properties: {
+                      title: { type: Type.STRING },
+                      subtitle: { type: Type.STRING },
+                      metric: { type: Type.STRING },
+                    },
+                    required: ['title', 'subtitle', 'metric'],
+                  },
+                },
+              },
+              required: ['title', 'headline', 'subheadline', 'ctaText', 'scenes'],
+            },
+          },
+        });
+
+        if (response.text) {
+          const parsed = JSON.parse(response.text);
+          const scenes = (Array.isArray(parsed.scenes) ? parsed.scenes.slice(0, 4) : []).map(
+            (s: any, idx: number) => ({
+              title: s.title || 'APEX TESLA SHOWCASE',
+              subtitle: s.subtitle || topic,
+              metric: s.metric || '2026 EDITION',
+              bgImage: slidePool[idx % slidePool.length],
+            })
+          );
+          return res.json({
+            success: true,
+            aiPowered: true,
+            video: {
+              title: parsed.title,
+              headline: parsed.headline,
+              subheadline: parsed.subheadline,
+              ctaText: parsed.ctaText,
+              targetTab,
+              durationSec: Number(durationSec) || 12,
+              videoType: 'ai_generated',
+              thumbnailUrl: slidePool[0],
+              accentColor,
+              scenes:
+                scenes.length > 0
+                  ? scenes
+                  : [
+                      {
+                        title: 'APEX TESLA HUB 2026',
+                        subtitle: topic,
+                        metric: 'INSTANT DISPATCH',
+                        bgImage: slidePool[0],
+                      },
+                    ],
+            },
+          });
+        }
+      } catch (geminiErr: any) {
+        console.warn('Gemini promo video fallback triggered:', geminiErr?.message);
+      }
+    }
+
+    return res.json({
+      success: true,
+      aiPowered: false,
+      video: {
+        title: `AI Spotlight: ${String(topic).slice(0, 38)}`,
+        headline: String(topic).slice(0, 64).toUpperCase(),
+        subheadline: 'Exclusive factory EVs, automated fleet ROI & $100 VIP ambassador referral rewards.',
+        ctaText: 'Activate VIP Offer',
+        targetTab,
+        durationSec: Number(durationSec) || 12,
+        videoType: 'ai_generated',
+        thumbnailUrl: '/promo-cyberbeast.jpg',
+        accentColor,
+        scenes: [
+          {
+            title: '2026 FLAGSHIP PERFORMANCE',
+            subtitle: String(topic).slice(0, 90),
+            metric: '0–60 IN 1.99s',
+            bgImage: '/promo-plaid.jpg',
+          },
+          {
+            title: 'GLOBAL FLEET & YIELDS',
+            subtitle: 'Commercial Robotaxi & Supercharger V4 staking with daily automated payouts.',
+            metric: 'UP TO 34% FAST ROI',
+            bgImage: '/promo-robotaxi.jpg',
+          },
+          {
+            title: 'SHARE & EARN $100',
+            subtitle: 'Invite friends using your referral code for instant vault credits & free spins.',
+            metric: 'VIP AMBASSADOR KIT',
+            bgImage: '/promo-cyberbeast.jpg',
+          },
+        ],
+      },
+    });
+  } catch (err: unknown) {
+    const error = err as Error;
+    return res.status(500).json({ error: error.message || 'Failed to generate promo video' });
+  }
 });
 
 
