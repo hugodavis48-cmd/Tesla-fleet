@@ -52,7 +52,7 @@ export const LOYALTY_TIERS: LoyaltyTierConfig[] = [
     perks: [
       'Base 1.0x reward multiplier on all platform activity & points',
       '1.0% storefront cashback credit on Tesla parts & hardware',
-      '$100 welcome referral credit per verified friend deposit',
+      '$25 Bronze referral credit per verified friend deposit ($25–$200 across tiers)',
     ],
     accentText: 'text-amber-400',
     accentBg: 'bg-amber-500/10',
@@ -73,7 +73,7 @@ export const LOYALTY_TIERS: LoyaltyTierConfig[] = [
     perks: [
       '1.25x Loyalty Multiplier across deposits, purchases & referral points',
       '+1.5% APY boost on active Robotaxi & Supercharger staking pools',
-      '15% discount on service center labor & mobile ranger dispatch fees',
+      '$75 Silver Ambassador referral payout + 15% service fee discount',
     ],
     accentText: 'text-zinc-200',
     accentBg: 'bg-zinc-400/10',
@@ -94,7 +94,7 @@ export const LOYALTY_TIERS: LoyaltyTierConfig[] = [
     perks: [
       '1.5x Loyalty Multiplier on all store purchases, fleet yield & referrals',
       '+3.0% APY boost on Tesla Fleet & Featured Stock ROI vaults',
-      'Priority Carrier Allocation & 30% off vinyl wraps, PPF & retrofits',
+      '$125 Gold Plaid referral payout + 30% off vinyl wraps & retrofits',
     ],
     accentText: 'text-yellow-300',
     accentBg: 'bg-yellow-500/10',
@@ -115,7 +115,7 @@ export const LOYALTY_TIERS: LoyaltyTierConfig[] = [
     perks: [
       '2.0x Maximum Loyalty Multiplier across every ecosystem action',
       '+6.0% APY Founders Vault boost + 5.0% hardware cashback rebate',
-      '50% fee waiver & complimentary VIP Gigafactory enclosed dispatch',
+      '$200 Max Platinum referral payout & 50% fee waiver on enclosed dispatch',
     ],
     accentText: 'text-cyan-300',
     accentBg: 'bg-cyan-500/10',

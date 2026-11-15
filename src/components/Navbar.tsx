@@ -692,7 +692,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                               <span>Refer & Earn</span>
                             </div>
                             <span className="text-[10px] font-bold text-emerald-400 bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-500/30">
-                              +$100
+                              $25–$200
                             </span>
                           </button>
                         )}

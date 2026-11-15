@@ -133,7 +133,7 @@ export const GeminiChatbot: React.FC<GeminiChatbotProps> = ({
   };
 
   const quickPrompts = [
-    { label: 'Refer & Earn $100', text: 'How does the Apex referral system work and how do I earn $100 credits per friend first deposit?' },
+    { label: 'Refer & Earn $25–$200', text: 'How does the Apex tier-based referral system work and how do I earn $25 to $200 credits per friend first deposit?' },
     { label: 'Diagnose Error Code', text: 'I am seeing Tesla warning code BMS_u018 and reduced acceleration. What is the cause?' },
     { label: 'Recommend Wrap', text: 'What wrap finishes look best on a Model S Plaid? Can you compare Satin Stealth Black vs Liquid Chrome?' },
     { label: 'Rental Rates', text: 'What is the daily rate and 0-60 performance for the Cybertruck Cyberbeast rental?' },

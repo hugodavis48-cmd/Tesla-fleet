@@ -309,6 +309,25 @@
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "email", "interestCategory", "status", "source", "subscribedAt", "createdAt", "updatedAt"]
+    },
+    "EngagementActivity": {
+      "title": "EngagementActivity",
+      "description": "Lightweight logged-in user activity record tracking page dwell time, social sharing interactions, and earned engagement points/cents.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "userId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "userTier": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "activityType": { "type": "string", "enum": ["page_dwell", "social_share"] },
+        "pageTab": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "dwellSeconds": { "type": "number" },
+        "platform": { "type": "string", "minLength": 0, "maxLength": 40 },
+        "targetTitle": { "type": "string", "minLength": 0, "maxLength": 200 },
+        "centsEarned": { "type": "number" },
+        "pointsEarned": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "userTier", "activityType", "pageTab", "centsEarned", "pointsEarned", "createdAt"]
     }
   },
   "firestore": {
@@ -351,6 +370,10 @@
     "/newsletter_subscribers/{subscriberId}": {
       "schema": { "$ref": "#/entities/NewsletterSubscriber" },
       "description": "Admin-isolated mailing list subscribers collected via NewsletterSignup."
+    },
+    "/engagement_activities/{activityId}": {
+      "schema": { "$ref": "#/entities/EngagementActivity" },
+      "description": "Owner-isolated user engagement activity telemetry (page dwell time & social share interactions) for cent rewards."
     }
   }
 }

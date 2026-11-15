@@ -3,6 +3,7 @@ import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI, Type } from '@google/genai';
 import dotenv from 'dotenv';
 import fs from 'fs';
+import http from 'http';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -64,7 +65,7 @@ Apex Tesla Hub is a premier all-in-one ecosystem for Tesla owners and enthusiast
 4. Vehicle & Fleet Investment: Decentralized fleet revenue-sharing pools, Supercharger node staking with up to 18.5% APY, daily crypto dividend distributions.
 5. Promotions: Daily Spin-and-Win Wheel (credits, Tesla merchandise, car giveaways) and Purchasable Scratch & Win cards ($50 to $8,000 max winnings).
 6. Crypto Payments: Instant deposits and service settlements via BTC, USDT (TRC20/ERC20), XRP, BNB, and ETH.
-7. Ambassador & Referral Rewards: Every registered customer gets a unique invite link and custom referral code. When a friend signs up and completes their first deposit, the referrer receives $100 Platform Credits directly into their vault plus 2 Free Wheel Spins. The friend receives a $25 welcome service credit and 5 Free Spins upon sign up.
+7. Ambassador & Referral Rewards: Every registered customer gets a unique invite link and custom referral code. When a friend signs up and completes their first deposit, the referrer receives tier-based Platform Credits from $25 minimum up to $200 maximum ($25 Standard, $75 Silver Ambassador, $125 Plaid Member, $200 Founders Club) directly into their vault plus 2 Free Wheel Spins. The friend receives a $25 welcome service credit and 5 Free Spins upon sign up.
 
 Customer context:
 ${userVehicle ? `Current User Vehicle: ${JSON.stringify(userVehicle)}` : 'Customer vehicle: Not specified'}
@@ -99,7 +100,7 @@ Tone: Futuristic, highly technical, courteous, confident, and concise. Format re
       const lastUserMsg = messages[messages.length - 1]?.content?.toLowerCase() || '';
       let reply = "Welcome to Apex Tesla Hub Service. Our technicians are ready to assist with your Model S, 3, X, Y, Cybertruck, or Roadster. How can we optimize your vehicle today?";
       if (lastUserMsg.includes('referral') || lastUserMsg.includes('invite') || lastUserMsg.includes('friend')) {
-        reply = "You can earn $100 Platform Credits directly in your dashboard vault for every friend who joins via your unique invite link and makes their first deposit! Your friend also gets $25 welcome credits and 5 free promotional spins. Access your link anytime in the **Refer & Earn** tab.";
+        reply = "You can earn tier-based Platform Credits from $25 up to $200 ($25 Standard, $75 Silver Ambassador, $125 Plaid Member, $200 Founders Club) directly in your dashboard vault for every friend who joins via your unique invite link and makes their first deposit! Your friend also gets $25 welcome credits and 5 free promotional spins. Access your link anytime in the **Refer & Earn** tab.";
       } else if (lastUserMsg.includes('wrap') || lastUserMsg.includes('color')) {
         reply = "Our custom wrap studio offers premium 3M and Avery Dennison 3.2mil cast vinyl wraps, including Satin Stealth Black, Liquid Chrome, and Forged Carbon fiber. Full body wrap packages include a 5-year warranty against peeling and UV discoloration. You can preview colors directly in our Custom Studio tab!";
       } else if (lastUserMsg.includes('battery') || lastUserMsg.includes('range') || lastUserMsg.includes('charge')) {
@@ -269,7 +270,7 @@ Target Section: ${targetTab}
 Note: Mention referral benefits or VIP rewards where natural, keep headline punchy (max 8-10 words), subheadline concise (max 18 words), and CTA under 4 words.`,
           config: {
             systemInstruction:
-              'You are a senior growth designer and conversion copywriter for Apex Tesla Hub (Tesla car sales, wraps, fleet staking, TSLA fast ROI plans, Spin & Win Tesla car jackpots, $100 referral rewards). Output strictly valid JSON matching the schema.',
+              'You are a senior growth designer and conversion copywriter for Apex Tesla Hub (Tesla car sales, wraps, fleet staking, TSLA fast ROI plans, Spin & Win Tesla car jackpots, $25–$200 tiered referral rewards). Output strictly valid JSON matching the schema.',
             responseMimeType: 'application/json',
             responseSchema: {
               type: Type.OBJECT,
@@ -318,7 +319,7 @@ Note: Mention referral benefits or VIP rewards where natural, keep headline punc
         title: `AI 3D Campaign: ${cleanGoal.slice(0, 32)}`,
         badgeText: is3dHd ? `3D ${resolutionQuality} • LEADERBOARD` : '728×90 LEADERBOARD • AI',
         headline: 'ACCELERATE WEALTH WITH TSLA & ROBOTAXI YIELDS',
-        subheadline: `${cleanGoal.slice(0, 90)} — Invite friends via your VIP referral link for +$100 vault bonus.`,
+        subheadline: `${cleanGoal.slice(0, 90)} — Invite friends via your VIP referral link for $25–$200 tiered vault bonuses.`,
         ctaText: 'Launch Now',
         accentColor: '#ef4444',
         themeGradient: 'from-zinc-950 via-red-950/85 to-zinc-950',
@@ -2304,7 +2305,7 @@ let serverRssItems: Array<{
     id: 'rss-01',
     title: '2026 Cybertruck Cyberbeast & Model S Plaid Multi-Slide 3D Promo Suite Live',
     linkTab: 'banners',
-    description: 'Ambassadors can now share rotating 3D/HD promotional banners and AI-generated short promo videos with instant $100 referral tracking.',
+    description: 'Ambassadors can now share rotating 3D/HD promotional banners and AI-generated short promo videos with instant $25–$200 tiered referral tracking.',
     category: 'Promotions',
     pubDate: '2026-11-12T10:30:00Z',
     guid: 'apex-rss-2026-11-12-01',
@@ -2540,7 +2541,7 @@ Each scene needs a crisp title (max 5 words), short subtitle (max 14 words), and
       video: {
         title: `AI Spotlight: ${String(topic).slice(0, 38)}`,
         headline: String(topic).slice(0, 64).toUpperCase(),
-        subheadline: 'Exclusive factory EVs, automated fleet ROI & $100 VIP ambassador referral rewards.',
+        subheadline: 'Exclusive factory EVs, automated fleet ROI & $25–$200 tiered VIP ambassador referral rewards.',
         ctaText: 'Activate VIP Offer',
         targetTab,
         durationSec: Number(durationSec) || 12,
@@ -2561,8 +2562,8 @@ Each scene needs a crisp title (max 5 words), short subtitle (max 14 words), and
             bgImage: '/promo-robotaxi.jpg',
           },
           {
-            title: 'SHARE & EARN $100',
-            subtitle: 'Invite friends using your referral code for instant vault credits & free spins.',
+            title: 'SHARE & EARN $25–$200',
+            subtitle: 'Invite friends using your referral code for tier-scaled vault credits & free spins.',
             metric: 'VIP AMBASSADOR KIT',
             bgImage: '/promo-cyberbeast.jpg',
           },
@@ -2914,10 +2915,14 @@ app.delete('/api/analytics/visitors', (_req, res) => {
 // Vite middleware setup for Development or Static serving for Production
 async function startServer() {
   const isProd = process.env.NODE_ENV === 'production';
+  const httpServer = http.createServer(app);
 
   if (!isProd) {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        hmr: process.env.DISABLE_HMR === 'true' ? false : { server: httpServer },
+      },
       appType: 'spa',
     });
     app.use(vite.middlewares);
@@ -2928,9 +2933,12 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
+  httpServer.listen(PORT, '0.0.0.0', () => {
     console.log(`Apex Tesla Hub server running on http://0.0.0.0:${PORT}`);
   });
 }
 
-startServer();
+startServer().catch((err) => {
+  console.error('Failed to start Apex Tesla Hub server:', err);
+  process.exit(1);
+});

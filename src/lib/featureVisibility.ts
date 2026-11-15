@@ -50,9 +50,13 @@ export function isTabEnabled(tab: string, toggles?: Partial<FeatureToggles> | nu
   const key = TAB_TO_FEATURE_KEY[tab];
   if (!key) return true;
   if (key === 'enableStockTrading') {
-    if (toggles.enableStockTrading === false || toggles.teslaStocksEnabled === false) {
-      return toggles.enableStockTrading !== false && toggles.teslaStocksEnabled !== false;
-    }
+    return toggles.enableStockTrading !== false && toggles.teslaStocksEnabled !== false;
+  }
+  if (key === 'enableVehicleSales') {
+    return toggles.enableVehicleSales !== false && toggles.vehicleSalesEnabled !== false;
+  }
+  if (key === 'enableStakingYield') {
+    return toggles.enableStakingYield !== false && toggles.investmentsEnabled !== false;
   }
   return toggles[key] !== false;
 }

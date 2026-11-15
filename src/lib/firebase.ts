@@ -2,6 +2,7 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import {
   getFirestore,
+  initializeFirestore,
   doc,
   getDoc,
   getDocs,
@@ -9,6 +10,9 @@ import {
   updateDoc,
   deleteDoc,
   collection,
+  query,
+  where,
+  limit,
   getDocFromServer,
   serverTimestamp,
 } from 'firebase/firestore';
@@ -24,6 +28,7 @@ import {
 import firebaseConfig from '../../firebase-applet-config.json';
 import {
   AutoCryptoGateway,
+  EngagementActivityRecord,
   MarketingBanner,
   MediaAssetRecord,
   NewsletterSubscriber,
@@ -35,7 +40,31 @@ import {
 
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+function createFirestoreInstance() {
+  try {
+    if (typeof window !== 'undefined') {
+      return initializeFirestore(
+        app,
+        {
+          experimentalForceLongPolling: true,
+          ignoreUndefinedProperties: true,
+        },
+        firebaseConfig.firestoreDatabaseId
+      );
+    }
+    return initializeFirestore(
+      app,
+      {
+        ignoreUndefinedProperties: true,
+      },
+      firebaseConfig.firestoreDatabaseId
+    );
+  } catch {
+    return getFirestore(app, firebaseConfig.firestoreDatabaseId);
+  }
+}
+
+export const db = createFirestoreInstance();
 export const auth = getAuth(app);
 export const storage = getStorage(app);
 export const googleProvider = new GoogleAuthProvider();
@@ -98,7 +127,16 @@ async function testConnection() {
     await getDocFromServer(doc(db, 'test', 'connection'));
   } catch (error) {
     if (error instanceof Error && error.message.includes('the client is offline')) {
-      console.error('Please check your Firebase configuration.');
+      // Retry once after a short delay in case the initial iframe/proxy WebChannel handshake raced
+      await new Promise((resolve) => setTimeout(resolve, 1200));
+      try {
+        await getDocFromServer(doc(db, 'test', 'connection'));
+        return;
+      } catch (retryError) {
+        if (retryError instanceof Error && retryError.message.includes('the client is offline')) {
+          console.error('Please check your Firebase configuration.');
+        }
+      }
     }
   }
 }
@@ -822,7 +860,11 @@ export async function loadManagedUsersFromFirestore(): Promise<User[]> {
           email: String(d.email),
           role: d.role === 'admin' ? 'admin' : 'customer',
           tier:
-            d.tier === 'Founders Club' || d.tier === 'Plaid Member' ? d.tier : 'Standard',
+            d.tier === 'Founders Club' ||
+            d.tier === 'Plaid Member' ||
+            d.tier === 'Silver Ambassador'
+              ? d.tier
+              : 'Standard',
           accountStatus:
             d.accountStatus === 'suspended' || d.accountStatus === 'flagged' || d.accountStatus === 'banned'
               ? d.accountStatus
@@ -870,7 +912,11 @@ export async function saveManagedUserToFirestore(
       email: (user.email || 'member@apex-tesla.io').slice(0, 200),
       role: user.role === 'admin' ? 'admin' : 'customer',
       tier:
-        user.tier === 'Founders Club' || user.tier === 'Plaid Member' ? user.tier : 'Standard',
+        user.tier === 'Founders Club' ||
+        user.tier === 'Plaid Member' ||
+        user.tier === 'Silver Ambassador'
+          ? user.tier
+          : 'Standard',
       accountStatus:
         user.accountStatus === 'suspended' || user.accountStatus === 'flagged' || user.accountStatus === 'banned'
           ? user.accountStatus
@@ -1067,5 +1113,117 @@ export async function deleteNewsletterSubscriberFromFirestore(
     }
   }
 }
+
+// ---------- ENGAGEMENT ACTIVITY TRACKER (`/engagement_activities/{activityId}`) ----------
+
+export async function saveEngagementActivityToFirestore(
+  activity: Omit<EngagementActivityRecord, 'userId'> & { userId?: string }
+): Promise<{ synced: boolean; record?: EngagementActivityRecord; reason?: string }> {
+  if (!auth.currentUser || !auth.currentUser.emailVerified) {
+    return { synced: false, reason: 'verified_auth_required' };
+  }
+  const safeId = toSafeFirestoreId(activity.id, 'act');
+  const safeTab = (activity.pageTab || 'home').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 64) || 'home';
+  const path = `engagement_activities/${safeId}`;
+  const centsEarned = Math.max(0, Math.min(10000, Number(activity.centsEarned) || 0));
+  const pointsEarned = Math.max(0, Math.min(100000, Number(activity.pointsEarned) || 0));
+
+  const payload: Record<string, unknown> = {
+    id: safeId,
+    userId: auth.currentUser.uid,
+    userTier: (activity.userTier || 'Standard').slice(0, 64),
+    activityType: activity.activityType === 'social_share' ? 'social_share' : 'page_dwell',
+    pageTab: safeTab,
+    centsEarned,
+    pointsEarned,
+    createdAt: serverTimestamp(),
+  };
+
+  if (typeof activity.dwellSeconds === 'number') {
+    payload.dwellSeconds = Math.max(0, Math.min(86400, Math.round(activity.dwellSeconds)));
+  }
+  if (activity.platform) {
+    payload.platform = String(activity.platform).slice(0, 40);
+  }
+  if (activity.targetTitle) {
+    payload.targetTitle = String(activity.targetTitle).slice(0, 200);
+  }
+
+  const normalizedRecord: EngagementActivityRecord = {
+    id: safeId,
+    userId: activity.userId || auth.currentUser.uid,
+    userTier: String(payload.userTier),
+    activityType: payload.activityType as 'page_dwell' | 'social_share',
+    pageTab: safeTab,
+    dwellSeconds: typeof payload.dwellSeconds === 'number' ? payload.dwellSeconds : undefined,
+    platform: typeof payload.platform === 'string' ? payload.platform : undefined,
+    targetTitle: typeof payload.targetTitle === 'string' ? payload.targetTitle : undefined,
+    centsEarned,
+    pointsEarned,
+    createdAt: activity.createdAt || new Date().toISOString(),
+  };
+
+  try {
+    await setDoc(doc(db, 'engagement_activities', safeId), payload);
+    return { synced: true, record: normalizedRecord };
+  } catch (err) {
+    try {
+      handleFirestoreError(err, OperationType.CREATE, path);
+    } catch (wrapped) {
+      return {
+        synced: false,
+        record: normalizedRecord,
+        reason: wrapped instanceof Error ? wrapped.message : String(wrapped),
+      };
+    }
+  }
+}
+
+export async function loadEngagementActivitiesFromFirestore(
+  isAdminUser = false
+): Promise<EngagementActivityRecord[]> {
+  if (!auth.currentUser || !auth.currentUser.emailVerified) return [];
+  const path = 'engagement_activities';
+  try {
+    const refCol = collection(db, path);
+    const targetQuery = isAdminUser
+      ? query(refCol, limit(200))
+      : query(refCol, where('userId', '==', auth.currentUser.uid), limit(150));
+    const snap = await getDocs(targetQuery);
+    if (snap.empty) return [];
+    const items: EngagementActivityRecord[] = [];
+    snap.forEach((docSnap) => {
+      const d = docSnap.data();
+      if (!d || !d.userId) return;
+      const createdAtIso =
+        typeof d.createdAt?.toDate === 'function'
+          ? d.createdAt.toDate().toISOString()
+          : typeof d.createdAt === 'string'
+          ? d.createdAt
+          : new Date().toISOString();
+      items.push({
+        id: String(d.id || docSnap.id),
+        userId: String(d.userId),
+        userTier: String(d.userTier || 'Standard'),
+        activityType: d.activityType === 'social_share' ? 'social_share' : 'page_dwell',
+        pageTab: String(d.pageTab || 'home'),
+        dwellSeconds: typeof d.dwellSeconds === 'number' ? d.dwellSeconds : undefined,
+        platform: typeof d.platform === 'string' && d.platform ? d.platform : undefined,
+        targetTitle: typeof d.targetTitle === 'string' && d.targetTitle ? d.targetTitle : undefined,
+        centsEarned: Number(d.centsEarned ?? 0),
+        pointsEarned: Number(d.pointsEarned ?? 0),
+        createdAt: createdAtIso,
+      });
+    });
+    return items.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  } catch (err) {
+    try {
+      handleFirestoreError(err, OperationType.LIST, path);
+    } catch {
+      return [];
+    }
+  }
+}
+
 
 

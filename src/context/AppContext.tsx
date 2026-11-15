@@ -28,6 +28,8 @@ import {
   updateNewsletterSubscriberInFirestore,
   deleteNewsletterSubscriberFromFirestore,
   toNewsletterSubscriberId,
+  saveEngagementActivityToFirestore,
+  loadEngagementActivitiesFromFirestore,
 } from '../lib/firebase';
 import { PageSeoMeta } from '../types';
 import {
@@ -97,6 +99,8 @@ import {
   EngagementRewardConfig,
   EngagementRewardEvent,
   EngagementActionType,
+  EngagementTierLevel,
+  EngagementActivityRecord,
   SocialSharePlatformId,
 } from '../types';
 import {
@@ -586,6 +590,29 @@ interface AppContextType {
   grantManualEngagementReward: (userId: string, cents: number, reason: string) => boolean;
   revokeEngagementReward: (rewardId: string) => void;
   resetDailyEngagementUsage: () => void;
+  // Lightweight Activity Tracker (Dwell Time & Social Shares) + Tier Progress
+  engagementActivities: EngagementActivityRecord[];
+  getUserEngagementSummary: (user?: User | null) => {
+    totalPoints: number;
+    totalCents: number;
+    totalUsd: number;
+    todayUsd: number;
+    totalDwellSeconds: number;
+    totalSocialShares: number;
+    activeLevel: EngagementTierLevel;
+    nextLevel: EngagementTierLevel | null;
+    progressPct: number;
+    pointsToNext: number;
+    depositToNextUsd: number;
+    referralRewardUsd: number;
+  };
+  trackSocialShareActivity: (params: {
+    platform: SocialSharePlatformId | string;
+    pageTab: string;
+    targetTitle?: string;
+    postId?: string;
+    skipReward?: boolean;
+  }) => { awardedCents: number; awardedUsd: number };
   // Visitor Analytics Tracker
   trackVisitorAction: (action: string, pageTab: string, details?: string) => void;
 }
@@ -1994,6 +2021,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             ...DEFAULT_ENGAGEMENT_REWARD_CONFIG.tierMultipliers,
             ...(parsed.tierMultipliers || {}),
           },
+          tierLevels:
+            Array.isArray(parsed.tierLevels) && parsed.tierLevels.length > 0
+              ? parsed.tierLevels.map((lvl) => ({
+                  ...lvl,
+                  referralRewardUsd: Math.min(200, Math.max(25, Number(lvl.referralRewardUsd) || 25)),
+                }))
+              : DEFAULT_ENGAGEMENT_REWARD_CONFIG.tierLevels,
           enabledSharePlatforms:
             Array.isArray(parsed.enabledSharePlatforms) && parsed.enabledSharePlatforms.length > 0
               ? parsed.enabledSharePlatforms
@@ -2018,6 +2052,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     return INITIAL_ENGAGEMENT_REWARDS;
   });
+
+  const [engagementActivities, setEngagementActivities] = useState<EngagementActivityRecord[]>(() => {
+    const saved = localStorage.getItem('apex_engagement_activities_v1');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      } catch {
+        // fallback
+      }
+    }
+    return [];
+  });
+
+  const activeRouteTabRef = useRef<string>(activeRouteTab);
+  const currentTabDwellSecondsRef = useRef<number>(0);
 
   const [activeBlogPostSlug, setActiveBlogPostSlug] = useState<string | null>(() => {
     if (typeof window !== 'undefined') {
@@ -2541,6 +2591,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             ...prev.tierMultipliers,
             ...(cfg.tierMultipliers || {}),
           },
+          tierLevels:
+            Array.isArray(cfg.tierLevels) && cfg.tierLevels.length > 0
+              ? cfg.tierLevels.map((lvl) => ({
+                  ...lvl,
+                  referralRewardUsd: Math.min(200, Math.max(25, Number(lvl.referralRewardUsd) || 25)),
+                }))
+              : prev.tierLevels || DEFAULT_ENGAGEMENT_REWARD_CONFIG.tierLevels,
           enabledSharePlatforms:
             Array.isArray(cfg.enabledSharePlatforms) && cfg.enabledSharePlatforms.length > 0
               ? cfg.enabledSharePlatforms
@@ -2679,6 +2736,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }
           })
           .catch(() => {});
+        if (fbUser.emailVerified) {
+          void loadEngagementActivitiesFromFirestore(currentUser?.role === 'admin')
+            .then((fbActivities) => {
+              if (fbActivities.length > 0) {
+                setEngagementActivities((prev) => {
+                  const merged = new Map<string, EngagementActivityRecord>();
+                  prev.forEach((a) => merged.set(a.id, a));
+                  fbActivities.forEach((a) => merged.set(a.id, a));
+                  return Array.from(merged.values())
+                    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+                    .slice(0, 300);
+                });
+              }
+            })
+            .catch(() => {});
+        }
       }
     });
     return () => unsub();
@@ -2738,6 +2811,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     localStorage.setItem('apex_blog_eng_keys_v1', JSON.stringify(userEngagementClaimKeys));
   }, [userEngagementClaimKeys]);
+
+  useEffect(() => {
+    localStorage.setItem('apex_engagement_activities_v1', JSON.stringify(engagementActivities));
+  }, [engagementActivities]);
 
   // Monitor live TSLA quote against user-defined stock price alert thresholds
   useEffect(() => {
@@ -3702,8 +3779,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     ];
     const avatar = verifiedAvatarsList[Math.floor(Math.random() * verifiedAvatarsList.length)];
 
-    // Reward: $100 platform credits + 2 bonus spins for the user
-    const bonusCredits = 100;
+    // Tier-based referral reward strictly bounded [$25, $200]
+    const activeTierSummary = getUserEngagementSummary(currentUser);
+    const bonusCredits = Math.min(200, Math.max(25, activeTierSummary.referralRewardUsd || 25));
     const bonusSpins = 2;
 
     const newReferred: ReferredUser = {
@@ -3739,7 +3817,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
       status: 'completed',
       txHash,
-      description: `Referral Reward: ${selectedName} completed first deposit of $${depositAmount} USD`,
+      description: `${activeTierSummary.activeLevel.name} Referral Reward: ${selectedName} completed $${depositAmount} USD deposit`,
     };
     setTransactions((prev) => [newTx, ...prev]);
 
@@ -3755,7 +3833,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     showToast(
-      `🎉 Referral Reward Earned! ${selectedName} completed their first deposit ($${depositAmount} USD)! +$${bonusCredits} USD Platform Credits & ${bonusSpins} Free Spins added to your vault!`,
+      `Referral Reward Earned (${activeTierSummary.activeLevel.name})! ${selectedName} deposited $${depositAmount} USD — +$${bonusCredits} USD & ${bonusSpins} Free Spins added!`,
       'success'
     );
   };
@@ -7622,18 +7700,148 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Blog / News CMS, Social Sharing & Fractional Dollar Engagement Rewards Engine
   const getTodayKey = () => new Date().toISOString().split('T')[0];
 
+  const getConfiguredTierLevels = useCallback((): EngagementTierLevel[] => {
+    const raw =
+      Array.isArray(engagementRewardConfig.tierLevels) && engagementRewardConfig.tierLevels.length > 0
+        ? engagementRewardConfig.tierLevels
+        : DEFAULT_ENGAGEMENT_REWARD_CONFIG.tierLevels || [];
+    return [...raw]
+      .map((lvl) => ({
+        ...lvl,
+        referralRewardUsd: Math.min(200, Math.max(25, Number(lvl.referralRewardUsd) || 25)),
+      }))
+      .sort((a, b) => a.minPoints - b.minPoints);
+  }, [engagementRewardConfig.tierLevels]);
+
+  const getUserEngagementSummary = useCallback(
+    (target?: User | null) => {
+      const userObj = target === undefined ? currentUser : target;
+      const levels = getConfiguredTierLevels();
+      const fallbackLevel: EngagementTierLevel = levels[0] || {
+        id: 'standard',
+        name: 'Standard Member',
+        mappedUserTier: 'Standard',
+        minPoints: 0,
+        minDepositUsd: 0,
+        multiplier: 1.0,
+        referralRewardUsd: 25,
+      };
+
+      if (!userObj) {
+        return {
+          totalPoints: 0,
+          totalCents: 0,
+          totalUsd: 0,
+          todayUsd: 0,
+          totalDwellSeconds: 0,
+          totalSocialShares: 0,
+          activeLevel: fallbackLevel,
+          nextLevel: levels[1] || null,
+          progressPct: 0,
+          pointsToNext: levels[1]?.minPoints || 0,
+          depositToNextUsd: levels[1]?.minDepositUsd || 0,
+          referralRewardUsd: Math.min(200, Math.max(25, fallbackLevel.referralRewardUsd)),
+        };
+      }
+
+      const dayKey = getTodayKey();
+      const userLogs = engagementRewardLogs.filter(
+        (ev) => ev.userId === userObj.id && ev.status === 'credited'
+      );
+      const totalCents = Number(
+        userLogs.reduce((acc, ev) => acc + (ev.awardedCents || 0), 0).toFixed(2)
+      );
+      const totalUsd = Number((totalCents / 100).toFixed(4));
+      const todayUsd = Number(
+        userLogs
+          .filter((ev) => ev.createdAt.startsWith(dayKey))
+          .reduce((acc, ev) => acc + (ev.awardedUsd || 0), 0)
+          .toFixed(4)
+      );
+
+      const userActs = engagementActivities.filter((a) => a.userId === userObj.id);
+      const totalDwellSeconds = userActs
+        .filter((a) => a.activityType === 'page_dwell')
+        .reduce((acc, a) => acc + (a.dwellSeconds || 0), 0);
+      const totalSocialShares = userActs.filter((a) => a.activityType === 'social_share').length;
+
+      // 1 point per earned cent + 1 point per 30s tracked dwell + 2 points per social share
+      const totalPoints = Math.round(totalCents + totalDwellSeconds / 30 + totalSocialShares * 2);
+      const depositUsd = Number(userObj.totalDepositedUsd || 0);
+
+      const explicitRank =
+        userObj.tier === 'Founders Club'
+          ? 3
+          : userObj.tier === 'Plaid Member'
+          ? 2
+          : userObj.tier === 'Silver Ambassador'
+          ? 1
+          : 0;
+
+      let matchedIndex = 0;
+      levels.forEach((lvl, idx) => {
+        if (totalPoints >= lvl.minPoints || depositUsd >= lvl.minDepositUsd || idx <= explicitRank) {
+          matchedIndex = idx;
+        }
+      });
+
+      const activeLevel = levels[matchedIndex] || fallbackLevel;
+      const nextLevel = levels[matchedIndex + 1] || null;
+      let progressPct = 100;
+      let pointsToNext = 0;
+      let depositToNextUsd = 0;
+
+      if (nextLevel) {
+        const pointSpan = Math.max(1, nextLevel.minPoints - activeLevel.minPoints);
+        const pointsPct = ((totalPoints - activeLevel.minPoints) / pointSpan) * 100;
+        const depSpan = Math.max(1, nextLevel.minDepositUsd - activeLevel.minDepositUsd);
+        const depositPct = ((depositUsd - activeLevel.minDepositUsd) / depSpan) * 100;
+        progressPct = Math.min(99, Math.max(4, Math.round(Math.max(pointsPct, depositPct))));
+        pointsToNext = Math.max(0, nextLevel.minPoints - totalPoints);
+        depositToNextUsd = Math.max(0, nextLevel.minDepositUsd - depositUsd);
+      }
+
+      return {
+        totalPoints,
+        totalCents,
+        totalUsd,
+        todayUsd,
+        totalDwellSeconds,
+        totalSocialShares,
+        activeLevel,
+        nextLevel,
+        progressPct,
+        pointsToNext,
+        depositToNextUsd,
+        referralRewardUsd: Math.min(200, Math.max(25, Number(activeLevel.referralRewardUsd) || 25)),
+      };
+    },
+    [currentUser, engagementRewardLogs, engagementActivities, getConfiguredTierLevels]
+  );
+
   const getUserTierMultiplier = useCallback(
     (tier?: User['tier']): number => {
-      const targetTier = tier || currentUser?.tier || 'Standard';
-      if (targetTier === 'Founders Club') {
-        return Number(engagementRewardConfig.tierMultipliers?.['Founders Club'] || 2.25);
+      if (tier) {
+        const levels = getConfiguredTierLevels();
+        const found = levels.find((l) => l.mappedUserTier === tier);
+        if (found) return Number(found.multiplier || 1.0);
+        if (tier === 'Founders Club') {
+          return Number(engagementRewardConfig.tierMultipliers?.['Founders Club'] || 2.25);
+        }
+        if (tier === 'Plaid Member') {
+          return Number(engagementRewardConfig.tierMultipliers?.['Plaid Member'] || 1.5);
+        }
+        if (tier === 'Silver Ambassador') {
+          return Number(engagementRewardConfig.tierMultipliers?.['Silver Ambassador'] || 1.25);
+        }
+        return Number(engagementRewardConfig.tierMultipliers?.Standard || 1.0);
       }
-      if (targetTier === 'Plaid Member') {
-        return Number(engagementRewardConfig.tierMultipliers?.['Plaid Member'] || 1.5);
+      if (currentUser) {
+        return Number(getUserEngagementSummary(currentUser).activeLevel.multiplier || 1.0);
       }
       return Number(engagementRewardConfig.tierMultipliers?.Standard || 1.0);
     },
-    [currentUser?.tier, engagementRewardConfig.tierMultipliers]
+    [currentUser, engagementRewardConfig.tierMultipliers, getConfiguredTierLevels, getUserEngagementSummary]
   );
 
   const todayKey = getTodayKey();
@@ -7660,6 +7868,46 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       )
     : 0;
 
+  const recordActivityEvent = useCallback(
+    (params: {
+      activityType: 'page_dwell' | 'social_share';
+      pageTab: string;
+      dwellSeconds?: number;
+      platform?: string;
+      targetTitle?: string;
+      centsEarned: number;
+      pointsEarned: number;
+    }) => {
+      if (!currentUser) return;
+      const effectiveUid = auth.currentUser?.emailVerified ? auth.currentUser.uid : currentUser.id;
+      const record: EngagementActivityRecord = {
+        id: `act-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+        userId: effectiveUid,
+        userTier: currentUser.tier || 'Standard',
+        activityType: params.activityType,
+        pageTab: (params.pageTab || 'home').slice(0, 64),
+        dwellSeconds: params.dwellSeconds ? Math.max(0, Math.round(params.dwellSeconds)) : undefined,
+        platform: params.platform ? params.platform.slice(0, 32) : undefined,
+        targetTitle: params.targetTitle ? params.targetTitle.slice(0, 120) : undefined,
+        centsEarned: Number((params.centsEarned || 0).toFixed(2)),
+        pointsEarned: Math.max(0, Number((params.pointsEarned || 0).toFixed(1))),
+        createdAt: new Date().toISOString(),
+      };
+
+      // Keep UI record keyed so logged-in customer sees their activities even if email/local id differs from Firebase UID
+      const uiRecord: EngagementActivityRecord = {
+        ...record,
+        userId: currentUser.id,
+      };
+      setEngagementActivities((prev) => [uiRecord, ...prev.slice(0, 299)]);
+
+      if (auth.currentUser?.emailVerified) {
+        void saveEngagementActivityToFirestore(record);
+      }
+    },
+    [currentUser]
+  );
+
   const creditEngagementCentsInternal = useCallback(
     (params: {
       actionType: EngagementActionType;
@@ -7679,7 +7927,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return { awardedCents: 0, awardedUsd: 0, reason: 'rewards_paused' };
       }
 
-      const multiplier = params.ignoreDailyCap ? 1 : getUserTierMultiplier(targetUser.tier);
+      const multiplier = params.ignoreDailyCap
+        ? 1
+        : params.overrideUser
+        ? getUserTierMultiplier(targetUser.tier)
+        : getUserTierMultiplier();
       const rawCalculatedCents = Number((params.rawBaseCents * multiplier).toFixed(2));
       const dayKey = getTodayKey();
       const userTodayUsd = engagementRewardLogs
@@ -7757,20 +8009,51 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     [currentUser, engagementRewardConfig, engagementRewardLogs, getUserTierMultiplier]
   );
 
-  // Visibility-aware platform active time counter (awards fractional USD cents per active interval)
+  // Flush uncredited dwell >= 10s cleanly on tab change
+  useEffect(() => {
+    const prevTab = activeRouteTabRef.current;
+    if (prevTab !== activeRouteTab) {
+      const accumulated = currentTabDwellSecondsRef.current;
+      if (currentUser && accumulated >= 10) {
+        recordActivityEvent({
+          activityType: 'page_dwell',
+          pageTab: prevTab,
+          dwellSeconds: accumulated,
+          targetTitle: `Browsed /${prevTab}`,
+          centsEarned: 0,
+          pointsEarned: Math.max(1, Math.round(accumulated / 30)),
+        });
+      }
+      currentTabDwellSecondsRef.current = 0;
+      activeRouteTabRef.current = activeRouteTab;
+    }
+  }, [activeRouteTab, currentUser, recordActivityEvent]);
+
+  // Visibility-aware platform active time counter (logs dwell to Firestore & credits fractional USD cents)
   useEffect(() => {
     if (!currentUser || !engagementRewardConfig.enabled) return;
     const timer = window.setInterval(() => {
       if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+      currentTabDwellSecondsRef.current += 1;
       setActivePlatformSeconds((prev) => {
         const threshold = Math.max(15, Number(engagementRewardConfig.timeOnPlatformIntervalSeconds) || 60);
         const next = prev + 1;
         if (next >= threshold) {
+          const currentPage = activeRouteTabRef.current || 'home';
           const res = creditEngagementCentsInternal({
             actionType: 'time_on_platform',
             rawBaseCents: engagementRewardConfig.timeOnPlatformCentsPerInterval,
-            description: `Active Platform Session (${threshold}s verified dwell)`,
+            description: `Active Page Dwell on /${currentPage} (${threshold}s verified)`,
           });
+          recordActivityEvent({
+            activityType: 'page_dwell',
+            pageTab: currentPage,
+            dwellSeconds: threshold,
+            targetTitle: `Dwell Session (/${currentPage})`,
+            centsEarned: res.awardedCents,
+            pointsEarned: Math.max(1, Math.round(res.awardedCents + threshold / 30)),
+          });
+          currentTabDwellSecondsRef.current = 0;
           if (res.awardedCents > 0) {
             playSuccessSound('default');
             setToastMessage({
@@ -7792,6 +8075,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     engagementRewardConfig.timeOnPlatformCentsPerInterval,
     creditEngagementCentsInternal,
     getUserTierMultiplier,
+    recordActivityEvent,
   ]);
 
   const recordBlogView = useCallback((postId: string) => {
@@ -7884,6 +8168,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       description: `Social Share #${shareOrdinal} on ${platform.toUpperCase()}: "${post.title.slice(0, 40)}"`,
     });
 
+    recordActivityEvent({
+      activityType: 'social_share',
+      pageTab: 'blog',
+      platform,
+      targetTitle: post.title,
+      centsEarned: res.awardedCents,
+      pointsEarned: Math.max(2, Math.round(res.awardedCents + 2)),
+    });
+
     if (res.awardedCents > 0) {
       setUserSharedPostPlatforms((prev) => ({
         ...prev,
@@ -7902,6 +8195,73 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       shareOrdinalToday: shareOrdinal,
     };
   };
+
+  const trackSocialShareActivity = useCallback(
+    (params: {
+      platform: SocialSharePlatformId | string;
+      pageTab: string;
+      targetTitle?: string;
+      postId?: string;
+      skipReward?: boolean;
+    }): { awardedCents: number; awardedUsd: number } => {
+      if (!currentUser) {
+        return { awardedCents: 0, awardedUsd: 0 };
+      }
+
+      const dayKey = getTodayKey();
+      const safePlatform = String(params.platform || 'copy_link').toLowerCase();
+      const bucketKey = `${currentUser.id}::social::${params.pageTab}::${dayKey}`;
+      const claimedPlatforms = userSharedPostPlatforms[bucketKey] || [];
+      const alreadyClaimed = claimedPlatforms.includes(safePlatform as SocialSharePlatformId);
+
+      let res = { awardedCents: 0, awardedUsd: 0 };
+      if (!params.skipReward && !alreadyClaimed && engagementRewardConfig.enabled) {
+        const rawBaseCents = Number(
+          engagementRewardConfig.socialSharePlatformCents ??
+            engagementRewardConfig.shareArticleBaseCents ??
+            4
+        );
+        res = creditEngagementCentsInternal({
+          actionType: 'share_article',
+          rawBaseCents,
+          postId: params.postId,
+          postTitle: params.targetTitle,
+          platform: safePlatform as SocialSharePlatformId,
+          description: `Social Share on ${safePlatform.toUpperCase()} (/${params.pageTab})${params.targetTitle ? `: ${params.targetTitle.slice(0, 36)}` : ''}`,
+        });
+        if (res.awardedCents > 0) {
+          setUserSharedPostPlatforms((prev) => ({
+            ...prev,
+            [bucketKey]: [...claimedPlatforms, safePlatform as SocialSharePlatformId],
+          }));
+          showToast(
+            `Social Share Logged! Earned +${res.awardedCents.toFixed(1)}¢ ($${res.awardedUsd.toFixed(2)}) in your USD Vault!`,
+            'success'
+          );
+        }
+      }
+
+      recordActivityEvent({
+        activityType: 'social_share',
+        pageTab: params.pageTab,
+        platform: safePlatform,
+        targetTitle: params.targetTitle || `Shared /${params.pageTab}`,
+        centsEarned: res.awardedCents,
+        pointsEarned: Math.max(2, Math.round(res.awardedCents + 2)),
+      });
+
+      return res;
+    },
+    [
+      currentUser,
+      userSharedPostPlatforms,
+      engagementRewardConfig.enabled,
+      engagementRewardConfig.socialSharePlatformCents,
+      engagementRewardConfig.shareArticleBaseCents,
+      creditEngagementCentsInternal,
+      recordActivityEvent,
+    ]
+  );
 
   const toggleBlogLike = (postId: string): { liked: boolean; awardedCents: number } => {
     const post = blogPosts.find((p) => p.id === postId);
@@ -8097,14 +8457,41 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateEngagementRewardConfig = (updates: Partial<EngagementRewardConfig>) => {
-    setEngagementRewardConfig((prev) => ({
-      ...prev,
-      ...updates,
-      tierMultipliers: updates.tierMultipliers
-        ? { ...prev.tierMultipliers, ...updates.tierMultipliers }
-        : prev.tierMultipliers,
-    }));
-    showToast('Engagement reward rates & tier multipliers updated!', 'success');
+    setEngagementRewardConfig((prev) => {
+      const normalizedTiers = Array.isArray(updates.tierLevels)
+        ? updates.tierLevels.map((lvl) => ({
+            ...lvl,
+            referralRewardUsd: Math.min(200, Math.max(25, Number(lvl.referralRewardUsd) || 25)),
+          }))
+        : prev.tierLevels || DEFAULT_ENGAGEMENT_REWARD_CONFIG.tierLevels;
+
+      const derivedMultipliers = {
+        ...prev.tierMultipliers,
+        ...(updates.tierMultipliers || {}),
+      };
+      normalizedTiers?.forEach((lvl) => {
+        derivedMultipliers[lvl.mappedUserTier] = Number(lvl.multiplier) || 1;
+      });
+
+      const next: EngagementRewardConfig = {
+        ...prev,
+        ...updates,
+        tierLevels: normalizedTiers,
+        tierMultipliers: derivedMultipliers,
+      };
+
+      localStorage.setItem('apex_engagement_reward_config_v1', JSON.stringify(next));
+      fetch('/api/admin/state', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sections: { engagement_reward_config: next } }),
+      }).catch(() => {});
+      if (auth.currentUser) {
+        void saveAdminSectionToFirestore('engagement_reward_config', next);
+      }
+      return next;
+    });
+    showToast('Engagement reward rates, tier thresholds & referral rewards ($25–$200) saved!', 'success');
   };
 
   const grantManualEngagementReward = (userId: string, cents: number, reason: string): boolean => {
@@ -8485,6 +8872,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         grantManualEngagementReward,
         revokeEngagementReward,
         resetDailyEngagementUsage,
+        engagementActivities,
+        getUserEngagementSummary,
+        trackSocialShareActivity,
         trackVisitorAction,
         soundEnabled,
         toggleSoundEnabled,

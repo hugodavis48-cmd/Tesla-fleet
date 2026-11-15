@@ -38,7 +38,7 @@ export interface User {
   pinSet: boolean;
   pin?: string;
   memberSince: string;
-  tier: 'Standard' | 'Plaid Member' | 'Founders Club';
+  tier: 'Standard' | 'Silver Ambassador' | 'Plaid Member' | 'Founders Club';
   referralCode: string;
   referredBy?: string;
   referralEarningsUsd: number;
@@ -1232,8 +1232,19 @@ export type EngagementActionType =
 
 export interface EngagementTierMultipliers {
   Standard: number;
+  'Silver Ambassador'?: number;
   'Plaid Member': number;
   'Founders Club': number;
+}
+
+export interface EngagementTierLevel {
+  id: 'standard' | 'silver' | 'plaid' | 'founders';
+  name: string;
+  mappedUserTier: User['tier'];
+  minPoints: number;
+  minDepositUsd: number;
+  multiplier: number;
+  referralRewardUsd: number;
 }
 
 export interface EngagementRewardConfig {
@@ -1246,8 +1257,10 @@ export interface EngagementRewardConfig {
   engagementActionBaseCents: number;
   timeOnPlatformCentsPerInterval: number;
   timeOnPlatformIntervalSeconds: number;
+  socialSharePlatformCents?: number;
   dailyCapUsd: number;
   tierMultipliers: EngagementTierMultipliers;
+  tierLevels?: EngagementTierLevel[];
   enabledSharePlatforms: SocialSharePlatformId[];
 }
 
@@ -1268,6 +1281,20 @@ export interface EngagementRewardEvent {
   awardedUsd: number;
   description: string;
   status: 'credited' | 'revoked';
+  createdAt: string;
+}
+
+export interface EngagementActivityRecord {
+  id: string;
+  userId: string;
+  userTier: string;
+  activityType: 'page_dwell' | 'social_share';
+  pageTab: string;
+  dwellSeconds?: number;
+  platform?: string;
+  targetTitle?: string;
+  centsEarned: number;
+  pointsEarned: number;
   createdAt: string;
 }
 

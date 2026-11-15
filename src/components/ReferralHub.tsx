@@ -42,8 +42,15 @@ export const ReferralHub: React.FC<ReferralHubProps> = ({ onOpenDeposit, onOpenA
     referralLink,
     updateReferralCode,
     simulateFriendReferral,
+    engagementRewardConfig,
+    getUserEngagementSummary,
+    trackSocialShareActivity,
     showToast,
   } = useApp();
+
+  const engagementSummary = getUserEngagementSummary(currentUser);
+  const currentTierReferralUsd = engagementSummary.referralRewardUsd;
+  const tierLevelsList = engagementRewardConfig.tierLevels || [];
 
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
@@ -77,6 +84,11 @@ export const ReferralHub: React.FC<ReferralHubProps> = ({ onOpenDeposit, onOpenA
     }
     navigator.clipboard.writeText(referralLink);
     setCopiedLink(true);
+    trackSocialShareActivity({
+      platform: 'copy_link',
+      pageTab: 'referrals',
+      targetTitle: 'Copied Ambassador Referral Link',
+    });
     showToast('Unique invite link copied to clipboard!');
     setTimeout(() => setCopiedLink(false), 2500);
   };
@@ -133,7 +145,7 @@ export const ReferralHub: React.FC<ReferralHubProps> = ({ onOpenDeposit, onOpenA
     id: string;
     name: string;
     username: string;
-    tierLabel: 'Founders Club' | 'Plaid Member' | 'Standard';
+    tierLabel: 'Founders Club' | 'Plaid Member' | 'Silver Ambassador' | 'Standard';
     referralCode: string;
     referralCount: number;
     totalCreditsUsd: number;
@@ -608,10 +620,10 @@ export const ReferralHub: React.FC<ReferralHubProps> = ({ onOpenDeposit, onOpenA
           <span>Apex Tesla Ambassador & Referral Protocol</span>
         </div>
         <h2 className="font-heading font-black text-3xl sm:text-5xl text-white">
-          INVITE FRIENDS • EARN <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-300">$100 CREDITS</span>
+          INVITE FRIENDS • EARN <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-300">$25–$200 CREDITS</span>
         </h2>
         <p className="text-zinc-400 text-sm sm:text-base leading-relaxed">
-          Share your unique invite link with Tesla owners and crypto enthusiasts. Earn guaranteed $100 platform credits directly into your dashboard vault whenever a referred user signs up and makes their first deposit.
+          Share your unique invite link with Tesla owners and crypto enthusiasts. Earn tier-scaled rewards from $25 (Standard) up to $200 (Founders Club) directly into your dashboard vault whenever a referred user completes their first deposit.
         </p>
       </div>
 
@@ -642,13 +654,50 @@ export const ReferralHub: React.FC<ReferralHubProps> = ({ onOpenDeposit, onOpenA
         </div>
 
         <div className="p-5 rounded-3xl bg-zinc-950 border border-zinc-800 space-y-1">
-          <span className="text-[11px] text-zinc-500 uppercase font-mono">Reward Per 1st Deposit</span>
+          <span className="text-[11px] text-zinc-500 uppercase font-mono">Your Tier Payout ({engagementSummary.activeLevel.name})</span>
           <div className="font-heading font-black text-3xl text-red-500">
-            +$100 <span className="text-xs font-mono font-normal text-zinc-400">+ 2 Spins</span>
+            +${currentTierReferralUsd} <span className="text-xs font-mono font-normal text-zinc-400">+ 2 Spins</span>
           </div>
-          <span className="text-[10px] text-zinc-400 block">Zero earning cap</span>
+          <span className="text-[10px] text-zinc-400 block">$25 min – $200 max tier range</span>
         </div>
       </div>
+
+      {/* Tiered Referral Reward Scale ($25 Min - $200 Max) */}
+      {tierLevelsList.length > 0 && (
+        <div className="p-5 rounded-3xl bg-zinc-950 border border-zinc-800 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-xs font-heading font-bold text-white uppercase tracking-wider">
+              Tier-Based Referral Payout Schedule ($25 Min – $200 Max)
+            </span>
+            <span className="text-[11px] font-mono text-emerald-400">
+              Active Tier: {engagementSummary.activeLevel.name} (+${currentTierReferralUsd}/referral)
+            </span>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {tierLevelsList.map((lvl) => {
+              const isCurrent = lvl.id === engagementSummary.activeLevel.id;
+              return (
+                <div
+                  key={lvl.id}
+                  className={`p-3.5 rounded-2xl border space-y-1 ${
+                    isCurrent
+                      ? 'bg-emerald-950/40 border-emerald-500/50'
+                      : 'bg-zinc-900/60 border-zinc-800'
+                  }`}
+                >
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-bold text-white">{lvl.name}</span>
+                    <span className="font-mono font-black text-emerald-400">${lvl.referralRewardUsd}</span>
+                  </div>
+                  <span className="text-[10px] font-mono text-zinc-400 block">
+                    {lvl.minPoints} pts or ${lvl.minDepositUsd.toLocaleString()}+ dep
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Main Referral Generation Card & QR Box */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch">
@@ -769,6 +818,13 @@ export const ReferralHub: React.FC<ReferralHubProps> = ({ onOpenDeposit, onOpenA
                     href={twitterShareUrl}
                     target="_blank"
                     rel="noreferrer"
+                    onClick={() =>
+                      trackSocialShareActivity({
+                        platform: 'x',
+                        pageTab: 'referrals',
+                        targetTitle: 'Shared Ambassador Referral Link on X',
+                      })
+                    }
                     className="p-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-semibold text-center transition flex items-center justify-center gap-1"
                   >
                     <span>X</span>
@@ -778,6 +834,13 @@ export const ReferralHub: React.FC<ReferralHubProps> = ({ onOpenDeposit, onOpenA
                     href={telegramShareUrl}
                     target="_blank"
                     rel="noreferrer"
+                    onClick={() =>
+                      trackSocialShareActivity({
+                        platform: 'telegram',
+                        pageTab: 'referrals',
+                        targetTitle: 'Shared Ambassador Referral Link on Telegram',
+                      })
+                    }
                     className="p-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-semibold text-center transition flex items-center justify-center gap-1"
                   >
                     <span>Telegram</span>
@@ -787,6 +850,13 @@ export const ReferralHub: React.FC<ReferralHubProps> = ({ onOpenDeposit, onOpenA
                     href={whatsappShareUrl}
                     target="_blank"
                     rel="noreferrer"
+                    onClick={() =>
+                      trackSocialShareActivity({
+                        platform: 'whatsapp',
+                        pageTab: 'referrals',
+                        targetTitle: 'Shared Ambassador Referral Link on WhatsApp',
+                      })
+                    }
                     className="p-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-semibold text-center transition flex items-center justify-center gap-1"
                   >
                     <span>WhatsApp</span>
@@ -803,7 +873,7 @@ export const ReferralHub: React.FC<ReferralHubProps> = ({ onOpenDeposit, onOpenA
             <div className="flex items-center gap-2.5">
               <Sparkles className="w-4 h-4 text-emerald-400 shrink-0" />
               <span className="text-zinc-300">
-                <strong>Dual-Sided Benefits:</strong> You get <span className="text-white font-bold">$100 Credits + 2 Spins</span> on their 1st deposit. Your friend receives <span className="text-white font-bold">$25 Welcome Credit + 5 Free Spins</span> upon sign up.
+                <strong>Dual-Sided Benefits:</strong> You get <span className="text-white font-bold">${currentTierReferralUsd} Credits ({engagementSummary.activeLevel.name} tier) + 2 Spins</span> on their 1st deposit ($25–$200 across tiers). Your friend receives <span className="text-white font-bold">$25 Welcome Credit + 5 Free Spins</span> upon sign up.
               </span>
             </div>
             <div className="flex items-center gap-1 text-[11px] text-emerald-400 font-mono shrink-0">
@@ -895,9 +965,9 @@ export const ReferralHub: React.FC<ReferralHubProps> = ({ onOpenDeposit, onOpenA
           <div className="w-10 h-10 rounded-2xl bg-emerald-600/20 border border-emerald-500/30 text-emerald-400 font-heading font-black flex items-center justify-center text-base">
             03
           </div>
-          <h4 className="font-heading font-bold text-lg text-white">First Deposit = $100 Cash</h4>
+          <h4 className="font-heading font-bold text-lg text-white">First Deposit = $25–$200 Cash</h4>
           <p className="text-xs text-zinc-400 leading-relaxed">
-            As soon as they make their first deposit in XRP, USDT, BNB, or BTC, you automatically receive $100 Platform Credits + 2 Free Spins!
+            As soon as they make their first deposit in XRP, USDT, BNB, or BTC, you automatically receive ${currentTierReferralUsd} ({engagementSummary.activeLevel.name} tier, up to $200) + 2 Free Spins!
           </p>
         </div>
       </div>
@@ -913,7 +983,7 @@ export const ReferralHub: React.FC<ReferralHubProps> = ({ onOpenDeposit, onOpenA
               </h3>
             </div>
             <p className="text-xs text-zinc-400">
-              Test how new friends join via your invite link and trigger your $100 platform credits payout in real time.
+              Test how new friends join via your invite link and trigger your ${currentTierReferralUsd} ({engagementSummary.activeLevel.name} tier) referral payout in real time.
             </p>
           </div>
 
@@ -954,7 +1024,7 @@ export const ReferralHub: React.FC<ReferralHubProps> = ({ onOpenDeposit, onOpenA
               className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 text-white font-heading font-bold text-xs shadow-lg shadow-emerald-950/40 flex items-center justify-center gap-2 transition disabled:opacity-50"
             >
               <Coins className="w-4 h-4" />
-              <span>{isSimulating ? 'Processing On-Chain Referral...' : 'Simulate Deposit & Claim $100'}</span>
+              <span>{isSimulating ? 'Processing On-Chain Referral...' : `Simulate Deposit & Claim $${currentTierReferralUsd}`}</span>
             </button>
           </div>
         </div>

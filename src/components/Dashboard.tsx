@@ -41,8 +41,10 @@ import {
   Maximize2,
   Crown,
   Download,
+  Coins,
+  Share2,
 } from 'lucide-react';
-import { TeslaVehicle, ServiceBooking, UserKycData, FeaturedStockPlan } from '../types';
+import { TeslaVehicle, ServiceBooking, UserKycData, FeaturedStockPlan, EngagementActionType } from '../types';
 import { ReferralHub } from './ReferralHub';
 import { UserInvestmentBoard } from './UserInvestmentBoard';
 import { NotificationInbox } from './NotificationInbox';
@@ -132,11 +134,17 @@ export const Dashboard: React.FC<DashboardProps> = ({
     selectedCurrency,
     setSelectedCurrencyCode,
     formatCurrency,
+    engagementRewardConfig,
+    engagementRewardLogs,
+    engagementActivities,
+    getUserEngagementSummary,
+    activePlatformSeconds,
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<
-    'garage' | 'loyalty' | 'won_prizes' | 'stocks' | 'services' | 'history' | 'wallet' | 'investments' | 'notifications' | 'kyc' | 'referrals' | 'security'
+    'garage' | 'loyalty' | 'engagement' | 'won_prizes' | 'stocks' | 'services' | 'history' | 'wallet' | 'investments' | 'notifications' | 'kyc' | 'referrals' | 'security'
   >('garage');
+  const [engHistoryFilter, setEngHistoryFilter] = useState<'all' | 'page_dwell' | 'social_share' | EngagementActionType>('all');
 
   const userWonPrizesCount = wonPrizes.filter((p) => {
     if (!currentUser) return false;
@@ -727,9 +735,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
       {/* Dashboard Subtabs Navigation */}
       <div className="flex items-center gap-2 border-b border-zinc-800 pb-2 overflow-x-auto">
-        {[
+        {(() => {
+          const engSum = getUserEngagementSummary(displayUser);
+          return [
           { id: 'garage', label: 'My Digital Garage', count: vehicles.length, icon: Car },
           { id: 'loyalty', label: 'Loyalty & Tiers', icon: Crown, badge: `${loyaltySummary.activeTier.name.toUpperCase()} ${loyaltySummary.activeTier.multiplierLabel}` },
+          { id: 'engagement', label: 'Engagement Rewards', icon: Coins, badge: `${engSum.totalCents.toFixed(0)}¢` },
           { id: 'won_prizes', label: 'Won Prizes & Shipping', count: userWonPrizesCount, icon: Trophy, badge: userWonPrizesCount > 0 ? `${userWonPrizesCount} PRIZES` : undefined },
           { id: 'stocks', label: 'TSLA Stocks & Fast ROI', icon: Activity, badge: `$${tslaQuote.price.toFixed(1)}` },
           { id: 'investments', label: 'Fleet Investments & ROI', count: userInvestments.filter(i => !i.userId || i.userId === displayUser.id).length, icon: TrendingUp, badge: 'ROI' },
@@ -738,9 +749,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
           { id: 'history', label: 'Past Service History', count: pastBookings.length, icon: History },
           { id: 'wallet', label: 'Transaction Summary & Vault', count: transactions.length, icon: Wallet },
           { id: 'kyc', label: 'KYC & Limits', icon: BadgeCheck, badge: kycStatus === 'verified' ? 'TIER 2' : kycStatus === 'in_review' ? 'REVIEW' : 'VERIFY' },
-          { id: 'referrals', label: 'Invite & Earn', count: displayUser.referralCount || 0, icon: Users, badge: '+$100' },
+          { id: 'referrals', label: 'Invite & Earn', count: displayUser.referralCount || 0, icon: Users, badge: `+$${engSum.referralRewardUsd}` },
           { id: 'security', label: 'Security & Sessions', icon: Shield },
-        ].map((tab) => {
+        ];
+        })().map((tab) => {
           const active = activeTab === tab.id;
           return (
             <button
@@ -1706,6 +1718,279 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
         </div>
       )}
+
+      {/* Tab: Engagement Rewards & Earned Cents Ledger */}
+      {activeTab === 'engagement' && (() => {
+        const engSum = getUserEngagementSummary(displayUser);
+        const tierLevels = engagementRewardConfig.tierLevels || [];
+        const userEngEvents = engagementRewardLogs.filter((ev) => ev.userId === displayUser.id);
+        const userDwellShares = engagementActivities.filter((a) => a.userId === displayUser.id);
+        const dailyCapPct = Math.min(
+          100,
+          Math.round((engSum.todayUsd / Math.max(0.5, engagementRewardConfig.dailyCapUsd || 5)) * 100)
+        );
+        const dwellIntervalSec = Math.max(15, engagementRewardConfig.timeOnPlatformIntervalSeconds || 60);
+        const liveDwellPct = Math.min(100, Math.round((activePlatformSeconds / dwellIntervalSec) * 100));
+
+        const unifiedHistory = [
+          ...userEngEvents.map((ev) => ({
+            id: `ev-${ev.id}`,
+            category: ev.actionType,
+            badgeLabel: ev.actionType.replace(/_/g, ' '),
+            subBadge: ev.platform ? ev.platform.toUpperCase() : `${ev.multiplier.toFixed(2)}× rate`,
+            description: ev.description,
+            createdAt: ev.createdAt,
+            cents: ev.awardedCents,
+            usd: ev.awardedUsd,
+            points: Math.round(ev.awardedCents),
+            status: ev.status,
+            isDwellOrShare: false,
+          })),
+          ...userDwellShares.map((act) => ({
+            id: `act-${act.id}`,
+            category: act.activityType,
+            badgeLabel: act.activityType === 'page_dwell' ? 'page dwell' : 'social share',
+            subBadge: act.platform ? `${act.platform.toUpperCase()} · /${act.pageTab}` : `/${act.pageTab}`,
+            description: act.targetTitle || (act.dwellSeconds ? `Verified ${act.dwellSeconds}s dwell on /${act.pageTab}` : `Shared /${act.pageTab}`),
+            createdAt: act.createdAt,
+            cents: act.centsEarned,
+            usd: Number((act.centsEarned / 100).toFixed(4)),
+            points: act.pointsEarned,
+            status: 'credited' as const,
+            isDwellOrShare: true,
+          })),
+        ]
+          .filter((item) => engHistoryFilter === 'all' || item.category === engHistoryFilter)
+          .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+
+        return (
+          <div className="space-y-6 animate-in fade-in duration-300">
+            {/* Top 4 KPI Summary Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="rounded-3xl bg-zinc-950 border border-emerald-500/30 p-5 space-y-2">
+                <div className="flex items-center justify-between text-xs text-zinc-400">
+                  <span className="font-mono uppercase text-[11px]">Total Accumulated</span>
+                  <Coins className="w-4 h-4 text-emerald-400" />
+                </div>
+                <div className="font-heading font-black text-3xl text-emerald-400 tabular-nums">
+                  ${engSum.totalUsd.toFixed(2)}
+                </div>
+                <p className="text-xs font-mono text-zinc-400 tabular-nums">
+                  {engSum.totalCents.toFixed(1)}¢ credited ({engSum.totalPoints} Engagement Pts)
+                </p>
+              </div>
+
+              <div className="rounded-3xl bg-zinc-950 border border-zinc-800 p-5 space-y-2">
+                <div className="flex items-center justify-between text-xs text-zinc-400">
+                  <span className="font-mono uppercase text-[11px]">Today&apos;s Cap Meter</span>
+                  <Clock className="w-4 h-4 text-amber-400" />
+                </div>
+                <div className="font-heading font-black text-2xl text-white tabular-nums">
+                  ${engSum.todayUsd.toFixed(2)}{' '}
+                  <span className="text-xs font-mono text-zinc-500">/ ${engagementRewardConfig.dailyCapUsd.toFixed(2)}</span>
+                </div>
+                <div className="w-full h-2 rounded-full bg-zinc-900 overflow-hidden">
+                  <div className="h-full bg-amber-400 rounded-full transition-all" style={{ width: `${dailyCapPct}%` }} />
+                </div>
+                <p className="text-[11px] font-mono text-zinc-500 tabular-nums">{dailyCapPct}% of daily max cap</p>
+              </div>
+
+              <div className="rounded-3xl bg-zinc-950 border border-zinc-800 p-5 space-y-2">
+                <div className="flex items-center justify-between text-xs text-zinc-400">
+                  <span className="font-mono uppercase text-[11px]">Dwell &amp; Social Tracker</span>
+                  <Share2 className="w-4 h-4 text-sky-400" />
+                </div>
+                <div className="font-heading font-black text-2xl text-sky-400 tabular-nums">
+                  {Math.floor(engSum.totalDwellSeconds / 60)}m {engSum.totalDwellSeconds % 60}s{' '}
+                  <span className="text-xs text-zinc-400 font-normal">· {engSum.totalSocialShares} shares</span>
+                </div>
+                <div className="w-full h-1.5 rounded-full bg-zinc-900 overflow-hidden">
+                  <div className="h-full bg-sky-400 rounded-full transition-all" style={{ width: `${liveDwellPct}%` }} />
+                </div>
+                <p className="text-[11px] font-mono text-zinc-500 tabular-nums">
+                  Live dwell cycle: {activePlatformSeconds}s / {dwellIntervalSec}s (+{(engagementRewardConfig.timeOnPlatformCentsPerInterval * engSum.activeLevel.multiplier).toFixed(1)}¢)
+                </p>
+              </div>
+
+              <div className="rounded-3xl bg-zinc-950 border border-amber-500/30 p-5 space-y-2">
+                <div className="flex items-center justify-between text-xs text-zinc-400">
+                  <span className="font-mono uppercase text-[11px]">Active Reward Tier</span>
+                  <Crown className="w-4 h-4 text-amber-400" />
+                </div>
+                <div className="font-heading font-black text-2xl text-amber-300">
+                  {engSum.activeLevel.name}
+                </div>
+                <p className="text-xs font-mono text-emerald-400 tabular-nums">
+                  {engSum.activeLevel.multiplier.toFixed(2)}× Cents · ${engSum.referralRewardUsd} Referral Bonus
+                </p>
+              </div>
+            </div>
+
+            {/* Tier Level Progress & Tiered Benefits ($25-$200 Referrals) */}
+            <div className="rounded-3xl bg-zinc-950 border border-zinc-800 p-6 space-y-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h3 className="font-heading font-bold text-lg text-white">
+                    Tier Level Progression &amp; Referral Payout Unlock ($25–$200)
+                  </h3>
+                  <p className="text-xs text-zinc-400">
+                    Earn engagement points from page dwell time, article reads &amp; social sharing or qualify via deposits to climb tiers.
+                  </p>
+                </div>
+                <span className="px-3 py-1.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-xs font-mono font-bold text-emerald-300">
+                  Current Referral Rate: ${engSum.referralRewardUsd} / Qualifying Friend
+                </span>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                  <span className="font-mono text-zinc-300">
+                    Current Score: <strong className="text-white">{engSum.totalPoints} pts</strong>
+                  </span>
+                  {engSum.nextLevel ? (
+                    <span className="font-mono text-amber-300">
+                      {engSum.pointsToNext} more pts (or ${engSum.depositToNextUsd.toLocaleString()} deposit) for {engSum.nextLevel.name} (${engSum.nextLevel.referralRewardUsd} referrals)
+                    </span>
+                  ) : (
+                    <span className="font-mono font-bold text-cyan-300">
+                      Top Founders Tier Unlocked ($200 Max Referral Payout!)
+                    </span>
+                  )}
+                </div>
+                <div className="w-full h-3 rounded-full bg-zinc-900 border border-zinc-800 overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-emerald-500 via-cyan-400 to-amber-400 rounded-full transition-all duration-500"
+                    style={{ width: `${engSum.progressPct}%` }}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+                {tierLevels.map((lvl) => {
+                  const isCurrent = lvl.id === engSum.activeLevel.id;
+                  const unlocked =
+                    engSum.totalPoints >= lvl.minPoints ||
+                    (displayUser.totalDepositedUsd || 0) >= lvl.minDepositUsd ||
+                    isCurrent;
+                  return (
+                    <div
+                      key={lvl.id}
+                      className={`rounded-2xl p-4 border space-y-2 ${
+                        isCurrent
+                          ? 'bg-emerald-950/30 border-emerald-500/50 ring-1 ring-emerald-500/30'
+                          : unlocked
+                          ? 'bg-zinc-900/70 border-zinc-700'
+                          : 'bg-zinc-900/30 border-zinc-800/80 opacity-80'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-heading font-bold text-sm text-white">{lvl.name}</span>
+                        <span className="font-mono text-xs font-bold text-amber-300">{lvl.multiplier.toFixed(2)}×</span>
+                      </div>
+                      <div className="text-[11px] font-mono text-zinc-400">
+                        {lvl.minPoints} pts or ${lvl.minDepositUsd.toLocaleString()}+ dep
+                      </div>
+                      <div className="pt-2 border-t border-zinc-800 flex items-center justify-between text-xs font-mono">
+                        <span className="text-zinc-400">Referral:</span>
+                        <span className="font-bold text-emerald-400">${lvl.referralRewardUsd} USD</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Detailed Transaction History of Earned Cents & Firestore Activity */}
+            <div className="rounded-3xl bg-zinc-950 border border-zinc-800 p-6 space-y-4">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-zinc-800 pb-4">
+                <div>
+                  <h3 className="font-heading font-bold text-lg text-white">
+                    Earned Cents &amp; Engagement Transaction History ({unifiedHistory.length})
+                  </h3>
+                  <p className="text-xs text-zinc-400">
+                    Detailed ledger of every fractional cent reward, dwell session, and social share synced with your vault.
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {(
+                    [
+                      { id: 'all', label: 'All' },
+                      { id: 'page_dwell', label: 'Page Dwell' },
+                      { id: 'social_share', label: 'Social Shares' },
+                      { id: 'read_article', label: 'Reads' },
+                      { id: 'engagement_action', label: 'Likes & Comments' },
+                      { id: 'admin_bonus', label: 'Bonus' },
+                    ] as const
+                  ).map((f) => (
+                    <button
+                      key={f.id}
+                      type="button"
+                      onClick={() => setEngHistoryFilter(f.id)}
+                      className={`px-3 py-1 rounded-lg text-xs font-semibold cursor-pointer ${
+                        engHistoryFilter === f.id
+                          ? 'bg-red-600 text-white'
+                          : 'bg-zinc-900 text-zinc-400 hover:text-white'
+                      }`}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {unifiedHistory.length === 0 ? (
+                <div className="py-10 text-center text-xs text-zinc-400 space-y-2">
+                  <Coins className="w-8 h-8 text-zinc-600 mx-auto" />
+                  <p>No engagement transactions yet. Browse pages, read Blog articles, or share links to earn cents automatically!</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs text-left">
+                    <thead>
+                      <tr className="border-b border-zinc-800 text-zinc-400 font-mono uppercase text-[11px]">
+                        <th className="py-2.5 pr-3">Timestamp</th>
+                        <th className="py-2.5 px-3">Interaction</th>
+                        <th className="py-2.5 px-3">Details</th>
+                        <th className="py-2.5 px-3 text-right">Points</th>
+                        <th className="py-2.5 pl-3 text-right">Earned Cents / USD</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-800/70 tabular-nums">
+                      {unifiedHistory.slice(0, 50).map((row) => (
+                        <tr key={row.id} className="hover:bg-zinc-900/40">
+                          <td className="py-3 pr-3 font-mono text-[11px] text-zinc-400 whitespace-nowrap">
+                            {row.createdAt.replace('T', ' ').substring(0, 16)}
+                          </td>
+                          <td className="py-3 px-3">
+                            <span className="px-2 py-0.5 rounded bg-zinc-900 border border-zinc-700 font-mono text-[10px] uppercase text-cyan-300 font-bold">
+                              {row.badgeLabel}
+                            </span>
+                            <span className="block text-[10px] font-mono text-zinc-500 mt-0.5">
+                              {row.subBadge}
+                            </span>
+                          </td>
+                          <td className="py-3 px-3 text-zinc-200 max-w-md truncate">
+                            {row.description}
+                          </td>
+                          <td className="py-3 px-3 text-right font-mono text-amber-300">
+                            +{row.points} pts
+                          </td>
+                          <td className="py-3 pl-3 text-right font-mono font-bold">
+                            <span className={row.status === 'revoked' ? 'text-zinc-500 line-through' : 'text-emerald-400'}>
+                              +{row.cents.toFixed(1)}¢ (${row.usd.toFixed(2)})
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Tab: Referrals & Invites */}
       {activeTab === 'referrals' && (

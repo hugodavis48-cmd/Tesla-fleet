@@ -179,16 +179,16 @@ Apex Concierge Desk`,
   },
   {
     id: 'tmpl-referral-bonus',
-    name: '$100 Referral Invite Boost',
+    name: '$25–$200 Tiered Referral Invite Boost',
     category: 'Referrals & Growth',
-    subject: '🚀 Earn $100 Platform Credit for Every Tesla Driver You Invite',
-    previewText: 'Share your unique invite link and stack vault credits.',
+    subject: '🚀 Earn $25–$200 Tiered Platform Credit for Every Tesla Driver You Invite',
+    previewText: 'Share your unique invite link and unlock higher ambassador referral payouts.',
     content: `Greetings Apex Member,
 
-Your unique referral code is active! When a fellow Tesla enthusiast signs up using your link and completes their first crypto or USD deposit, you immediately receive:
+Your unique referral code is active! When a fellow Tesla enthusiast signs up using your link and completes their first crypto or USD deposit, you immediately receive tier-based referral credit ($25 Standard, $75 Silver, $125 Plaid, up to $200 Founders Club):
 
-• +$100.00 USD Platform Credit directly in your vault
-• Priority VIP bay scheduling
+• +$25 to +$200 USD Platform Credit directly in your vault based on your Ambassador Tier
+• Priority VIP bay scheduling & 2 Free Wheel Spins
 
 Share your referral link on Twitter, Threads, Facebook, or WhatsApp directly from your dashboard!
 
@@ -242,6 +242,7 @@ type AdminTab =
   | 'site_editor'
   | 'seo_faq_cms'
   | 'blog_rewards_cms'
+  | 'engagement_rewards'
   | 'certificates_cms'
   | 'visitors_analytics'
   | 'email_marketing'
@@ -444,6 +445,7 @@ export const AdminDashboard: React.FC = () => {
     // Platform Feature Switches
     featureToggles,
     updateFeatureToggles,
+    resetFeatureToggles,
     // Automated Crypto Gateways & RPC Nodes
     autoCryptoGateways,
     updateAutoCryptoGateway,
@@ -517,7 +519,7 @@ export const AdminDashboard: React.FC = () => {
   const categoryDropdownRef = useRef<HTMLDivElement>(null);
 
   // AI & Manual Promotional Banner Generator State (with 3D / HD Support)
-  const [aiBannerGoal, setAiBannerGoal] = useState('Promote TSLA 28.5% Fast ROI Pools, Cybertruck Sales & $100 Referral Rewards');
+  const [aiBannerGoal, setAiBannerGoal] = useState('Promote TSLA 28.5% Fast ROI Pools, Cybertruck Sales & $25–$200 Tiered Referral Rewards');
   const [aiBannerSize, setAiBannerSize] = useState<BannerSizeType>('leaderboard');
   const [aiBannerTone, setAiBannerTone] = useState('Luxury High-Octane EV');
   const [aiBannerTargetTab, setAiBannerTargetTab] = useState('stocks');
@@ -537,7 +539,7 @@ export const AdminDashboard: React.FC = () => {
     customHeight: 90,
     imageMode: 'multi',
     transitionEffect: 'fade',
-    headline: 'TESLA CYBERBEAST DIRECT DELIVERY + $100 REFERRAL BONUS',
+    headline: 'TESLA CYBERBEAST DIRECT DELIVERY + $25–$200 REFERRAL BONUS',
     subheadline: 'Nationwide enclosed transport, 7-day money-back protection & instant crypto settlement.',
     ctaText: 'Explore Inventory',
     badgeText: '3D 4K UHD • LEADERBOARD',
@@ -687,7 +689,7 @@ export const AdminDashboard: React.FC = () => {
     name: string;
     email: string;
     role: 'customer' | 'admin';
-    tier: 'Standard' | 'Plaid Member' | 'Founders Club';
+    tier: 'Standard' | 'Silver Ambassador' | 'Plaid Member' | 'Founders Club';
     accountStatus: 'active' | 'suspended' | 'flagged' | 'banned';
     kycStatus: 'unverified' | 'in_review' | 'verified' | 'rejected';
     totalDepositedUsd: number;
@@ -1042,11 +1044,20 @@ export const AdminDashboard: React.FC = () => {
     {
       id: 'blog_rewards_cms',
       requiredPrivilege: 'manage_marketing',
-      label: 'Blog CMS, Social Shares & Cents Rewards',
-      shortLabel: 'Blog & Cents Engine',
-      description: 'Write SEO blog posts, manage multi-platform sharing & configure tier-multiplied USD cents rewards',
+      label: 'Blog CMS & Editorial SEO',
+      shortLabel: 'Blog & SEO CMS',
+      description: 'Toggle blog visibility, write SEO-optimized articles, moderate comments & manage social share links',
       icon: Newspaper,
-      badge: 'SEO + ¢ Engine',
+      badge: featureToggles.enableBlogPage !== false ? 'Blog ON' : 'Blog OFF',
+    },
+    {
+      id: 'engagement_rewards',
+      requiredPrivilege: 'manage_marketing',
+      label: 'Engagement Rewards & Tier Thresholds',
+      shortLabel: 'Engagement Rewards',
+      description: 'Configure cent-reward rates for dwell time & social shares, tier thresholds & $25–$200 referral payouts',
+      icon: Coins,
+      badge: '¢ & Tiers',
     },
     {
       id: 'certificates_cms',
@@ -7158,15 +7169,279 @@ export const AdminDashboard: React.FC = () => {
       {/* 10. Platform Feature Switches & Toggles */}
       {activeAdminTab === 'feature_switches' && (
         <div className="space-y-6">
+          {/* Card 1: Page Display Controls (Blog & All Platform Pages) */}
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 sm:p-6 space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-800 pb-4">
+              <div>
+                <h3 className="text-lg font-heading font-black text-white flex items-center gap-2">
+                  <Newspaper className="w-5 h-5 text-red-500" />
+                  Displayed Pages &amp; Navigation Visibility Controls
+                </h3>
+                <p className="text-xs text-zinc-400 mt-1">
+                  Toggle Blog and every public page ON or OFF across the navbar, footer, homepage, and route guard in real time.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    updateFeatureToggles({
+                      enableBlogPage: true,
+                      enableServicesPage: true,
+                      enableWrapsPage: true,
+                      enableRentalsPage: true,
+                      enablePromotionsPage: true,
+                      enableCouponsPage: true,
+                      enableShopPage: true,
+                      enableReferralsPage: true,
+                      enableBannersPage: true,
+                      enableSocialPage: true,
+                      enableAboutPage: true,
+                      enableCertificatesPage: true,
+                      enableFaqPage: true,
+                      enableContactPage: true,
+                      enableSitemapRssPages: true,
+                      enableStockTrading: true,
+                      enableVehicleSales: true,
+                      enableStakingYield: true,
+                    })
+                  }
+                  className="px-3 py-1.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-xs font-bold text-emerald-300 hover:bg-emerald-500/25 cursor-pointer"
+                >
+                  Enable All Pages
+                </button>
+                <button
+                  type="button"
+                  onClick={resetFeatureToggles}
+                  className="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs font-bold text-zinc-200 cursor-pointer"
+                >
+                  Reset All Defaults
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+              {[
+                {
+                  key: 'enableBlogPage' as const,
+                  label: 'Blog & News Editorial Hub (/blog)',
+                  desc: 'Show or hide the Blog & News hub across navigation, footer & routes.',
+                  featured: true,
+                },
+                {
+                  key: 'enableServicesPage' as const,
+                  label: 'Service Bays & Maintenance (/services)',
+                  desc: 'Service scheduler, Bay diagnostics & Mobile Ranger booking.',
+                },
+                {
+                  key: 'enableWrapsPage' as const,
+                  label: 'Custom Wrap Studio (/wraps)',
+                  desc: '3M/XPEL color preview studio & cleanroom customization configurator.',
+                },
+                {
+                  key: 'enableRentalsPage' as const,
+                  label: 'Exotic Rental Fleet (/rentals)',
+                  desc: 'Cybertruck, Plaid & Roadster daily rental booking fleet.',
+                },
+                {
+                  key: 'enableStakingYield' as const,
+                  label: 'Fleet Yield & Staking Pools (/investment)',
+                  desc: 'Supercharger & fleet staking yield contracts and ROI pools.',
+                },
+                {
+                  key: 'enableStockTrading' as const,
+                  label: 'TSLA Stocks & Fast ROI Hub (/stocks)',
+                  desc: 'Live NASDAQ TSLA chart, spot shares & accelerated stock plans.',
+                },
+                {
+                  key: 'enableVehicleSales' as const,
+                  label: 'Tesla Car Sales Showroom (/vehicles)',
+                  desc: 'Direct EV inventory showroom with nationwide enclosed delivery.',
+                },
+                {
+                  key: 'enablePromotionsPage' as const,
+                  label: 'Spin & Win + Scratch Cards (/promotions)',
+                  desc: 'Lucky spin wheel & scratch foil jackpot promotional games.',
+                },
+                {
+                  key: 'enableCouponsPage' as const,
+                  label: 'Promo Coupons Hub (/coupons)',
+                  desc: 'Claimable checkout coupon codes & seasonal discount vouchers.',
+                },
+                {
+                  key: 'enableShopPage' as const,
+                  label: 'Hardware & Accessories Store (/shop)',
+                  desc: 'Carbon aero, wheels, chargers & Tesla parts e-commerce store.',
+                },
+                {
+                  key: 'enableReferralsPage' as const,
+                  label: 'Refer & Earn Program (/referrals)',
+                  desc: 'Tiered $25–$200 friend referral dashboard & invite link center.',
+                },
+                {
+                  key: 'enableBannersPage' as const,
+                  label: '3D Promo Banners & Videos (/banners)',
+                  desc: 'Promotional affiliate banners & showcase video gallery.',
+                },
+                {
+                  key: 'enableSocialPage' as const,
+                  label: 'Social Connect & Share (/social)',
+                  desc: 'Official community links & social share reward channels.',
+                },
+                {
+                  key: 'enableAboutPage' as const,
+                  label: 'About Apex Tesla Hub (/about)',
+                  desc: 'Company overview, service standards & facility credentials.',
+                },
+                {
+                  key: 'enableCertificatesPage' as const,
+                  label: 'Business & License Certificates (/certificates)',
+                  desc: 'View-only official dealer & high-voltage compliance certificates.',
+                },
+                {
+                  key: 'enableFaqPage' as const,
+                  label: 'FAQ Knowledge Base (/faq)',
+                  desc: 'Interactive Q&A slider & platform operations answers.',
+                },
+                {
+                  key: 'enableContactPage' as const,
+                  label: 'Contact & Support Desk (/contact)',
+                  desc: 'Direct concierge contact form & service bay locations.',
+                },
+                {
+                  key: 'enableSitemapRssPages' as const,
+                  label: 'Sitemap & RSS Feeds (/sitemap, /rss)',
+                  desc: 'HTML directory, XML sitemap links & syndicated RSS feed explorer.',
+                },
+              ].map((pg) => {
+                const isEnabled = featureToggles[pg.key] !== false;
+                return (
+                  <div
+                    key={pg.key}
+                    className={`p-4 rounded-xl bg-zinc-950 border space-y-2.5 flex flex-col justify-between ${
+                      pg.featured ? 'border-red-500/40 ring-1 ring-red-500/20' : 'border-zinc-800'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <h4 className="text-xs font-bold text-white">{pg.label}</h4>
+                        <p className="text-[11px] text-zinc-400 mt-1 leading-relaxed">{pg.desc}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => updateFeatureToggles({ [pg.key]: !isEnabled })}
+                        className={`shrink-0 transition-colors cursor-pointer ${
+                          isEnabled ? 'text-emerald-400' : 'text-zinc-600'
+                        }`}
+                        aria-label={`Toggle ${pg.label}`}
+                      >
+                        {isEnabled ? <ToggleRight className="w-8 h-8" /> : <ToggleLeft className="w-8 h-8" />}
+                      </button>
+                    </div>
+                    <div className="pt-2 border-t border-zinc-900 flex items-center justify-between text-[10px] font-mono">
+                      <span className="text-zinc-500">Page Visibility:</span>
+                      <span className={isEnabled ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
+                        {isEnabled ? 'DISPLAYED' : 'HIDDEN'}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Card 2: Homepage Sections & Global Widget Toggles */}
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 sm:p-6 space-y-4">
+            <div className="border-b border-zinc-800 pb-3">
+              <h3 className="text-base font-heading font-black text-white flex items-center gap-2">
+                <Layers className="w-4 h-4 text-cyan-400" />
+                Homepage Sections &amp; Global Modules
+              </h3>
+              <p className="text-xs text-zinc-400 mt-0.5">
+                Control individual sections displayed on the Home landing view and persistent sitewide widgets.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+              {[
+                {
+                  key: 'enableLiveTickerBar' as const,
+                  label: 'Live Winning & TSLA Ticker Bar',
+                  desc: 'Top scrolling announcement, TSLA live quote & coupon ticker bar.',
+                },
+                {
+                  key: 'enableShowcaseDeck' as const,
+                  label: 'Home Interactive Showcase Deck',
+                  desc: 'Unified featured slide carousel on the Home landing page.',
+                },
+                {
+                  key: 'enableHomePromotionsSection' as const,
+                  label: 'Home Spin & Scratch Showcase',
+                  desc: 'Embedded PromotionsHub game deck on the Home landing page.',
+                },
+                {
+                  key: 'enableHomeFaqSection' as const,
+                  label: 'Home FAQ Knowledge Slider',
+                  desc: 'Embedded interactive FAQ deck at the bottom of the Home page.',
+                },
+                {
+                  key: 'enableNewsletterSignup' as const,
+                  label: 'Footer Newsletter Signup Widget',
+                  desc: 'Email capture bar in the footer & newsletter popup flows.',
+                },
+                {
+                  key: 'enableAiChatbot' as const,
+                  label: 'Gemini AI Specialist Concierge Widget',
+                  desc: 'Floating EV diagnostics & concierge chat assistant widget.',
+                },
+                {
+                  key: 'enableCryptoDeposits' as const,
+                  label: 'Crypto & Multi-Chain Deposit Modal',
+                  desc: 'Enables BTC, USDT, XRP, BNB & fiat deposit channels.',
+                },
+              ].map((mod) => {
+                const isEnabled = featureToggles[mod.key] !== false;
+                return (
+                  <div
+                    key={mod.key}
+                    className="p-4 rounded-xl bg-zinc-950 border border-zinc-800 space-y-2.5 flex flex-col justify-between"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <h4 className="text-xs font-bold text-white">{mod.label}</h4>
+                        <p className="text-[11px] text-zinc-400 mt-1 leading-relaxed">{mod.desc}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => updateFeatureToggles({ [mod.key]: !isEnabled })}
+                        className={`shrink-0 transition-colors cursor-pointer ${
+                          isEnabled ? 'text-emerald-400' : 'text-zinc-600'
+                        }`}
+                      >
+                        {isEnabled ? <ToggleRight className="w-8 h-8" /> : <ToggleLeft className="w-8 h-8" />}
+                      </button>
+                    </div>
+                    <div className="pt-2 border-t border-zinc-900 flex items-center justify-between text-[10px] font-mono">
+                      <span className="text-zinc-500">Module State:</span>
+                      <span className={isEnabled ? 'text-emerald-400 font-bold' : 'text-zinc-500 font-bold'}>
+                        {isEnabled ? 'ACTIVE' : 'OFF'}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Card 3: Core Trading, Withdrawals & Gaming Engine Switches */}
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 sm:p-6 space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-800 pb-4">
               <div>
                 <h3 className="text-lg font-heading font-black text-white flex items-center gap-2">
                   <Sliders className="w-5 h-5 text-red-500" />
-                  Platform Master Feature Switches & Control Toggles
+                  Trading, Payouts &amp; Gaming Engine Controls
                 </h3>
                 <p className="text-xs text-zinc-400 mt-1">
-                  Dynamically activate or deactivate functional modules across user navigation, landing pages, and APIs in real-time.
+                  Control functional execution capabilities across spot orders, withdrawals, spins, and scratch foils.
                 </p>
               </div>
               <span className="px-3 py-1 bg-zinc-800 rounded-lg text-xs font-mono text-emerald-400 font-bold">
@@ -7202,8 +7477,8 @@ export const AdminDashboard: React.FC = () => {
                 },
                 {
                   key: 'requireDepositForWithdrawal' as const,
-                  label: 'Enforce $200 Minimum Deposit Before Withdrawal',
-                  desc: 'Crucial rule: Users without completed $200 deposit receive clear withdrawal rejection alert.',
+                  label: 'Enforce Minimum Deposit Before Withdrawal',
+                  desc: 'Users without completed qualifying deposit receive a clear withdrawal activation prompt.',
                   icon: ShieldCheck,
                 },
                 {
@@ -7246,11 +7521,12 @@ export const AdminDashboard: React.FC = () => {
                           <h4 className="text-xs font-bold text-white">{sw.label}</h4>
                         </div>
                         <button
+                          type="button"
                           onClick={() => {
                             updateFeatureToggles({ [sw.key]: !isEnabled });
                             showToast(`${sw.label} ${!isEnabled ? 'ENABLED' : 'DISABLED'}`);
                           }}
-                          className={`text-xl transition-colors ${isEnabled ? 'text-emerald-400' : 'text-zinc-600'}`}
+                          className={`text-xl transition-colors cursor-pointer ${isEnabled ? 'text-emerald-400' : 'text-zinc-600'}`}
                         >
                           {isEnabled ? <ToggleRight className="w-8 h-8" /> : <ToggleLeft className="w-8 h-8" />}
                         </button>
@@ -8658,7 +8934,7 @@ export const AdminDashboard: React.FC = () => {
                     title: 'Cybertruck VIP Referral Leaderboard',
                     size: 'leaderboard',
                     dimensions: '1456×180 HD',
-                    headline: 'TESLA CYBERBEAST DIRECT DELIVERY + $100 REFERRAL BONUS',
+                    headline: 'TESLA CYBERBEAST DIRECT DELIVERY + $25–$200 REFERRAL BONUS',
                     subheadline: 'Nationwide enclosed transport, 7-day money-back protection & instant crypto settlement.',
                     ctaText: 'Explore Inventory',
                     badgeText: '3D 4K UHD • LEADERBOARD',
@@ -8740,7 +9016,7 @@ export const AdminDashboard: React.FC = () => {
                   <option value="vehicles">Car Sales</option>
                   <option value="investment">Fleet Yield</option>
                   <option value="promotions">Spin & Win</option>
-                  <option value="referrals">Referrals (+$100)</option>
+                  <option value="referrals">Referrals ($25–$200)</option>
                   <option value="shop">Hardware Store</option>
                 </select>
               </div>
@@ -10370,7 +10646,7 @@ export const AdminDashboard: React.FC = () => {
                     type="text"
                     value={menuForm.badge || ''}
                     onChange={(e) => setMenuForm({ ...menuForm, badge: e.target.value })}
-                    placeholder="e.g. HOT, NEW, +$100"
+                    placeholder="e.g. HOT, NEW, $25-$200"
                     className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono"
                   />
                 </div>
@@ -11032,9 +11308,14 @@ export const AdminDashboard: React.FC = () => {
         <AdminSeoFaqManager />
       )}
 
-      {/* TAB: BLOG CMS, SOCIAL SHARING & TIER CENTS ENGINE */}
+      {/* TAB: BLOG CMS & EDITORIAL SEO */}
       {activeAdminTab === 'blog_rewards_cms' && hasAdminPrivilege('manage_marketing') && (
-        <AdminBlogRewardsManager />
+        <AdminBlogRewardsManager initialSubTab="posts" sectionMode="blog" />
+      )}
+
+      {/* TAB: ENGAGEMENT REWARDS & TIER THRESHOLDS */}
+      {activeAdminTab === 'engagement_rewards' && hasAdminPrivilege('manage_marketing') && (
+        <AdminBlogRewardsManager initialSubTab="rewards" sectionMode="engagement_rewards" />
       )}
 
       {/* TAB: BUSINESS & OPERATING LICENSE CERTIFICATES CMS */}
@@ -11107,12 +11388,13 @@ export const AdminDashboard: React.FC = () => {
                     onChange={(e) =>
                       setUserForm({
                         ...userForm,
-                        tier: e.target.value as 'Standard' | 'Plaid Member' | 'Founders Club',
+                        tier: e.target.value as 'Standard' | 'Silver Ambassador' | 'Plaid Member' | 'Founders Club',
                       })
                     }
                     className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-2.5 py-2 text-white"
                   >
                     <option value="Standard">Standard</option>
+                    <option value="Silver Ambassador">Silver Ambassador</option>
                     <option value="Plaid Member">Plaid Member</option>
                     <option value="Founders Club">Founders Club</option>
                   </select>

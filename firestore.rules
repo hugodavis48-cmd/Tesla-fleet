@@ -545,7 +545,7 @@ service cloud.firestore {
         data.name is string && data.name.size() >= 1 && data.name.size() <= 120 &&
         data.email is string && data.email.size() >= 3 && data.email.size() <= 200 &&
         data.role in ['customer', 'admin'] &&
-        data.tier in ['Standard', 'Plaid Member', 'Founders Club'] &&
+        data.tier in ['Standard', 'Silver Ambassador', 'Plaid Member', 'Founders Club'] &&
         data.accountStatus in ['active', 'suspended', 'flagged', 'banned'] &&
         data.kycStatus in ['unverified', 'in_review', 'verified', 'rejected'] &&
         data.totalDepositedUsd is number && data.totalDepositedUsd >= 0 && data.totalDepositedUsd <= 100000000 &&
@@ -669,6 +669,60 @@ service cloud.firestore {
         ]);
 
       allow delete: if isValidId(subscriberId) && isAdmin();
+    }
+
+    function isValidEngagementActivity(data) {
+      return data.keys().hasAll([
+          'id',
+          'userId',
+          'userTier',
+          'activityType',
+          'pageTab',
+          'centsEarned',
+          'pointsEarned',
+          'createdAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id',
+          'userId',
+          'userTier',
+          'activityType',
+          'pageTab',
+          'dwellSeconds',
+          'platform',
+          'targetTitle',
+          'centsEarned',
+          'pointsEarned',
+          'createdAt'
+        ]) &&
+        isValidId(data.id) &&
+        isValidId(data.userId) &&
+        data.userId == request.auth.uid &&
+        data.userTier is string && data.userTier.size() >= 1 && data.userTier.size() <= 64 &&
+        data.activityType in ['page_dwell', 'social_share'] &&
+        isValidId(data.pageTab) && data.pageTab.size() <= 64 &&
+        (!('dwellSeconds' in data) || (data.dwellSeconds is number && data.dwellSeconds >= 0 && data.dwellSeconds <= 86400)) &&
+        (!('platform' in data) || (data.platform is string && data.platform.size() <= 40)) &&
+        (!('targetTitle' in data) || (data.targetTitle is string && data.targetTitle.size() <= 200)) &&
+        data.centsEarned is number && data.centsEarned >= 0 && data.centsEarned <= 10000 &&
+        data.pointsEarned is number && data.pointsEarned >= 0 && data.pointsEarned <= 100000 &&
+        data.createdAt is timestamp;
+    }
+
+    // Logged-in user dwell time & social sharing activity tracker (owner-isolated & immutable)
+    match /engagement_activities/{activityId} {
+      allow get: if isValidId(activityId) && isVerifiedUser() && (isAdmin() || existing().userId == request.auth.uid);
+      allow list: if isVerifiedUser() && (isAdmin() || existing().userId == request.auth.uid);
+
+      allow create: if isValidId(activityId) &&
+        isVerifiedUser() &&
+        isValidEngagementActivity(incoming()) &&
+        incoming().id == activityId &&
+        incoming().userId == request.auth.uid &&
+        incoming().createdAt == request.time;
+
+      allow update: if false;
+      allow delete: if isValidId(activityId) && isAdmin();
     }
   }
 }

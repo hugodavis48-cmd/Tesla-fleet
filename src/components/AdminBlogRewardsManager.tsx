@@ -1,12 +1,14 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import {
   BlogCategory,
   BlogPost,
   BlogPostStatus,
   EngagementActionType,
+  EngagementTierLevel,
   SocialSharePlatformId,
 } from '../types';
+import { DEFAULT_ENGAGEMENT_REWARD_CONFIG } from '../data/mockData';
 import { SOCIAL_SHARE_PLATFORMS } from '../lib/socialShare';
 import {
   Newspaper,
@@ -104,12 +106,23 @@ const computeSeoScore = (draft: {
   return { score, checks, wordCount };
 };
 
-export const AdminBlogRewardsManager: React.FC = () => {
+interface AdminBlogRewardsManagerProps {
+  initialSubTab?: 'posts' | 'rewards' | 'analytics';
+  sectionMode?: 'blog' | 'engagement_rewards';
+}
+
+export const AdminBlogRewardsManager: React.FC<AdminBlogRewardsManagerProps> = ({
+  initialSubTab = 'posts',
+  sectionMode = 'blog',
+}) => {
   const {
     blogPosts,
     blogComments,
     engagementRewardConfig,
     engagementRewardLogs,
+    engagementActivities,
+    featureToggles,
+    updateFeatureToggles,
     allUsers,
     createBlogPost,
     updateBlogPost,
@@ -124,7 +137,7 @@ export const AdminBlogRewardsManager: React.FC = () => {
     showToast,
   } = useApp();
 
-  const [subTab, setSubTab] = useState<'posts' | 'rewards' | 'analytics'>('posts');
+  const [subTab, setSubTab] = useState<'posts' | 'rewards' | 'analytics'>(initialSubTab);
   const [postSearch, setPostSearch] = useState('');
   const [postStatusFilter, setPostStatusFilter] = useState<'all' | BlogPostStatus>('all');
   const [isComposerOpen, setIsComposerOpen] = useState(false);
@@ -174,7 +187,30 @@ export const AdminBlogRewardsManager: React.FC = () => {
   });
 
   // Rewards Engine Local Form State synced cleanly on explicit save
-  const [rewardDraft, setRewardDraft] = useState(engagementRewardConfig);
+  const [rewardDraft, setRewardDraft] = useState(() => ({
+    ...DEFAULT_ENGAGEMENT_REWARD_CONFIG,
+    ...engagementRewardConfig,
+    tierLevels:
+      Array.isArray(engagementRewardConfig.tierLevels) && engagementRewardConfig.tierLevels.length > 0
+        ? engagementRewardConfig.tierLevels
+        : DEFAULT_ENGAGEMENT_REWARD_CONFIG.tierLevels || [],
+  }));
+
+  useEffect(() => {
+    setSubTab(initialSubTab);
+  }, [initialSubTab]);
+
+  useEffect(() => {
+    setRewardDraft({
+      ...DEFAULT_ENGAGEMENT_REWARD_CONFIG,
+      ...engagementRewardConfig,
+      tierLevels:
+        Array.isArray(engagementRewardConfig.tierLevels) && engagementRewardConfig.tierLevels.length > 0
+          ? engagementRewardConfig.tierLevels
+          : DEFAULT_ENGAGEMENT_REWARD_CONFIG.tierLevels || [],
+    });
+  }, [engagementRewardConfig]);
+
   const [grantUserId, setGrantUserId] = useState<string>(allUsers[0]?.id || 'usr-apex-001');
   const [grantCents, setGrantCents] = useState<number>(150);
   const [grantReason, setGrantReason] = useState<string>('Community Advocacy & Top Social Share Bonus');
@@ -394,18 +430,38 @@ export const AdminBlogRewardsManager: React.FC = () => {
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div className="space-y-1">
             <div className="flex items-center gap-2 text-xs font-mono text-red-400 uppercase tracking-wider">
-              <Newspaper className="w-4 h-4" />
-              <span>Blog, SEO Studio & Engagement Rewards Management</span>
+              {sectionMode === 'engagement_rewards' ? <Coins className="w-4 h-4" /> : <Newspaper className="w-4 h-4" />}
+              <span>
+                {sectionMode === 'engagement_rewards'
+                  ? 'Engagement Rewards, Tier Thresholds & Referral Engine'
+                  : 'Blog, SEO Studio & Engagement Rewards Management'}
+              </span>
             </div>
             <h2 className="font-heading font-black text-2xl text-white tracking-tight">
-              Editorial CMS, Social Share Multiplier & Fractional Cents Engine
+              {sectionMode === 'engagement_rewards'
+                ? 'Cent-Reward Rates, Tier Thresholds & $25–$200 Referral Rules'
+                : 'Editorial CMS, Social Share Multiplier & Fractional Cents Engine'}
             </h2>
             <p className="text-xs text-zinc-400">
-              Publish SEO-optimized articles, regulate tier-multiplied USD cent payouts for reads, progressive social shares & dwell time, and audit all rewards.
+              {sectionMode === 'engagement_rewards'
+                ? 'Set cent rates for page dwell time, article reads & social sharing, define tier level thresholds, configure $25–$200 referral bonuses, and inspect Firestore activity logs.'
+                : 'Toggle blog visibility on the public site, publish SEO-optimized articles, regulate tier-multiplied USD cent payouts, and audit all rewards.'}
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+            <button
+              type="button"
+              onClick={() => updateFeatureToggles({ enableBlogPage: featureToggles.enableBlogPage === false })}
+              className={`px-3.5 py-2.5 rounded-xl border text-xs font-bold flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0 transition ${
+                featureToggles.enableBlogPage !== false
+                  ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300'
+                  : 'bg-zinc-900 border-zinc-700 text-zinc-400'
+              }`}
+            >
+              <Globe className="w-3.5 h-3.5" />
+              <span>Blog Page: {featureToggles.enableBlogPage !== false ? 'VISIBLE (ON)' : 'HIDDEN (OFF)'}</span>
+            </button>
             <button
               type="button"
               onClick={openCreateComposer}
@@ -1142,7 +1198,7 @@ export const AdminBlogRewardsManager: React.FC = () => {
                 />
               </div>
 
-              <div className="sm:col-span-2">
+              <div>
                 <label className="text-zinc-400 block mb-1">Daily Maximum USD Earnings Cap per User ($ USD)</label>
                 <input
                   type="number"
@@ -1155,34 +1211,125 @@ export const AdminBlogRewardsManager: React.FC = () => {
                   className="w-full rounded-xl bg-zinc-900 border border-zinc-800 px-3.5 py-2.5 text-emerald-400 font-mono"
                 />
               </div>
+
+              <div>
+                <label className="text-zinc-400 block mb-1">Social Channel Share Click Bonus (¢)</label>
+                <input
+                  type="number"
+                  step="0.5"
+                  min="0"
+                  value={rewardDraft.socialSharePlatformCents ?? 4}
+                  onChange={(e) =>
+                    setRewardDraft((prev) => ({
+                      ...prev,
+                      socialSharePlatformCents: Math.max(0, Number(e.target.value)),
+                    }))
+                  }
+                  className="w-full rounded-xl bg-zinc-900 border border-zinc-800 px-3.5 py-2.5 text-cyan-400 font-mono"
+                />
+              </div>
             </div>
 
-            {/* Tier Multipliers */}
+            {/* Configurable Tier Level Thresholds & Referral Rewards ($25 - $200) */}
             <div className="border-t border-zinc-800 pt-5 space-y-3">
-              <h4 className="font-heading font-bold text-sm text-white flex items-center gap-2">
-                <Award className="w-4 h-4 text-amber-400" />
-                <span>Membership Tier Multipliers</span>
-              </h4>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-                {(['Standard', 'Plaid Member', 'Founders Club'] as const).map((tierKey) => (
-                  <div key={tierKey} className="rounded-xl bg-zinc-900 border border-zinc-800 p-3 space-y-1.5">
-                    <label className="text-zinc-300 font-semibold block">{tierKey} (×)</label>
-                    <input
-                      type="number"
-                      step="0.05"
-                      min="0.5"
-                      value={rewardDraft.tierMultipliers[tierKey]}
-                      onChange={(e) =>
-                        setRewardDraft((prev) => ({
-                          ...prev,
-                          tierMultipliers: {
-                            ...prev.tierMultipliers,
-                            [tierKey]: Math.max(0.5, Number(e.target.value) || 1),
-                          },
-                        }))
-                      }
-                      className="w-full rounded-lg bg-zinc-950 border border-zinc-800 px-2.5 py-1.5 text-amber-300 font-mono font-bold"
-                    />
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h4 className="font-heading font-bold text-sm text-white flex items-center gap-2">
+                  <Award className="w-4 h-4 text-amber-400" />
+                  <span>Tier Level Thresholds, Multipliers &amp; Referral Rewards ($25–$200)</span>
+                </h4>
+                <span className="text-[11px] font-mono text-emerald-400">
+                  Referral Payout Clamped: $25 Min – $200 Max
+                </span>
+              </div>
+
+              <div className="space-y-2.5 text-xs">
+                {(rewardDraft.tierLevels || []).map((lvl: EngagementTierLevel, idx: number) => (
+                  <div
+                    key={lvl.id}
+                    className="rounded-2xl bg-zinc-900/90 border border-zinc-800 p-3.5 grid grid-cols-2 sm:grid-cols-5 gap-2.5 items-end"
+                  >
+                    <div className="col-span-2 sm:col-span-1">
+                      <label className="text-[10px] font-mono text-zinc-400 block mb-1">Tier Label</label>
+                      <input
+                        type="text"
+                        value={lvl.name}
+                        onChange={(e) => {
+                          const next = [...(rewardDraft.tierLevels || [])];
+                          next[idx] = { ...lvl, name: e.target.value };
+                          setRewardDraft((prev) => ({ ...prev, tierLevels: next }));
+                        }}
+                        className="w-full rounded-lg bg-zinc-950 border border-zinc-800 px-2.5 py-1.5 text-white font-semibold"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-mono text-zinc-400 block mb-1">Min Points</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={lvl.minPoints}
+                        onChange={(e) => {
+                          const next = [...(rewardDraft.tierLevels || [])];
+                          next[idx] = { ...lvl, minPoints: Math.max(0, Number(e.target.value) || 0) };
+                          setRewardDraft((prev) => ({ ...prev, tierLevels: next }));
+                        }}
+                        className="w-full rounded-lg bg-zinc-950 border border-zinc-800 px-2.5 py-1.5 text-cyan-300 font-mono font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-mono text-zinc-400 block mb-1">Min Deposit ($)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="100"
+                        value={lvl.minDepositUsd}
+                        onChange={(e) => {
+                          const next = [...(rewardDraft.tierLevels || [])];
+                          next[idx] = { ...lvl, minDepositUsd: Math.max(0, Number(e.target.value) || 0) };
+                          setRewardDraft((prev) => ({ ...prev, tierLevels: next }));
+                        }}
+                        className="w-full rounded-lg bg-zinc-950 border border-zinc-800 px-2.5 py-1.5 text-zinc-200 font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-mono text-zinc-400 block mb-1">Cents Mult (×)</label>
+                      <input
+                        type="number"
+                        step="0.05"
+                        min="0.5"
+                        value={lvl.multiplier}
+                        onChange={(e) => {
+                          const nextVal = Math.max(0.5, Number(e.target.value) || 1);
+                          const next = [...(rewardDraft.tierLevels || [])];
+                          next[idx] = { ...lvl, multiplier: nextVal };
+                          setRewardDraft((prev) => ({
+                            ...prev,
+                            tierLevels: next,
+                            tierMultipliers: {
+                              ...prev.tierMultipliers,
+                              [lvl.mappedUserTier]: nextVal,
+                            },
+                          }));
+                        }}
+                        className="w-full rounded-lg bg-zinc-950 border border-zinc-800 px-2.5 py-1.5 text-amber-300 font-mono font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-mono text-emerald-400 block mb-1">Referral ($25–$200)</label>
+                      <input
+                        type="number"
+                        min="25"
+                        max="200"
+                        step="5"
+                        value={lvl.referralRewardUsd}
+                        onChange={(e) => {
+                          const nextVal = Math.min(200, Math.max(25, Number(e.target.value) || 25));
+                          const next = [...(rewardDraft.tierLevels || [])];
+                          next[idx] = { ...lvl, referralRewardUsd: nextVal };
+                          setRewardDraft((prev) => ({ ...prev, tierLevels: next }));
+                        }}
+                        className="w-full rounded-lg bg-zinc-950 border border-emerald-500/40 px-2.5 py-1.5 text-emerald-400 font-mono font-bold"
+                      />
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1204,7 +1351,7 @@ export const AdminBlogRewardsManager: React.FC = () => {
                 className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-2 cursor-pointer"
               >
                 <Save className="w-4 h-4" />
-                <span>Save Rewards & Tier Rules</span>
+                <span>Save Rewards &amp; Tier Rules</span>
               </button>
             </div>
           </div>
@@ -1219,36 +1366,47 @@ export const AdminBlogRewardsManager: React.FC = () => {
                 <table className="w-full text-xs font-mono text-left">
                   <thead>
                     <tr className="border-b border-zinc-800 text-zinc-400">
-                      <th className="py-2 pr-2">Action</th>
-                      <th className="py-2 px-2">Std</th>
-                      <th className="py-2 px-2 text-sky-400">Plaid</th>
-                      <th className="py-2 pl-2 text-amber-400">Founders</th>
+                      <th className="py-2 pr-2">Action / Benefit</th>
+                      <th className="py-2 px-1.5">Std</th>
+                      <th className="py-2 px-1.5 text-emerald-400">Silver</th>
+                      <th className="py-2 px-1.5 text-sky-400">Plaid</th>
+                      <th className="py-2 pl-1.5 text-amber-400">Founders</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-zinc-800/70 tabular-nums">
-                    {[
-                      { label: 'Article Read', base: rewardDraft.readArticleBaseCents },
-                      { label: 'Share #1', base: rewardDraft.shareArticleBaseCents },
-                      {
-                        label: 'Share #3 Combo',
-                        base: rewardDraft.shareArticleBaseCents + rewardDraft.shareProgressiveStepCents * 2,
-                      },
-                      { label: 'Like / Comment', base: rewardDraft.engagementActionBaseCents },
-                      { label: 'Active Time Cycle', base: rewardDraft.timeOnPlatformCentsPerInterval },
-                    ].map((row) => (
-                      <tr key={row.label}>
-                        <td className="py-2 pr-2 text-zinc-300 font-sans">{row.label}</td>
-                        <td className="py-2 px-2">
-                          {(row.base * (rewardDraft.tierMultipliers.Standard || 1)).toFixed(1)}¢
-                        </td>
-                        <td className="py-2 px-2 text-sky-300">
-                          {(row.base * (rewardDraft.tierMultipliers['Plaid Member'] || 1.5)).toFixed(1)}¢
-                        </td>
-                        <td className="py-2 pl-2 text-amber-300 font-bold">
-                          {(row.base * (rewardDraft.tierMultipliers['Founders Club'] || 2.25)).toFixed(1)}¢
-                        </td>
-                      </tr>
-                    ))}
+                    {(() => {
+                      const levels = rewardDraft.tierLevels || [];
+                      const mStd = levels[0]?.multiplier ?? (rewardDraft.tierMultipliers.Standard || 1);
+                      const mSil = levels[1]?.multiplier ?? (rewardDraft.tierMultipliers['Silver Ambassador'] || 1.25);
+                      const mPla = levels[2]?.multiplier ?? (rewardDraft.tierMultipliers['Plaid Member'] || 1.5);
+                      const mFnd = levels[3]?.multiplier ?? (rewardDraft.tierMultipliers['Founders Club'] || 2.25);
+                      return (
+                        <>
+                          {[
+                            { label: 'Article Read', base: rewardDraft.readArticleBaseCents },
+                            { label: 'Blog Share #1', base: rewardDraft.shareArticleBaseCents },
+                            { label: 'Social Share Click', base: rewardDraft.socialSharePlatformCents ?? 4 },
+                            { label: 'Like / Comment', base: rewardDraft.engagementActionBaseCents },
+                            { label: 'Page Dwell Cycle', base: rewardDraft.timeOnPlatformCentsPerInterval },
+                          ].map((row) => (
+                            <tr key={row.label}>
+                              <td className="py-2 pr-2 text-zinc-300 font-sans">{row.label}</td>
+                              <td className="py-2 px-1.5">{(row.base * mStd).toFixed(1)}¢</td>
+                              <td className="py-2 px-1.5 text-emerald-300">{(row.base * mSil).toFixed(1)}¢</td>
+                              <td className="py-2 px-1.5 text-sky-300">{(row.base * mPla).toFixed(1)}¢</td>
+                              <td className="py-2 pl-1.5 text-amber-300 font-bold">{(row.base * mFnd).toFixed(1)}¢</td>
+                            </tr>
+                          ))}
+                          <tr className="bg-emerald-950/20">
+                            <td className="py-2 pr-2 text-emerald-300 font-sans font-bold">Referral Bonus</td>
+                            <td className="py-2 px-1.5 font-bold">${levels[0]?.referralRewardUsd ?? 25}</td>
+                            <td className="py-2 px-1.5 text-emerald-300 font-bold">${levels[1]?.referralRewardUsd ?? 75}</td>
+                            <td className="py-2 px-1.5 text-sky-300 font-bold">${levels[2]?.referralRewardUsd ?? 125}</td>
+                            <td className="py-2 pl-1.5 text-amber-300 font-bold">${levels[3]?.referralRewardUsd ?? 200}</td>
+                          </tr>
+                        </>
+                      );
+                    })()}
                   </tbody>
                 </table>
               </div>
@@ -1564,6 +1722,70 @@ export const AdminBlogRewardsManager: React.FC = () => {
                 </tbody>
               </table>
             </div>
+          </div>
+
+          {/* Tracked Page Dwell & Social Share Activity Stream (Firestore Synced) */}
+          <div className="rounded-3xl bg-zinc-950 border border-zinc-800 p-6 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-zinc-800 pb-3">
+              <div>
+                <h3 className="font-heading font-bold text-base text-white">
+                  Tracked Page Dwell &amp; Social Share Stream ({engagementActivities.length})
+                </h3>
+                <p className="text-xs text-zinc-400">
+                  Lightweight Firestore-synced engagement telemetry recording verified page dwell intervals and social share clicks.
+                </p>
+              </div>
+            </div>
+
+            {engagementActivities.length === 0 ? (
+              <p className="text-xs text-zinc-500 py-6 text-center">
+                No page dwell or social share records logged yet in this session.
+              </p>
+            ) : (
+              <div className="overflow-x-auto max-h-80">
+                <table className="w-full text-xs text-left">
+                  <thead>
+                    <tr className="border-b border-zinc-800 text-zinc-400 font-mono uppercase text-[11px]">
+                      <th className="py-2 pr-3">Event Type</th>
+                      <th className="py-2 px-3">Page / Platform</th>
+                      <th className="py-2 px-3">Target / Note</th>
+                      <th className="py-2 px-3 text-right">Dwell / Points</th>
+                      <th className="py-2 pl-3 text-right">Earned</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-800/70">
+                    {engagementActivities.slice(0, 40).map((act) => (
+                      <tr key={act.id}>
+                        <td className="py-2.5 pr-3 font-mono text-[11px]">
+                          <span
+                            className={`px-2 py-0.5 rounded font-bold uppercase ${
+                              act.activityType === 'social_share'
+                                ? 'bg-sky-500/15 text-sky-300'
+                                : 'bg-violet-500/15 text-violet-300'
+                            }`}
+                          >
+                            {act.activityType.replace('_', ' ')}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 font-mono text-zinc-300">
+                          /{act.pageTab}
+                          {act.platform ? ` • ${act.platform.toUpperCase()}` : ''}
+                        </td>
+                        <td className="py-2.5 px-3 text-zinc-300 max-w-xs truncate">
+                          {act.targetTitle || 'Verified Session Activity'}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono text-zinc-300">
+                          {act.dwellSeconds ? `${act.dwellSeconds}s • ` : ''}+{act.pointsEarned} pts
+                        </td>
+                        <td className="py-2.5 pl-3 text-right font-mono font-bold text-emerald-400">
+                          +{act.centsEarned.toFixed(1)}¢
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       )}

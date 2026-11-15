@@ -28,7 +28,7 @@ interface SocialChannel {
 }
 
 export const SocialConnect: React.FC = () => {
-  const { showToast, socialLinks, siteSettings } = useApp();
+  const { showToast, socialLinks, siteSettings, trackSocialShareActivity } = useApp();
   const [copiedLink, setCopiedLink] = useState(false);
 
   const baseChannels: SocialChannel[] = [
@@ -174,7 +174,14 @@ export const SocialConnect: React.FC = () => {
   const handleCopyLink = () => {
     navigator.clipboard.writeText(shareUrl);
     setCopiedLink(true);
-    showToast('Platform link copied to clipboard!', 'success');
+    const res = trackSocialShareActivity({
+      platform: 'copy_link',
+      pageTab: 'social',
+      targetTitle: 'Apex Tesla Hub Platform Link',
+    });
+    if (!res.awardedCents) {
+      showToast('Platform link copied to clipboard!', 'success');
+    }
     setTimeout(() => setCopiedLink(false), 2500);
   };
 
@@ -205,6 +212,12 @@ export const SocialConnect: React.FC = () => {
       default:
         target = shareUrl;
     }
+
+    trackSocialShareActivity({
+      platform,
+      pageTab: 'social',
+      targetTitle: `Shared ${siteSettings.siteName} via ${platform.toUpperCase()}`,
+    });
 
     window.open(target, '_blank', 'noopener,noreferrer');
   };

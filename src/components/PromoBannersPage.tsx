@@ -1414,7 +1414,7 @@ export const PromoBannersPage: React.FC<PromoBannersPageProps> = ({ onOpenAuth, 
                       <option value="stocks">TSLA Stocks</option>
                       <option value="investment">Fleet Staking Yield</option>
                       <option value="promotions">Spin &amp; Scratch</option>
-                      <option value="referrals">Referrals (+$100)</option>
+                      <option value="referrals">Referrals ($25–$200)</option>
                       <option value="shop">Hardware Store</option>
                     </select>
                   </div>

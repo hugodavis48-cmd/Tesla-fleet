@@ -42,7 +42,8 @@ import { SitemapRssPage } from './components/SitemapRssPage';
 import { CertificatesPage } from './components/CertificatesPage';
 import { WinActivationPolicyModal } from './components/WinActivationPolicyModal';
 import { BlogNewsHub } from './components/BlogNewsHub';
-import { CheckCircle2, AlertCircle, Info, AlertTriangle } from 'lucide-react';
+import { isTabEnabled, TAB_DISPLAY_LABELS } from './lib/featureVisibility';
+import { CheckCircle2, AlertCircle, Info, AlertTriangle, Lock, Home } from 'lucide-react';
 
 const KNOWN_ROUTE_TABS = new Set([
   'home',
@@ -87,7 +88,7 @@ const resolveTabFromLocation = (): string => {
 };
 
 const MainAppContent: React.FC = () => {
-  const { currentUser, userRole, toastMessage, sitePages, siteSettings, showToast, trackVisitorAction, setActiveRouteTab } = useApp();
+  const { currentUser, userRole, toastMessage, sitePages, siteSettings, featureToggles, showToast, trackVisitorAction, setActiveRouteTab } = useApp();
   const { isLight } = useTheme();
 
   const [activeTab, setActiveTabState] = useState<string>(() => resolveTabFromLocation());
@@ -108,6 +109,10 @@ const MainAppContent: React.FC = () => {
   }, []);
 
   const setActiveTab = React.useCallback((tab: string) => {
+    if (tab !== 'home' && tab !== 'admin' && !isTabEnabled(tab, featureToggles)) {
+      showToast(`${TAB_DISPLAY_LABELS[tab] || tab} is currently disabled by administrator.`, 'info');
+      return;
+    }
     if (tab === 'dashboard' && !currentUser) {
       setIsAuthModalOpen(true);
       showToast('Please sign in or register to access your User Dashboard.', 'error');
@@ -148,7 +153,7 @@ const MainAppContent: React.FC = () => {
         window.history.pushState({ tab }, '', targetUrl);
       }
     }
-  }, [currentUser, showToast, trackVisitorAction]);
+  }, [currentUser, featureToggles, showToast, trackVisitorAction]);
 
   const openDepositModalGated = React.useCallback(() => {
     if (!currentUser) {
@@ -230,28 +235,33 @@ const MainAppContent: React.FC = () => {
     ? sitePages.find((p) => p.slug === activeTab && (p.isPublished ?? p.published))
     : undefined;
 
+  const activeRouteDisabled =
+    activeTab !== 'home' && activeTab !== 'admin' && !isTabEnabled(activeTab, featureToggles);
+
   return (
     <div className={`min-h-screen w-full max-w-[100vw] overflow-x-clip flex flex-col transition-colors duration-200 selection:bg-red-600 selection:text-white ${isLight ? 'bg-slate-50 text-slate-900' : 'bg-[#07090e] text-slate-100'}`}>
       {/* Proof-of-fair Live Winning Ticker Bar */}
-      <LiveWinningTicker
-        onNavigateToCoupons={() => {
-          setActiveTab('coupons');
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        }}
-        onNavigateToTracking={() => setIsOrderTrackingOpen(true)}
-        onNavigateToInvestment={() => {
-          setActiveTab('investment');
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        }}
-        onNavigateToStocks={() => {
-          setActiveTab('stocks');
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        }}
-        onNavigateToPromotions={() => {
-          setActiveTab('promotions');
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        }}
-      />
+      {featureToggles.enableLiveTickerBar !== false && (
+        <LiveWinningTicker
+          onNavigateToCoupons={() => {
+            setActiveTab('coupons');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+          onNavigateToTracking={() => setIsOrderTrackingOpen(true)}
+          onNavigateToInvestment={() => {
+            setActiveTab('investment');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+          onNavigateToStocks={() => {
+            setActiveTab('stocks');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+          onNavigateToPromotions={() => {
+            setActiveTab('promotions');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+        />
+      )}
 
       {/* Main Navigation Bar */}
       <Navbar
@@ -287,6 +297,29 @@ const MainAppContent: React.FC = () => {
           </div>
         )}
 
+        {activeRouteDisabled ? (
+          <div className="max-w-2xl mx-auto px-4 py-20 text-center space-y-5">
+            <div className="w-16 h-16 rounded-3xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mx-auto text-amber-400">
+              <Lock className="w-8 h-8" />
+            </div>
+            <div className="space-y-2">
+              <h2 className="font-heading text-2xl font-black">
+                {TAB_DISPLAY_LABELS[activeTab] || 'Section'} is Temporarily Paused
+              </h2>
+              <p className={`text-sm ${isLight ? 'text-slate-600' : 'text-zinc-400'}`}>
+                This module has been toggled off in the Administrator Feature &amp; Page Controls. Check back soon or explore active sections from Home.
+              </p>
+            </div>
+            <button
+              onClick={() => setActiveTab('home')}
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs shadow-lg transition"
+            >
+              <Home className="w-4 h-4" />
+              <span>Return Home</span>
+            </button>
+          </div>
+        ) : (
+          <>
         {activeTab === 'home' && (
           <div className="space-y-12">
             <Hero
@@ -298,20 +331,25 @@ const MainAppContent: React.FC = () => {
             />
 
             {/* Unified Interactive Showcase Slides (Reduces lengthy page and highlights all products, services & stock yields) */}
-            <UnifiedShowcaseDeck
-              onNavigate={(tab) => {
-                setActiveTab(tab);
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-              onOpenDeposit={openDepositModalGated}
-              onOpenCart={() => setIsCartModalOpen(true)}
-            />
+            {featureToggles.enableShowcaseDeck !== false && (
+              <UnifiedShowcaseDeck
+                onNavigate={(tab) => {
+                  setActiveTab(tab);
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                onOpenDeposit={openDepositModalGated}
+                onOpenCart={() => setIsCartModalOpen(true)}
+              />
+            )}
 
             {/* Promotions Hub: Provably Fair Spin Wheel & Scratch Cards */}
-            <PromotionsHub onOpenDeposit={openDepositModalGated} />
+            {featureToggles.enableHomePromotionsSection !== false &&
+              featureToggles.enablePromotionsPage !== false && (
+                <PromotionsHub onOpenDeposit={openDepositModalGated} />
+              )}
 
             {/* FAQ Section */}
-            <FaqSection />
+            {featureToggles.enableHomeFaqSection !== false && <FaqSection />}
           </div>
         )}
 
@@ -497,6 +535,8 @@ const MainAppContent: React.FC = () => {
             }}
           />
         )}
+          </>
+        )}
       </main>
 
       {/* Footer */}
@@ -509,10 +549,12 @@ const MainAppContent: React.FC = () => {
       />
 
       {/* Floating Gemini AI Chatbot Concierge */}
-      <GeminiChatbot
-        initialPrompt={chatbotPrompt}
-        onClearInitialPrompt={() => setChatbotPrompt(null)}
-      />
+      {featureToggles.enableAiChatbot !== false && (
+        <GeminiChatbot
+          initialPrompt={chatbotPrompt}
+          onClearInitialPrompt={() => setChatbotPrompt(null)}
+        />
+      )}
 
       {/* Modals */}
       <DepositModal
