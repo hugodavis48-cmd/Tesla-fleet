@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import { useApp } from '../context/AppContext';
 import { useLanguage } from '../context/LanguageContext';
 import {
@@ -7,14 +8,16 @@ import {
   Car,
   TrendingUp,
   Sparkles,
-  ShieldCheck,
   Zap,
   ArrowRight,
   BatteryCharging,
   Gauge,
-  Award,
   Activity,
   Flame,
+  ChevronLeft,
+  ChevronRight,
+  Pause,
+  Play,
 } from 'lucide-react';
 
 interface HeroProps {
@@ -22,9 +25,301 @@ interface HeroProps {
   onOpenDeposit: () => void;
 }
 
-export const Hero: React.FC<HeroProps> = ({ onNavigate, onOpenDeposit }) => {
+interface CounterMetric {
+  id: string;
+  target: number;
+  decimals?: number;
+  prefix?: string;
+  suffix?: string;
+  liveStep?: number;
+  liveEveryTicks?: number;
+  label: string;
+  sublabel: string;
+  accentClass: string;
+  barClass: string;
+}
+
+const HERO_COUNTER_METRICS: CounterMetric[] = [
+  {
+    id: 'service-precision',
+    target: 99.8,
+    decimals: 1,
+    suffix: '%',
+    label: 'Service Precision',
+    sublabel: 'Diagnostics & bay QA pass rate',
+    accentClass: 'text-white',
+    barClass: 'bg-zinc-200',
+  },
+  {
+    id: 'custom-wraps',
+    target: 1450,
+    decimals: 0,
+    suffix: '+',
+    liveStep: 1,
+    liveEveryTicks: 1,
+    label: 'Custom Wraps Completed',
+    sublabel: '3M cast vinyl & PPF installs',
+    accentClass: 'text-red-500',
+    barClass: 'bg-red-500',
+  },
+  {
+    id: 'staking-dividends',
+    target: 4.8,
+    decimals: 2,
+    prefix: '$',
+    suffix: 'M+',
+    liveStep: 0.01,
+    liveEveryTicks: 2,
+    label: 'Staking Dividends Paid',
+    sublabel: 'Settled across fleet pools',
+    accentClass: 'text-emerald-400',
+    barClass: 'bg-emerald-400',
+  },
+  {
+    id: 'crypto-support',
+    target: 100,
+    decimals: 0,
+    suffix: '%',
+    label: 'Crypto Payment Support',
+    sublabel: 'BTC · USDT · XRP · BNB rails',
+    accentClass: 'text-amber-400',
+    barClass: 'bg-amber-400',
+  },
+  {
+    id: 'diagnostic-scans',
+    target: 24800,
+    decimals: 0,
+    suffix: '+',
+    liveStep: 3,
+    liveEveryTicks: 1,
+    label: 'Diagnostic Scans Logged',
+    sublabel: 'Real-time HV battery & CAN bus',
+    accentClass: 'text-cyan-400',
+    barClass: 'bg-cyan-400',
+  },
+  {
+    id: 'active-fleet',
+    target: 312,
+    decimals: 0,
+    suffix: '+',
+    liveStep: 1,
+    liveEveryTicks: 3,
+    label: 'Active Fleet Vehicles',
+    sublabel: 'Cyberbeast, Plaid & Robotaxi units',
+    accentClass: 'text-white',
+    barClass: 'bg-zinc-300',
+  },
+  {
+    id: 'fleet-apy',
+    target: 18.5,
+    decimals: 1,
+    suffix: '%',
+    label: 'Avg. Fleet Staking APY',
+    sublabel: 'Automated daily yield payouts',
+    accentClass: 'text-emerald-400',
+    barClass: 'bg-emerald-400',
+  },
+  {
+    id: 'energy-settled',
+    target: 19420,
+    decimals: 0,
+    suffix: '+',
+    liveStep: 4,
+    liveEveryTicks: 1,
+    label: 'Supercharge MWh Settled',
+    sublabel: 'Verified station energy telemetry',
+    accentClass: 'text-red-400',
+    barClass: 'bg-red-500',
+  },
+];
+
+const formatMetricNumber = (value: number, decimals = 0) => {
+  if (decimals > 0) {
+    return value.toLocaleString(undefined, {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
+    });
+  }
+  return Math.round(value).toLocaleString();
+};
+
+const AnimatedCounterValue: React.FC<{
+  metric: CounterMetric;
+  active: boolean;
+  liveAdded: number;
+}> = ({ metric, active, liveAdded }) => {
+  const shouldReduceMotion = useReducedMotion();
+  const [introValue, setIntroValue] = useState<number>(0);
+  const [introComplete, setIntroComplete] = useState(false);
+
+  useEffect(() => {
+    if (!active) return;
+
+    if (shouldReduceMotion) {
+      setIntroValue(metric.target);
+      setIntroComplete(true);
+      return;
+    }
+
+    let rafId = 0;
+    const duration = 1200;
+    const startTime = performance.now();
+
+    const tick = (now: number) => {
+      const elapsed = now - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      const eased = progress === 1 ? 1 : 1 - Math.pow(2, -10 * progress);
+      setIntroValue(metric.target * eased);
+      if (progress < 1) {
+        rafId = requestAnimationFrame(tick);
+      } else {
+        setIntroValue(metric.target);
+        setIntroComplete(true);
+      }
+    };
+
+    rafId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafId);
+  }, [active, metric.target, shouldReduceMotion]);
+
+  const currentNumber = introComplete ? metric.target + liveAdded : introValue;
+  const formatted = formatMetricNumber(currentNumber, metric.decimals);
+  const rollKey = introComplete ? `live-${formatted}` : 'intro';
+
+  return (
+    <div className="relative h-10 sm:h-11 overflow-hidden flex items-center">
+      <AnimatePresence mode="popLayout" initial={false}>
+        <motion.span
+          key={rollKey}
+          initial={
+            introComplete && !shouldReduceMotion
+              ? { y: 18, opacity: 0 }
+              : false
+          }
+          animate={{ y: 0, opacity: 1 }}
+          exit={
+            introComplete && !shouldReduceMotion
+              ? { y: -18, opacity: 0 }
+              : { opacity: 0 }
+          }
+          transition={{ duration: 0.34, ease: [0.16, 1, 0.3, 1] }}
+          className={`inline-block font-heading font-black text-3xl sm:text-4xl tracking-tight tabular-nums leading-none ${metric.accentClass}`}
+        >
+          {metric.prefix || ''}
+          {formatted}
+          {metric.suffix || ''}
+        </motion.span>
+      </AnimatePresence>
+    </div>
+  );
+};
+
+export const Hero: React.FC<HeroProps> = ({ onNavigate }) => {
   const { tslaQuote, featureToggles, siteSettings } = useApp();
   const { t } = useLanguage();
+  const shouldReduceMotion = useReducedMotion();
+  const statsContainerRef = useRef<HTMLDivElement | null>(null);
+  const [countersStarted, setCountersStarted] = useState(false);
+
+  // Slider & live-rolling counter state
+  const [cardsPerSlide, setCardsPerSlide] = useState(4);
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const [slideDirection, setSlideDirection] = useState<1 | -1>(1);
+  const [isSliderHovered, setIsSliderHovered] = useState(false);
+  const [isAutoPaused, setIsAutoPaused] = useState(false);
+  const [liveTickCount, setLiveTickCount] = useState(0);
+
+  useEffect(() => {
+    const updateCardsPerSlide = () => {
+      if (typeof window === 'undefined') return;
+      if (window.innerWidth < 640) setCardsPerSlide(1);
+      else if (window.innerWidth < 1024) setCardsPerSlide(2);
+      else setCardsPerSlide(4);
+    };
+    updateCardsPerSlide();
+    window.addEventListener('resize', updateCardsPerSlide);
+    return () => window.removeEventListener('resize', updateCardsPerSlide);
+  }, []);
+
+  const totalSlides = Math.max(1, Math.ceil(HERO_COUNTER_METRICS.length / cardsPerSlide));
+  const safeSlide = Math.min(currentSlide, totalSlides - 1);
+
+  useEffect(() => {
+    if (currentSlide >= totalSlides) {
+      setCurrentSlide(0);
+    }
+  }, [currentSlide, totalSlides]);
+
+  const goNextSlide = useCallback(() => {
+    setSlideDirection(1);
+    setCurrentSlide((prev) => (prev + 1) % totalSlides);
+  }, [totalSlides]);
+
+  const goPrevSlide = useCallback(() => {
+    setSlideDirection(-1);
+    setCurrentSlide((prev) => (prev - 1 + totalSlides) % totalSlides);
+  }, [totalSlides]);
+
+  const goToSlide = useCallback(
+    (index: number) => {
+      setSlideDirection(index >= safeSlide ? 1 : -1);
+      setCurrentSlide(index);
+    },
+    [safeSlide]
+  );
+
+  // Start initial count-up when visible
+  useEffect(() => {
+    const node = statsContainerRef.current;
+    if (!node || typeof IntersectionObserver === 'undefined') {
+      setCountersStarted(true);
+      return;
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setCountersStarted(true);
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.15 }
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
+  // Auto-increment cumulative live counters continuously
+  useEffect(() => {
+    if (!countersStarted || isAutoPaused) return;
+    const timer = window.setInterval(() => {
+      setLiveTickCount((prev) => prev + 1);
+    }, 2800);
+    return () => window.clearInterval(timer);
+  }, [countersStarted, isAutoPaused]);
+
+  // Auto-advance KPI slider
+  useEffect(() => {
+    if (!countersStarted || isAutoPaused || isSliderHovered || totalSlides <= 1) return;
+    const timer = window.setInterval(() => {
+      goNextSlide();
+    }, 5200);
+    return () => window.clearInterval(timer);
+  }, [countersStarted, isAutoPaused, isSliderHovered, totalSlides, goNextSlide]);
+
+  const visibleMetrics = useMemo(() => {
+    const start = safeSlide * cardsPerSlide;
+    return HERO_COUNTER_METRICS.slice(start, start + cardsPerSlide);
+  }, [safeSlide, cardsPerSlide]);
+
+  const getLiveAddedForMetric = useCallback(
+    (metric: CounterMetric) => {
+      if (!metric.liveStep) return 0;
+      const cadence = metric.liveEveryTicks ?? 1;
+      const steps = Math.floor(liveTickCount / cadence);
+      return Number((steps * metric.liveStep).toFixed(metric.decimals ?? 0));
+    },
+    [liveTickCount]
+  );
 
   return (
     <section className="relative overflow-hidden pt-8 pb-16 lg:pt-14 lg:pb-24 border-b border-zinc-800/80">
@@ -339,24 +634,176 @@ export const Hero: React.FC<HeroProps> = ({ onNavigate, onOpenDeposit }) => {
           </div>
         </div>
 
-        {/* Quick Stats Trust Banner */}
-        <div className="mt-8 p-6 rounded-2xl bg-zinc-950 border border-zinc-800/80 grid grid-cols-2 sm:grid-cols-4 gap-6 text-center">
-          <div>
-            <span className="font-heading font-black text-2xl sm:text-3xl text-white">99.8%</span>
-            <span className="text-xs text-zinc-400 block mt-0.5">Service Precision</span>
+        {/* Modern Sliding & Live Rolling KPI Counter Strip */}
+        <div
+          ref={statsContainerRef}
+          onMouseEnter={() => setIsSliderHovered(true)}
+          onMouseLeave={() => setIsSliderHovered(false)}
+          className="mt-8 rounded-2xl bg-zinc-950 border border-zinc-800/90 overflow-hidden shadow-xl shadow-black/40"
+        >
+          {/* Top auto-advance progress bar */}
+          <div className="h-[2px] w-full bg-zinc-900 overflow-hidden">
+            {!shouldReduceMotion && countersStarted && !isAutoPaused && !isSliderHovered && totalSlides > 1 ? (
+              <motion.div
+                key={`hero-kpi-progress-${safeSlide}`}
+                initial={{ scaleX: 0 }}
+                animate={{ scaleX: 1 }}
+                transition={{ duration: 5.2, ease: 'linear' }}
+                className="h-full w-full origin-left bg-gradient-to-r from-red-500 via-amber-400 to-emerald-400"
+              />
+            ) : (
+              <div className="h-full w-full bg-zinc-800" />
+            )}
           </div>
-          <div>
-            <span className="font-heading font-black text-2xl sm:text-3xl text-red-500">1,450+</span>
-            <span className="text-xs text-zinc-400 block mt-0.5">Custom Wraps Completed</span>
+
+          {/* Slider control header */}
+          <div className="px-5 py-3 border-b border-zinc-800/80 flex flex-wrap items-center justify-between gap-3 bg-zinc-950/90">
+            <div className="flex items-center gap-3">
+              <span className="text-[11px] font-mono uppercase tracking-[0.16em] text-zinc-400">
+                Hub Performance Metrics
+              </span>
+              <span className="h-3 w-px bg-zinc-800 hidden sm:inline-block" />
+              <span className="inline-flex items-center gap-1.5 text-[11px] font-mono text-emerald-400">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                <span>{isAutoPaused ? 'Paused' : 'Live Rolling Count'}</span>
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-mono text-zinc-500 tabular-nums mr-1">
+                {String(safeSlide + 1).padStart(2, '0')} / {String(totalSlides).padStart(2, '0')}
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsAutoPaused((prev) => !prev)}
+                className="p-1.5 rounded-lg border border-zinc-800 bg-zinc-900/80 hover:border-zinc-700 hover:bg-zinc-900 text-zinc-300 hover:text-white transition cursor-pointer shrink-0"
+                aria-label={isAutoPaused ? 'Resume live metrics & slider' : 'Pause live metrics & slider'}
+                title={isAutoPaused ? 'Resume live metrics & slider' : 'Pause live metrics & slider'}
+              >
+                {isAutoPaused ? <Play className="w-3.5 h-3.5" /> : <Pause className="w-3.5 h-3.5" />}
+              </button>
+              <button
+                type="button"
+                onClick={goPrevSlide}
+                className="p-1.5 rounded-lg border border-zinc-800 bg-zinc-900/80 hover:border-red-500/50 hover:bg-zinc-900 text-zinc-300 hover:text-white transition cursor-pointer shrink-0"
+                aria-label="Previous metrics slide"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={goNextSlide}
+                className="p-1.5 rounded-lg border border-zinc-800 bg-zinc-900/80 hover:border-red-500/50 hover:bg-zinc-900 text-zinc-300 hover:text-white transition cursor-pointer shrink-0"
+                aria-label="Next metrics slide"
+              >
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
-          <div>
-            <span className="font-heading font-black text-2xl sm:text-3xl text-emerald-400">$4.8M+</span>
-            <span className="text-xs text-zinc-400 block mt-0.5">Staking Dividends Paid</span>
+
+          {/* Animated Slide Viewport */}
+          <div className="relative overflow-hidden">
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div
+                key={`kpi-slide-${safeSlide}-${cardsPerSlide}`}
+                initial={
+                  shouldReduceMotion
+                    ? { opacity: 0 }
+                    : { opacity: 0, x: slideDirection > 0 ? 44 : -44 }
+                }
+                animate={{ opacity: 1, x: 0 }}
+                exit={
+                  shouldReduceMotion
+                    ? { opacity: 0 }
+                    : { opacity: 0, x: slideDirection > 0 ? -44 : 44 }
+                }
+                transition={{ duration: 0.34, ease: [0.16, 1, 0.3, 1] }}
+                drag={shouldReduceMotion || totalSlides <= 1 ? false : 'x'}
+                dragConstraints={{ left: 0, right: 0 }}
+                dragElastic={0.12}
+                onDragEnd={(_event, info) => {
+                  if (info.offset.x < -50) goNextSlide();
+                  else if (info.offset.x > 50) goPrevSlide();
+                }}
+                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-zinc-800/80"
+              >
+                {visibleMetrics.map((metric, idx) => {
+                  const globalIdx = safeSlide * cardsPerSlide + idx;
+                  const liveAdded = getLiveAddedForMetric(metric);
+                  const hasLiveIncrement = Boolean(metric.liveStep);
+
+                  return (
+                    <div
+                      key={metric.id}
+                      className="p-6 flex flex-col justify-between gap-3 text-left transition-colors hover:bg-zinc-900/50"
+                    >
+                      <div className="flex items-center justify-between text-[11px] font-mono text-zinc-500 tabular-nums">
+                        <span>{String(globalIdx + 1).padStart(2, '0')}</span>
+                        <span className={hasLiveIncrement && liveAdded > 0 ? 'text-emerald-400' : 'text-zinc-500'}>
+                          {hasLiveIncrement
+                            ? liveAdded > 0
+                              ? `+${formatMetricNumber(liveAdded, metric.decimals)} live`
+                              : 'Live Sync'
+                            : 'Verified'}
+                        </span>
+                      </div>
+
+                      <div>
+                        <AnimatedCounterValue
+                          metric={metric}
+                          active={countersStarted}
+                          liveAdded={liveAdded}
+                        />
+                        <span className="text-sm font-heading font-semibold text-zinc-100 block mt-1.5">
+                          {metric.label}
+                        </span>
+                        <span className="text-xs text-zinc-500 block mt-0.5">
+                          {metric.sublabel}
+                        </span>
+                      </div>
+
+                      <div className="h-0.5 w-full bg-zinc-900 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full ${metric.barClass} transition-transform duration-700 ease-out origin-left`}
+                          style={{
+                            transform: countersStarted ? 'scaleX(1)' : 'scaleX(0)',
+                            transitionDelay: `${idx * 80}ms`,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </motion.div>
+            </AnimatePresence>
           </div>
-          <div>
-            <span className="font-heading font-black text-2xl sm:text-3xl text-yellow-400">100%</span>
-            <span className="text-xs text-zinc-400 block mt-0.5">Crypto Payment Support</span>
-          </div>
+
+          {/* Slide Pagination Bar */}
+          {totalSlides > 1 && (
+            <div className="px-5 py-2.5 border-t border-zinc-800/80 flex items-center justify-between gap-4 bg-zinc-950/70">
+              <span className="text-[11px] font-mono text-zinc-500 hidden sm:inline">
+                Auto-updating telemetry across {HERO_COUNTER_METRICS.length} verified metrics
+              </span>
+              <div className="flex items-center gap-1.5 mx-auto sm:mx-0">
+                {Array.from({ length: totalSlides }).map((_, dotIdx) => {
+                  const isActiveDot = dotIdx === safeSlide;
+                  return (
+                    <button
+                      key={dotIdx}
+                      type="button"
+                      onClick={() => goToSlide(dotIdx)}
+                      aria-label={`Show metrics slide ${dotIdx + 1}`}
+                      className={`h-1.5 rounded-full transition-all duration-200 cursor-pointer ${
+                        isActiveDot
+                          ? 'w-7 bg-red-500'
+                          : 'w-2 bg-zinc-700 hover:bg-zinc-500'
+                      }`}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </section>

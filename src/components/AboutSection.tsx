@@ -1,4 +1,5 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import {
   ShieldCheck,
   Award,
@@ -27,14 +28,125 @@ interface AboutSectionProps {
   onNavigateToCertificates?: () => void;
 }
 
+interface PhilosophySlide {
+  id: string;
+  indexLabel: string;
+  kicker: string;
+  title: string;
+  description: string;
+  accentText: string;
+  accentBorder: string;
+  accentBg: string;
+  accentBar: string;
+  icon: React.ComponentType<{ className?: string }>;
+  specs: Array<{ label: string; value: string }>;
+}
+
+const ENGINEERING_PHILOSOPHY_SLIDES: PhilosophySlide[] = [
+  {
+    id: 'oem-master-certified',
+    indexLabel: '01',
+    kicker: 'Cleanroom & High-Voltage Lab · ISO Class-100',
+    title: 'OEM Master Certified',
+    description:
+      'Our facilities house class-100 dust-free cleanrooms for bubble-free wrap installs and certified high-voltage isolation equipment for non-destructive cell diagnostics.',
+    accentText: 'text-red-400',
+    accentBorder: 'border-red-500/35',
+    accentBg: 'bg-red-600/15',
+    accentBar: 'bg-red-500',
+    icon: Wrench,
+    specs: [
+      { label: 'Cleanroom Standard', value: 'Class-100 Dust-Free' },
+      { label: 'HV Diagnostic Bus', value: '1,000V Non-Destructive' },
+      { label: 'Wrap & PPF Warranty', value: '5-Year Edge & UV Seal' },
+    ],
+  },
+  {
+    id: 'mobile-ranger-fleet',
+    indexLabel: '02',
+    kicker: 'On-Site Field Dispatch · Active Telemetry',
+    title: '24/7 Mobile Ranger Fleet',
+    description:
+      'Need emergency tire balancing, 16V low-voltage battery replacement, or software diagnostics? Our high-torque mobile service vans dispatch directly to your doorstep.',
+    accentText: 'text-cyan-400',
+    accentBorder: 'border-cyan-500/35',
+    accentBg: 'bg-cyan-600/15',
+    accentBar: 'bg-cyan-400',
+    icon: Zap,
+    specs: [
+      { label: 'Dispatch Coverage', value: '24/7 Doorstep Service' },
+      { label: 'Core Field Ops', value: '16V Li-Ion, Tires & CAN' },
+      { label: 'Metro Response SLA', value: 'Under 45 Minutes' },
+    ],
+  },
+  {
+    id: 'decentralized-asset-security',
+    indexLabel: '03',
+    kicker: 'Multi-Sig Custody · Proof-of-Reserves',
+    title: 'Decentralized Asset Security',
+    description:
+      'Institutional crypto gateways supporting XRP, USDT, BNB, and BTC backed by multi-signature cold-storage hardware vaults with verifiable proof-of-reserves.',
+    accentText: 'text-emerald-400',
+    accentBorder: 'border-emerald-500/35',
+    accentBg: 'bg-emerald-600/15',
+    accentBar: 'bg-emerald-400',
+    icon: ShieldCheck,
+    specs: [
+      { label: 'Settlement Rails', value: 'BTC · USDT · XRP · BNB' },
+      { label: 'Custody Architecture', value: 'Multi-Sig Hardware Vault' },
+      { label: 'Reserve Verification', value: 'On-Chain Proof-of-Reserves' },
+    ],
+  },
+];
+
 export const AboutSection: React.FC<AboutSectionProps> = ({ onNavigateToCertificates }) => {
   const { businessCertificates, showToast } = useApp();
+  const shouldReduceMotion = useReducedMotion();
   const [inspectCert, setInspectCert] = useState<BusinessCertificate | null>(null);
   const [activeSlideIndex, setActiveSlideIndex] = useState(0);
   const [slideDirection, setSlideDirection] = useState<'next' | 'prev'>('next');
   const [isAutoPlaying, setIsAutoPlaying] = useState(true);
   const [isHovered, setIsHovered] = useState(false);
   const touchStartXRef = useRef<number | null>(null);
+
+  // Engineering philosophy slider state
+  const [philosophySlide, setPhilosophySlide] = useState(0);
+  const [philosophyDirection, setPhilosophyDirection] = useState<1 | -1>(1);
+  const [isPhilosophyPaused, setIsPhilosophyPaused] = useState(false);
+  const [isPhilosophyHovered, setIsPhilosophyHovered] = useState(false);
+
+  const goToPhilosophySlide = useCallback(
+    (index: number) => {
+      const total = ENGINEERING_PHILOSOPHY_SLIDES.length;
+      const normalized = ((index % total) + total) % total;
+      setPhilosophyDirection(normalized >= philosophySlide ? 1 : -1);
+      setPhilosophySlide(normalized);
+    },
+    [philosophySlide]
+  );
+
+  const nextPhilosophySlide = useCallback(() => {
+    setPhilosophyDirection(1);
+    setPhilosophySlide((prev) => (prev + 1) % ENGINEERING_PHILOSOPHY_SLIDES.length);
+  }, []);
+
+  const prevPhilosophySlide = useCallback(() => {
+    setPhilosophyDirection(-1);
+    setPhilosophySlide(
+      (prev) => (prev - 1 + ENGINEERING_PHILOSOPHY_SLIDES.length) % ENGINEERING_PHILOSOPHY_SLIDES.length
+    );
+  }, []);
+
+  useEffect(() => {
+    if (isPhilosophyPaused || isPhilosophyHovered) return;
+    const timer = window.setInterval(() => {
+      nextPhilosophySlide();
+    }, 5500);
+    return () => window.clearInterval(timer);
+  }, [isPhilosophyPaused, isPhilosophyHovered, nextPhilosophySlide]);
+
+  const activePhilosophy = ENGINEERING_PHILOSOPHY_SLIDES[philosophySlide];
+  const PhilosophyIcon = activePhilosophy.icon;
 
   const featuredCertificates = useMemo(() => {
     const published = [...businessCertificates]
@@ -96,35 +208,190 @@ export const AboutSection: React.FC<AboutSectionProps> = ({ onNavigateToCertific
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="p-8 rounded-3xl bg-zinc-950 border border-zinc-800 space-y-4 transition-transform duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] hover:-translate-y-1">
-          <div className="w-12 h-12 rounded-2xl bg-red-600/15 border border-red-500/30 flex items-center justify-center text-red-500">
-            <Wrench className="w-6 h-6" />
-          </div>
-          <h3 className="font-heading font-bold text-xl text-white">OEM Master Certified</h3>
-          <p className="text-xs text-zinc-400 leading-relaxed">
-            Our facilities house class-100 dust-free cleanrooms for bubble-free wrap installs and certified high-voltage isolation equipment for non-destructive cell diagnostics.
-          </p>
+      {/* Modern Engineering Philosophy Interactive Slider */}
+      <div
+        role="region"
+        aria-roledescription="carousel"
+        aria-label="Apex EV Engineering Pillars"
+        tabIndex={0}
+        onMouseEnter={() => setIsPhilosophyHovered(true)}
+        onMouseLeave={() => setIsPhilosophyHovered(false)}
+        onKeyDown={(e) => {
+          if (e.key === 'ArrowRight') nextPhilosophySlide();
+          if (e.key === 'ArrowLeft') prevPhilosophySlide();
+        }}
+        className="rounded-3xl bg-zinc-950 border border-zinc-800 overflow-hidden shadow-2xl shadow-black/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/60"
+      >
+        {/* Top linear timer bar */}
+        <div className="h-[2px] w-full bg-zinc-900 overflow-hidden">
+          {!shouldReduceMotion && !isPhilosophyPaused && !isPhilosophyHovered ? (
+            <motion.div
+              key={`philosophy-progress-${philosophySlide}`}
+              initial={{ scaleX: 0 }}
+              animate={{ scaleX: 1 }}
+              transition={{ duration: 5.5, ease: 'linear' }}
+              className={`h-full w-full origin-left ${activePhilosophy.accentBar}`}
+            />
+          ) : (
+            <div className={`h-full w-full opacity-40 ${activePhilosophy.accentBar}`} />
+          )}
         </div>
 
-        <div className="p-8 rounded-3xl bg-zinc-950 border border-zinc-800 space-y-4 transition-transform duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] hover:-translate-y-1">
-          <div className="w-12 h-12 rounded-2xl bg-cyan-600/15 border border-cyan-500/30 flex items-center justify-center text-cyan-400">
-            <Zap className="w-6 h-6" />
+        {/* Slider Header & Controls */}
+        <div className="px-6 py-4 border-b border-zinc-800/80 flex flex-wrap items-center justify-between gap-4 bg-zinc-950/90">
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
+            {ENGINEERING_PHILOSOPHY_SLIDES.map((pillar, idx) => {
+              const isSelected = idx === philosophySlide;
+              return (
+                <button
+                  key={pillar.id}
+                  type="button"
+                  onClick={() => goToPhilosophySlide(idx)}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition-all duration-200 whitespace-nowrap shrink-0 cursor-pointer flex items-center gap-2 ${
+                    isSelected
+                      ? 'bg-zinc-900 border border-zinc-700 text-white shadow-sm'
+                      : 'border border-transparent text-zinc-400 hover:text-white hover:bg-zinc-900/50'
+                  }`}
+                >
+                  <span className={`font-mono text-[11px] tabular-nums ${isSelected ? pillar.accentText : 'text-zinc-500'}`}>
+                    {pillar.indexLabel}
+                  </span>
+                  <span>{pillar.title}</span>
+                </button>
+              );
+            })}
           </div>
-          <h3 className="font-heading font-bold text-xl text-white">24/7 Mobile Ranger Fleet</h3>
-          <p className="text-xs text-zinc-400 leading-relaxed">
-            Need emergency tire balancing, 16V low-voltage battery replacement, or software diagnostics? Our high-torque mobile service vans dispatch directly to your doorstep.
-          </p>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-xs font-mono text-zinc-500 tabular-nums mr-1">
+              {String(philosophySlide + 1).padStart(2, '0')} / {String(ENGINEERING_PHILOSOPHY_SLIDES.length).padStart(2, '0')}
+            </span>
+            <button
+              type="button"
+              onClick={() => setIsPhilosophyPaused((prev) => !prev)}
+              aria-label={isPhilosophyPaused ? 'Resume philosophy auto-slide' : 'Pause philosophy auto-slide'}
+              title={isPhilosophyPaused ? 'Resume auto-slide' : 'Pause auto-slide'}
+              className="p-2 rounded-lg border border-zinc-800 bg-zinc-900/80 hover:border-zinc-700 text-zinc-300 hover:text-white transition cursor-pointer shrink-0"
+            >
+              {isPhilosophyPaused ? <Play className="w-3.5 h-3.5" /> : <Pause className="w-3.5 h-3.5" />}
+            </button>
+            <button
+              type="button"
+              onClick={prevPhilosophySlide}
+              aria-label="Previous engineering pillar"
+              className="p-2 rounded-lg border border-zinc-800 bg-zinc-900/80 hover:border-red-500/50 text-zinc-300 hover:text-white transition cursor-pointer shrink-0"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={nextPhilosophySlide}
+              aria-label="Next engineering pillar"
+              className="p-2 rounded-lg border border-zinc-800 bg-zinc-900/80 hover:border-red-500/50 text-zinc-300 hover:text-white transition cursor-pointer shrink-0"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
-        <div className="p-8 rounded-3xl bg-zinc-950 border border-zinc-800 space-y-4 transition-transform duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] hover:-translate-y-1">
-          <div className="w-12 h-12 rounded-2xl bg-emerald-600/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
-            <ShieldCheck className="w-6 h-6" />
-          </div>
-          <h3 className="font-heading font-bold text-xl text-white">Decentralized Asset Security</h3>
-          <p className="text-xs text-zinc-400 leading-relaxed">
-            Institutional crypto gateways supporting XRP, USDT, BNB, and BTC backed by multi-signature cold-storage hardware vaults with verifiable proof-of-reserves.
-          </p>
+        {/* Slide Stage */}
+        <div className="relative overflow-hidden p-6 sm:p-8 lg:p-10">
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.article
+              key={activePhilosophy.id}
+              initial={
+                shouldReduceMotion
+                  ? { opacity: 0 }
+                  : { opacity: 0, x: philosophyDirection > 0 ? 56 : -56 }
+              }
+              animate={{ opacity: 1, x: 0 }}
+              exit={
+                shouldReduceMotion
+                  ? { opacity: 0 }
+                  : { opacity: 0, x: philosophyDirection > 0 ? -56 : 56 }
+              }
+              transition={{ duration: 0.36, ease: [0.16, 1, 0.3, 1] }}
+              drag={shouldReduceMotion ? false : 'x'}
+              dragConstraints={{ left: 0, right: 0 }}
+              dragElastic={0.14}
+              onDragEnd={(_event, info) => {
+                if (info.offset.x < -55) nextPhilosophySlide();
+                else if (info.offset.x > 55) prevPhilosophySlide();
+              }}
+              className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch cursor-grab active:cursor-grabbing"
+            >
+              {/* Left 7 Columns: Narrative & Icon */}
+              <div className="lg:col-span-7 flex flex-col justify-between gap-6">
+                <div className="space-y-4">
+                  <div className="flex items-center gap-4">
+                    <div
+                      className={`w-12 h-12 rounded-2xl border flex items-center justify-center shrink-0 ${activePhilosophy.accentBg} ${activePhilosophy.accentBorder} ${activePhilosophy.accentText}`}
+                    >
+                      <PhilosophyIcon className="w-6 h-6" />
+                    </div>
+                    <div className="min-w-0 space-y-0.5">
+                      <span className="text-xs font-mono text-zinc-400 block">
+                        {activePhilosophy.indexLabel} · {activePhilosophy.kicker}
+                      </span>
+                      <h3 className="font-heading font-bold text-2xl sm:text-3xl text-white [text-wrap:balance]">
+                        {activePhilosophy.title}
+                      </h3>
+                    </div>
+                  </div>
+
+                  <p className="text-sm sm:text-base text-zinc-300 leading-relaxed max-w-2xl">
+                    {activePhilosophy.description}
+                  </p>
+                </div>
+
+                {/* Pagination Indicators */}
+                <div className="flex items-center gap-2 pt-2">
+                  {ENGINEERING_PHILOSOPHY_SLIDES.map((pillar, idx) => {
+                    const isActive = idx === philosophySlide;
+                    return (
+                      <button
+                        key={`dot-${pillar.id}`}
+                        type="button"
+                        onClick={() => goToPhilosophySlide(idx)}
+                        aria-label={`Go to ${pillar.title}`}
+                        className={`h-1.5 rounded-full transition-all duration-200 cursor-pointer ${
+                          isActive
+                            ? `w-10 ${pillar.accentBar}`
+                            : 'w-3 bg-zinc-800 hover:bg-zinc-600'
+                        }`}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Right 5 Columns: Technical Specifications Panel */}
+              <div className="lg:col-span-5 rounded-2xl bg-zinc-900/50 border border-zinc-800 p-6 flex flex-col justify-between gap-4">
+                <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+                  <span className="text-xs font-semibold text-zinc-300">
+                    Operational Benchmarks
+                  </span>
+                  <span className={`text-xs font-mono tabular-nums ${activePhilosophy.accentText}`}>
+                    Standard {activePhilosophy.indexLabel}
+                  </span>
+                </div>
+
+                <dl className="divide-y divide-zinc-800/80">
+                  {activePhilosophy.specs.map((spec) => (
+                    <div
+                      key={spec.label}
+                      className="py-3 first:pt-1 last:pb-1 flex items-center justify-between gap-4 text-xs"
+                    >
+                      <dt className="text-zinc-400">{spec.label}</dt>
+                      <dd className="font-mono font-semibold text-white text-right tabular-nums">
+                        {spec.value}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+            </motion.article>
+          </AnimatePresence>
         </div>
       </div>
 

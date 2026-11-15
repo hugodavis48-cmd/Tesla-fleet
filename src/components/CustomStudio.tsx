@@ -145,6 +145,12 @@ export const CustomStudio: React.FC<CustomStudioProps> = ({ onNavigateToServices
               <img
                 src={selectedWrap.image}
                 alt={selectedWrap.name}
+                referrerPolicy="no-referrer"
+                onError={(e) => {
+                  if (e.currentTarget.src !== `${window.location.origin}/promo-plaid.jpg`) {
+                    e.currentTarget.src = '/promo-plaid.jpg';
+                  }
+                }}
                 onClick={() => setLightboxOpen(true)}
                 className="w-full h-full object-cover transition-all duration-500 cursor-zoom-in"
               />

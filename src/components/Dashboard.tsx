@@ -2246,19 +2246,22 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 </label>
                 <div className="flex gap-2">
                   <input
-                    type="url"
+                    type="text"
                     value={customAvatarInput}
                     onChange={(e) => setCustomAvatarInput(e.target.value)}
-                    placeholder="https://images.unsplash.com/photo-..."
+                    placeholder="/img-model3-pearl.jpg or https://..."
                     className="flex-1 bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-red-500"
                   />
                   <button
                     type="button"
                     onClick={() => {
-                      if (customAvatarInput.startsWith('http')) {
-                        setSelectedAvatarUrl(customAvatarInput);
+                      const trimmed = customAvatarInput.trim();
+                      if (trimmed.startsWith('http') || trimmed.startsWith('/')) {
+                        setSelectedAvatarUrl(trimmed);
                         setCustomAvatarInput('');
                         showToast('Custom URL applied to preview!', 'success');
+                      } else {
+                        showToast('Enter a valid https:// URL or / image path.', 'error');
                       }
                     }}
                     className="px-3 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-xs font-bold text-white transition cursor-pointer"

@@ -1508,7 +1508,7 @@ function seedServerCarCatalog() {
         year: 2026,
         originalPriceUsd: 79990,
         salePriceUsd: 79990,
-        image: 'https://images.unsplash.com/photo-1698790691515-51d8ad3d0a4c?auto=format&fit=crop&w=1200&q=80',
+        image: '/img-cybertruck-awd.jpg',
         rangeMiles: 340,
         zeroToSixty: '4.1s',
         topSpeedMph: 112,
@@ -1678,7 +1678,7 @@ function seedServerCarCatalog() {
         year: 2026,
         originalPriceUsd: 38990,
         salePriceUsd: 38990,
-        image: 'https://images.unsplash.com/photo-1571127236794-81c1c9676ff3?auto=format&fit=crop&w=1200&q=80',
+        image: '/img-model3-pearl.jpg',
         rangeMiles: 272,
         zeroToSixty: '5.8s',
         topSpeedMph: 125,
@@ -2274,6 +2274,8 @@ let serverSitemapEntries: Array<{
   { path: 'rentals', title: 'Exotic Tesla Rental Fleet', priority: 0.85, changeFreq: 'weekly', isActive: true, lastMod: '2026-11-11' },
   { path: 'promotions', title: 'Spin & Win + Scratch Cards', priority: 0.85, changeFreq: 'daily', isActive: true, lastMod: '2026-11-12' },
   { path: 'banners', title: '3D/HD Banners & Short Promo Videos', priority: 0.8, changeFreq: 'daily', isActive: true, lastMod: '2026-11-12' },
+  { path: 'about', title: 'About Apex Tesla Hub', priority: 0.85, changeFreq: 'monthly', isActive: true, lastMod: '2026-11-15' },
+  { path: 'certificates', title: 'Business & License Certificates', priority: 0.8, changeFreq: 'monthly', isActive: true, lastMod: '2026-11-12' },
   { path: 'faq', title: 'Frequently Asked Questions', priority: 0.7, changeFreq: 'weekly', isActive: true, lastMod: '2026-11-12' },
 ];
 

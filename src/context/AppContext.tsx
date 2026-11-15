@@ -1596,10 +1596,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return saved ? JSON.parse(saved) : INITIAL_SITE_PAGES;
   });
 
+  const sanitizeMediaUrl = (url: string | undefined, fallback = '/img-ev-hardware.jpg'): string => {
+    if (!url || typeof url !== 'string') return fallback;
+    if (url.includes('photo-1558441719-79774c82b9dc')) return fallback;
+    if (url.includes('photo-1698790691515-51d8ad3d0a4c')) return '/img-cybertruck-awd.jpg';
+    if (url.includes('photo-1571127236794-81c1c9676ff3')) return '/img-model3-pearl.jpg';
+    return url;
+  };
+
+  const mergeFooterAboutMenu = (menus: NavigationMenuItem[]): NavigationMenuItem[] => {
+    const hasFooterAbout = menus.some(
+      (m) => m.id === 'menu-f-about' || (m.location === 'footer_legal' && m.targetTab === 'about')
+    );
+    if (hasFooterAbout) return menus;
+    const aboutMenu = INITIAL_NAVIGATION_MENUS.find((m) => m.id === 'menu-f-about');
+    return aboutMenu ? [...menus, aboutMenu] : menus;
+  };
+
+  const mergeAboutSitemap = (entries: SitemapEntry[]): SitemapEntry[] => {
+    if (entries.some((e) => e.path === 'about')) return entries;
+    const aboutEntry = INITIAL_SITEMAP_ENTRIES.find((e) => e.path === 'about');
+    return aboutEntry ? [...entries, aboutEntry] : entries;
+  };
+
   // Navigation Menus state (Navbar, Dropdown, Footer)
   const [navigationMenus, setNavigationMenus] = useState<NavigationMenuItem[]>(() => {
     const saved = localStorage.getItem('apex_navigation_menus');
-    return saved ? JSON.parse(saved) : INITIAL_NAVIGATION_MENUS;
+    return saved ? mergeFooterAboutMenu(JSON.parse(saved)) : INITIAL_NAVIGATION_MENUS;
   });
 
   // Custom & Manual Deposit Gateways state
@@ -1617,7 +1640,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Customizable Investment Pools & Plans
   const [investmentPools, setInvestmentPools] = useState<InvestmentPool[]>(() => {
     const saved = localStorage.getItem('apex_investment_pools');
-    return saved ? JSON.parse(saved) : INVESTMENT_POOLS;
+    const list: InvestmentPool[] = saved ? JSON.parse(saved) : INVESTMENT_POOLS;
+    return list.map((p) => ({ ...p, image: sanitizeMediaUrl(p.image, '/img-supercharger-node.jpg') }));
   });
 
   // Store Products Catalog (seeded with full catalog if empty)
@@ -1626,7 +1650,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.map((p: ProductItem) => ({
+            ...p,
+            image: sanitizeMediaUrl(p.image, '/img-ev-hardware.jpg'),
+          }));
+        }
       } catch {
         // fallback below
       }
@@ -1658,7 +1687,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Tesla Car Sales Catalog
   const [teslaCarListings, setTeslaCarListings] = useState<TeslaCarListing[]>(() => {
     const saved = localStorage.getItem('apex_tesla_cars_catalog');
-    return saved ? JSON.parse(saved) : INITIAL_TESLA_CARS;
+    const list: TeslaCarListing[] = saved ? JSON.parse(saved) : INITIAL_TESLA_CARS;
+    return list.map((car) => ({
+      ...car,
+      image: sanitizeMediaUrl(car.image, '/promo-cyberbeast.jpg'),
+      galleryImages: Array.isArray(car.galleryImages)
+        ? car.galleryImages.map((g: string) => sanitizeMediaUrl(g, '/promo-cyberbeast.jpg'))
+        : car.galleryImages,
+    }));
   });
 
   // Nationwide Shipping Settings
@@ -1761,7 +1797,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [sitemapEntries, setSitemapEntries] = useState<SitemapEntry[]>(() => {
     const saved = localStorage.getItem('apex_sitemap_entries_v1');
-    return saved ? JSON.parse(saved) : INITIAL_SITEMAP_ENTRIES;
+    return saved ? mergeAboutSitemap(JSON.parse(saved)) : INITIAL_SITEMAP_ENTRIES;
   });
 
   const [rssFeedItems, setRssFeedItems] = useState<RssFeedItem[]>(() => {
@@ -2135,7 +2171,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setVehicleRefundPolicy((prev) => ({ ...prev, ...sections.refund_policy }));
       }
       if (Array.isArray(sections.navigation_menus) && sections.navigation_menus.length > 0) {
-        setNavigationMenus(sections.navigation_menus);
+        setNavigationMenus(mergeFooterAboutMenu(sections.navigation_menus));
       }
       if (Array.isArray(sections.site_pages) && sections.site_pages.length > 0) {
         setSitePages(sections.site_pages);
@@ -2144,7 +2180,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setFaqsList((sections.faqs as FaqItem[]).filter((f) => !isPolicyFaq(f)));
       }
       if (Array.isArray(sections.sitemap_entries) && sections.sitemap_entries.length > 0) {
-        setSitemapEntries(sections.sitemap_entries);
+        setSitemapEntries(mergeAboutSitemap(sections.sitemap_entries));
       }
       if (Array.isArray(sections.rss_items) && sections.rss_items.length > 0) {
         setRssFeedItems(sections.rss_items);
@@ -2156,13 +2192,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setPromoVideos(sections.promo_videos);
       }
       if (Array.isArray(sections.products) && sections.products.length > 0) {
-        setProductsList(sections.products);
+        setProductsList(
+          (sections.products as ProductItem[]).map((p) => ({
+            ...p,
+            image: sanitizeMediaUrl(p.image, '/img-ev-hardware.jpg'),
+          }))
+        );
       }
       if (Array.isArray(sections.tesla_cars) && sections.tesla_cars.length > 0) {
-        setTeslaCarListings(sections.tesla_cars);
+        setTeslaCarListings(
+          (sections.tesla_cars as TeslaCarListing[]).map((car) => ({
+            ...car,
+            image: sanitizeMediaUrl(car.image, '/promo-cyberbeast.jpg'),
+            galleryImages: Array.isArray(car.galleryImages)
+              ? car.galleryImages.map((g: string) => sanitizeMediaUrl(g, '/promo-cyberbeast.jpg'))
+              : car.galleryImages,
+          }))
+        );
       }
       if (Array.isArray(sections.investment_pools) && sections.investment_pools.length > 0) {
-        setInvestmentPools(sections.investment_pools);
+        setInvestmentPools(
+          (sections.investment_pools as InvestmentPool[]).map((pool) => ({
+            ...pool,
+            image: sanitizeMediaUrl(pool.image, '/img-supercharger-node.jpg'),
+          }))
+        );
       }
       if (Array.isArray(sections.stock_plans) && sections.stock_plans.length > 0) {
         setFeaturedStockPlans(sections.stock_plans);
@@ -2225,7 +2279,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }));
           }
           if (Array.isArray(st.sitemapEntries) && st.sitemapEntries.length > 0) {
-            setSitemapEntries(st.sitemapEntries);
+            setSitemapEntries(mergeAboutSitemap(st.sitemapEntries));
           }
           if (Array.isArray(st.rssFeedItems) && st.rssFeedItems.length > 0) {
             setRssFeedItems(st.rssFeedItems);

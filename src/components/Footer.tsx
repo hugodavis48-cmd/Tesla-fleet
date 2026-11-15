@@ -22,7 +22,9 @@ interface FooterProps {
 export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenDeposit }) => {
   const { currentUser, navigationMenus, sitePages, siteSettings, seoSettings, socialLinks } = useApp();
   const [modalContent, setModalContent] = useState<{ title: string; body: string } | null>(null);
-  const [openCategoryDropdown, setOpenCategoryDropdown] = useState<'services' | 'fleet' | null>(null);
+  const [openCategoryDropdown, setOpenCategoryDropdown] = useState<
+    'services' | 'fleet' | 'promotions' | null
+  >(null);
   const dropdownGroupRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -89,7 +91,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenDeposit }) => 
         {/* Newsletter Signup Section */}
         <NewsletterSignup source="footer" variant="feature" />
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-8 pt-2">
+        <div ref={dropdownGroupRef} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-8 pt-2">
           {/* Brand info */}
           <div className="lg:col-span-5 space-y-4">
             <div className="flex items-center gap-2.5">
@@ -97,6 +99,11 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenDeposit }) => 
                 <img
                   src={seoSettings?.logoUrl || '/logo.jpg'}
                   alt={siteSettings.siteName}
+                  referrerPolicy="no-referrer"
+                  onError={(e) => {
+                    e.currentTarget.onerror = null;
+                    e.currentTarget.src = '/logo.jpg';
+                  }}
                   className="w-full h-full rounded-[10px] object-cover bg-zinc-950"
                 />
               </div>
@@ -151,7 +158,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenDeposit }) => 
           </div>
 
           {/* Categories Dropdown Menus: Services & Custom + Fleet & Yield */}
-          <div ref={dropdownGroupRef} className="lg:col-span-4 space-y-4">
+          <div className="lg:col-span-4 space-y-4">
             <div className="space-y-1">
               <h4 className="font-heading font-bold text-sm text-white">
                 Platform Categories
@@ -288,122 +295,218 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenDeposit }) => 
             </div>
           </div>
 
-          {/* Quick Menus 3: Promotions & Trust */}
-          <div className="lg:col-span-3 space-y-3">
-            <h4 className="font-heading font-bold text-sm text-white">
-              Promotions &amp; Trust
-            </h4>
-            <ul className="space-y-2">
-              {legalMenus.map((item) => (
-                <li key={item.id}>
-                  <button
-                    type="button"
-                    onClick={() => onNavigate(item.targetTab)}
-                    className={`hover:text-red-400 transition flex items-center gap-1.5 text-left ${
-                      item.highlight ? 'text-yellow-400 font-semibold' : 'text-zinc-300'
+          {/* Quick Menus 3: Promotions & Trust Dropdown */}
+          <div className="lg:col-span-3 space-y-4">
+            <div className="space-y-1">
+              <h4 className="font-heading font-bold text-sm text-white">
+                Promotions &amp; Trust
+              </h4>
+              <p className="text-[11px] text-zinc-500">
+                Access promotions, compliance certificates, policies, and syndication feeds.
+              </p>
+            </div>
+
+            <div className="relative">
+              <button
+                type="button"
+                aria-haspopup="menu"
+                aria-expanded={openCategoryDropdown === 'promotions'}
+                onClick={() =>
+                  setOpenCategoryDropdown((prev) => (prev === 'promotions' ? null : 'promotions'))
+                }
+                className={`w-full px-4 py-3 rounded-xl border text-left flex items-center justify-between gap-3 transition cursor-pointer ${
+                  openCategoryDropdown === 'promotions'
+                    ? 'bg-zinc-900 border-amber-500/60 text-white'
+                    : 'bg-zinc-950 border-zinc-800 hover:border-zinc-700 text-zinc-200'
+                }`}
+              >
+                <span className="flex items-center gap-2.5 min-w-0">
+                  <ShieldCheck className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span className="font-heading font-semibold text-xs sm:text-sm truncate">
+                    Promotions &amp; Trust
+                  </span>
+                </span>
+                <span className="flex items-center gap-2 shrink-0 text-[11px] text-zinc-400 tabular-nums">
+                  <span>
+                    {legalMenus.length +
+                      customFooterPages.length +
+                      (hasCertificatesMenuItem ? 4 : 5) +
+                      (currentUser?.role === 'admin' ? 1 : 0)}{' '}
+                    options
+                  </span>
+                  <ChevronDown
+                    className={`w-4 h-4 transition-transform duration-200 ${
+                      openCategoryDropdown === 'promotions' ? 'rotate-180 text-amber-400' : ''
                     }`}
-                  >
-                    <span>{item.label}</span>
-                    {item.badge && (
-                      <span className="text-[10px] font-mono text-red-400 font-bold">
-                        · {item.badge}
+                  />
+                </span>
+              </button>
+
+              {openCategoryDropdown === 'promotions' && (
+                <div
+                  role="menu"
+                  aria-label="Promotions and Trust links"
+                  className="mt-1.5 rounded-xl bg-zinc-950 border border-zinc-800 shadow-2xl p-1.5 space-y-0.5 z-30 max-h-80 overflow-y-auto"
+                >
+                  {legalMenus.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setOpenCategoryDropdown(null);
+                        onNavigate(item.targetTab);
+                      }}
+                      className={`w-full px-3 py-2.5 rounded-lg text-left text-xs hover:bg-zinc-900 flex items-center justify-between gap-2 transition cursor-pointer ${
+                        item.highlight
+                          ? 'text-yellow-400 hover:text-yellow-300 font-semibold'
+                          : 'text-zinc-300 hover:text-white'
+                      }`}
+                    >
+                      <span className="truncate flex items-center gap-1.5">
+                        <span>{item.label}</span>
+                        {item.badge && (
+                          <span className="text-[10px] font-mono text-red-400 font-bold">
+                            · {item.badge}
+                          </span>
+                        )}
                       </span>
-                    )}
-                  </button>
-                </li>
-              ))}
-              {customFooterPages.map((pg) => (
-                <li key={pg.id}>
+                      <ChevronRight className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+                    </button>
+                  ))}
+
+                  {customFooterPages.map((pg) => (
+                    <button
+                      key={pg.id}
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setOpenCategoryDropdown(null);
+                        onNavigate(pg.slug);
+                      }}
+                      className="w-full px-3 py-2.5 rounded-lg text-left text-xs text-zinc-300 hover:text-amber-300 hover:bg-zinc-900 flex items-center justify-between gap-2 transition cursor-pointer"
+                    >
+                      <span className="truncate">{pg.title}</span>
+                      <ChevronRight className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+                    </button>
+                  ))}
+
                   <button
                     type="button"
-                    onClick={() => onNavigate(pg.slug)}
-                    className="hover:text-amber-300 text-zinc-300 transition text-left"
+                    role="menuitem"
+                    onClick={() => {
+                      setOpenCategoryDropdown(null);
+                      openLegalModal('Privacy Policy', privacyText);
+                    }}
+                    className="w-full px-3 py-2.5 rounded-lg text-left text-xs text-zinc-300 hover:text-white hover:bg-zinc-900 flex items-center justify-between gap-2 transition cursor-pointer"
                   >
-                    {pg.title}
+                    <span className="truncate">Privacy Policy</span>
+                    <ChevronRight className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
                   </button>
-                </li>
-              ))}
-              <li>
-                <button
-                  type="button"
-                  onClick={() => openLegalModal('Privacy Policy', privacyText)}
-                  className="hover:text-white transition"
-                >
-                  Privacy Policy
-                </button>
-              </li>
-              <li>
-                <button
-                  type="button"
-                  onClick={() => openLegalModal('Terms of Service & Proof of Fair', termsText)}
-                  className="hover:text-white transition"
-                >
-                  Terms of Service
-                </button>
-              </li>
-              {!hasCertificatesMenuItem && (
-                <li>
+
                   <button
                     type="button"
-                    onClick={() => onNavigate('certificates')}
-                    className="hover:text-amber-300 text-zinc-300 transition flex items-center gap-1.5 text-left"
+                    role="menuitem"
+                    onClick={() => {
+                      setOpenCategoryDropdown(null);
+                      openLegalModal('Terms of Service & Proof of Fair', termsText);
+                    }}
+                    className="w-full px-3 py-2.5 rounded-lg text-left text-xs text-zinc-300 hover:text-white hover:bg-zinc-900 flex items-center justify-between gap-2 transition cursor-pointer"
                   >
-                    <Award className="w-3.5 h-3.5 text-amber-400" />
-                    <span>Business &amp; License Certificates</span>
+                    <span className="truncate">Terms of Service</span>
+                    <ChevronRight className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
                   </button>
-                </li>
+
+                  {!hasCertificatesMenuItem && (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setOpenCategoryDropdown(null);
+                        onNavigate('certificates');
+                      }}
+                      className="w-full px-3 py-2.5 rounded-lg text-left text-xs text-zinc-300 hover:text-amber-300 hover:bg-zinc-900 flex items-center justify-between gap-2 transition cursor-pointer"
+                    >
+                      <span className="flex items-center gap-2 truncate">
+                        <Award className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                        <span className="truncate">Business &amp; License Certificates</span>
+                      </span>
+                      <ChevronRight className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setOpenCategoryDropdown(null);
+                      onNavigate('sitemap');
+                    }}
+                    className="w-full px-3 py-2.5 rounded-lg text-left text-xs text-zinc-300 hover:text-cyan-400 hover:bg-zinc-900 flex items-center justify-between gap-2 transition cursor-pointer"
+                  >
+                    <span className="flex items-center gap-2 truncate">
+                      <Map className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                      <span className="truncate">Interactive Site Map</span>
+                    </span>
+                    <ChevronRight className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+                  </button>
+
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setOpenCategoryDropdown(null);
+                      onNavigate('rss');
+                    }}
+                    className="w-full px-3 py-2.5 rounded-lg text-left text-xs text-zinc-300 hover:text-amber-400 hover:bg-zinc-900 flex items-center justify-between gap-2 transition cursor-pointer"
+                  >
+                    <span className="flex items-center gap-2 truncate">
+                      <Rss className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                      <span className="truncate">RSS Feeds &amp; Live XML</span>
+                    </span>
+                    <ChevronRight className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+                  </button>
+
+                  {currentUser?.role === 'admin' && (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setOpenCategoryDropdown(null);
+                        onNavigate('admin');
+                      }}
+                      className="w-full px-3 py-2.5 rounded-lg text-left text-xs text-amber-400 hover:text-amber-300 hover:bg-zinc-900 font-bold font-mono flex items-center justify-between gap-2 transition cursor-pointer"
+                    >
+                      <span className="truncate">Executive Admin Suite (/admin)</span>
+                      <ChevronRight className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                    </button>
+                  )}
+
+                  <div className="mt-1 pt-1.5 px-3 py-1.5 border-t border-zinc-800/80 flex items-center justify-between text-[10px] font-mono">
+                    <span className="text-zinc-500">XML Feeds</span>
+                    <div className="flex items-center gap-2.5">
+                      <a
+                        href="/sitemap.xml"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-zinc-400 hover:text-cyan-400 underline"
+                      >
+                        sitemap.xml
+                      </a>
+                      <span className="text-zinc-700">·</span>
+                      <a
+                        href="/rss.xml"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-zinc-400 hover:text-amber-400 underline"
+                      >
+                        rss.xml
+                      </a>
+                    </div>
+                  </div>
+                </div>
               )}
-              <li>
-                <button
-                  type="button"
-                  onClick={() => onNavigate('sitemap')}
-                  className="hover:text-cyan-400 text-zinc-300 transition flex items-center gap-1.5 text-left"
-                >
-                  <Map className="w-3.5 h-3.5 text-cyan-400" />
-                  <span>Interactive Site Map</span>
-                </button>
-              </li>
-              <li>
-                <button
-                  type="button"
-                  onClick={() => onNavigate('rss')}
-                  className="hover:text-amber-400 text-zinc-300 transition flex items-center gap-1.5 text-left"
-                >
-                  <Rss className="w-3.5 h-3.5 text-amber-400" />
-                  <span>RSS Feeds &amp; Live XML</span>
-                </button>
-              </li>
-              <li className="flex items-center gap-3 pt-1 text-[10px] font-mono">
-                <a
-                  href="/sitemap.xml"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-zinc-400 hover:text-cyan-400 underline"
-                >
-                  sitemap.xml
-                </a>
-                <span className="text-zinc-700">•</span>
-                <a
-                  href="/rss.xml"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-zinc-400 hover:text-amber-400 underline"
-                >
-                  rss.xml
-                </a>
-              </li>
-              {currentUser?.role === 'admin' && (
-                <li>
-                  <button
-                    type="button"
-                    onClick={() => onNavigate('admin')}
-                    className="hover:text-amber-400 text-amber-400 font-bold font-mono transition"
-                  >
-                    Executive Admin Suite (/admin)
-                  </button>
-                </li>
-              )}
-            </ul>
+            </div>
           </div>
         </div>
 

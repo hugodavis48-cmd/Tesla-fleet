@@ -192,7 +192,16 @@ export const ServiceScheduler: React.FC<ServiceSchedulerProps> = ({
                         : 'bg-zinc-900/60 border-zinc-800 text-zinc-300 hover:border-zinc-700'
                     }`}
                   >
-                    <img src={v.image} alt={v.model} className="w-14 h-14 object-cover rounded-xl shrink-0" />
+                    <img
+                      src={v.image}
+                      alt={v.model}
+                      referrerPolicy="no-referrer"
+                      onError={(e) => {
+                        e.currentTarget.onerror = null;
+                        e.currentTarget.src = '/promo-plaid.jpg';
+                      }}
+                      className="w-14 h-14 object-cover rounded-xl shrink-0"
+                    />
                     <div className="min-w-0">
                       <h4 className="font-heading font-bold text-sm text-white truncate">{v.model}</h4>
                       <p className="text-xs text-zinc-400 truncate">{v.trim}</p>

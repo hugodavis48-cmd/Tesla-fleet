@@ -225,6 +225,11 @@ export const Navbar: React.FC<NavbarProps> = ({
             <img
               src={seoSettings?.logoUrl || '/logo.jpg'}
               alt={siteSettings.siteName}
+              referrerPolicy="no-referrer"
+              onError={(e) => {
+                e.currentTarget.onerror = null;
+                e.currentTarget.src = '/logo.jpg';
+              }}
               className="w-full h-full rounded-[10px] object-cover bg-zinc-950"
             />
           </div>
@@ -408,6 +413,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <img
                   src={currentUser.avatar}
                   alt={currentUser.name}
+                  referrerPolicy="no-referrer"
+                  onError={(e) => {
+                    e.currentTarget.onerror = null;
+                    e.currentTarget.src = '/logo.jpg';
+                  }}
                   className="w-7 h-7 rounded-lg object-cover border border-red-500/40"
                 />
                 <span className="hidden lg:inline text-xs font-medium text-white max-w-[100px] truncate">

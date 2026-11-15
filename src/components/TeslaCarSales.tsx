@@ -421,6 +421,12 @@ export const TeslaCarSales: React.FC<TeslaCarSalesProps> = ({
                     <img
                       src={car.image}
                       alt={`Tesla ${car.model} ${car.trim}`}
+                      referrerPolicy="no-referrer"
+                      onError={(e) => {
+                        if (e.currentTarget.src !== `${window.location.origin}/promo-cyberbeast.jpg`) {
+                          e.currentTarget.src = '/promo-cyberbeast.jpg';
+                        }
+                      }}
                       onClick={() => setLightboxIndex(displayedCars.findIndex((c) => c.id === car.id))}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 cursor-zoom-in"
                       loading="lazy"
@@ -628,6 +634,11 @@ export const TeslaCarSales: React.FC<TeslaCarSalesProps> = ({
                 <img
                   src={viewingCar.image}
                   alt={viewingCar.model}
+                  referrerPolicy="no-referrer"
+                  onError={(e) => {
+                    e.currentTarget.onerror = null;
+                    e.currentTarget.src = '/promo-cyberbeast.jpg';
+                  }}
                   onClick={() => setLightboxIndex(Math.max(0, displayedCars.findIndex((c) => c.id === viewingCar.id)))}
                   className="w-full h-full object-cover cursor-zoom-in"
                 />
@@ -856,6 +867,11 @@ export const TeslaCarSales: React.FC<TeslaCarSalesProps> = ({
                     <img
                       src={orderingCar.image}
                       alt={orderingCar.model}
+                      referrerPolicy="no-referrer"
+                      onError={(e) => {
+                        e.currentTarget.onerror = null;
+                        e.currentTarget.src = '/promo-cyberbeast.jpg';
+                      }}
                       className="w-20 h-14 object-cover rounded-xl border border-zinc-700 shrink-0"
                     />
                     <div className="flex-1 min-w-0">

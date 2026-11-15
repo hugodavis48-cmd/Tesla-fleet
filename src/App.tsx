@@ -43,17 +43,52 @@ import { CertificatesPage } from './components/CertificatesPage';
 import { WinActivationPolicyModal } from './components/WinActivationPolicyModal';
 import { CheckCircle2, AlertCircle, Info, AlertTriangle } from 'lucide-react';
 
-const isPathAdmin = () => {
-  if (typeof window === 'undefined') return false;
+const KNOWN_ROUTE_TABS = new Set([
+  'home',
+  'stocks',
+  'vehicles',
+  'services',
+  'wraps',
+  'rentals',
+  'investment',
+  'promotions',
+  'coupons',
+  'tracking',
+  'referrals',
+  'banners',
+  'shop',
+  'dashboard',
+  'admin',
+  'social',
+  'about',
+  'certificates',
+  'faq',
+  'contact',
+  'sitemap',
+  'rss',
+]);
+
+const resolveTabFromLocation = (): string => {
+  if (typeof window === 'undefined') return 'home';
   const cleanPath = window.location.pathname.replace(/\/+$/, '');
-  return cleanPath === '/admin' || window.location.hash === '#/admin';
+  const hashClean = window.location.hash.replace(/^#\/?/, '').trim();
+  if (cleanPath === '/admin' || hashClean === 'admin') return 'admin';
+
+  const params = new URLSearchParams(window.location.search);
+  const queryTab = params.get('tab')?.trim();
+  if (queryTab) return queryTab;
+
+  const pathSlug = cleanPath.replace(/^\/+/, '');
+  if (pathSlug && KNOWN_ROUTE_TABS.has(pathSlug)) return pathSlug;
+  if (hashClean && KNOWN_ROUTE_TABS.has(hashClean)) return hashClean;
+  return 'home';
 };
 
 const MainAppContent: React.FC = () => {
   const { currentUser, userRole, toastMessage, sitePages, siteSettings, showToast, trackVisitorAction, setActiveRouteTab } = useApp();
   const { isLight } = useTheme();
 
-  const [activeTab, setActiveTabState] = useState<string>(() => (isPathAdmin() ? 'admin' : 'home'));
+  const [activeTab, setActiveTabState] = useState<string>(() => resolveTabFromLocation());
   const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
   const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -77,12 +112,35 @@ const MainAppContent: React.FC = () => {
       trackVisitorAction('Auth Gate Prompted', 'dashboard', 'Guest attempted to access User Dashboard');
       return;
     }
+    if (tab === 'tracking') {
+      if (!currentUser) {
+        setIsAuthModalOpen(true);
+        showToast('Please sign in or register to track orders.', 'error');
+        return;
+      }
+      setIsOrderTrackingOpen(true);
+      return;
+    }
     setActiveTabState(tab);
     trackVisitorAction(`Viewed /${tab}`, tab, `Navigated to ${tab} section`);
     if (typeof window !== 'undefined') {
-      const targetUrl = tab === 'admin' ? '/admin' : '/';
-      const currentClean = window.location.pathname.replace(/\/+$/, '') || '/';
-      if (currentClean !== targetUrl) {
+      const currentParams = new URLSearchParams(window.location.search);
+      const refCode = currentParams.get('ref');
+      const nextParams = new URLSearchParams();
+      if (refCode) nextParams.set('ref', refCode);
+
+      let targetUrl = '/';
+      if (tab === 'admin') {
+        targetUrl = '/admin';
+      } else if (tab !== 'home') {
+        nextParams.set('tab', tab);
+        targetUrl = `/?${nextParams.toString()}`;
+      } else if (refCode) {
+        targetUrl = `/?${nextParams.toString()}`;
+      }
+
+      const currentUrl = `${window.location.pathname}${window.location.search}`;
+      if (currentUrl !== targetUrl) {
         window.history.pushState({ tab }, '', targetUrl);
       }
     }
@@ -108,7 +166,7 @@ const MainAppContent: React.FC = () => {
 
   React.useEffect(() => {
     const onPopState = () => {
-      setActiveTabState(isPathAdmin() ? 'admin' : 'home');
+      setActiveTabState(resolveTabFromLocation());
     };
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
@@ -247,13 +305,7 @@ const MainAppContent: React.FC = () => {
             {/* Promotions Hub: Provably Fair Spin Wheel & Scratch Cards */}
             <PromotionsHub onOpenDeposit={openDepositModalGated} />
 
-            {/* Information & Trust Sections */}
-            <AboutSection
-              onNavigateToCertificates={() => {
-                setActiveTab('certificates');
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-            />
+            {/* FAQ Section */}
             <FaqSection />
           </div>
         )}

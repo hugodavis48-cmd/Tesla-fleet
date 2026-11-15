@@ -858,7 +858,17 @@ export const InvestmentHub: React.FC<InvestmentHubProps> = ({ onOpenDeposit, onN
                 <div>
                   {/* Pool Header Image */}
                   <div className="relative aspect-[16/9] overflow-hidden bg-black">
-                    <img src={pool.image} alt={pool.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                    <img
+                      src={pool.image}
+                      alt={pool.title}
+                      referrerPolicy="no-referrer"
+                      onError={(e) => {
+                        if (e.currentTarget.src !== `${window.location.origin}/img-supercharger-node.jpg`) {
+                          e.currentTarget.src = '/img-supercharger-node.jpg';
+                        }
+                      }}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    />
                     <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/40 to-transparent" />
 
                     {/* Top right badges: APY and Quick Alert Toggle */}

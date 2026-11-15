@@ -117,6 +117,12 @@ export const ProductShop: React.FC<ProductShopProps> = ({ onOpenCart, onOpenAuth
                   <img
                     src={product.image}
                     alt={product.name}
+                    referrerPolicy="no-referrer"
+                    onError={(e) => {
+                      if (e.currentTarget.src !== `${window.location.origin}/img-ev-hardware.jpg`) {
+                        e.currentTarget.src = '/img-ev-hardware.jpg';
+                      }
+                    }}
                     onClick={() => setLightboxIndex(filteredProducts.findIndex((item) => item.id === product.id))}
                     className="w-full h-full object-cover group-hover:scale-105 transition duration-500 cursor-zoom-in"
                   />

@@ -73,6 +73,12 @@ export const RentalFleet: React.FC<RentalFleetProps> = ({ onOpenDeposit, onNavig
                 <img
                   src={vehicle.image}
                   alt={vehicle.model}
+                  referrerPolicy="no-referrer"
+                  onError={(e) => {
+                    if (e.currentTarget.src !== `${window.location.origin}/promo-plaid.jpg`) {
+                      e.currentTarget.src = '/promo-plaid.jpg';
+                    }
+                  }}
                   onClick={() => setLightboxIndex(RENTAL_FLEET.findIndex((r) => r.id === vehicle.id))}
                   className="w-full h-full object-cover group-hover:scale-105 transition duration-500 cursor-zoom-in"
                 />
