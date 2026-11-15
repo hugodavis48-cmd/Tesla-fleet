@@ -208,7 +208,7 @@ export interface TransactionInvoiceDetails {
 
 export interface Transaction {
   id: string;
-  type: 'deposit' | 'service_payment' | 'rental_payment' | 'investment_deposit' | 'dividend_claim' | 'promotion_win' | 'scratch_card_purchase' | 'referral_credit';
+  type: 'deposit' | 'service_payment' | 'rental_payment' | 'investment_deposit' | 'dividend_claim' | 'promotion_win' | 'scratch_card_purchase' | 'referral_credit' | 'engagement_reward';
   currency: CryptoCurrency | 'USD';
   amount: number;
   usdEquivalent: number;
@@ -760,6 +760,32 @@ export interface FeatureToggles {
   enableVehicleSales: boolean;
   enableStakingYield: boolean;
 
+  // Page display & navigation visibility toggles
+  enableBlogPage?: boolean;
+  enableServicesPage?: boolean;
+  enableWrapsPage?: boolean;
+  enableRentalsPage?: boolean;
+  enablePromotionsPage?: boolean;
+  enableCouponsPage?: boolean;
+  enableShopPage?: boolean;
+  enableReferralsPage?: boolean;
+  enableBannersPage?: boolean;
+  enableSocialPage?: boolean;
+  enableAboutPage?: boolean;
+  enableCertificatesPage?: boolean;
+  enableFaqPage?: boolean;
+  enableContactPage?: boolean;
+  enableSitemapRssPages?: boolean;
+
+  // Homepage sections & UI modules display toggles
+  enableLiveTickerBar?: boolean;
+  enableShowcaseDeck?: boolean;
+  enableHomePromotionsSection?: boolean;
+  enableHomeFaqSection?: boolean;
+  enableNewsletterSignup?: boolean;
+  enableAiChatbot?: boolean;
+  enableCryptoDeposits?: boolean;
+
   // Extended aliases for streamlined components
   teslaStocksEnabled?: boolean;
   spotTradingEnabled?: boolean;
@@ -1131,4 +1157,118 @@ export interface BusinessCertificate {
   order: number;
   updatedAt: string;
 }
+
+export type BlogCategory =
+  | 'EV Engineering & Diagnostics'
+  | 'Wraps & Protection'
+  | 'Fleet & Staking Yield'
+  | 'TSLA Markets & Crypto'
+  | 'Vehicle Deliveries';
+
+export type BlogPostStatus = 'published' | 'draft' | 'scheduled';
+
+export type SocialSharePlatformId =
+  | 'twitter'
+  | 'facebook'
+  | 'linkedin'
+  | 'threads'
+  | 'whatsapp'
+  | 'telegram'
+  | 'reddit'
+  | 'pinterest'
+  | 'instagram'
+  | 'tiktok'
+  | 'youtube'
+  | 'discord'
+  | 'email'
+  | 'copy_link';
+
+export interface BlogPost {
+  id: string;
+  slug: string;
+  title: string;
+  subtitle: string;
+  category: BlogCategory;
+  status: BlogPostStatus;
+  featured: boolean;
+  excerpt: string;
+  content: string;
+  coverImageUrl: string;
+  authorName: string;
+  authorRole: string;
+  publishedAt: string;
+  updatedAt: string;
+  readTimeMinutes: number;
+  seoTitle: string;
+  metaDescription: string;
+  focusKeywords: string;
+  canonicalUrl?: string;
+  schemaType?: 'BlogPosting' | 'NewsArticle' | 'TechArticle';
+  viewsCount: number;
+  sharesCount: number;
+  likesCount: number;
+  bookmarksCount: number;
+  commentsCount: number;
+  customReadCents?: number;
+  customShareCents?: number;
+}
+
+export interface BlogComment {
+  id: string;
+  postId: string;
+  userId: string;
+  userName: string;
+  userTier: User['tier'];
+  body: string;
+  createdAt: string;
+}
+
+export type EngagementActionType =
+  | 'read_article'
+  | 'share_article'
+  | 'engagement_action'
+  | 'time_on_platform'
+  | 'admin_bonus';
+
+export interface EngagementTierMultipliers {
+  Standard: number;
+  'Plaid Member': number;
+  'Founders Club': number;
+}
+
+export interface EngagementRewardConfig {
+  enabled: boolean;
+  readArticleBaseCents: number;
+  readMinDwellSeconds: number;
+  shareArticleBaseCents: number;
+  shareProgressiveStepCents: number;
+  maxRewardedSharesPerPostPerDay: number;
+  engagementActionBaseCents: number;
+  timeOnPlatformCentsPerInterval: number;
+  timeOnPlatformIntervalSeconds: number;
+  dailyCapUsd: number;
+  tierMultipliers: EngagementTierMultipliers;
+  enabledSharePlatforms: SocialSharePlatformId[];
+}
+
+export interface EngagementRewardEvent {
+  id: string;
+  userId: string;
+  userEmail: string;
+  userName: string;
+  userTier: User['tier'];
+  actionType: EngagementActionType;
+  postId?: string;
+  postTitle?: string;
+  platform?: SocialSharePlatformId;
+  engagementDetail?: string;
+  baseCents: number;
+  multiplier: number;
+  awardedCents: number;
+  awardedUsd: number;
+  description: string;
+  status: 'credited' | 'revoked';
+  createdAt: string;
+}
+
 

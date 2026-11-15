@@ -2276,8 +2276,19 @@ let serverSitemapEntries: Array<{
   { path: 'banners', title: '3D/HD Banners & Short Promo Videos', priority: 0.8, changeFreq: 'daily', isActive: true, lastMod: '2026-11-12' },
   { path: 'about', title: 'About Apex Tesla Hub', priority: 0.85, changeFreq: 'monthly', isActive: true, lastMod: '2026-11-15' },
   { path: 'certificates', title: 'Business & License Certificates', priority: 0.8, changeFreq: 'monthly', isActive: true, lastMod: '2026-11-12' },
+  { path: 'blog', title: 'EV News & Engineering Blog', priority: 0.9, changeFreq: 'daily', isActive: true, lastMod: '2026-11-15' },
   { path: 'faq', title: 'Frequently Asked Questions', priority: 0.7, changeFreq: 'weekly', isActive: true, lastMod: '2026-11-12' },
 ];
+if (!serverSitemapEntries.some((e) => e.path === 'blog')) {
+  serverSitemapEntries.push({
+    path: 'blog',
+    title: 'EV News & Engineering Blog',
+    priority: 0.9,
+    changeFreq: 'daily',
+    isActive: true,
+    lastMod: '2026-11-15',
+  });
+}
 
 let serverRssItems: Array<{
   id: string;
@@ -2355,6 +2366,8 @@ app.post('/api/seo/sync', (req, res) => {
 
 app.get('/sitemap.xml', (req, res) => {
   const baseUrl = (serverSeoState.canonicalUrl || `${req.protocol}://${req.get('host')}/`).replace(/\/+$/, '');
+  const state = readServerAdminState();
+  const blogPosts = Array.isArray(state.blog_posts) ? state.blog_posts.filter((p: any) => p.status === 'published') : [];
   const active = serverSitemapEntries.filter((e) => e.isActive !== false);
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
@@ -2368,6 +2381,16 @@ ${active
   </url>`
   )
   .join('\n')}
+${blogPosts
+  .map(
+    (post: any) => `  <url>
+    <loc>${escapeXml(`${baseUrl}/?tab=blog&post=${encodeURIComponent(post.slug || post.id)}`)}</loc>
+    <lastmod>${escapeXml(post.updatedAt || post.publishedAt || new Date().toISOString().slice(0, 10))}</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+  </url>`
+  )
+  .join('\n')}
 </urlset>`;
   res.setHeader('Content-Type', 'application/xml; charset=utf-8');
   return res.send(xml);
@@ -2375,6 +2398,8 @@ ${active
 
 app.get('/rss.xml', (req, res) => {
   const baseUrl = (serverSeoState.canonicalUrl || `${req.protocol}://${req.get('host')}/`).replace(/\/+$/, '');
+  const state = readServerAdminState();
+  const blogPosts = Array.isArray(state.blog_posts) ? state.blog_posts.filter((p: any) => p.status === 'published') : [];
   const published = serverRssItems.filter((item) => item.isPublished !== false);
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
@@ -2394,6 +2419,18 @@ ${published
       <category>${escapeXml(item.category || 'Updates')}</category>
       <pubDate>${new Date(item.pubDate || Date.now()).toUTCString()}</pubDate>
       <description>${escapeXml(item.description)}</description>
+    </item>`
+  )
+  .join('\n')}
+${blogPosts
+  .map(
+    (post: any) => `    <item>
+      <title>${escapeXml(post.title)}</title>
+      <link>${escapeXml(`${baseUrl}/?tab=blog&post=${encodeURIComponent(post.slug || post.id)}`)}</link>
+      <guid isPermaLink="false">${escapeXml(`apex-blog-${post.id}`)}</guid>
+      <category>${escapeXml(post.category || 'EV Engineering')}</category>
+      <pubDate>${new Date(post.publishedAt || Date.now()).toUTCString()}</pubDate>
+      <description>${escapeXml(post.metaDescription || post.excerpt || '')}</description>
     </item>`
   )
   .join('\n')}

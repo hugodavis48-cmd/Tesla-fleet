@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { NewsletterSignup } from './NewsletterSignup';
+import { isTabEnabled } from '../lib/featureVisibility';
 
 interface FooterProps {
   onNavigate: (tab: string) => void;
@@ -20,7 +21,7 @@ interface FooterProps {
 }
 
 export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenDeposit }) => {
-  const { currentUser, navigationMenus, sitePages, siteSettings, seoSettings, socialLinks } = useApp();
+  const { currentUser, navigationMenus, sitePages, siteSettings, seoSettings, socialLinks, featureToggles } = useApp();
   const [modalContent, setModalContent] = useState<{ title: string; body: string } | null>(null);
   const [openCategoryDropdown, setOpenCategoryDropdown] = useState<
     'services' | 'fleet' | 'promotions' | null
@@ -52,21 +53,25 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenDeposit }) => 
 
   const footerSocials = socialLinks.filter((s) => s.enabled && s.showInFooter);
   const serviceMenus = navigationMenus
-    .filter((m) => m.location === 'footer_services' && m.isVisible)
+    .filter((m) => m.location === 'footer_services' && m.isVisible && isTabEnabled(m.targetTab, featureToggles))
     .sort((a, b) => a.order - b.order);
   const fleetMenus = navigationMenus
-    .filter((m) => m.location === 'footer_fleet' && m.isVisible)
+    .filter((m) => m.location === 'footer_fleet' && m.isVisible && isTabEnabled(m.targetTab, featureToggles))
     .sort((a, b) => a.order - b.order);
   const legalMenus = navigationMenus
-    .filter((m) => m.location === 'footer_legal' && m.isVisible)
+    .filter((m) => m.location === 'footer_legal' && m.isVisible && isTabEnabled(m.targetTab, featureToggles))
     .sort((a, b) => a.order - b.order);
   const hasCertificatesMenuItem = legalMenus.some((m) => m.targetTab === 'certificates');
+  const showCertificatesItem = !hasCertificatesMenuItem && featureToggles.enableCertificatesPage !== false;
+  const showSitemapRssItems = featureToggles.enableSitemapRssPages !== false;
+  const showCryptoGatewayItem = featureToggles.enableCryptoDeposits !== false && siteSettings.enableCryptoDeposits !== false;
   const customFooterPages = sitePages
     .filter(
       (p) =>
         !p.isSystem &&
         (p.isPublished ?? p.published) &&
-        (p.displayLocation === 'footer' || p.displayLocation === 'both')
+        (p.displayLocation === 'footer' || p.displayLocation === 'both') &&
+        isTabEnabled(p.slug, featureToggles)
     )
     .sort((a, b) => a.order - b.order);
 
@@ -89,7 +94,9 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenDeposit }) => 
     <footer className="bg-black border-t border-zinc-900 text-zinc-400 text-xs">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 space-y-10">
         {/* Newsletter Signup Section */}
-        <NewsletterSignup source="footer" variant="feature" />
+        {featureToggles.enableNewsletterSignup !== false && (
+          <NewsletterSignup source="footer" variant="feature" />
+        )}
 
         <div ref={dropdownGroupRef} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-8 pt-2">
           {/* Brand info */}
@@ -132,13 +139,15 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenDeposit }) => 
                 <span className="text-[11px] font-semibold text-zinc-500 block">
                   Official Connected Channels
                 </span>
-                <button
-                  type="button"
-                  onClick={() => onNavigate('social')}
-                  className="text-[11px] text-red-400 hover:text-red-300 font-medium cursor-pointer"
-                >
-                  View All & Share →
-                </button>
+                {featureToggles.enableSocialPage !== false && (
+                  <button
+                    type="button"
+                    onClick={() => onNavigate('social')}
+                    className="text-[11px] text-red-400 hover:text-red-300 font-medium cursor-pointer"
+                  >
+                    View All & Share →
+                  </button>
+                )}
               </div>
               <div className="flex flex-wrap gap-1.5 text-xs">
                 {footerSocials.map((social) => (
@@ -247,7 +256,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenDeposit }) => 
                     </span>
                   </span>
                   <span className="flex items-center gap-2 shrink-0 text-[11px] text-zinc-400 tabular-nums">
-                    <span>{fleetMenus.length + 1} options</span>
+                    <span>{fleetMenus.length + (showCryptoGatewayItem ? 1 : 0)} options</span>
                     <ChevronDown
                       className={`w-4 h-4 transition-transform duration-200 ${
                         openCategoryDropdown === 'fleet' ? 'rotate-180 text-emerald-400' : ''
@@ -277,18 +286,20 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenDeposit }) => 
                         <ChevronRight className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
                       </button>
                     ))}
-                    <button
-                      type="button"
-                      role="menuitem"
-                      onClick={() => {
-                        setOpenCategoryDropdown(null);
-                        onOpenDeposit();
-                      }}
-                      className="w-full px-3 py-2.5 rounded-lg text-left text-xs text-emerald-400 hover:text-emerald-300 hover:bg-zinc-900 flex items-center justify-between gap-2 transition cursor-pointer"
-                    >
-                      <span className="truncate">Crypto Gateway (BTC/USDT/XRP)</span>
-                      <ChevronRight className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                    </button>
+                    {showCryptoGatewayItem && (
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          setOpenCategoryDropdown(null);
+                          onOpenDeposit();
+                        }}
+                        className="w-full px-3 py-2.5 rounded-lg text-left text-xs text-emerald-400 hover:text-emerald-300 hover:bg-zinc-900 flex items-center justify-between gap-2 transition cursor-pointer"
+                      >
+                        <span className="truncate">Crypto Gateway (BTC/USDT/XRP)</span>
+                        <ChevronRight className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -330,7 +341,9 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenDeposit }) => 
                   <span>
                     {legalMenus.length +
                       customFooterPages.length +
-                      (hasCertificatesMenuItem ? 4 : 5) +
+                      2 +
+                      (showCertificatesItem ? 1 : 0) +
+                      (showSitemapRssItems ? 2 : 0) +
                       (currentUser?.role === 'admin' ? 1 : 0)}{' '}
                     options
                   </span>
@@ -417,7 +430,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenDeposit }) => 
                     <ChevronRight className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
                   </button>
 
-                  {!hasCertificatesMenuItem && (
+                  {showCertificatesItem && (
                     <button
                       type="button"
                       role="menuitem"
@@ -435,37 +448,41 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenDeposit }) => 
                     </button>
                   )}
 
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      setOpenCategoryDropdown(null);
-                      onNavigate('sitemap');
-                    }}
-                    className="w-full px-3 py-2.5 rounded-lg text-left text-xs text-zinc-300 hover:text-cyan-400 hover:bg-zinc-900 flex items-center justify-between gap-2 transition cursor-pointer"
-                  >
-                    <span className="flex items-center gap-2 truncate">
-                      <Map className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-                      <span className="truncate">Interactive Site Map</span>
-                    </span>
-                    <ChevronRight className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
-                  </button>
+                  {showSitemapRssItems && (
+                    <>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          setOpenCategoryDropdown(null);
+                          onNavigate('sitemap');
+                        }}
+                        className="w-full px-3 py-2.5 rounded-lg text-left text-xs text-zinc-300 hover:text-cyan-400 hover:bg-zinc-900 flex items-center justify-between gap-2 transition cursor-pointer"
+                      >
+                        <span className="flex items-center gap-2 truncate">
+                          <Map className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                          <span className="truncate">Interactive Site Map</span>
+                        </span>
+                        <ChevronRight className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+                      </button>
 
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      setOpenCategoryDropdown(null);
-                      onNavigate('rss');
-                    }}
-                    className="w-full px-3 py-2.5 rounded-lg text-left text-xs text-zinc-300 hover:text-amber-400 hover:bg-zinc-900 flex items-center justify-between gap-2 transition cursor-pointer"
-                  >
-                    <span className="flex items-center gap-2 truncate">
-                      <Rss className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                      <span className="truncate">RSS Feeds &amp; Live XML</span>
-                    </span>
-                    <ChevronRight className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
-                  </button>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          setOpenCategoryDropdown(null);
+                          onNavigate('rss');
+                        }}
+                        className="w-full px-3 py-2.5 rounded-lg text-left text-xs text-zinc-300 hover:text-amber-400 hover:bg-zinc-900 flex items-center justify-between gap-2 transition cursor-pointer"
+                      >
+                        <span className="flex items-center gap-2 truncate">
+                          <Rss className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                          <span className="truncate">RSS Feeds &amp; Live XML</span>
+                        </span>
+                        <ChevronRight className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+                      </button>
+                    </>
+                  )}
 
                   {currentUser?.role === 'admin' && (
                     <button
@@ -482,28 +499,30 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onOpenDeposit }) => 
                     </button>
                   )}
 
-                  <div className="mt-1 pt-1.5 px-3 py-1.5 border-t border-zinc-800/80 flex items-center justify-between text-[10px] font-mono">
-                    <span className="text-zinc-500">XML Feeds</span>
-                    <div className="flex items-center gap-2.5">
-                      <a
-                        href="/sitemap.xml"
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-zinc-400 hover:text-cyan-400 underline"
-                      >
-                        sitemap.xml
-                      </a>
-                      <span className="text-zinc-700">·</span>
-                      <a
-                        href="/rss.xml"
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-zinc-400 hover:text-amber-400 underline"
-                      >
-                        rss.xml
-                      </a>
+                  {showSitemapRssItems && (
+                    <div className="mt-1 pt-1.5 px-3 py-1.5 border-t border-zinc-800/80 flex items-center justify-between text-[10px] font-mono">
+                      <span className="text-zinc-500">XML Feeds</span>
+                      <div className="flex items-center gap-2.5">
+                        <a
+                          href="/sitemap.xml"
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-zinc-400 hover:text-cyan-400 underline"
+                        >
+                          sitemap.xml
+                        </a>
+                        <span className="text-zinc-700">·</span>
+                        <a
+                          href="/rss.xml"
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-zinc-400 hover:text-amber-400 underline"
+                        >
+                          rss.xml
+                        </a>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               )}
             </div>

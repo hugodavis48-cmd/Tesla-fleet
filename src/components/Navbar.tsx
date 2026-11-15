@@ -4,6 +4,7 @@ import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import { useApp } from '../context/AppContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
+import { isTabEnabled } from '../lib/featureVisibility';
 import {
   Zap,
   Wallet,
@@ -38,6 +39,7 @@ import {
   Megaphone,
   Volume2,
   VolumeX,
+  Newspaper,
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -112,11 +114,12 @@ export const Navbar: React.FC<NavbarProps> = ({
     Users,
     Share2,
     Megaphone,
+    Newspaper,
   };
 
   const primaryMenuLinks = navigationMenus
     .filter((m) => m.location === 'navbar' && m.isVisible)
-    .filter((m) => m.targetTab !== 'stocks' || featureToggles.teslaStocksEnabled)
+    .filter((m) => isTabEnabled(m.targetTab, featureToggles))
     .sort((a, b) => a.order - b.order)
     .map((m) => ({
       id: m.targetTab,
@@ -129,14 +132,17 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   const dropdownMenuLinks = navigationMenus
     .filter((m) => m.location === 'dropdown' && m.isVisible)
+    .filter((m) => isTabEnabled(m.targetTab, featureToggles))
     .sort((a, b) => a.order - b.order);
 
   const mobileOnlyLinks = navigationMenus
     .filter((m) => m.location === 'mobile_only' && m.isVisible)
+    .filter((m) => isTabEnabled(m.targetTab, featureToggles))
     .sort((a, b) => a.order - b.order);
 
   const customNavbarPages = sitePages
     .filter((p) => !p.isSystem && (p.isPublished ?? p.published) && p.displayLocation !== 'hidden')
+    .filter((p) => isTabEnabled(p.slug, featureToggles))
     .filter((p) => !primaryMenuLinks.some((m) => m.id === p.slug))
     .sort((a, b) => a.order - b.order)
     .map((p) => ({
@@ -161,7 +167,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     }));
 
   const navLinks = [...primaryMenuLinks, ...extraDropdownAsNav, ...customNavbarPages].filter(
-    (link) => currentUser || link.id !== 'dashboard'
+    (link) => (currentUser || link.id !== 'dashboard') && isTabEnabled(link.id, featureToggles)
   );
 
   const whatsappChannel = socialLinks.find((s) => s.platform === 'whatsapp' && s.enabled);
@@ -673,21 +679,23 @@ export const Navbar: React.FC<NavbarProps> = ({
                           </button>
                         )}
 
-                        <button
-                          onClick={() => {
-                            handleNavClick('referrals');
-                            setUserDropdownOpen(false);
-                          }}
-                          className="w-full px-3 py-2 rounded-xl text-left text-xs hover:bg-zinc-900 flex items-center justify-between text-zinc-300 hover:text-white transition"
-                        >
-                          <div className="flex items-center gap-2.5">
-                            <Users className="w-4 h-4 text-emerald-400" />
-                            <span>Refer & Earn</span>
-                          </div>
-                          <span className="text-[10px] font-bold text-emerald-400 bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-500/30">
-                            +$100
-                          </span>
-                        </button>
+                        {featureToggles.enableReferralsPage !== false && (
+                          <button
+                            onClick={() => {
+                              handleNavClick('referrals');
+                              setUserDropdownOpen(false);
+                            }}
+                            className="w-full px-3 py-2 rounded-xl text-left text-xs hover:bg-zinc-900 flex items-center justify-between text-zinc-300 hover:text-white transition"
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <Users className="w-4 h-4 text-emerald-400" />
+                              <span>Refer & Earn</span>
+                            </div>
+                            <span className="text-[10px] font-bold text-emerald-400 bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-500/30">
+                              +$100
+                            </span>
+                          </button>
+                        )}
                       </>
                     )}
 

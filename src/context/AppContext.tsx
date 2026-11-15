@@ -36,6 +36,7 @@ import {
   playSuccessSound,
   setAudioFeedbackEnabled,
 } from '../lib/audioFeedback';
+import { normalizeFeatureToggles } from '../lib/featureVisibility';
 import {
   CryptoCurrency,
   ProductItem,
@@ -91,6 +92,12 @@ import {
   CurrencyConfig,
   BusinessCertificate,
   NewsletterSubscriber,
+  BlogPost,
+  BlogComment,
+  EngagementRewardConfig,
+  EngagementRewardEvent,
+  EngagementActionType,
+  SocialSharePlatformId,
 } from '../types';
 import {
   CRYPTO_NETWORKS,
@@ -128,6 +135,10 @@ import {
   INITIAL_WON_PRIZES,
   INITIAL_CURRENCIES,
   INITIAL_CERTIFICATES,
+  INITIAL_BLOG_POSTS,
+  INITIAL_BLOG_COMMENTS,
+  DEFAULT_ENGAGEMENT_REWARD_CONFIG,
+  INITIAL_ENGAGEMENT_REWARDS,
 } from '../data/mockData';
 
 
@@ -446,9 +457,10 @@ interface AppContextType {
   addWheelReward: (reward: Omit<WheelReward, 'id'>) => void;
   deleteWheelReward: (id: string) => void;
   updateSpinCost: (costUsd: number) => void;
-  // Feature Toggles (Global Function Switches)
+  // Feature Toggles (Global Function Switches & Page Display Controls)
   featureToggles: FeatureToggles;
   updateFeatureToggles: (toggles: Partial<FeatureToggles>) => void;
+  resetFeatureToggles: () => void;
   // Automated Crypto Payment Gateways
   autoCryptoGateways: AutoCryptoGateway[];
   updateAutoCryptoGateway: (id: string, updates: Partial<AutoCryptoGateway>) => void;
@@ -536,6 +548,44 @@ interface AppContextType {
   reorderBusinessCertificate: (id: string, direction: 'up' | 'down') => void;
   resetBusinessCertificates: () => void;
   saveBusinessCertificatesNow: (nextList?: BusinessCertificate[]) => Promise<boolean>;
+  // Blog / News CMS, Social Sharing & Fractional Dollar Engagement Rewards
+  blogPosts: BlogPost[];
+  blogComments: BlogComment[];
+  engagementRewardConfig: EngagementRewardConfig;
+  engagementRewardLogs: EngagementRewardEvent[];
+  activeBlogPostSlug: string | null;
+  setActiveBlogPostSlug: (slug: string | null) => void;
+  activePlatformSeconds: number;
+  userLikedPostIds: string[];
+  userBookmarkedPostIds: string[];
+  userSharedPostPlatforms: Record<string, SocialSharePlatformId[]>;
+  userReadPostDates: Record<string, string>;
+  getUserTierMultiplier: (tier?: User['tier']) => number;
+  todayEngagementEarningsUsd: number;
+  totalUserEngagementUsd: number;
+  recordBlogView: (postId: string) => void;
+  claimBlogReadReward: (postId: string) => { awardedCents: number; awardedUsd: number; reason?: string };
+  claimBlogShareReward: (
+    postId: string,
+    platform: SocialSharePlatformId
+  ) => { awardedCents: number; awardedUsd: number; shareOrdinalToday: number; reason?: string };
+  toggleBlogLike: (postId: string) => { liked: boolean; awardedCents: number };
+  toggleBlogBookmark: (postId: string) => { bookmarked: boolean; awardedCents: number };
+  addBlogComment: (postId: string, body: string) => { comment?: BlogComment; awardedCents: number };
+  deleteBlogComment: (commentId: string) => void;
+  createBlogPost: (
+    post: Omit<
+      BlogPost,
+      'id' | 'viewsCount' | 'sharesCount' | 'likesCount' | 'bookmarksCount' | 'commentsCount' | 'updatedAt'
+    >
+  ) => BlogPost;
+  updateBlogPost: (id: string, updates: Partial<BlogPost>) => void;
+  deleteBlogPost: (id: string) => void;
+  toggleBlogPostStatus: (id: string, status: BlogPost['status']) => void;
+  updateEngagementRewardConfig: (updates: Partial<EngagementRewardConfig>) => void;
+  grantManualEngagementReward: (userId: string, cents: number, reason: string) => boolean;
+  revokeEngagementReward: (rewardId: string) => void;
+  resetDailyEngagementUsage: () => void;
   // Visitor Analytics Tracker
   trackVisitorAction: (action: string, pageTab: string, details?: string) => void;
 }
@@ -1454,7 +1504,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [featureToggles, setFeatureToggles] = useState<FeatureToggles>(() => {
     const saved = localStorage.getItem('apex_feature_toggles');
-    return saved ? JSON.parse(saved) : DEFAULT_FEATURE_TOGGLES;
+    if (saved) {
+      try {
+        return normalizeFeatureToggles(DEFAULT_FEATURE_TOGGLES, JSON.parse(saved));
+      } catch {
+        return DEFAULT_FEATURE_TOGGLES;
+      }
+    }
+    return DEFAULT_FEATURE_TOGGLES;
   });
 
   const [autoCryptoGateways, setAutoCryptoGateways] = useState<AutoCryptoGateway[]>(() => {
@@ -1624,25 +1681,49 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return url;
   };
 
-  const mergeFooterAboutMenu = (menus: NavigationMenuItem[]): NavigationMenuItem[] => {
-    const hasFooterAbout = menus.some(
+  const mergeDefaultNavMenus = (menus: NavigationMenuItem[]): NavigationMenuItem[] => {
+    let next = [...menus];
+    const hasFooterAbout = next.some(
       (m) => m.id === 'menu-f-about' || (m.location === 'footer_legal' && m.targetTab === 'about')
     );
-    if (hasFooterAbout) return menus;
-    const aboutMenu = INITIAL_NAVIGATION_MENUS.find((m) => m.id === 'menu-f-about');
-    return aboutMenu ? [...menus, aboutMenu] : menus;
+    if (!hasFooterAbout) {
+      const aboutMenu = INITIAL_NAVIGATION_MENUS.find((m) => m.id === 'menu-f-about');
+      if (aboutMenu) next = [...next, aboutMenu];
+    }
+    const hasNavBlog = next.some(
+      (m) => m.id === 'menu-blog' || (m.location === 'navbar' && m.targetTab === 'blog')
+    );
+    if (!hasNavBlog) {
+      const blogNav = INITIAL_NAVIGATION_MENUS.find((m) => m.id === 'menu-blog');
+      if (blogNav) next = [...next, blogNav];
+    }
+    const hasFooterBlog = next.some(
+      (m) => m.id === 'menu-f-blog' || (m.location === 'footer_legal' && m.targetTab === 'blog')
+    );
+    if (!hasFooterBlog) {
+      const blogFooter = INITIAL_NAVIGATION_MENUS.find((m) => m.id === 'menu-f-blog');
+      if (blogFooter) next = [...next, blogFooter];
+    }
+    return next;
   };
 
-  const mergeAboutSitemap = (entries: SitemapEntry[]): SitemapEntry[] => {
-    if (entries.some((e) => e.path === 'about')) return entries;
-    const aboutEntry = INITIAL_SITEMAP_ENTRIES.find((e) => e.path === 'about');
-    return aboutEntry ? [...entries, aboutEntry] : entries;
+  const mergeDefaultSitemap = (entries: SitemapEntry[]): SitemapEntry[] => {
+    let next = [...entries];
+    if (!next.some((e) => e.path === 'about')) {
+      const aboutEntry = INITIAL_SITEMAP_ENTRIES.find((e) => e.path === 'about');
+      if (aboutEntry) next = [...next, aboutEntry];
+    }
+    if (!next.some((e) => e.path === 'blog')) {
+      const blogEntry = INITIAL_SITEMAP_ENTRIES.find((e) => e.path === 'blog');
+      if (blogEntry) next = [...next, blogEntry];
+    }
+    return next;
   };
 
   // Navigation Menus state (Navbar, Dropdown, Footer)
   const [navigationMenus, setNavigationMenus] = useState<NavigationMenuItem[]>(() => {
     const saved = localStorage.getItem('apex_navigation_menus');
-    return saved ? mergeFooterAboutMenu(JSON.parse(saved)) : INITIAL_NAVIGATION_MENUS;
+    return saved ? mergeDefaultNavMenus(JSON.parse(saved)) : INITIAL_NAVIGATION_MENUS;
   });
 
   // Custom & Manual Deposit Gateways state
@@ -1817,7 +1898,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [sitemapEntries, setSitemapEntries] = useState<SitemapEntry[]>(() => {
     const saved = localStorage.getItem('apex_sitemap_entries_v1');
-    return saved ? mergeAboutSitemap(JSON.parse(saved)) : INITIAL_SITEMAP_ENTRIES;
+    return saved ? mergeDefaultSitemap(JSON.parse(saved)) : INITIAL_SITEMAP_ENTRIES;
   });
 
   const [rssFeedItems, setRssFeedItems] = useState<RssFeedItem[]>(() => {
@@ -1872,6 +1953,127 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [selectedCurrencyCode, setSelectedCurrencyCodeState] = useState<string>(() => {
     return localStorage.getItem('apex_selected_currency_v1') || 'USD';
+  });
+
+  // Blog / News CMS & Fractional Dollar Engagement Rewards State
+  const [blogPosts, setBlogPosts] = useState<BlogPost[]>(() => {
+    const saved = localStorage.getItem('apex_blog_posts_v1');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch {
+        // fallback
+      }
+    }
+    return INITIAL_BLOG_POSTS;
+  });
+
+  const [blogComments, setBlogComments] = useState<BlogComment[]>(() => {
+    const saved = localStorage.getItem('apex_blog_comments_v1');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      } catch {
+        // fallback
+      }
+    }
+    return INITIAL_BLOG_COMMENTS;
+  });
+
+  const [engagementRewardConfig, setEngagementRewardConfig] = useState<EngagementRewardConfig>(() => {
+    const saved = localStorage.getItem('apex_engagement_reward_config_v1');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved) as Partial<EngagementRewardConfig>;
+        return {
+          ...DEFAULT_ENGAGEMENT_REWARD_CONFIG,
+          ...parsed,
+          tierMultipliers: {
+            ...DEFAULT_ENGAGEMENT_REWARD_CONFIG.tierMultipliers,
+            ...(parsed.tierMultipliers || {}),
+          },
+          enabledSharePlatforms:
+            Array.isArray(parsed.enabledSharePlatforms) && parsed.enabledSharePlatforms.length > 0
+              ? parsed.enabledSharePlatforms
+              : DEFAULT_ENGAGEMENT_REWARD_CONFIG.enabledSharePlatforms,
+        };
+      } catch {
+        // fallback
+      }
+    }
+    return DEFAULT_ENGAGEMENT_REWARD_CONFIG;
+  });
+
+  const [engagementRewardLogs, setEngagementRewardLogs] = useState<EngagementRewardEvent[]>(() => {
+    const saved = localStorage.getItem('apex_engagement_reward_logs_v1');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      } catch {
+        // fallback
+      }
+    }
+    return INITIAL_ENGAGEMENT_REWARDS;
+  });
+
+  const [activeBlogPostSlug, setActiveBlogPostSlug] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('post')?.trim() || null;
+    }
+    return null;
+  });
+
+  const [activePlatformSeconds, setActivePlatformSeconds] = useState<number>(0);
+
+  const [userLikedPostIds, setUserLikedPostIds] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('apex_blog_liked_posts_v1');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [userBookmarkedPostIds, setUserBookmarkedPostIds] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('apex_blog_bookmarked_posts_v1');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [userSharedPostPlatforms, setUserSharedPostPlatforms] = useState<
+    Record<string, SocialSharePlatformId[]>
+  >(() => {
+    try {
+      const saved = localStorage.getItem('apex_blog_shared_platforms_v1');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  const [userReadPostDates, setUserReadPostDates] = useState<Record<string, string>>(() => {
+    try {
+      const saved = localStorage.getItem('apex_blog_read_dates_v1');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  const [userEngagementClaimKeys, setUserEngagementClaimKeys] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('apex_blog_eng_keys_v1');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
   });
 
   const lockedWinBalanceUsd = currentUser ? Number((lockedWinsByUserId[currentUser.id] || 0).toFixed(2)) : 0;
@@ -2090,20 +2292,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (typeof document !== 'undefined') {
       const pageOverride = seoSettings.pageMeta?.[activeRouteTab];
       const customPageMatch = sitePages.find((p) => p.slug === activeRouteTab);
-      const resolvedTitle =
-        pageOverride?.metaTitle ||
-        (customPageMatch ? `${customPageMatch.title} | ${seoSettings.siteTitle}` : '') ||
-        seoSettings.metaTitle ||
-        seoSettings.siteTitle ||
-        DEFAULT_SEO_CONFIG.siteTitle;
-      const resolvedDescription =
-        pageOverride?.metaDescription ||
-        customPageMatch?.metaDescription ||
-        seoSettings.metaDescription;
-      const resolvedKeywords = pageOverride?.keywords || seoSettings.keywords;
-      const resolvedOgTitle =
-        pageOverride?.ogTitle || pageOverride?.metaTitle || seoSettings.ogTitle || resolvedTitle;
-      const resolvedOgImage = pageOverride?.ogImageUrl || seoSettings.ogImageUrl;
+      const activeArticle =
+        activeRouteTab === 'blog' && activeBlogPostSlug
+          ? blogPosts.find((p) => p.slug === activeBlogPostSlug)
+          : undefined;
+
+      const resolvedTitle = activeArticle
+        ? activeArticle.seoTitle || `${activeArticle.title} | ${seoSettings.siteTitle}`
+        : pageOverride?.metaTitle ||
+          (customPageMatch ? `${customPageMatch.title} | ${seoSettings.siteTitle}` : '') ||
+          seoSettings.metaTitle ||
+          seoSettings.siteTitle ||
+          DEFAULT_SEO_CONFIG.siteTitle;
+      const resolvedDescription = activeArticle
+        ? activeArticle.metaDescription || activeArticle.excerpt
+        : pageOverride?.metaDescription ||
+          customPageMatch?.metaDescription ||
+          seoSettings.metaDescription;
+      const resolvedKeywords = activeArticle
+        ? activeArticle.focusKeywords || seoSettings.keywords
+        : pageOverride?.keywords || seoSettings.keywords;
+      const resolvedOgTitle = activeArticle
+        ? activeArticle.seoTitle || activeArticle.title
+        : pageOverride?.ogTitle || pageOverride?.metaTitle || seoSettings.ogTitle || resolvedTitle;
+      const resolvedOgImage = activeArticle
+        ? activeArticle.coverImageUrl || seoSettings.ogImageUrl
+        : pageOverride?.ogImageUrl || seoSettings.ogImageUrl;
 
       document.title = resolvedTitle;
       const setMeta = (selector: string, content: string) => {
@@ -2121,7 +2335,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const canonicalEl = document.getElementById('canonical-link');
       if (canonicalEl && seoSettings.canonicalUrl) {
         const base = seoSettings.canonicalUrl.replace(/\/+$/, '');
-        canonicalEl.setAttribute('href', activeRouteTab === 'home' ? `${base}/` : `${base}/?tab=${encodeURIComponent(activeRouteTab)}`);
+        if (activeArticle) {
+          canonicalEl.setAttribute('href', `${base}/?tab=blog&post=${encodeURIComponent(activeArticle.slug)}`);
+        } else {
+          canonicalEl.setAttribute('href', activeRouteTab === 'home' ? `${base}/` : `${base}/?tab=${encodeURIComponent(activeRouteTab)}`);
+        }
       }
 
       const faviconEl = document.getElementById('site-favicon') as HTMLLinkElement | null;
@@ -2136,18 +2354,44 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       const schemaEl = document.getElementById('apex-schema-org');
       if (schemaEl && seoSettings.schemaOrgEnabled !== false) {
-        schemaEl.textContent = JSON.stringify({
-          '@context': 'https://schema.org',
-          '@type': seoSettings.schemaOrgType || 'AutoDealer',
-          name: seoSettings.siteName || resolvedTitle,
-          url: seoSettings.canonicalUrl,
-          logo: seoSettings.logoUrl,
-          image: resolvedOgImage,
-          description: resolvedDescription,
-        });
+        if (activeArticle) {
+          schemaEl.textContent = JSON.stringify({
+            '@context': 'https://schema.org',
+            '@type': activeArticle.schemaType || 'BlogPosting',
+            headline: activeArticle.title,
+            description: resolvedDescription,
+            image: resolvedOgImage,
+            datePublished: activeArticle.publishedAt,
+            dateModified: activeArticle.updatedAt || activeArticle.publishedAt,
+            keywords: resolvedKeywords,
+            author: {
+              '@type': 'Person',
+              name: activeArticle.authorName,
+              jobTitle: activeArticle.authorRole,
+            },
+            publisher: {
+              '@type': 'Organization',
+              name: seoSettings.siteName || 'Apex Tesla Hub',
+              logo: {
+                '@type': 'ImageObject',
+                url: seoSettings.logoUrl,
+              },
+            },
+          });
+        } else {
+          schemaEl.textContent = JSON.stringify({
+            '@context': 'https://schema.org',
+            '@type': seoSettings.schemaOrgType || 'AutoDealer',
+            name: seoSettings.siteName || resolvedTitle,
+            url: seoSettings.canonicalUrl,
+            logo: seoSettings.logoUrl,
+            image: resolvedOgImage,
+            description: resolvedDescription,
+          });
+        }
       }
     }
-  }, [seoSettings, activeRouteTab, sitePages]);
+  }, [seoSettings, activeRouteTab, sitePages, activeBlogPostSlug, blogPosts]);
 
   useEffect(() => {
     localStorage.setItem('apex_sitemap_entries_v1', JSON.stringify(sitemapEntries));
@@ -2179,7 +2423,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setCurrencies(sections.currencies);
       }
       if (sections.feature_toggles && typeof sections.feature_toggles === 'object') {
-        setFeatureToggles((prev) => ({ ...prev, ...sections.feature_toggles }));
+        setFeatureToggles((prev) => normalizeFeatureToggles(prev, sections.feature_toggles));
       }
       if (sections.withdrawal_settings && typeof sections.withdrawal_settings === 'object') {
         setWithdrawalSettings((prev) => ({ ...prev, ...sections.withdrawal_settings }));
@@ -2191,7 +2435,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setVehicleRefundPolicy((prev) => ({ ...prev, ...sections.refund_policy }));
       }
       if (Array.isArray(sections.navigation_menus) && sections.navigation_menus.length > 0) {
-        setNavigationMenus(mergeFooterAboutMenu(sections.navigation_menus));
+        setNavigationMenus(mergeDefaultNavMenus(sections.navigation_menus));
       }
       if (Array.isArray(sections.site_pages) && sections.site_pages.length > 0) {
         setSitePages(sections.site_pages);
@@ -2200,7 +2444,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setFaqsList((sections.faqs as FaqItem[]).filter((f) => !isPolicyFaq(f)));
       }
       if (Array.isArray(sections.sitemap_entries) && sections.sitemap_entries.length > 0) {
-        setSitemapEntries(mergeAboutSitemap(sections.sitemap_entries));
+        setSitemapEntries(mergeDefaultSitemap(sections.sitemap_entries));
       }
       if (Array.isArray(sections.rss_items) && sections.rss_items.length > 0) {
         setRssFeedItems(sections.rss_items);
@@ -2282,6 +2526,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           [...remoteCerts, ...missingDefaults].sort((a, b) => a.order - b.order)
         );
       }
+      if (Array.isArray(sections.blog_posts) && sections.blog_posts.length > 0) {
+        setBlogPosts(sections.blog_posts);
+      }
+      if (Array.isArray(sections.blog_comments)) {
+        setBlogComments(sections.blog_comments);
+      }
+      if (sections.engagement_reward_config && typeof sections.engagement_reward_config === 'object') {
+        const cfg = sections.engagement_reward_config as Partial<EngagementRewardConfig>;
+        setEngagementRewardConfig((prev) => ({
+          ...prev,
+          ...cfg,
+          tierMultipliers: {
+            ...prev.tierMultipliers,
+            ...(cfg.tierMultipliers || {}),
+          },
+          enabledSharePlatforms:
+            Array.isArray(cfg.enabledSharePlatforms) && cfg.enabledSharePlatforms.length > 0
+              ? cfg.enabledSharePlatforms
+              : prev.enabledSharePlatforms,
+        }));
+      }
+      if (Array.isArray(sections.engagement_rewards)) {
+        setEngagementRewardLogs(sections.engagement_rewards);
+      }
     };
 
     const hydrateAll = async () => {
@@ -2299,7 +2567,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }));
           }
           if (Array.isArray(st.sitemapEntries) && st.sitemapEntries.length > 0) {
-            setSitemapEntries(mergeAboutSitemap(st.sitemapEntries));
+            setSitemapEntries(mergeDefaultSitemap(st.sitemapEntries));
           }
           if (Array.isArray(st.rssFeedItems) && st.rssFeedItems.length > 0) {
             setRssFeedItems(st.rssFeedItems);
@@ -2434,6 +2702,42 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     localStorage.setItem('apex_selected_currency_v1', selectedCurrencyCode);
   }, [selectedCurrencyCode]);
+
+  useEffect(() => {
+    localStorage.setItem('apex_blog_posts_v1', JSON.stringify(blogPosts));
+  }, [blogPosts]);
+
+  useEffect(() => {
+    localStorage.setItem('apex_blog_comments_v1', JSON.stringify(blogComments));
+  }, [blogComments]);
+
+  useEffect(() => {
+    localStorage.setItem('apex_engagement_reward_config_v1', JSON.stringify(engagementRewardConfig));
+  }, [engagementRewardConfig]);
+
+  useEffect(() => {
+    localStorage.setItem('apex_engagement_reward_logs_v1', JSON.stringify(engagementRewardLogs));
+  }, [engagementRewardLogs]);
+
+  useEffect(() => {
+    localStorage.setItem('apex_blog_liked_posts_v1', JSON.stringify(userLikedPostIds));
+  }, [userLikedPostIds]);
+
+  useEffect(() => {
+    localStorage.setItem('apex_blog_bookmarked_posts_v1', JSON.stringify(userBookmarkedPostIds));
+  }, [userBookmarkedPostIds]);
+
+  useEffect(() => {
+    localStorage.setItem('apex_blog_shared_platforms_v1', JSON.stringify(userSharedPostPlatforms));
+  }, [userSharedPostPlatforms]);
+
+  useEffect(() => {
+    localStorage.setItem('apex_blog_read_dates_v1', JSON.stringify(userReadPostDates));
+  }, [userReadPostDates]);
+
+  useEffect(() => {
+    localStorage.setItem('apex_blog_eng_keys_v1', JSON.stringify(userEngagementClaimKeys));
+  }, [userEngagementClaimKeys]);
 
   // Monitor live TSLA quote against user-defined stock price alert thresholds
   useEffect(() => {
@@ -4223,6 +4527,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (typeof updates.spinCostUsd === 'number' && updates.spinCostUsd > 0) {
         setSpinCostUsd(updates.spinCostUsd);
       }
+      if (typeof updates.enableCryptoDeposits === 'boolean') {
+        setFeatureToggles((tPrev) =>
+          normalizeFeatureToggles(tPrev, { enableCryptoDeposits: updates.enableCryptoDeposits })
+        );
+      }
       return next;
     });
     showToast('Site settings saved and reflected site-wide.', 'success');
@@ -5746,9 +6055,44 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // GLOBAL PLATFORM FEATURE TOGGLES
   // ==========================================
 
+  const persistFeatureTogglesNow = (nextToggles: FeatureToggles) => {
+    localStorage.setItem('apex_feature_toggles', JSON.stringify(nextToggles));
+    fetch('/api/admin/state', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sections: {
+          feature_toggles: nextToggles,
+        },
+      }),
+    }).catch(() => {});
+
+    if (auth.currentUser) {
+      void saveAdminSectionToFirestore('feature_toggles', nextToggles);
+    }
+  };
+
   const updateFeatureToggles = (toggleUpdates: Partial<FeatureToggles>) => {
-    setFeatureToggles((prev) => ({ ...prev, ...toggleUpdates }));
-    showToast('Platform feature switches updated successfully!', 'success');
+    setFeatureToggles((prev) => {
+      const next = normalizeFeatureToggles(prev, toggleUpdates);
+      persistFeatureTogglesNow(next);
+      return next;
+    });
+    if (typeof toggleUpdates.enableCryptoDeposits === 'boolean') {
+      setSiteSettings((prev) => ({
+        ...prev,
+        enableCryptoDeposits: Boolean(toggleUpdates.enableCryptoDeposits),
+      }));
+    }
+    showToast('Platform display & feature switches updated live!', 'success');
+  };
+
+  const resetFeatureToggles = () => {
+    const fresh = normalizeFeatureToggles(DEFAULT_FEATURE_TOGGLES, DEFAULT_FEATURE_TOGGLES);
+    setFeatureToggles(fresh);
+    persistFeatureTogglesNow(fresh);
+    setSiteSettings((prev) => ({ ...prev, enableCryptoDeposits: true }));
+    showToast('All platform page displays and features reset to ON.', 'success');
   };
 
   // ==========================================
@@ -6876,6 +7220,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     deposit_gateways: sanitizeGatewaysForPublic(autoCryptoGateways),
     won_prizes: wonPrizes,
     business_certificates: businessCertificates,
+    blog_posts: blogPosts,
+    blog_comments: blogComments,
+    engagement_reward_config: engagementRewardConfig,
+    engagement_rewards: engagementRewardLogs,
   });
 
   // Business & Operating License Certificates CMS CRUD
@@ -7080,6 +7428,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     wonPrizes,
     seoSettings,
     businessCertificates,
+    blogPosts,
+    blogComments,
+    engagementRewardConfig,
+    engagementRewardLogs,
   ]);
 
   const updateSeoSettings = (updates: Partial<SeoMetadataConfig>) => {
@@ -7265,6 +7617,555 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           maximumFractionDigits: decimals,
         });
     return `${selectedCurrency.symbol}${formattedNum}${options?.includeCode ? ` ${selectedCurrency.code}` : ''}`;
+  };
+
+  // Blog / News CMS, Social Sharing & Fractional Dollar Engagement Rewards Engine
+  const getTodayKey = () => new Date().toISOString().split('T')[0];
+
+  const getUserTierMultiplier = useCallback(
+    (tier?: User['tier']): number => {
+      const targetTier = tier || currentUser?.tier || 'Standard';
+      if (targetTier === 'Founders Club') {
+        return Number(engagementRewardConfig.tierMultipliers?.['Founders Club'] || 2.25);
+      }
+      if (targetTier === 'Plaid Member') {
+        return Number(engagementRewardConfig.tierMultipliers?.['Plaid Member'] || 1.5);
+      }
+      return Number(engagementRewardConfig.tierMultipliers?.Standard || 1.0);
+    },
+    [currentUser?.tier, engagementRewardConfig.tierMultipliers]
+  );
+
+  const todayKey = getTodayKey();
+  const todayEngagementEarningsUsd = currentUser
+    ? Number(
+        engagementRewardLogs
+          .filter(
+            (ev) =>
+              ev.userId === currentUser.id &&
+              ev.status === 'credited' &&
+              ev.createdAt.startsWith(todayKey)
+          )
+          .reduce((acc, ev) => acc + (ev.awardedUsd || 0), 0)
+          .toFixed(4)
+      )
+    : 0;
+
+  const totalUserEngagementUsd = currentUser
+    ? Number(
+        engagementRewardLogs
+          .filter((ev) => ev.userId === currentUser.id && ev.status === 'credited')
+          .reduce((acc, ev) => acc + (ev.awardedUsd || 0), 0)
+          .toFixed(4)
+      )
+    : 0;
+
+  const creditEngagementCentsInternal = useCallback(
+    (params: {
+      actionType: EngagementActionType;
+      rawBaseCents: number;
+      description: string;
+      postId?: string;
+      postTitle?: string;
+      platform?: SocialSharePlatformId;
+      overrideUser?: User;
+      ignoreDailyCap?: boolean;
+    }): { awardedCents: number; awardedUsd: number; reason?: string } => {
+      const targetUser = params.overrideUser || currentUser;
+      if (!targetUser) {
+        return { awardedCents: 0, awardedUsd: 0, reason: 'auth_required' };
+      }
+      if (!engagementRewardConfig.enabled && !params.ignoreDailyCap) {
+        return { awardedCents: 0, awardedUsd: 0, reason: 'rewards_paused' };
+      }
+
+      const multiplier = params.ignoreDailyCap ? 1 : getUserTierMultiplier(targetUser.tier);
+      const rawCalculatedCents = Number((params.rawBaseCents * multiplier).toFixed(2));
+      const dayKey = getTodayKey();
+      const userTodayUsd = engagementRewardLogs
+        .filter(
+          (ev) =>
+            ev.userId === targetUser.id &&
+            ev.status === 'credited' &&
+            ev.createdAt.startsWith(dayKey)
+        )
+        .reduce((acc, ev) => acc + (ev.awardedUsd || 0), 0);
+      const remainingDailyCents = params.ignoreDailyCap
+        ? rawCalculatedCents
+        : Math.max(0, Number(((engagementRewardConfig.dailyCapUsd - userTodayUsd) * 100).toFixed(2)));
+
+      const finalCents = Number(Math.min(rawCalculatedCents, remainingDailyCents).toFixed(2));
+      if (finalCents <= 0) {
+        return { awardedCents: 0, awardedUsd: 0, reason: 'daily_cap_reached' };
+      }
+
+      const awardedUsd = Number((finalCents / 100).toFixed(4));
+      const nowIso = new Date().toISOString();
+      const event: EngagementRewardEvent = {
+        id: `eng-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+        userId: targetUser.id,
+        userEmail: targetUser.email,
+        userName: targetUser.name,
+        userTier: targetUser.tier || 'Standard',
+        multiplier,
+        actionType: params.actionType,
+        postId: params.postId,
+        postTitle: params.postTitle,
+        platform: params.platform,
+        baseCents: params.rawBaseCents,
+        awardedCents: finalCents,
+        awardedUsd,
+        description: params.description,
+        status: 'credited',
+        createdAt: nowIso,
+      };
+
+      setEngagementRewardLogs((prev) => [event, ...prev.slice(0, 299)]);
+
+      if (currentUser?.id === targetUser.id) {
+        setBalances((prev) => ({
+          ...prev,
+          usd: Number((prev.usd + awardedUsd).toFixed(4)),
+        }));
+        const tx: Transaction = {
+          id: `tx-eng-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 5)}`,
+          type: 'engagement_reward',
+          currency: 'USD',
+          amount: awardedUsd,
+          usdEquivalent: awardedUsd,
+          timestamp: nowIso.replace('T', ' ').substring(0, 16),
+          status: 'completed',
+          txHash: `0x${Math.random().toString(16).substring(2, 10)}...cents`,
+          description: `${params.description} (+${finalCents.toFixed(1)}¢ · ${multiplier.toFixed(2)}× ${targetUser.tier || 'Standard'})`,
+        };
+        setTransactions((prev) => [tx, ...prev]);
+      } else {
+        setUserBalancesById((prev) => {
+          const existing = prev[targetUser.id] || { usd: 0, btc: 0, usdt: 0, xrp: 0, bnb: 0 };
+          return {
+            ...prev,
+            [targetUser.id]: {
+              ...existing,
+              usd: Number((existing.usd + awardedUsd).toFixed(4)),
+            },
+          };
+        });
+      }
+
+      return { awardedCents: finalCents, awardedUsd };
+    },
+    [currentUser, engagementRewardConfig, engagementRewardLogs, getUserTierMultiplier]
+  );
+
+  // Visibility-aware platform active time counter (awards fractional USD cents per active interval)
+  useEffect(() => {
+    if (!currentUser || !engagementRewardConfig.enabled) return;
+    const timer = window.setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+      setActivePlatformSeconds((prev) => {
+        const threshold = Math.max(15, Number(engagementRewardConfig.timeOnPlatformIntervalSeconds) || 60);
+        const next = prev + 1;
+        if (next >= threshold) {
+          const res = creditEngagementCentsInternal({
+            actionType: 'time_on_platform',
+            rawBaseCents: engagementRewardConfig.timeOnPlatformCentsPerInterval,
+            description: `Active Platform Session (${threshold}s verified dwell)`,
+          });
+          if (res.awardedCents > 0) {
+            playSuccessSound('default');
+            setToastMessage({
+              text: `Active Time Reward: +${res.awardedCents.toFixed(1)}¢ ($${res.awardedUsd.toFixed(2)}) credited (${getUserTierMultiplier().toFixed(2)}× tier boost)!`,
+              type: 'success',
+            });
+            window.setTimeout(() => setToastMessage(null), 4000);
+          }
+          return 0;
+        }
+        return next;
+      });
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [
+    currentUser,
+    engagementRewardConfig.enabled,
+    engagementRewardConfig.timeOnPlatformIntervalSeconds,
+    engagementRewardConfig.timeOnPlatformCentsPerInterval,
+    creditEngagementCentsInternal,
+    getUserTierMultiplier,
+  ]);
+
+  const recordBlogView = useCallback((postId: string) => {
+    setBlogPosts((prev) =>
+      prev.map((p) => (p.id === postId ? { ...p, viewsCount: (p.viewsCount || 0) + 1 } : p))
+    );
+  }, []);
+
+  const claimBlogReadReward = (
+    postId: string
+  ): { awardedCents: number; awardedUsd: number; reason?: string } => {
+    const post = blogPosts.find((p) => p.id === postId);
+    if (!post) return { awardedCents: 0, awardedUsd: 0, reason: 'not_found' };
+    if (!currentUser) return { awardedCents: 0, awardedUsd: 0, reason: 'auth_required' };
+    const dayKey = getTodayKey();
+    const readKey = `${currentUser.id}::${postId}`;
+    if (userReadPostDates[readKey] === dayKey) {
+      return { awardedCents: 0, awardedUsd: 0, reason: 'already_claimed_today' };
+    }
+    const baseCents = post.customReadCents ?? engagementRewardConfig.readArticleBaseCents;
+    const res = creditEngagementCentsInternal({
+      actionType: 'read_article',
+      rawBaseCents: baseCents,
+      postId: post.id,
+      postTitle: post.title,
+      description: `Verified Article Read: "${post.title.slice(0, 48)}"`,
+    });
+    if (res.awardedCents > 0) {
+      setUserReadPostDates((prev) => ({ ...prev, [readKey]: dayKey }));
+      showToast(
+        `Article Read Reward Earned: +${res.awardedCents.toFixed(1)}¢ ($${res.awardedUsd.toFixed(2)}) added to USD Vault!`,
+        'success'
+      );
+    } else if (res.reason === 'daily_cap_reached') {
+      showToast(`Daily engagement reward cap ($${engagementRewardConfig.dailyCapUsd.toFixed(2)}) reached for today.`, 'info');
+    }
+    return res;
+  };
+
+  const claimBlogShareReward = (
+    postId: string,
+    platform: SocialSharePlatformId
+  ): { awardedCents: number; awardedUsd: number; shareOrdinalToday: number; reason?: string } => {
+    const post = blogPosts.find((p) => p.id === postId);
+    if (!post) return { awardedCents: 0, awardedUsd: 0, shareOrdinalToday: 0, reason: 'not_found' };
+
+    // Always track total shares on article
+    setBlogPosts((prev) =>
+      prev.map((p) => (p.id === postId ? { ...p, sharesCount: (p.sharesCount || 0) + 1 } : p))
+    );
+
+    if (!currentUser) {
+      return { awardedCents: 0, awardedUsd: 0, shareOrdinalToday: 0, reason: 'auth_required' };
+    }
+
+    const dayKey = getTodayKey();
+    const bucketKey = `${currentUser.id}::${postId}::${dayKey}`;
+    const alreadySharedPlatforms = userSharedPostPlatforms[bucketKey] || [];
+    if (alreadySharedPlatforms.includes(platform)) {
+      return {
+        awardedCents: 0,
+        awardedUsd: 0,
+        shareOrdinalToday: alreadySharedPlatforms.length,
+        reason: 'platform_already_rewarded_today',
+      };
+    }
+
+    const maxShares = Math.max(1, engagementRewardConfig.maxRewardedSharesPerPostPerDay || 5);
+    if (alreadySharedPlatforms.length >= maxShares) {
+      return {
+        awardedCents: 0,
+        awardedUsd: 0,
+        shareOrdinalToday: alreadySharedPlatforms.length,
+        reason: 'max_shares_per_post_reached',
+      };
+    }
+
+    const shareOrdinal = alreadySharedPlatforms.length + 1;
+    const baseShareCents = post.customShareCents ?? engagementRewardConfig.shareArticleBaseCents;
+    const progressiveComboCents =
+      alreadySharedPlatforms.length * (engagementRewardConfig.shareProgressiveStepCents || 0);
+    const totalBaseCents = Number((baseShareCents + progressiveComboCents).toFixed(2));
+
+    const res = creditEngagementCentsInternal({
+      actionType: 'share_article',
+      rawBaseCents: totalBaseCents,
+      postId: post.id,
+      postTitle: post.title,
+      platform,
+      description: `Social Share #${shareOrdinal} on ${platform.toUpperCase()}: "${post.title.slice(0, 40)}"`,
+    });
+
+    if (res.awardedCents > 0) {
+      setUserSharedPostPlatforms((prev) => ({
+        ...prev,
+        [bucketKey]: [...alreadySharedPlatforms, platform],
+      }));
+      showToast(
+        `Shared on ${platform.toUpperCase()}! Earned +${res.awardedCents.toFixed(1)}¢ ($${res.awardedUsd.toFixed(2)}) (${shareOrdinal > 1 ? `includes +${progressiveComboCents}¢ multi-share boost!` : `${getUserTierMultiplier().toFixed(2)}× tier rate`})`,
+        'success'
+      );
+    } else if (res.reason === 'daily_cap_reached') {
+      showToast(`Shared cleanly! Daily cent cap ($${engagementRewardConfig.dailyCapUsd.toFixed(2)}) reached for today.`, 'info');
+    }
+
+    return {
+      ...res,
+      shareOrdinalToday: shareOrdinal,
+    };
+  };
+
+  const toggleBlogLike = (postId: string): { liked: boolean; awardedCents: number } => {
+    const post = blogPosts.find((p) => p.id === postId);
+    const currentlyLiked = userLikedPostIds.includes(postId);
+    const nextLiked = !currentlyLiked;
+    setUserLikedPostIds((prev) =>
+      currentlyLiked ? prev.filter((id) => id !== postId) : [...prev, postId]
+    );
+    setBlogPosts((prev) =>
+      prev.map((p) =>
+        p.id === postId
+          ? { ...p, likesCount: Math.max(0, (p.likesCount || 0) + (nextLiked ? 1 : -1)) }
+          : p
+      )
+    );
+
+    let awardedCents = 0;
+    if (nextLiked && currentUser && post) {
+      const claimKey = `${currentUser.id}::like::${postId}`;
+      if (!userEngagementClaimKeys.includes(claimKey)) {
+        const res = creditEngagementCentsInternal({
+          actionType: 'engagement_action',
+          rawBaseCents: engagementRewardConfig.engagementActionBaseCents,
+          postId: post.id,
+          postTitle: post.title,
+          description: `Article Applause / Like: "${post.title.slice(0, 42)}"`,
+        });
+        awardedCents = res.awardedCents;
+        if (res.awardedCents > 0) {
+          setUserEngagementClaimKeys((prev) => [...prev, claimKey]);
+          showToast(`Liked! +${res.awardedCents.toFixed(1)}¢ credited to your USD Vault.`, 'success');
+        }
+      }
+    }
+    return { liked: nextLiked, awardedCents };
+  };
+
+  const toggleBlogBookmark = (postId: string): { bookmarked: boolean; awardedCents: number } => {
+    const post = blogPosts.find((p) => p.id === postId);
+    const currentlyBookmarked = userBookmarkedPostIds.includes(postId);
+    const nextBookmarked = !currentlyBookmarked;
+    setUserBookmarkedPostIds((prev) =>
+      currentlyBookmarked ? prev.filter((id) => id !== postId) : [...prev, postId]
+    );
+
+    let awardedCents = 0;
+    if (nextBookmarked && currentUser && post) {
+      const claimKey = `${currentUser.id}::bookmark::${postId}`;
+      if (!userEngagementClaimKeys.includes(claimKey)) {
+        const res = creditEngagementCentsInternal({
+          actionType: 'engagement_action',
+          rawBaseCents: engagementRewardConfig.engagementActionBaseCents,
+          postId: post.id,
+          postTitle: post.title,
+          description: `Saved to Reading List: "${post.title.slice(0, 42)}"`,
+        });
+        awardedCents = res.awardedCents;
+        if (res.awardedCents > 0) {
+          setUserEngagementClaimKeys((prev) => [...prev, claimKey]);
+          showToast(`Bookmarked! +${res.awardedCents.toFixed(1)}¢ credited to your USD Vault.`, 'success');
+        }
+      }
+    }
+    return { bookmarked: nextBookmarked, awardedCents };
+  };
+
+  const addBlogComment = (
+    postId: string,
+    body: string
+  ): { comment?: BlogComment; awardedCents: number } => {
+    if (!currentUser) {
+      requireSignedIn('comment on articles and earn cents');
+      return { awardedCents: 0 };
+    }
+    const cleanBody = body.trim();
+    if (!cleanBody) return { awardedCents: 0 };
+    const post = blogPosts.find((p) => p.id === postId);
+    if (!post) return { awardedCents: 0 };
+
+    const comment: BlogComment = {
+      id: `cmt-${Date.now().toString(36)}`,
+      postId,
+      userId: currentUser.id,
+      userName: currentUser.name,
+      userTier: currentUser.tier || 'Standard',
+      body: cleanBody,
+      createdAt: new Date().toISOString().replace('T', ' ').substring(0, 16),
+    };
+
+    setBlogComments((prev) => [comment, ...prev]);
+    setBlogPosts((prev) =>
+      prev.map((p) => (p.id === postId ? { ...p, commentsCount: (p.commentsCount || 0) + 1 } : p))
+    );
+
+    let awardedCents = 0;
+    const claimKey = `${currentUser.id}::comment::${postId}`;
+    if (!userEngagementClaimKeys.includes(claimKey)) {
+      const res = creditEngagementCentsInternal({
+        actionType: 'engagement_action',
+        rawBaseCents: engagementRewardConfig.engagementActionBaseCents,
+        postId: post.id,
+        postTitle: post.title,
+        description: `Discussion Contribution on "${post.title.slice(0, 42)}"`,
+      });
+      awardedCents = res.awardedCents;
+      if (res.awardedCents > 0) {
+        setUserEngagementClaimKeys((prev) => [...prev, claimKey]);
+        showToast(
+          `Comment published! Earned +${res.awardedCents.toFixed(1)}¢ engagement bonus.`,
+          'success'
+        );
+      }
+    } else {
+      showToast('Comment published!', 'success');
+    }
+    return { comment, awardedCents };
+  };
+
+  const deleteBlogComment = (commentId: string) => {
+    const target = blogComments.find((c) => c.id === commentId);
+    setBlogComments((prev) => prev.filter((c) => c.id !== commentId));
+    if (target) {
+      setBlogPosts((prev) =>
+        prev.map((p) =>
+          p.id === target.postId ? { ...p, commentsCount: Math.max(0, (p.commentsCount || 0) - 1) } : p
+        )
+      );
+    }
+    showToast('Comment removed by moderator.', 'info');
+  };
+
+  const createBlogPost = (
+    postData: Omit<
+      BlogPost,
+      'id' | 'viewsCount' | 'sharesCount' | 'likesCount' | 'bookmarksCount' | 'commentsCount' | 'updatedAt'
+    >
+  ): BlogPost => {
+    const created: BlogPost = {
+      ...postData,
+      id: `blog-${Date.now().toString(36)}`,
+      viewsCount: 1,
+      sharesCount: 0,
+      likesCount: 0,
+      bookmarksCount: 0,
+      commentsCount: 0,
+      updatedAt: getTodayKey(),
+    };
+    setBlogPosts((prev) => [created, ...prev]);
+    if (created.status === 'published') {
+      const rssEntry: RssFeedItem = {
+        id: `rss-${created.id}`,
+        title: created.title,
+        linkTab: `blog&post=${created.slug}`,
+        description: created.metaDescription || created.excerpt,
+        pubDate: new Date().toUTCString(),
+        category: created.category,
+        guid: `apex-blog-${created.slug}`,
+        isPublished: true,
+      };
+      setRssFeedItems((prev) => [rssEntry, ...prev]);
+    }
+    showToast(`Article "${created.title}" ${created.status === 'published' ? 'published' : 'saved'}!`, 'success');
+    return created;
+  };
+
+  const updateBlogPost = (id: string, updates: Partial<BlogPost>) => {
+    setBlogPosts((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, ...updates, updatedAt: getTodayKey() } : p))
+    );
+    showToast('Blog article & SEO metadata saved!', 'success');
+  };
+
+  const deleteBlogPost = (id: string) => {
+    setBlogPosts((prev) => prev.filter((p) => p.id !== id));
+    setBlogComments((prev) => prev.filter((c) => c.postId !== id));
+    showToast('Blog article deleted.', 'info');
+  };
+
+  const toggleBlogPostStatus = (id: string, status: BlogPost['status']) => {
+    setBlogPosts((prev) =>
+      prev.map((p) =>
+        p.id === id
+          ? {
+              ...p,
+              status,
+              publishedAt: status === 'published' && !p.publishedAt ? getTodayKey() : p.publishedAt,
+              updatedAt: getTodayKey(),
+            }
+          : p
+      )
+    );
+    showToast(`Article status updated to ${status.toUpperCase()}.`, 'success');
+  };
+
+  const updateEngagementRewardConfig = (updates: Partial<EngagementRewardConfig>) => {
+    setEngagementRewardConfig((prev) => ({
+      ...prev,
+      ...updates,
+      tierMultipliers: updates.tierMultipliers
+        ? { ...prev.tierMultipliers, ...updates.tierMultipliers }
+        : prev.tierMultipliers,
+    }));
+    showToast('Engagement reward rates & tier multipliers updated!', 'success');
+  };
+
+  const grantManualEngagementReward = (userId: string, cents: number, reason: string): boolean => {
+    const targetUser = allUsers.find((u) => u.id === userId) || (currentUser?.id === userId ? currentUser : null);
+    if (!targetUser || cents <= 0) return false;
+    const res = creditEngagementCentsInternal({
+      actionType: 'admin_bonus',
+      rawBaseCents: Number(cents),
+      description: reason.trim() || 'Admin Engagement Bonus Grant',
+      overrideUser: targetUser,
+      ignoreDailyCap: true,
+    });
+    if (res.awardedCents > 0) {
+      showToast(
+        `Credited +${res.awardedCents.toFixed(1)}¢ ($${res.awardedUsd.toFixed(2)}) to ${targetUser.name}!`,
+        'success'
+      );
+      return true;
+    }
+    return false;
+  };
+
+  const revokeEngagementReward = (rewardId: string) => {
+    const target = engagementRewardLogs.find((ev) => ev.id === rewardId);
+    if (!target) return;
+    const nextStatus = target.status === 'credited' ? 'revoked' : 'credited';
+    const deltaUsd = nextStatus === 'revoked' ? -target.awardedUsd : target.awardedUsd;
+
+    setEngagementRewardLogs((prev) =>
+      prev.map((ev) => (ev.id === rewardId ? { ...ev, status: nextStatus } : ev))
+    );
+
+    if (currentUser?.id === target.userId) {
+      setBalances((prev) => ({
+        ...prev,
+        usd: Math.max(0, Number((prev.usd + deltaUsd).toFixed(4))),
+      }));
+    } else {
+      setUserBalancesById((prev) => {
+        const existing = prev[target.userId] || { usd: 0, btc: 0, usdt: 0, xrp: 0, bnb: 0 };
+        return {
+          ...prev,
+          [target.userId]: {
+            ...existing,
+            usd: Math.max(0, Number((existing.usd + deltaUsd).toFixed(4))),
+          },
+        };
+      });
+    }
+    showToast(
+      `Reward ${rewardId} ${nextStatus === 'revoked' ? 'revoked and adjusted' : 're-credited'}!`,
+      'info'
+    );
+  };
+
+  const resetDailyEngagementUsage = () => {
+    setUserSharedPostPlatforms({});
+    setUserReadPostDates({});
+    setUserEngagementClaimKeys([]);
+    setActivePlatformSeconds(0);
+    showToast('Daily read/share cooldowns cleared for active testing.', 'info');
   };
 
   // Visitor Analytics Telemetry Helper
@@ -7477,9 +8378,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addWheelReward,
         deleteWheelReward,
         updateSpinCost,
-        // Feature Toggles (Global Function Switches)
+        // Feature Toggles (Global Function Switches & Page Display Controls)
         featureToggles,
         updateFeatureToggles,
+        resetFeatureToggles,
         // Automated Crypto Payment Gateways
         autoCryptoGateways,
         updateAutoCryptoGateway,
@@ -7554,6 +8456,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         reorderBusinessCertificate,
         resetBusinessCertificates,
         saveBusinessCertificatesNow,
+        blogPosts,
+        blogComments,
+        engagementRewardConfig,
+        engagementRewardLogs,
+        activeBlogPostSlug,
+        setActiveBlogPostSlug,
+        activePlatformSeconds,
+        userLikedPostIds,
+        userBookmarkedPostIds,
+        userSharedPostPlatforms,
+        userReadPostDates,
+        getUserTierMultiplier,
+        todayEngagementEarningsUsd,
+        totalUserEngagementUsd,
+        recordBlogView,
+        claimBlogReadReward,
+        claimBlogShareReward,
+        toggleBlogLike,
+        toggleBlogBookmark,
+        addBlogComment,
+        deleteBlogComment,
+        createBlogPost,
+        updateBlogPost,
+        deleteBlogPost,
+        toggleBlogPostStatus,
+        updateEngagementRewardConfig,
+        grantManualEngagementReward,
+        revokeEngagementReward,
+        resetDailyEngagementUsage,
         trackVisitorAction,
         soundEnabled,
         toggleSoundEnabled,

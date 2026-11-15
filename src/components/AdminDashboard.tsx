@@ -71,6 +71,7 @@ import {
   Database,
   Search,
   Star,
+  Newspaper,
 } from 'lucide-react';
 import {
   SmtpConfig,
@@ -116,6 +117,7 @@ import { AdminPromoVideosManager } from './AdminPromoVideosManager';
 import { AdminCertificatesManager } from './AdminCertificatesManager';
 import { AdminPerformanceChart } from './AdminPerformanceChart';
 import { AdminNewsletterManager } from './AdminNewsletterManager';
+import { AdminBlogRewardsManager } from './AdminBlogRewardsManager';
 
 const PREBUILT_TEMPLATES: EmailTemplate[] = [
   {
@@ -239,6 +241,7 @@ type AdminTab =
   | 'car_sales'
   | 'site_editor'
   | 'seo_faq_cms'
+  | 'blog_rewards_cms'
   | 'certificates_cms'
   | 'visitors_analytics'
   | 'email_marketing'
@@ -1035,6 +1038,15 @@ export const AdminDashboard: React.FC = () => {
       description: 'Upload JPG/PNG logo & favicon, manage meta/schema tags, RSS articles, XML sitemap & 24+ FAQ slider cards',
       icon: Globe,
       badge: `${faqsList.length} FAQs • ${rssFeedItems.length} RSS • ${sitemapEntries.length} URLs`,
+    },
+    {
+      id: 'blog_rewards_cms',
+      requiredPrivilege: 'manage_marketing',
+      label: 'Blog CMS, Social Shares & Cents Rewards',
+      shortLabel: 'Blog & Cents Engine',
+      description: 'Write SEO blog posts, manage multi-platform sharing & configure tier-multiplied USD cents rewards',
+      icon: Newspaper,
+      badge: 'SEO + ¢ Engine',
     },
     {
       id: 'certificates_cms',
@@ -11018,6 +11030,11 @@ export const AdminDashboard: React.FC = () => {
       {/* TAB: SEO, LOGO/FAVICON, SITEMAP, RSS & FAQS CMS */}
       {activeAdminTab === 'seo_faq_cms' && hasAdminPrivilege('manage_site_cms') && (
         <AdminSeoFaqManager />
+      )}
+
+      {/* TAB: BLOG CMS, SOCIAL SHARING & TIER CENTS ENGINE */}
+      {activeAdminTab === 'blog_rewards_cms' && hasAdminPrivilege('manage_marketing') && (
+        <AdminBlogRewardsManager />
       )}
 
       {/* TAB: BUSINESS & OPERATING LICENSE CERTIFICATES CMS */}

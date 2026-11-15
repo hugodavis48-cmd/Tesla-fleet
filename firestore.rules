@@ -214,6 +214,9 @@ service cloud.firestore {
         'manual_deposits',
         'deposit_gateways',
         'business_certificates',
+        'blog_posts',
+        'blog_comments',
+        'engagement_reward_config',
         'social_links',
         'spin_cost'
       ];

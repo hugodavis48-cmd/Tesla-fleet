@@ -35,6 +35,10 @@ import {
   PromoVideoItem,
   CurrencyConfig,
   BusinessCertificate,
+  BlogPost,
+  BlogComment,
+  EngagementRewardConfig,
+  EngagementRewardEvent,
 } from '../types';
 
 
@@ -2041,6 +2045,43 @@ export const DEFAULT_FEATURE_TOGGLES: FeatureToggles = {
   enableScratchCards: true,
   enableVehicleSales: true,
   enableStakingYield: true,
+
+  // Page Display Toggles
+  enableBlogPage: true,
+  enableServicesPage: true,
+  enableWrapsPage: true,
+  enableRentalsPage: true,
+  enablePromotionsPage: true,
+  enableCouponsPage: true,
+  enableShopPage: true,
+  enableReferralsPage: true,
+  enableBannersPage: true,
+  enableSocialPage: true,
+  enableAboutPage: true,
+  enableCertificatesPage: true,
+  enableFaqPage: true,
+  enableContactPage: true,
+  enableSitemapRssPages: true,
+
+  // Homepage Sections & UI Module Toggles
+  enableLiveTickerBar: true,
+  enableShowcaseDeck: true,
+  enableHomePromotionsSection: true,
+  enableHomeFaqSection: true,
+  enableNewsletterSignup: true,
+  enableAiChatbot: true,
+  enableCryptoDeposits: true,
+
+  // Paired aliases
+  teslaStocksEnabled: true,
+  spotTradingEnabled: true,
+  fastRoiPlansEnabled: true,
+  withdrawalsEnabled: true,
+  requireDepositForWithdrawal: true,
+  spinWheelEnabled: true,
+  scratchCardsEnabled: true,
+  vehicleSalesEnabled: true,
+  investmentsEnabled: true,
 };
 
 export const DEFAULT_AUTO_CRYPTO_GATEWAYS: AutoCryptoGateway[] = [
@@ -2839,10 +2880,11 @@ export const INITIAL_NAVIGATION_MENUS: NavigationMenuItem[] = [
   { id: 'menu-promotions', label: 'Spin & Win', targetTab: 'promotions', location: 'navbar', order: 9, isVisible: true, iconName: 'Gift', isSystem: true },
   { id: 'menu-referrals', label: 'Referrals', targetTab: 'referrals', location: 'navbar', order: 10, badge: '+$100', isVisible: true, iconName: 'Users', isSystem: true },
   { id: 'menu-social', label: 'Social', targetTab: 'social', location: 'navbar', order: 11, isVisible: true, iconName: 'Share2', isSystem: true },
-  { id: 'menu-shop', label: 'Store', targetTab: 'shop', location: 'navbar', order: 12, isVisible: true, isSystem: true },
-  { id: 'menu-about', label: 'About', targetTab: 'about', location: 'navbar', order: 13, isVisible: true, isSystem: true },
-  { id: 'menu-faq', label: 'FAQ', targetTab: 'faq', location: 'navbar', order: 14, isVisible: true, isSystem: true },
-  { id: 'menu-contact', label: 'Contact', targetTab: 'contact', location: 'navbar', order: 15, isVisible: true, isSystem: true },
+  { id: 'menu-blog', label: 'News & Blog', targetTab: 'blog', location: 'navbar', order: 12, highlight: true, badge: 'EARN ¢', isVisible: true, iconName: 'Newspaper', isSystem: true },
+  { id: 'menu-shop', label: 'Store', targetTab: 'shop', location: 'navbar', order: 13, isVisible: true, isSystem: true },
+  { id: 'menu-about', label: 'About', targetTab: 'about', location: 'navbar', order: 14, isVisible: true, isSystem: true },
+  { id: 'menu-faq', label: 'FAQ', targetTab: 'faq', location: 'navbar', order: 15, isVisible: true, isSystem: true },
+  { id: 'menu-contact', label: 'Contact', targetTab: 'contact', location: 'navbar', order: 16, isVisible: true, isSystem: true },
 
   // Dropdown Quick Items
   { id: 'menu-drop-banners', label: 'Promo Marketing Banners', targetTab: 'banners', location: 'dropdown', order: 1, badge: 'AD KIT', isVisible: true, iconName: 'Megaphone', isSystem: true },
@@ -2863,16 +2905,17 @@ export const INITIAL_NAVIGATION_MENUS: NavigationMenuItem[] = [
 
   // Footer Promotions & Trust Column
   { id: 'menu-f-coupons', label: 'Coupons & Deals', targetTab: 'coupons', location: 'footer_legal', order: 1, badge: 'HOT', highlight: true, isVisible: true },
-  { id: 'menu-f-tracking', label: 'Track Delivery & Orders', targetTab: 'tracking', location: 'footer_legal', order: 2, isVisible: true },
-  { id: 'menu-f-spin', label: 'Spin & Win Wheel (Live)', targetTab: 'promotions', location: 'footer_legal', order: 3, isVisible: true },
-  { id: 'menu-f-refer', label: 'Invite & Earn ($100)', targetTab: 'referrals', location: 'footer_legal', order: 4, isVisible: true },
-  { id: 'menu-f-banners', label: 'Promo Marketing Banners', targetTab: 'banners', location: 'footer_legal', order: 5, isVisible: true },
-  { id: 'menu-f-social', label: 'Social Channels & Share', targetTab: 'social', location: 'footer_legal', order: 6, isVisible: true },
-  { id: 'menu-f-faq', label: 'Platform FAQ', targetTab: 'faq', location: 'footer_legal', order: 7, isVisible: true },
-  { id: 'menu-f-about', label: 'About Apex Tesla Hub', targetTab: 'about', location: 'footer_legal', order: 8, isVisible: true },
-  { id: 'menu-f-certificates', label: 'Business & License Certificates', targetTab: 'certificates', location: 'footer_legal', order: 9, isVisible: true },
-  { id: 'menu-f-sitemap', label: 'Site Map', targetTab: 'sitemap', location: 'footer_legal', order: 10, isVisible: true },
-  { id: 'menu-f-rss', label: 'RSS Feeds & Live XML', targetTab: 'rss', location: 'footer_legal', order: 11, badge: 'XML', isVisible: true },
+  { id: 'menu-f-blog', label: 'EV Engineering Blog & News', targetTab: 'blog', location: 'footer_legal', order: 2, badge: 'EARN ¢', highlight: true, isVisible: true },
+  { id: 'menu-f-tracking', label: 'Track Delivery & Orders', targetTab: 'tracking', location: 'footer_legal', order: 3, isVisible: true },
+  { id: 'menu-f-spin', label: 'Spin & Win Wheel (Live)', targetTab: 'promotions', location: 'footer_legal', order: 4, isVisible: true },
+  { id: 'menu-f-refer', label: 'Invite & Earn ($100)', targetTab: 'referrals', location: 'footer_legal', order: 5, isVisible: true },
+  { id: 'menu-f-banners', label: 'Promo Marketing Banners', targetTab: 'banners', location: 'footer_legal', order: 6, isVisible: true },
+  { id: 'menu-f-social', label: 'Social Channels & Share', targetTab: 'social', location: 'footer_legal', order: 7, isVisible: true },
+  { id: 'menu-f-faq', label: 'Platform FAQ', targetTab: 'faq', location: 'footer_legal', order: 8, isVisible: true },
+  { id: 'menu-f-about', label: 'About Apex Tesla Hub', targetTab: 'about', location: 'footer_legal', order: 9, isVisible: true },
+  { id: 'menu-f-certificates', label: 'Business & License Certificates', targetTab: 'certificates', location: 'footer_legal', order: 10, isVisible: true },
+  { id: 'menu-f-sitemap', label: 'Site Map', targetTab: 'sitemap', location: 'footer_legal', order: 11, isVisible: true },
+  { id: 'menu-f-rss', label: 'RSS Feeds & Live XML', targetTab: 'rss', location: 'footer_legal', order: 12, badge: 'XML', isVisible: true },
 ];
 
 export const DEFAULT_SEO_CONFIG: SeoMetadataConfig = {
@@ -3010,6 +3053,13 @@ export const DEFAULT_SEO_CONFIG: SeoMetadataConfig = {
       metaDescription: 'Complete navigational index and search engine XML sitemap for all Apex Tesla Hub vehicles, services, and yield modules.',
       keywords: 'Apex Tesla Sitemap, sitemap.xml, EV Portal Directory',
     },
+    blog: {
+      pageKey: 'blog',
+      pageLabel: 'EV News & Engineering Blog',
+      metaTitle: 'Tesla Engineering Blog, Fleet Yield News & Guides | Apex Tesla Hub',
+      metaDescription: 'Read SEO technical briefings on Cybertruck 800V diagnostics, 3M cleanroom wraps, Robotaxi staking yields, and TSLA markets while earning tier-boosted cent rewards.',
+      keywords: 'Tesla Engineering Blog, Cybertruck Maintenance Guide, 3M Tesla Wrap PPF, Robotaxi Fleet Yield News, TSLA Crypto Settlement',
+    },
     rss: {
       pageKey: 'rss',
       pageLabel: 'RSS News & XML Feed',
@@ -3035,6 +3085,7 @@ export const INITIAL_SITEMAP_ENTRIES: SitemapEntry[] = [
   { id: 'sm-about', path: 'about', title: 'About Apex Tesla Hub', description: 'OEM cleanroom engineering philosophy, Mobile Ranger fleet standards, and multi-sig custody.', category: 'Trust', priority: 0.85, changeFreq: 'monthly', isActive: true, lastMod: '2026-11-15' },
   { id: 'sm-certificates', path: 'certificates', title: 'Business & License Certificates', description: 'View-only corporate registration and master EV fleet operating authorizations.', category: 'Trust', priority: 0.8, changeFreq: 'monthly', isActive: true, lastMod: '2026-11-12' },
   { id: 'sm-faq', path: 'faq', title: 'Frequently Asked Questions', description: 'Detailed answers on shipping won vehicles, yields, servicing, and crypto deposits.', category: 'Trust', priority: 0.7, changeFreq: 'weekly', isActive: true, lastMod: '2026-11-12' },
+  { id: 'sm-blog', path: 'blog', title: 'EV News & Engineering Blog', description: 'Technical Tesla diagnostics guides, 3M cleanroom wrap briefings, Robotaxi yield analysis & earn-per-share engagement.', category: 'Editorial', priority: 0.9, changeFreq: 'daily', isActive: true, lastMod: '2026-11-15' },
   { id: 'sm-rss', path: 'rss', title: 'RSS Feeds & Live Syndication', description: 'Subscribe to Apex Tesla Hub RSS XML updates for yields, promotions, and fleet news.', category: 'Feeds', priority: 0.6, changeFreq: 'daily', isActive: true, lastMod: '2026-11-12' },
 ];
 
@@ -3312,3 +3363,387 @@ export const INITIAL_CERTIFICATES: BusinessCertificate[] = [
     updatedAt: '2026-11-15',
   },
 ];
+
+export const INITIAL_BLOG_POSTS: BlogPost[] = [
+  {
+    id: 'blog-800v-cybertruck-diagnostics',
+    slug: '800v-cybertruck-high-voltage-diagnostics-guide',
+    title: 'Inside 800V Cybertruck Architecture: Non-Destructive Cell Impedance Diagnostics',
+    subtitle: 'How Apex Fremont & Austin bays isolate 4680 structural pack anomalies before thermal drift begins.',
+    category: 'EV Engineering & Diagnostics',
+    status: 'published',
+    featured: true,
+    excerpt: 'A technical look at 800V dual-subpack isolation testing, pyrofuse health checks, and why 16V/48V auxiliary bus telemetry prevents unexpected bricking.',
+    content: `## Why 800V High-Voltage Telemetry Matters for 2026 Cybertruck Owners
+Modern 4680 structural battery packs deliver extraordinary sustained discharge for Cyberbeast 845 HP launches and heavy-duty towing. However, millimeter-level thermal expansion across laser-welded busbars means proactive non-destructive impedance scanning is critical after your first 15,000 miles.
+
+At Apex Tesla Hub service bays, master technicians utilize calibrated high-voltage oscilloscopes and CAN-FD telemetry loggers rather than trial-and-error part swaps. Every inspection generates a signed cell-balance certificate stored directly inside your digital garage.
+
+## The 4-Stage Non-Destructive Inspection Protocol
+- **Stage 1 — Static & Loaded Cell Delta Audit**: Measures voltage variance across all brick groups under controlled regenerative braking loads (target delta <= 8mV).
+- **Stage 2 — 48V Steer-by-Wire & Low-Voltage Conductance**: Tests DC-DC converter ripple and auxiliary supercapacitor reserve capacity.
+- **Stage 3 — Heat Pump & Octovalve Loop Calibration**: Verifies dielectric coolant purity and ultrasonic flow rate before winter or track duty.
+- **Stage 4 — Pyrofuses & Contactor Arc Wear**: Reads milli-ohm contact resistance inside main pack contactors to flag wear 6+ months before fault codes appear.
+
+## Mobile Ranger vs. Cleanroom Technology Center Bays
+Routine HEPA Bioweapon Defense Mode swaps, 16V auxiliary battery upgrades, and tire torque balancing are completed curbside via our 24/7 Mobile Ranger Fleet. Full pack isolation and inverter coolant servicing take place inside our OSHA-certified Fremont and Austin high-voltage bays with instant crypto or USD vault checkout.`,
+    coverImageUrl: '/cert-hv-safety.jpg',
+    authorName: 'Dr. Marcus Vance',
+    authorRole: 'Lead HV Powertrain Engineer',
+    publishedAt: '2026-11-14',
+    updatedAt: '2026-11-14',
+    readTimeMinutes: 5,
+    seoTitle: 'Cybertruck 800V HV Battery Diagnostics Guide | Apex Hub',
+    metaDescription: 'Learn how non-destructive 4680 cell impedance scanning, 48V bus telemetry, and Mobile Ranger service protect your 2026 Cybertruck range and powertrain.',
+    focusKeywords: 'Cybertruck 800V diagnostics, 4680 battery health, Tesla HV service bay, Mobile Tesla Ranger',
+    canonicalUrl: 'https://apex-tesla.io/?tab=blog&post=800v-cybertruck-high-voltage-diagnostics-guide',
+    schemaType: 'TechArticle',
+    viewsCount: 3420,
+    sharesCount: 418,
+    likesCount: 289,
+    bookmarksCount: 164,
+    commentsCount: 2,
+  },
+  {
+    id: 'blog-class100-ppf-wraps',
+    slug: 'class-100-cleanroom-3m-satin-stealth-ppf-science',
+    title: 'Class-100 Cleanroom Vinyl & Self-Healing PPF: Zero-Bubble Tesla Styling',
+    subtitle: 'Why ambient particle control and deep edge-tucking separate 10-year custom wraps from shop lifting.',
+    category: 'Wraps & Protection',
+    status: 'published',
+    featured: false,
+    excerpt: 'Discover how positive-pressure HEPA studios, 3M 2080 cast vinyls, and aliphatic urethane PPF shield factory clearcoats from gravel and UV fade.',
+    content: `## Paint Thickness Reality on High-Speed EVs
+Electric sedans and trucks slice through highway air with minimal engine masking, making front fascias and rocker panels magnets for road grit. Factory clearcoats measure under 2 mils — thin enough that a single track weekend leaves permanent pitting without protective film.
+
+## Inside an ISO Class-100 Cleanroom Bay
+Standard garages trap airborne lint under vinyl adhesive. Our custom wrap studios operate under continuous laminar HEPA airflow with 48% controlled humidity:
+- **Zero-Seam Panel Wrapping**: Ultrasonic sensors, camera housings, and door handles are masked and precision-tucked without blades ever touching factory paint.
+- **Aliphatic TPU Self-Healing Topcoat**: Micro-swirls disappear within 20 minutes under warm sunlight or radiant curing lamps.
+- **Hydrophobic SiO2 Top-Seal**: Locks satin stealth finishes against acid rain, brake dust, and road tar for 60+ months.
+
+## Visualizing Your Spec Before Booking
+Inside our Custom Studio tab, members can preview finish palettes (Satin Stealth Black, Liquid Titanium Chrome, Cyber-Cyan) and generate photorealistic wrap concept visualizations before reserving a bay slot with USDT, BTC, or USD vault balance.`,
+    coverImageUrl: '/cert-wrap-cleanroom.jpg',
+    authorName: 'Elena Rostova',
+    authorRole: 'Cleanroom Studio Director',
+    publishedAt: '2026-11-12',
+    updatedAt: '2026-11-13',
+    readTimeMinutes: 4,
+    seoTitle: 'Cleanroom 3M Tesla Vinyl Wraps & Stealth PPF | Apex Hub',
+    metaDescription: 'Explore how ISO Class-100 cleanroom bays install 3M 2080 satin wraps and self-healing ceramic PPF with zero lifting and a 5-year warranty.',
+    focusKeywords: 'Tesla vinyl wrap, Satin Stealth Black PPF, cleanroom car wrap, Cybertruck PPF installation',
+    canonicalUrl: 'https://apex-tesla.io/?tab=blog&post=class-100-cleanroom-3m-satin-stealth-ppf-science',
+    schemaType: 'BlogPosting',
+    viewsCount: 2890,
+    sharesCount: 312,
+    likesCount: 245,
+    bookmarksCount: 192,
+    commentsCount: 1,
+  },
+  {
+    id: 'blog-robotaxi-v4-staking-yield',
+    slug: 'autonomous-robotaxi-v4-supercharger-staking-economics',
+    title: 'Autonomous Robotaxi & V4 Supercharger Yield Economics Explained',
+    subtitle: 'Audited kilowatt utilization, cold-storage reserve proofs, and how daily fleet dividends settle.',
+    category: 'Fleet & Staking Yield',
+    status: 'published',
+    featured: true,
+    excerpt: 'A transparent breakdown of revenue streams powering 14.8% to 22.6% APY Robotaxi & Supercharger Megawatt staking pools on Apex Tesla Hub.',
+    content: `## Where Real EV Infrastructure Yield Comes From
+Unlike unbacked inflationary token farms, Apex Tesla Hub fleet pools generate cashflow from physical mobility demand across high-utilization metropolitan corridors in Austin, Fremont, and Nevada:
+- **Commercial Robotaxi & Cybercab Mileage**: Peak urban ride utilization averages 14.5 active hours per vehicle daily with regenerative energy recovery.
+- **V4 Megawatt Charging Spreads**: Commercial fast-charging corridors capture off-peak Megapack battery storage arbitrage at 250kW–350kW dispense rates.
+- **Short-Term Exotic Track & Executive Rentals**: Cyberbeast and Model S Plaid daily charters maintain 85%+ fleet occupancy across weekends.
+
+## Automated Daily Settlement & Multi-Sig Custody
+Participant principals and yields are protected by hardware-backed multi-signature custody wallets with published proof-of-reserves. Every 24 hours, automated settlement engines credit USD or USDT directly into member vaults with downloadable settlement certificates.`,
+    coverImageUrl: '/promo-robotaxi.jpg',
+    authorName: 'Priya Nair',
+    authorRole: 'Grid Energy & Treasury Strategist',
+    publishedAt: '2026-11-11',
+    updatedAt: '2026-11-12',
+    readTimeMinutes: 6,
+    seoTitle: 'Robotaxi & V4 Supercharger Fleet Yield Guide | Apex Hub',
+    metaDescription: 'Understand how Robotaxi ride demand and V4 Supercharger Megapack arbitrage generate audited daily staking dividends on Apex Tesla Hub.',
+    focusKeywords: 'Tesla Robotaxi staking, Supercharger V4 yield, EV fleet passive income, Apex Tesla Hub staking',
+    canonicalUrl: 'https://apex-tesla.io/?tab=blog&post=autonomous-robotaxi-v4-supercharger-staking-economics',
+    schemaType: 'NewsArticle',
+    viewsCount: 4610,
+    sharesCount: 529,
+    likesCount: 412,
+    bookmarksCount: 305,
+    commentsCount: 1,
+  },
+  {
+    id: 'blog-tsla-fast-roi-crypto-settlement',
+    slug: 'tsla-fast-roi-and-multi-chain-crypto-settlement-2026',
+    title: 'TSLA Accelerated Equity Pools & Multi-Chain Crypto Treasury Rails',
+    subtitle: 'Zero-fee TRC-20, BTC, XRP, and BNB funding with institutional speed across global markets.',
+    category: 'TSLA Markets & Crypto',
+    status: 'published',
+    featured: false,
+    excerpt: 'See how NASDAQ: TSLA spot liquidity pairs with 7-to-30 day Fast-ROI cycles and instant Web3 wallet settlement for global EV investors.',
+    content: `## Bridging High-Growth EV Equities with Instant Settlement
+Traditional brokerage wires lock investor liquidity behind 3-day T+2 banking bottlenecks. Apex Tesla Hub pairs live NASDAQ: TSLA price telemetry with short-cycle 7, 14, and 30-day accelerated equity allocations.
+
+## Supported Multi-Chain Settlement Rails
+- **USDT (TRC-20 & ERC-20)**: Sub-minute confirmation finality and zero platform deposit fees.
+- **Bitcoin Native & Lightning**: Cold-storage multisig vault reception with automated block indexer verification.
+- **Ripple XRPL & BNB Smart Chain**: Ideal for high-frequency cross-border deposits and mobile WalletConnect v2 pairing.
+
+## Tiered Loyalty Advantages
+Members scaling through Plaid Member and Founders Club tiers unlock priority withdrawal turnaround, complimentary enclosed vehicle shipping credits, and boosted engagement reward multipliers across the entire portal.`,
+    coverImageUrl: '/img-supercharger-node.jpg',
+    authorName: 'Devon Brooks',
+    authorRole: 'Capital Markets Desk',
+    publishedAt: '2026-11-09',
+    updatedAt: '2026-11-10',
+    readTimeMinutes: 4,
+    seoTitle: 'TSLA Fast ROI & Crypto Settlement Rails | Apex Tesla Hub',
+    metaDescription: 'Learn how TSLA Fast-ROI stock cycles integrate instant USDT, BTC, XRP, and BNB crypto vaults with zero deposit fees.',
+    focusKeywords: 'TSLA Fast ROI, buy TSLA with crypto, USDT Tesla vault, Apex crypto gateway',
+    canonicalUrl: 'https://apex-tesla.io/?tab=blog&post=tsla-fast-roi-and-multi-chain-crypto-settlement-2026',
+    schemaType: 'BlogPosting',
+    viewsCount: 2150,
+    sharesCount: 198,
+    likesCount: 174,
+    bookmarksCount: 118,
+    commentsCount: 0,
+  },
+  {
+    id: 'blog-cyberbeast-enclosed-logistics',
+    slug: 'cyberbeast-plaid-enclosed-nationwide-delivery-checklist',
+    title: '2026 Cyberbeast & Model S Plaid Enclosed Delivery: 40-Point Pre-Dispatch QA',
+    subtitle: 'What happens inside our bonded carrier staging bay before your factory EV leaves for your driveway.',
+    category: 'Vehicle Deliveries',
+    status: 'published',
+    featured: false,
+    excerpt: 'From VIN allocation and torque verification to air-ride enclosed transport and our 7-day money-back escrow guarantee, review our full delivery protocol.',
+    content: `## Factory-Direct Ordering Without Dealership Markup
+Ordering a 2026 Cybertruck Cyberbeast or Model S Plaid directly through Apex Tesla Hub eliminates regional dealer markups while locking in transparent enclosed freight rates and full escrow safety.
+
+## Our 40-Point Pre-Carrier Staging Checklist
+- **Precision Panel & Seal Alignment**: Laser gap audit across doors, falcon wings, and powered tonneau covers.
+- **90% Pre-Conditioned Delivery SoC**: Vehicles board air-ride enclosed carriers charged and calibrated so you can drive immediately upon unloading.
+- **Full VIN Documentation & 7-Day Trial Protection**: Title packet, export clearance (when international), and 1,000-mile / 7-day refund escrow active from touchdown.
+
+## Real-Time Transporter Tracking
+Every vehicle order and Spin-and-Win car grand prize includes GPS waypoint checkpoints from bay loading straight to your driveway.`,
+    coverImageUrl: '/promo-cyberbeast.jpg',
+    authorName: 'Carter Wells',
+    authorRole: 'Director of Global EV Logistics',
+    publishedAt: '2026-11-07',
+    updatedAt: '2026-11-08',
+    readTimeMinutes: 5,
+    seoTitle: 'Cyberbeast & Plaid Enclosed Delivery QA | Apex Tesla Hub',
+    metaDescription: 'Review Apex Tesla Hub 40-point enclosed carrier inspection, GPS VIN tracking, and 7-day money-back delivery guarantee for 2026 Tesla orders.',
+    focusKeywords: 'Cyberbeast enclosed delivery, buy Model S Plaid online, Tesla nationwide shipping, Apex logistics',
+    canonicalUrl: 'https://apex-tesla.io/?tab=blog&post=cyberbeast-plaid-enclosed-nationwide-delivery-checklist',
+    schemaType: 'NewsArticle',
+    viewsCount: 1980,
+    sharesCount: 176,
+    likesCount: 162,
+    bookmarksCount: 98,
+    commentsCount: 0,
+  },
+  {
+    id: 'blog-plaid-track-mode-telemetry',
+    slug: 'model-s-plaid-carbon-ceramic-track-prep-telemetry',
+    title: 'Preparing a 1,020 HP Model S Plaid for Track Day: Carbon Ceramics & Brake Fluid',
+    subtitle: 'Laguna Seca telemetry benchmarks showing how DOT 5.1 fluid and camber tuning eliminate lap-five fade.',
+    category: 'EV Engineering & Diagnostics',
+    status: 'published',
+    featured: false,
+    excerpt: 'Data-backed insights on tri-motor torque vectoring, forged unsprung wheel weight reduction, and carbon-ceramic thermal limits for high-speed EV driving.',
+    content: `## Taming 1,020 Horsepower Under Repeated Braking
+With a 1.99-second 0–60 mph launch and 200 mph top speed capability, stock commuter pads reach thermal saturation rapidly under heavy circuit braking.
+
+## Essential Track Upgrades in Apex Service Bays
+- **High-Temp DOT 5.1 Synthetic Flush**: Raises wet boiling point to keep pedal travel consistent lap after lap.
+- **21" Monoblock Forged Wheel Swap**: Cuts 26 lbs of rotating unsprung mass, sharpening turn-in response while boosting highway Wh/mi efficiency by 4%.
+- **Custom Negative Camber Alignment**: Maximizes shoulder contact patch during lateral cornering loads above 1.15G.
+
+## Schedule Pre-Track Inspection
+Reserve a Bay 1–18 performance slot in our Service tab or explore Track-Spec forged hardware inside the Store.`,
+    coverImageUrl: '/promo-plaid.jpg',
+    authorName: 'Victor Takahashi',
+    authorRole: 'Chief Track Telemetry Specialist',
+    publishedAt: '2026-11-04',
+    updatedAt: '2026-11-05',
+    readTimeMinutes: 4,
+    seoTitle: 'Model S Plaid Track Mode & Ceramic Brake Prep | Apex Hub',
+    metaDescription: 'Prepare your 1,020 HP Model S Plaid for track days with carbon-ceramic brakes, DOT 5.1 fluid flush, and forged wheel weight savings.',
+    focusKeywords: 'Model S Plaid track prep, Tesla carbon ceramic brakes, Tesla forged wheels, Plaid alignment',
+    canonicalUrl: 'https://apex-tesla.io/?tab=blog&post=model-s-plaid-carbon-ceramic-track-prep-telemetry',
+    schemaType: 'TechArticle',
+    viewsCount: 1740,
+    sharesCount: 152,
+    likesCount: 141,
+    bookmarksCount: 87,
+    commentsCount: 0,
+  },
+];
+
+export const INITIAL_BLOG_COMMENTS: BlogComment[] = [
+  {
+    id: 'bcm-01',
+    postId: 'blog-800v-cybertruck-diagnostics',
+    userId: 'usr-004',
+    userName: 'Sarah Connor',
+    userTier: 'Plaid Member',
+    body: 'Booked the Bay 2 800V scan on my Cyberbeast at 16,200 miles—caught an early 16V coolant valve calibration issue before a Tahoe trip. Worth every penny.',
+    createdAt: '2026-11-14 16:40',
+  },
+  {
+    id: 'bcm-02',
+    postId: 'blog-800v-cybertruck-diagnostics',
+    userId: 'usr-006',
+    userName: 'Elena Rostova',
+    userTier: 'Founders Club',
+    body: 'Seeing exact millivolt deltas per brick inside the user dashboard gives genuine peace of mind compared to generic OBD dongles.',
+    createdAt: '2026-11-15 09:15',
+  },
+  {
+    id: 'bcm-03',
+    postId: 'blog-class100-ppf-wraps',
+    userId: 'usr-apex-001',
+    userName: 'Alex Vance',
+    userTier: 'Plaid Member',
+    body: 'My Satin Stealth Black wrap still looks factory-fresh after 11 months of Highway 101 commuting—zero edge lifting around the door handles.',
+    createdAt: '2026-11-13 18:22',
+  },
+  {
+    id: 'bcm-04',
+    postId: 'blog-robotaxi-v4-staking-yield',
+    userId: 'usr-010',
+    userName: 'Priya Nair',
+    userTier: 'Founders Club',
+    body: 'Daily automated settlement directly into USD vault makes compounding V4 Supercharger yield cycles completely frictionless.',
+    createdAt: '2026-11-12 11:05',
+  },
+];
+
+export const DEFAULT_ENGAGEMENT_REWARD_CONFIG: EngagementRewardConfig = {
+  enabled: true,
+  readArticleBaseCents: 5, // 5¢ ($0.05) base per read completion
+  readMinDwellSeconds: 12,
+  shareArticleBaseCents: 4, // 4¢ ($0.04) first share on post
+  shareProgressiveStepCents: 2, // +2¢ progressive bonus per additional social share on same post
+  maxRewardedSharesPerPostPerDay: 8,
+  engagementActionBaseCents: 3, // 3¢ ($0.03) per like, bookmark, or comment
+  timeOnPlatformCentsPerInterval: 2, // 2¢ ($0.02) per active minute on platform
+  timeOnPlatformIntervalSeconds: 60,
+  dailyCapUsd: 2.5,
+  tierMultipliers: {
+    Standard: 1.0,
+    'Plaid Member': 1.5,
+    'Founders Club': 2.25,
+  },
+  enabledSharePlatforms: [
+    'twitter',
+    'facebook',
+    'linkedin',
+    'threads',
+    'whatsapp',
+    'telegram',
+    'reddit',
+    'pinterest',
+    'instagram',
+    'tiktok',
+    'youtube',
+    'discord',
+    'email',
+    'copy_link',
+  ],
+};
+
+export const INITIAL_ENGAGEMENT_REWARDS: EngagementRewardEvent[] = [
+  {
+    id: 'eng-seed-01',
+    userId: 'usr-apex-001',
+    userEmail: 'alex.vance@apex-tesla.io',
+    userName: 'Alex Vance',
+    userTier: 'Plaid Member',
+    actionType: 'read_article',
+    postId: 'blog-800v-cybertruck-diagnostics',
+    postTitle: 'Inside 800V Cybertruck Architecture: Non-Destructive Cell Impedance Diagnostics',
+    baseCents: 5,
+    multiplier: 1.5,
+    awardedCents: 7.5,
+    awardedUsd: 0.075,
+    description: 'Completed verified article read · Plaid Member (1.5x)',
+    status: 'credited',
+    createdAt: '2026-11-14 14:20',
+  },
+  {
+    id: 'eng-seed-02',
+    userId: 'usr-apex-001',
+    userEmail: 'alex.vance@apex-tesla.io',
+    userName: 'Alex Vance',
+    userTier: 'Plaid Member',
+    actionType: 'share_article',
+    postId: 'blog-robotaxi-v4-staking-yield',
+    postTitle: 'Autonomous Robotaxi & V4 Supercharger Yield Economics Explained',
+    platform: 'twitter',
+    baseCents: 4,
+    multiplier: 1.5,
+    awardedCents: 6,
+    awardedUsd: 0.06,
+    description: 'Shared on X (Twitter) · Plaid Member (1.5x)',
+    status: 'credited',
+    createdAt: '2026-11-14 15:05',
+  },
+  {
+    id: 'eng-seed-03',
+    userId: 'usr-apex-001',
+    userEmail: 'alex.vance@apex-tesla.io',
+    userName: 'Alex Vance',
+    userTier: 'Plaid Member',
+    actionType: 'share_article',
+    postId: 'blog-robotaxi-v4-staking-yield',
+    postTitle: 'Autonomous Robotaxi & V4 Supercharger Yield Economics Explained',
+    platform: 'linkedin',
+    baseCents: 6,
+    multiplier: 1.5,
+    awardedCents: 9,
+    awardedUsd: 0.09,
+    description: 'Multi-share combo #2 on LinkedIn · Plaid Member (1.5x)',
+    status: 'credited',
+    createdAt: '2026-11-14 15:07',
+  },
+  {
+    id: 'eng-seed-04',
+    userId: 'usr-006',
+    userEmail: 'elena.r@apex-ev.de',
+    userName: 'Elena Rostova',
+    userTier: 'Founders Club',
+    actionType: 'read_article',
+    postId: 'blog-class100-ppf-wraps',
+    postTitle: 'Class-100 Cleanroom Vinyl & Self-Healing PPF: Zero-Bubble Tesla Styling',
+    baseCents: 5,
+    multiplier: 2.25,
+    awardedCents: 11.25,
+    awardedUsd: 0.1125,
+    description: 'Completed verified article read · Founders Club (2.25x)',
+    status: 'credited',
+    createdAt: '2026-11-14 18:12',
+  },
+  {
+    id: 'eng-seed-05',
+    userId: 'usr-010',
+    userEmail: 'priya.nair@austin-grid.io',
+    userName: 'Priya Nair',
+    userTier: 'Founders Club',
+    actionType: 'time_on_platform',
+    engagementDetail: 'Active 60s platform session',
+    baseCents: 2,
+    multiplier: 2.25,
+    awardedCents: 4.5,
+    awardedUsd: 0.045,
+    description: 'Active time-on-platform reward · Founders Club (2.25x)',
+    status: 'credited',
+    createdAt: '2026-11-15 08:40',
+  },
+];
+

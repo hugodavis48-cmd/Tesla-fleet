@@ -219,7 +219,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const [showPinModal, setShowPinModal] = useState(false);
 
   // Transaction filter
-  const [txFilter, setTxFilter] = useState<'all' | 'deposit' | 'service_payment' | 'referral_credit' | 'promotion_win'>('all');
+  const [txFilter, setTxFilter] = useState<
+    'all' | 'deposit' | 'service_payment' | 'referral_credit' | 'promotion_win' | 'engagement_reward'
+  >('all');
 
   // Safe preview identity so signed-out users can still explore the User Dashboard
   const isGuestView = !currentUser;
@@ -414,7 +416,13 @@ export const Dashboard: React.FC<DashboardProps> = ({
     .reduce((acc, tx) => acc + tx.usdEquivalent, 0);
 
   const totalRewardsUsd = transactions
-    .filter((tx) => tx.type === 'referral_credit' || tx.type === 'promotion_win' || tx.type === 'dividend_claim')
+    .filter(
+      (tx) =>
+        tx.type === 'referral_credit' ||
+        tx.type === 'promotion_win' ||
+        tx.type === 'dividend_claim' ||
+        tx.type === 'engagement_reward'
+    )
     .reduce((acc, tx) => acc + tx.usdEquivalent, 0);
 
   // Active vs Past Service bookings
@@ -1162,12 +1170,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
             </div>
 
             <div className="p-5 rounded-3xl bg-zinc-950 border border-zinc-800 space-y-1 shadow-lg">
-              <span className="text-[10px] text-zinc-400 font-mono uppercase tracking-wider">REFERRALS & PROMO REWARDS</span>
+              <span className="text-[10px] text-zinc-400 font-mono uppercase tracking-wider">REWARDS, REFERRALS &amp; CENTS</span>
               <div className="font-heading font-black text-2xl text-yellow-400 flex items-center gap-1 tabular-nums">
                 <Zap className="w-5 h-5 text-yellow-400" />
                 <span>{formatCurrency(totalRewardsUsd)}</span>
               </div>
-              <span className="text-[10px] text-zinc-500 block">Invite credits, spins & scratch card payouts</span>
+              <span className="text-[10px] text-zinc-500 block">Blog cents, social shares, referrals &amp; wins</span>
             </div>
 
             <div className="p-5 rounded-3xl bg-zinc-950 border border-red-500/30 bg-gradient-to-br from-red-950/20 to-zinc-950 space-y-1 shadow-lg">
@@ -1249,6 +1257,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   { id: 'service_payment', label: 'Services' },
                   { id: 'referral_credit', label: 'Referrals' },
                   { id: 'promotion_win', label: 'Promo Wins' },
+                  { id: 'engagement_reward', label: 'Blog & Share Cents' },
                 ].map((f) => (
                   <button
                     key={f.id}
@@ -1280,12 +1289,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
                       <div className="flex items-center gap-3 min-w-0">
                         <div
                           className={`p-2 rounded-xl shrink-0 ${
-                            tx.type === 'deposit' || tx.type === 'promotion_win' || tx.type === 'dividend_claim' || tx.type === 'referral_credit'
+                            tx.type === 'deposit' || tx.type === 'promotion_win' || tx.type === 'dividend_claim' || tx.type === 'referral_credit' || tx.type === 'engagement_reward'
                               ? 'bg-emerald-600/20 text-emerald-400'
                               : 'bg-zinc-800 text-zinc-400'
                           }`}
                         >
-                          {tx.type === 'deposit' || tx.type === 'promotion_win' || tx.type === 'dividend_claim' || tx.type === 'referral_credit' ? (
+                          {tx.type === 'deposit' || tx.type === 'promotion_win' || tx.type === 'dividend_claim' || tx.type === 'referral_credit' || tx.type === 'engagement_reward' ? (
                             <ArrowDownLeft className="w-4 h-4" />
                           ) : (
                             <ArrowUpRight className="w-4 h-4" />
@@ -1303,12 +1312,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
                         <div className="text-left sm:text-right">
                           <span
                             className={`font-mono font-bold text-sm tabular-nums ${
-                              tx.type === 'deposit' || tx.type === 'promotion_win' || tx.type === 'dividend_claim' || tx.type === 'referral_credit'
+                              tx.type === 'deposit' || tx.type === 'promotion_win' || tx.type === 'dividend_claim' || tx.type === 'referral_credit' || tx.type === 'engagement_reward'
                                 ? 'text-emerald-400'
                                 : 'text-zinc-200'
                             }`}
                           >
-                            {tx.type === 'deposit' || tx.type === 'promotion_win' || tx.type === 'dividend_claim' || tx.type === 'referral_credit' ? '+' : '-'}
+                            {tx.type === 'deposit' || tx.type === 'promotion_win' || tx.type === 'dividend_claim' || tx.type === 'referral_credit' || tx.type === 'engagement_reward' ? '+' : '-'}
                             {formatCurrency(tx.usdEquivalent, { includeCode: true })}
                           </span>
                           <span className="text-[10px] text-emerald-400 font-mono block capitalize">{tx.status}</span>

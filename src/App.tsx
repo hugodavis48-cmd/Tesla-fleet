@@ -41,6 +41,7 @@ import { CustomPageView } from './components/CustomPageView';
 import { SitemapRssPage } from './components/SitemapRssPage';
 import { CertificatesPage } from './components/CertificatesPage';
 import { WinActivationPolicyModal } from './components/WinActivationPolicyModal';
+import { BlogNewsHub } from './components/BlogNewsHub';
 import { CheckCircle2, AlertCircle, Info, AlertTriangle } from 'lucide-react';
 
 const KNOWN_ROUTE_TABS = new Set([
@@ -62,6 +63,7 @@ const KNOWN_ROUTE_TABS = new Set([
   'social',
   'about',
   'certificates',
+  'blog',
   'faq',
   'contact',
   'sitemap',
@@ -126,6 +128,7 @@ const MainAppContent: React.FC = () => {
     if (typeof window !== 'undefined') {
       const currentParams = new URLSearchParams(window.location.search);
       const refCode = currentParams.get('ref');
+      const postSlug = tab === 'blog' ? currentParams.get('post') : null;
       const nextParams = new URLSearchParams();
       if (refCode) nextParams.set('ref', refCode);
 
@@ -134,6 +137,7 @@ const MainAppContent: React.FC = () => {
         targetUrl = '/admin';
       } else if (tab !== 'home') {
         nextParams.set('tab', tab);
+        if (postSlug) nextParams.set('post', postSlug);
         targetUrl = `/?${nextParams.toString()}`;
       } else if (refCode) {
         targetUrl = `/?${nextParams.toString()}`;
@@ -215,6 +219,7 @@ const MainAppContent: React.FC = () => {
     'social',
     'about',
     'certificates',
+    'blog',
     'faq',
     'contact',
     'sitemap',
@@ -461,6 +466,7 @@ const MainAppContent: React.FC = () => {
             }}
           />
         )}
+        {activeTab === 'blog' && <BlogNewsHub />}
         {activeTab === 'faq' && <FaqSection />}
         {activeTab === 'contact' && <ContactSection />}
         {activeTab === 'sitemap' && (

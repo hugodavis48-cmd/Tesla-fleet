@@ -132,6 +132,9 @@ export const PUBLIC_ADMIN_SETTING_SECTIONS = [
   'manual_deposits',
   'deposit_gateways',
   'business_certificates',
+  'blog_posts',
+  'blog_comments',
+  'engagement_reward_config',
   'social_links',
   'spin_cost',
 ] as const;
@@ -140,6 +143,7 @@ export const PROTECTED_ADMIN_SETTING_SECTIONS = [
   'smtp_config',
   'auto_gateways',
   'won_prizes',
+  'engagement_rewards',
 ] as const;
 
 export function sanitizeGatewaysForPublic(gateways: AutoCryptoGateway[]): AutoCryptoGateway[] {
