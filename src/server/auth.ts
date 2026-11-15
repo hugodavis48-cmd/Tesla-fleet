@@ -65,6 +65,7 @@ export interface StoredUser {
   referralEarningsUsd: number;
   referralCount: number;
   referredUsers: any[];
+  themePreference?: 'dark' | 'light';
 }
 
 // In-memory persistent database for users and sessions
@@ -946,7 +947,7 @@ authRouter.post('/revoke-all-sessions', authenticateToken, (req: Request, res: R
 authRouter.put('/profile', authenticateToken, (req: Request, res: Response) => {
   const user = (req as any).user as StoredUser;
   const session = (req as any).session as ServerSession;
-  const { name, phone, bio, location, preferredServiceCenter, avatar } = req.body;
+  const { name, phone, bio, location, preferredServiceCenter, avatar, themePreference } = req.body;
 
   if (name && typeof name === 'string') user.name = name.trim();
   if (phone !== undefined) user.phone = String(phone).trim();
@@ -954,6 +955,9 @@ authRouter.put('/profile', authenticateToken, (req: Request, res: Response) => {
   if (location !== undefined) user.location = String(location).trim();
   if (preferredServiceCenter !== undefined) user.preferredServiceCenter = String(preferredServiceCenter).trim();
   if (avatar && typeof avatar === 'string') user.avatar = avatar.trim();
+  if (themePreference === 'dark' || themePreference === 'light') {
+    user.themePreference = themePreference;
+  }
 
   return res.json({
     success: true,

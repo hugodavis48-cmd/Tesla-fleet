@@ -52,6 +52,22 @@ const PRESET_TEMPLATES = [
     label: 'Master EV Automotive License',
     url: '/cert-ev-license.jpg',
   },
+  {
+    label: 'HV Battery & Powertrain Safety',
+    url: '/cert-hv-safety.jpg',
+  },
+  {
+    label: 'Class-100 Wrap & PPF Cleanroom',
+    url: '/cert-wrap-cleanroom.jpg',
+  },
+  {
+    label: 'Fleet Custody & Reserve Compliance',
+    url: '/cert-fleet-custody.jpg',
+  },
+  {
+    label: 'Interstate EV Dealership & Logistics',
+    url: '/cert-ev-dealer.jpg',
+  },
 ];
 
 type CertificateFormState = Omit<BusinessCertificate, 'id' | 'updatedAt'>;

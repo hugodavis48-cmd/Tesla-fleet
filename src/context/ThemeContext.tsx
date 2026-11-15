@@ -1,4 +1,7 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import { onAuthStateChanged } from 'firebase/auth';
+import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
 
 export type ThemeMode = 'dark' | 'light';
 
@@ -8,6 +11,7 @@ interface ThemeContextType {
   toggleTheme: () => void;
   isDark: boolean;
   isLight: boolean;
+  isSyncingTheme: boolean;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
@@ -22,24 +26,114 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         return saved;
       }
     } catch {
-      // ignore
+      // ignore storage errors
     }
-    return 'dark'; // Dark theme by default
+    return 'dark';
   });
+  const [isSyncingTheme, setIsSyncingTheme] = useState<boolean>(false);
+  const latestThemeRef = useRef<ThemeMode>(theme);
 
-  const setTheme = (newTheme: ThemeMode) => {
-    setThemeState(newTheme);
+  useEffect(() => {
+    latestThemeRef.current = theme;
+  }, [theme]);
+
+  const applyLocalTheme = useCallback((nextTheme: ThemeMode) => {
+    setThemeState(nextTheme);
+    latestThemeRef.current = nextTheme;
     try {
-      localStorage.setItem(STORAGE_KEY, newTheme);
+      localStorage.setItem(STORAGE_KEY, nextTheme);
     } catch {
-      // ignore
+      // ignore storage errors
     }
-  };
+  }, []);
 
-  const toggleTheme = () => {
-    const nextTheme: ThemeMode = theme === 'dark' ? 'light' : 'dark';
+  const persistThemeToFirestore = useCallback(async (nextTheme: ThemeMode) => {
+    const fbUser = auth.currentUser;
+    if (!fbUser) return;
+
+    const userDocPath = `users/${fbUser.uid}`;
+    const userDocRef = doc(db, 'users', fbUser.uid);
+    setIsSyncingTheme(true);
+    try {
+      const snap = await getDoc(userDocRef);
+      if (snap.exists()) {
+        await updateDoc(userDocRef, {
+          themePreference: nextTheme,
+          updatedAt: serverTimestamp(),
+        });
+      }
+    } catch (err) {
+      try {
+        handleFirestoreError(err, OperationType.UPDATE, userDocPath);
+      } catch {
+        // Non-blocking fallback: localStorage & backend profile mirror remain active
+      }
+    } finally {
+      setIsSyncingTheme(false);
+    }
+  }, []);
+
+  const setTheme = useCallback(
+    (newTheme: ThemeMode) => {
+      applyLocalTheme(newTheme);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('apex:theme-changed', { detail: newTheme }));
+      }
+      void persistThemeToFirestore(newTheme);
+    },
+    [applyLocalTheme, persistThemeToFirestore]
+  );
+
+  const toggleTheme = useCallback(() => {
+    const nextTheme: ThemeMode = latestThemeRef.current === 'dark' ? 'light' : 'dark';
     setTheme(nextTheme);
-  };
+  }, [setTheme]);
+
+  // Synchronize themePreference from Firestore user profile across auth sessions
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
+      if (!fbUser) return;
+      const userDocPath = `users/${fbUser.uid}`;
+      const userDocRef = doc(db, 'users', fbUser.uid);
+      setIsSyncingTheme(true);
+      try {
+        const snap = await getDoc(userDocRef);
+        if (snap.exists()) {
+          const remotePref = snap.data()?.themePreference;
+          if (remotePref === 'light' || remotePref === 'dark') {
+            applyLocalTheme(remotePref);
+          } else {
+            await updateDoc(userDocRef, {
+              themePreference: latestThemeRef.current,
+              updatedAt: serverTimestamp(),
+            });
+          }
+        }
+      } catch (err) {
+        try {
+          handleFirestoreError(err, OperationType.GET, userDocPath);
+        } catch {
+          // Graceful skip if Firestore rules reject unverified session or offline
+        }
+      } finally {
+        setIsSyncingTheme(false);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [applyLocalTheme]);
+
+  // Listen to cross-context theme hydration events (e.g. from AppContext login/profile sync)
+  useEffect(() => {
+    const handleRemoteSync = (event: Event) => {
+      const customEvent = event as CustomEvent<unknown>;
+      if (customEvent.detail === 'light' || customEvent.detail === 'dark') {
+        applyLocalTheme(customEvent.detail);
+      }
+    };
+    window.addEventListener('apex:theme-sync', handleRemoteSync);
+    return () => window.removeEventListener('apex:theme-sync', handleRemoteSync);
+  }, [applyLocalTheme]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -68,6 +162,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         toggleTheme,
         isDark: theme === 'dark',
         isLight: theme === 'light',
+        isSyncingTheme,
       }}
     >
       {children}

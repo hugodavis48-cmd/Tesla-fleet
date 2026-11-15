@@ -68,10 +68,15 @@ import {
   LogOut,
   ShieldAlert,
   Award,
+  Database,
+  Search,
+  Star,
 } from 'lucide-react';
 import {
   SmtpConfig,
   EmailTemplate,
+  EmailCampaign,
+  NewsletterSubscriber,
   User,
   CryptoCurrency,
   TestEmailResult,
@@ -109,6 +114,8 @@ import { AdminSeoFaqManager } from './AdminSeoFaqManager';
 import { AdminWonPrizesManager } from './AdminWonPrizesManager';
 import { AdminPromoVideosManager } from './AdminPromoVideosManager';
 import { AdminCertificatesManager } from './AdminCertificatesManager';
+import { AdminPerformanceChart } from './AdminPerformanceChart';
+import { AdminNewsletterManager } from './AdminNewsletterManager';
 
 const PREBUILT_TEMPLATES: EmailTemplate[] = [
   {
@@ -337,6 +344,8 @@ export const AdminDashboard: React.FC = () => {
     adminUpdateKyc,
     updateUserBalance,
     updateUserStatus,
+    createManagedUser,
+    updateManagedUser,
     deleteUser,
     allInvestments,
     adminNotifications,
@@ -390,6 +399,7 @@ export const AdminDashboard: React.FC = () => {
     importedEmails,
     importEmailList,
     emailCampaigns,
+    newsletterSubscribers,
     sendTestEmail,
     sendMarketingCampaign,
     showToast,
@@ -465,6 +475,7 @@ export const AdminDashboard: React.FC = () => {
     hasAdminPrivilege,
     logout,
     firebaseCloudConnected,
+    lastFirestoreSyncAt,
     isSyncingFirestore,
     syncAllAdminSettingsToFirestore,
     connectAdminCloudSync,
@@ -541,22 +552,31 @@ export const AdminDashboard: React.FC = () => {
     carRenderModel: 'Cybertruck Cyberbeast',
   });
   const [isUploadingBannerSlides, setIsUploadingBannerSlides] = useState(false);
+  const [bannerSearchTerm, setBannerSearchTerm] = useState('');
+  const [bannerSizeFilter, setBannerSizeFilter] = useState<'all' | BannerSizeType>('all');
+  const [pendingDeleteBannerId, setPendingDeleteBannerId] = useState<string | null>(null);
 
-  // Auto Crypto Gateways Admin Local State
+  // Auto Crypto & Web3 Gateways Admin Local State
   const [gatewayNetworkFilter, setGatewayNetworkFilter] = useState<string>('all');
   const [editingGatewayId, setEditingGatewayId] = useState<string | null>(null);
   const [gatewayEditDraft, setGatewayEditDraft] = useState<Partial<AutoCryptoGateway>>({});
+  const [pendingDeleteGatewayId, setPendingDeleteGatewayId] = useState<string | null>(null);
   const [isAddGatewayModalOpen, setIsAddGatewayModalOpen] = useState(false);
   const [pingingGatewayId, setPingingGatewayId] = useState<string | null>(null);
   const [showWebhookSecret, setShowWebhookSecret] = useState<{ [id: string]: boolean }>({});
   const [newGatewayForm, setNewGatewayForm] = useState<Omit<AutoCryptoGateway, 'id' | 'lastPingSuccess' | 'totalProcessedUsd' | 'totalTransactionsCount'>>({
     name: 'Tether TRC-20 Automated Node',
+    providerType: 'standard_node',
     network: 'TRC20',
     currency: 'USDT',
     symbol: 'USDT-TRC20',
     receivingAddress: 'TYDzsYUEpvnYmQK4WKnmbukC44FgwTRC20',
     rpcEndpoint: 'https://api.trongrid.io/jsonrpc',
     webhookSecret: 'whsec_trc20_' + Math.random().toString(36).substring(2, 10),
+    chainId: '',
+    chainName: '',
+    walletConnectProjectId: '',
+    description: '',
     requiredConfirmations: 19,
     minDepositUsd: 20,
     maxDepositUsd: 100000,
@@ -653,6 +673,45 @@ export const AdminDashboard: React.FC = () => {
     multiplier: 129,
   });
 
+  // Full User Management CRUD (Create, Search/Filter, Edit, Delete)
+  const [userSearchTerm, setUserSearchTerm] = useState('');
+  const [userRoleFilter, setUserRoleFilter] = useState<'all' | 'customer' | 'admin'>('all');
+  const [userKycFilter, setUserKycFilter] = useState<'all' | 'verified' | 'in_review' | 'unverified' | 'rejected'>('all');
+  const [isUserModalOpen, setIsUserModalOpen] = useState(false);
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [pendingDeleteUserId, setPendingDeleteUserId] = useState<string | null>(null);
+  const [userForm, setUserForm] = useState<{
+    name: string;
+    email: string;
+    role: 'customer' | 'admin';
+    tier: 'Standard' | 'Plaid Member' | 'Founders Club';
+    accountStatus: 'active' | 'suspended' | 'flagged' | 'banned';
+    kycStatus: 'unverified' | 'in_review' | 'verified' | 'rejected';
+    totalDepositedUsd: number;
+    referralCount: number;
+    referralEarningsUsd: number;
+    location: string;
+    phone: string;
+    preferredServiceCenter: string;
+    bio: string;
+    avatar: string;
+  }>({
+    name: '',
+    email: '',
+    role: 'customer',
+    tier: 'Standard',
+    accountStatus: 'active',
+    kycStatus: 'unverified',
+    totalDepositedUsd: 0,
+    referralCount: 0,
+    referralEarningsUsd: 0,
+    location: 'Austin, TX, USA',
+    phone: '',
+    preferredServiceCenter: 'Apex Austin Gigafactory Service Hub',
+    bio: '',
+    avatar: '',
+  });
+
   // Investment Management state
   const [investmentFilterStatus, setInvestmentFilterStatus] = useState<'all' | 'running' | 'completed' | 'paused'>('all');
   const [editingInvestment, setEditingInvestment] = useState<UserInvestment | null>(null);
@@ -709,10 +768,13 @@ export const AdminDashboard: React.FC = () => {
   const [productCategoryFilter, setProductCategoryFilter] = useState<string>('All');
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
+  const [pendingDeleteProductId, setPendingDeleteProductId] = useState<string | null>(null);
   const [productForm, setProductForm] = useState<Omit<ProductItem, 'id'>>({
     name: '',
     category: 'Charging & Tech',
     priceUsd: 299,
+    rating: 4.9,
+    reviewsCount: 12,
     description: '',
     image: 'https://images.unsplash.com/photo-1560958089-b8a1929cea89?auto=format&fit=crop&w=800&q=80',
     compatibility: 'Model 3, Model Y, Model S, Model X, Cybertruck',
@@ -815,7 +877,8 @@ export const AdminDashboard: React.FC = () => {
   const [campaignTitle, setCampaignTitle] = useState(PREBUILT_TEMPLATES[0].name);
   const [campaignSubject, setCampaignSubject] = useState(PREBUILT_TEMPLATES[0].subject);
   const [campaignContent, setCampaignContent] = useState(PREBUILT_TEMPLATES[0].content);
-  const [campaignAudience, setCampaignAudience] = useState<'all_users' | 'plaid_members' | 'custom_list' | 'external_leads'>('all_users');
+  const [campaignAudience, setCampaignAudience] = useState<EmailCampaign['targetAudience']>('all_registered_and_subscribers');
+  const [campaignInterestFilter, setCampaignInterestFilter] = useState<NewsletterSubscriber['interestCategory'] | 'All'>('All');
   const [isDispatchingCampaign, setIsDispatchingCampaign] = useState(false);
 
   // AI Marketing Manager state
@@ -1221,12 +1284,15 @@ export const AdminDashboard: React.FC = () => {
     const res = await sendMarketingCampaign({
       title: campaignTitle,
       subject: campaignSubject,
+      bodyContent: campaignContent,
       templateId: selectedTemplate.id,
       targetAudience: campaignAudience,
+      interestFilter: campaignInterestFilter,
     });
     setIsDispatchingCampaign(false);
     if (res.success) {
       showToast(res.message, 'success');
+      void fetchMailerLogs();
     }
   };
 
@@ -1488,21 +1554,147 @@ export const AdminDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* TAB 1: ALL USERS PROFILE & KYC MANAGEMENT */}
-      {activeAdminTab === 'users_kyc' && (
+      {/* Admin-Only Performance Overview Chart (Recharts) */}
+      {currentUser?.role === 'admin' && <AdminPerformanceChart />}
+
+      {/* TAB 1: ALL USERS PROFILE & KYC MANAGEMENT (FULL CRUD + FIRESTORE) */}
+      {activeAdminTab === 'users_kyc' && (() => {
+        const filteredUsers = allUsers.filter((u) => {
+          const matchesRole = userRoleFilter === 'all' || u.role === userRoleFilter;
+          const kyc = u.kycStatus || 'unverified';
+          const matchesKyc = userKycFilter === 'all' || kyc === userKycFilter;
+          const q = userSearchTerm.trim().toLowerCase();
+          const matchesSearch =
+            !q ||
+            u.name.toLowerCase().includes(q) ||
+            u.email.toLowerCase().includes(q) ||
+            (u.referralCode || '').toLowerCase().includes(q) ||
+            (u.location || '').toLowerCase().includes(q);
+          return matchesRole && matchesKyc && matchesSearch;
+        });
+
+        const openCreateUserModal = () => {
+          setEditingUserId(null);
+          setUserForm({
+            name: '',
+            email: '',
+            role: 'customer',
+            tier: 'Standard',
+            accountStatus: 'active',
+            kycStatus: 'unverified',
+            totalDepositedUsd: 0,
+            referralCount: 0,
+            referralEarningsUsd: 0,
+            location: 'Austin, TX, USA',
+            phone: '',
+            preferredServiceCenter: 'Apex Austin Gigafactory Service Hub',
+            bio: '',
+            avatar: '',
+          });
+          setIsUserModalOpen(true);
+        };
+
+        const openEditUserModal = (u: User) => {
+          setEditingUserId(u.id);
+          setUserForm({
+            name: u.name,
+            email: u.email,
+            role: u.role === 'admin' ? 'admin' : 'customer',
+            tier: u.tier || 'Standard',
+            accountStatus: u.accountStatus || 'active',
+            kycStatus: u.kycStatus || 'unverified',
+            totalDepositedUsd: Number(u.totalDepositedUsd ?? 0),
+            referralCount: Number(u.referralCount ?? 0),
+            referralEarningsUsd: Number(u.referralEarningsUsd ?? 0),
+            location: u.location || 'Austin, TX, USA',
+            phone: u.phone || '',
+            preferredServiceCenter: u.preferredServiceCenter || 'Apex Austin Gigafactory Service Hub',
+            bio: u.bio || '',
+            avatar: u.avatar || '',
+          });
+          setIsUserModalOpen(true);
+        };
+
+        return (
         <div className="space-y-6 w-full">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
             <div>
-              <h3 className="font-heading font-black text-lg sm:text-xl text-white">Registered Users & KYC Compliance Dossier</h3>
-              <p className="text-xs text-zinc-400">Audit user profiles, adjust cryptocurrency balances, review documents, and approve or reject KYC verification tiers.</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="font-heading font-black text-lg sm:text-xl text-white">
+                  User Directory &amp; KYC Compliance ({filteredUsers.length}/{allUsers.length})
+                </h3>
+                <span
+                  className={`px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold inline-flex items-center gap-1 border ${
+                    firebaseCloudConnected
+                      ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                      : 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+                  }`}
+                >
+                  <Database className="w-3 h-3" />
+                  <span>
+                    {firebaseCloudConnected
+                      ? `Firestore Live${lastFirestoreSyncAt ? ` • ${lastFirestoreSyncAt}` : ''}`
+                      : 'Cloud Sync Ready'}
+                  </span>
+                </span>
+              </div>
+              <p className="text-xs text-zinc-400 mt-0.5">
+                Create, edit, search, adjust balances, inspect telemetry, verify KYC, or remove user accounts with live Firestore persistence.
+              </p>
             </div>
-            <div className="flex items-center gap-2 text-xs font-mono">
+            <div className="flex flex-wrap items-center gap-2 text-xs font-mono">
               <span className="px-3 py-1.5 rounded-xl bg-zinc-900 border border-zinc-800 text-emerald-400">
                 Verified: {allUsers.filter((u) => u.kycStatus === 'verified').length}
               </span>
               <span className="px-3 py-1.5 rounded-xl bg-zinc-900 border border-zinc-800 text-amber-400">
                 In Review: {allUsers.filter((u) => u.kycStatus === 'in_review').length}
               </span>
+              <button
+                type="button"
+                onClick={openCreateUserModal}
+                className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-sans font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-lg shadow-amber-500/20"
+              >
+                <UserPlus className="w-3.5 h-3.5" />
+                <span>Create User</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Search & Multi-Filter Toolbar */}
+          <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between bg-zinc-950 border border-zinc-800 rounded-2xl p-3">
+            <div className="relative flex-1 min-w-[220px]">
+              <Search className="w-4 h-4 text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="text"
+                value={userSearchTerm}
+                onChange={(e) => setUserSearchTerm(e.target.value)}
+                placeholder="Search user name, email, referral code, or city..."
+                className="w-full bg-zinc-900 border border-zinc-700 rounded-xl pl-9 pr-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+              />
+            </div>
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <select
+                value={userRoleFilter}
+                onChange={(e) => setUserRoleFilter(e.target.value as 'all' | 'customer' | 'admin')}
+                className="bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-zinc-200 text-xs font-mono"
+              >
+                <option value="all">All Roles</option>
+                <option value="customer">Customers Only</option>
+                <option value="admin">Admins Only</option>
+              </select>
+              <select
+                value={userKycFilter}
+                onChange={(e) =>
+                  setUserKycFilter(e.target.value as 'all' | 'verified' | 'in_review' | 'unverified' | 'rejected')
+                }
+                className="bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-zinc-200 text-xs font-mono"
+              >
+                <option value="all">All KYC Tiers</option>
+                <option value="verified">KYC Verified</option>
+                <option value="in_review">KYC In Review</option>
+                <option value="unverified">KYC Unverified</option>
+                <option value="rejected">KYC Rejected</option>
+              </select>
             </div>
           </div>
 
@@ -1516,13 +1708,13 @@ export const AdminDashboard: React.FC = () => {
                     <th className="p-4">Role & Tier</th>
                     <th className="p-4">Telemetry & Last Visit</th>
                     <th className="p-4">KYC Compliance</th>
-                    <th className="p-4">Vault Balances</th>
-                    <th className="p-4 text-right">Individual Actions</th>
+                    <th className="p-4">Deposits & Vault</th>
+                    <th className="p-4 text-right">CRUD &amp; Operations</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-800/80">
-                  {allUsers.map((u) => {
-                    const isOnline = u.isOnline ?? true;
+                  {filteredUsers.map((u) => {
+                    const isOnline = u.isOnline ?? false;
                     const accountStatus = u.accountStatus || 'active';
                     const userInvestmentsCount = allInvestments.filter((inv: UserInvestment) => inv.userId === u.id).length;
                     const userBookingsCount = localBookings.filter((b) => b.userId === u.id).length;
@@ -1689,6 +1881,14 @@ export const AdminDashboard: React.FC = () => {
                               <DollarSign className="w-3.5 h-3.5" />
                             </button>
                             <button
+                              type="button"
+                              onClick={() => openEditUserModal(u)}
+                              title="Edit User Profile & Tier"
+                              className="p-1.5 rounded-lg bg-cyan-950/50 hover:bg-cyan-900/60 text-cyan-300 border border-cyan-500/40 cursor-pointer"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
                               onClick={() =>
                                 updateUserStatus(u.id, accountStatus === 'banned' ? 'active' : 'banned')
                               }
@@ -1701,11 +1901,50 @@ export const AdminDashboard: React.FC = () => {
                             >
                               <Ban className="w-3.5 h-3.5" />
                             </button>
+                            {u.id !== currentUser?.id && (
+                              pendingDeleteUserId === u.id ? (
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      deleteUser(u.id);
+                                      setPendingDeleteUserId(null);
+                                    }}
+                                    className="px-2 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-[10px] font-bold cursor-pointer"
+                                  >
+                                    Confirm
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setPendingDeleteUserId(null)}
+                                    className="px-1.5 py-1 rounded-lg bg-zinc-800 text-zinc-300 text-[10px] cursor-pointer"
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => setPendingDeleteUserId(u.id)}
+                                  title="Delete User Account"
+                                  className="p-1.5 rounded-lg bg-zinc-900 hover:bg-rose-950/60 text-zinc-400 hover:text-rose-400 border border-zinc-700 cursor-pointer"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )
+                            )}
                           </div>
                         </td>
                       </tr>
                     );
                   })}
+                  {filteredUsers.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="p-8 text-center text-zinc-500 text-xs">
+                        No users match your current search or filter criteria.
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -1713,8 +1952,8 @@ export const AdminDashboard: React.FC = () => {
 
           {/* Mobile & Tablet Card Layout (<1024px) for perfect responsive fit */}
           <div className="lg:hidden space-y-3">
-            {allUsers.map((u) => {
-              const isOnline = u.isOnline ?? true;
+            {filteredUsers.map((u) => {
+              const isOnline = u.isOnline ?? false;
               const accountStatus = u.accountStatus || 'active';
               const userInvestmentsCount = allInvestments.filter((inv: UserInvestment) => inv.userId === u.id).length;
               const userBookingsCount = localBookings.filter((b) => b.userId === u.id).length;
@@ -1850,6 +2089,14 @@ export const AdminDashboard: React.FC = () => {
                       <DollarSign className="w-4 h-4" />
                     </button>
                     <button
+                      type="button"
+                      onClick={() => openEditUserModal(u)}
+                      className="px-3 py-1.5 rounded-xl bg-cyan-950/40 hover:bg-cyan-900/50 text-cyan-300 border border-cyan-500/40 text-xs font-semibold flex items-center gap-1"
+                    >
+                      <Edit3 className="w-3 h-3" />
+                      <span>Edit</span>
+                    </button>
+                    <button
                       onClick={() =>
                         updateUserStatus(u.id, accountStatus === 'banned' ? 'active' : 'banned')
                       }
@@ -1862,13 +2109,35 @@ export const AdminDashboard: React.FC = () => {
                     >
                       <Ban className="w-4 h-4" />
                     </button>
+                    {u.id !== currentUser?.id && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (pendingDeleteUserId === u.id) {
+                            deleteUser(u.id);
+                            setPendingDeleteUserId(null);
+                          } else {
+                            setPendingDeleteUserId(u.id);
+                          }
+                        }}
+                        className={`px-2.5 py-2 rounded-xl border text-xs font-semibold flex items-center gap-1 ${
+                          pendingDeleteUserId === u.id
+                            ? 'bg-rose-600 text-white border-rose-500'
+                            : 'bg-zinc-900 hover:bg-rose-950/50 text-rose-400 border-zinc-700'
+                        }`}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        {pendingDeleteUserId === u.id && <span>Confirm</span>}
+                      </button>
+                    )}
                   </div>
                 </div>
               );
             })}
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* TAB: INVESTMENTS & AUTOMATED ROI CRON JOB ENGINE */}
       {activeAdminTab === 'investment_mgmt' && (
@@ -2469,11 +2738,28 @@ export const AdminDashboard: React.FC = () => {
             </div>
             <div className="flex items-center gap-2 text-xs font-mono shrink-0">
               <span className="p-2.5 sm:p-3 rounded-2xl bg-zinc-900 border border-zinc-800 text-center">
+                <span className="text-[10px] text-zinc-500 block">NEWSLETTER SUBSCRIBERS</span>
+                <span className="text-cyan-400 font-bold tabular-nums">
+                  {newsletterSubscribers.filter((s) => s.status === 'active').length} Active
+                </span>
+              </span>
+              <span className="p-2.5 sm:p-3 rounded-2xl bg-zinc-900 border border-zinc-800 text-center">
                 <span className="text-[10px] text-zinc-500 block">TOTAL AUDIENCE</span>
-                <span className="text-white font-bold">{allUsers.length + importedEmails.length} Leads</span>
+                <span className="text-white font-bold tabular-nums">
+                  {allUsers.length + newsletterSubscribers.filter((s) => s.status === 'active').length + importedEmails.length} Contacts
+                </span>
               </span>
             </div>
           </div>
+
+          {/* Firestore Newsletter Mailing List Manager */}
+          <AdminNewsletterManager
+            onSelectForBulkSend={() => {
+              setCampaignAudience('all_registered_and_subscribers');
+              const dispatcher = document.getElementById('admin-bulk-dispatcher');
+              dispatcher?.scrollIntoView({ behavior: 'smooth' });
+            }}
+          />
 
           {/* 2-Column: SMTP Config & Live Test Sender vs External List Importer */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6">
@@ -3007,8 +3293,8 @@ export const AdminDashboard: React.FC = () => {
             </div>
 
             {/* Campaign Dispatcher */}
-            <div className="space-y-4 pt-2">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div id="admin-bulk-dispatcher" className="space-y-4 pt-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className="text-zinc-300 block mb-1 text-xs font-medium">Campaign Internal Title</label>
                   <input
@@ -3023,13 +3309,42 @@ export const AdminDashboard: React.FC = () => {
                   <label className="text-zinc-300 block mb-1 text-xs font-medium">Target Audience Group</label>
                   <select
                     value={campaignAudience}
-                    onChange={(e) => setCampaignAudience(e.target.value as any)}
+                    onChange={(e) => setCampaignAudience(e.target.value as EmailCampaign['targetAudience'])}
                     className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
                   >
-                    <option value="all_users">All Registered Tesla Owners ({allUsers.length} accounts)</option>
-                    <option value="plaid_members">Founders Club & Plaid Members Only</option>
+                    <option value="all_registered_and_subscribers">
+                      Registered Users + Newsletter Subscribers ({allUsers.length + newsletterSubscribers.filter((s) => s.status === 'active').length} contacts)
+                    </option>
+                    <option value="newsletter_subscribers">
+                      Newsletter Mailing List Only ({newsletterSubscribers.filter((s) => s.status === 'active').length} active)
+                    </option>
+                    <option value="all_users">
+                      All Registered Website Users ({allUsers.length} accounts)
+                    </option>
+                    <option value="plaid_members">Founders Club &amp; Plaid Members Only</option>
                     <option value="external_leads">Imported External Leads List ({importedEmails.length} leads)</option>
-                    <option value="custom_list">Combined Master Audience ({allUsers.length + importedEmails.length} leads)</option>
+                    <option value="custom_list">
+                      Combined Master Audience ({allUsers.length + newsletterSubscribers.filter((s) => s.status === 'active').length + importedEmails.length} contacts)
+                    </option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-zinc-300 block mb-1 text-xs font-medium">Subscriber Segment Filter</label>
+                  <select
+                    value={campaignInterestFilter}
+                    onChange={(e) =>
+                      setCampaignInterestFilter(
+                        e.target.value as NewsletterSubscriber['interestCategory'] | 'All'
+                      )
+                    }
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
+                  >
+                    <option value="All">All Newsletter Segments</option>
+                    <option value="All Updates">All Updates</option>
+                    <option value="Service & Wraps">Service &amp; Wraps</option>
+                    <option value="Fleet & Yield">Fleet &amp; Yield</option>
+                    <option value="Vehicle Drops & Promos">Vehicle Drops &amp; Promos</option>
                   </select>
                 </div>
               </div>
@@ -3463,12 +3778,24 @@ export const AdminDashboard: React.FC = () => {
             <div className="p-6 rounded-3xl bg-zinc-950 border border-zinc-800 space-y-5 shadow-xl">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-800 pb-4">
                 <div>
-                  <h4 className="font-heading font-bold text-base text-white flex items-center gap-2">
-                    <Package className="w-4 h-4 text-amber-400" />
-                    <span>Product Inventory Management ({productsList.length} Items)</span>
-                  </h4>
-                  <p className="text-xs text-zinc-400">
-                    Create, edit, price, toggle stock availability, or delete Tesla accessories & gear directly in the live storefront.
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h4 className="font-heading font-bold text-base text-white flex items-center gap-2">
+                      <Package className="w-4 h-4 text-amber-400" />
+                      <span>Product Inventory Management ({productsList.length} Items)</span>
+                    </h4>
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold inline-flex items-center gap-1 border ${
+                        firebaseCloudConnected
+                          ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                          : 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+                      }`}
+                    >
+                      <Database className="w-3 h-3" />
+                      <span>{firebaseCloudConnected ? 'Firestore Live' : 'Local + Sync Ready'}</span>
+                    </span>
+                  </div>
+                  <p className="text-xs text-zinc-400 mt-0.5">
+                    Create, edit, price, toggle stock availability, or delete Tesla accessories &amp; gear directly in Firestore &amp; live storefront.
                   </p>
                 </div>
                 <button
@@ -3479,6 +3806,8 @@ export const AdminDashboard: React.FC = () => {
                       name: '',
                       category: 'Charging & Tech',
                       priceUsd: 299,
+                      rating: 4.9,
+                      reviewsCount: 12,
                       description: '',
                       image: 'https://images.unsplash.com/photo-1560958089-b8a1929cea89?auto=format&fit=crop&w=800&q=80',
                       compatibility: 'Model 3, Model Y, Model S, Model X, Cybertruck',
@@ -3592,6 +3921,8 @@ export const AdminDashboard: React.FC = () => {
                                 name: product.name,
                                 category: product.category,
                                 priceUsd: product.priceUsd,
+                                rating: product.rating ?? 4.9,
+                                reviewsCount: product.reviewsCount ?? 12,
                                 description: product.description,
                                 image: product.image,
                                 compatibility: product.compatibility || '',
@@ -3604,14 +3935,36 @@ export const AdminDashboard: React.FC = () => {
                           >
                             <Edit3 className="w-3.5 h-3.5" />
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => deleteProductItem(product.id)}
-                            className="p-1.5 rounded-lg bg-zinc-800 hover:bg-rose-900/50 text-rose-400 cursor-pointer"
-                            title="Delete Product"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                          {pendingDeleteProductId === product.id ? (
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  deleteProductItem(product.id);
+                                  setPendingDeleteProductId(null);
+                                }}
+                                className="px-2 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-[10px] font-bold cursor-pointer"
+                              >
+                                Delete
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setPendingDeleteProductId(null)}
+                                className="px-1.5 py-1 rounded-lg bg-zinc-800 text-zinc-300 text-[10px] cursor-pointer"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setPendingDeleteProductId(product.id)}
+                              className="p-1.5 rounded-lg bg-zinc-800 hover:bg-rose-900/50 text-rose-400 cursor-pointer"
+                              title="Delete Product"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -6961,23 +7314,36 @@ export const AdminDashboard: React.FC = () => {
               </div>
             </div>
 
-            {/* Network Filter Bar */}
+            {/* Network & Web3 Provider Filter Bar */}
             <div className="flex items-center gap-1.5 pt-2 overflow-x-auto pb-1">
-              {['all', 'TRC20', 'ERC20', 'BTC', 'ETH', 'BEP20', 'XRPL'].map((net) => {
-                const count = net === 'all'
-                  ? autoCryptoGateways.length
-                  : autoCryptoGateways.filter((g) => g.network === net).length;
+              {[
+                { key: 'all', label: 'All Gateways' },
+                { key: 'metamask', label: 'MetaMask Web3' },
+                { key: 'trust_wallet', label: 'Trust Wallet Connect' },
+                { key: 'TRC20', label: 'TRC20' },
+                { key: 'ERC20', label: 'ERC20' },
+                { key: 'BTC', label: 'BTC' },
+                { key: 'ETH', label: 'ETH' },
+                { key: 'BEP20', label: 'BEP20' },
+                { key: 'XRPL', label: 'XRPL' },
+              ].map((item) => {
+                const count =
+                  item.key === 'all'
+                    ? autoCryptoGateways.length
+                    : item.key === 'metamask' || item.key === 'trust_wallet'
+                    ? autoCryptoGateways.filter((g) => g.providerType === item.key).length
+                    : autoCryptoGateways.filter((g) => g.network === item.key).length;
                 return (
                   <button
-                    key={net}
-                    onClick={() => setGatewayNetworkFilter(net)}
+                    key={item.key}
+                    onClick={() => setGatewayNetworkFilter(item.key)}
                     className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 cursor-pointer transition ${
-                      gatewayNetworkFilter === net
+                      gatewayNetworkFilter === item.key
                         ? 'bg-red-600 text-white font-bold'
                         : 'bg-zinc-950 border border-zinc-800 text-zinc-400 hover:text-white'
                     }`}
                   >
-                    <span>{net === 'all' ? 'All Networks' : net}</span>
+                    <span>{item.label}</span>
                     <span className="ml-1.5 text-[10px] opacity-70 font-mono">({count})</span>
                   </button>
                 );
@@ -6988,11 +7354,23 @@ export const AdminDashboard: React.FC = () => {
           {/* Gateways List & Inline Editor */}
           <div className="space-y-4">
             {autoCryptoGateways
-              .filter((g) => gatewayNetworkFilter === 'all' || g.network === gatewayNetworkFilter)
+              .filter((g) => {
+                if (gatewayNetworkFilter === 'all') return true;
+                if (gatewayNetworkFilter === 'metamask' || gatewayNetworkFilter === 'trust_wallet') {
+                  return g.providerType === gatewayNetworkFilter;
+                }
+                return g.network === gatewayNetworkFilter;
+              })
               .map((gw) => {
                 const isEditing = editingGatewayId === gw.id;
                 const draft = isEditing ? { ...gw, ...gatewayEditDraft } : gw;
                 const isPinging = pingingGatewayId === gw.id;
+                const providerBadge =
+                  gw.providerType === 'metamask'
+                    ? 'METAMASK EIP-1193'
+                    : gw.providerType === 'trust_wallet'
+                    ? 'TRUST WALLET WC2'
+                    : 'BLOCKCHAIN NODE';
 
                 return (
                   <div
@@ -7006,14 +7384,37 @@ export const AdminDashboard: React.FC = () => {
                     {/* Gateway Top Status Header */}
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-800 pb-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-zinc-900 border border-zinc-700 flex items-center justify-center font-bold font-mono text-emerald-400">
-                          {gw.currency}
+                        <div
+                          className={`w-10 h-10 rounded-xl border flex items-center justify-center font-bold font-mono text-xs ${
+                            gw.providerType === 'metamask'
+                              ? 'bg-amber-500/15 border-amber-500/40 text-amber-400'
+                              : gw.providerType === 'trust_wallet'
+                              ? 'bg-cyan-500/15 border-cyan-500/40 text-cyan-400'
+                              : 'bg-zinc-900 border-zinc-700 text-emerald-400'
+                          }`}
+                        >
+                          {gw.providerType === 'metamask'
+                            ? 'MM'
+                            : gw.providerType === 'trust_wallet'
+                            ? 'TW'
+                            : gw.currency}
                         </div>
                         <div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex flex-wrap items-center gap-2">
                             <h4 className="font-heading font-black text-white text-base">
-                              {gw.name}
+                              {isEditing ? draft.name : gw.name}
                             </h4>
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold border ${
+                                gw.providerType === 'metamask'
+                                  ? 'bg-amber-950/60 border-amber-500/40 text-amber-300'
+                                  : gw.providerType === 'trust_wallet'
+                                  ? 'bg-cyan-950/60 border-cyan-500/40 text-cyan-300'
+                                  : 'bg-zinc-900 border-zinc-700 text-zinc-300'
+                              }`}
+                            >
+                              {providerBadge}
+                            </span>
                             <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-zinc-900 border border-zinc-700 text-zinc-300">
                               {gw.network}
                             </span>
@@ -7026,7 +7427,7 @@ export const AdminDashboard: React.FC = () => {
                                   : 'bg-zinc-800 text-zinc-500 border border-zinc-700'
                               }`}
                             >
-                              {gw.status}
+                              {gw.status === 'disabled' ? 'inactive' : gw.status}
                             </span>
                           </div>
                           <span className="text-xs text-zinc-400 font-mono">
@@ -7041,9 +7442,9 @@ export const AdminDashboard: React.FC = () => {
                         <div className="flex items-center gap-1.5 bg-zinc-900/90 border border-zinc-800 px-3 py-1.5 rounded-xl">
                           <span className="text-[11px] text-zinc-300 font-mono">Auto-Credit:</span>
                           <button
+                            type="button"
                             onClick={() => {
                               updateAutoCryptoGateway(gw.id, { autoCreditEnabled: !gw.autoCreditEnabled });
-                              showToast(`${gw.name} Auto-Credit set to ${!gw.autoCreditEnabled ? 'ENABLED' : 'DISABLED'}`);
                             }}
                             className={`cursor-pointer ${gw.autoCreditEnabled ? 'text-emerald-400' : 'text-zinc-600'}`}
                           >
@@ -7051,14 +7452,16 @@ export const AdminDashboard: React.FC = () => {
                           </button>
                         </div>
 
-                        {/* Status Toggle (Active / Disabled) */}
+                        {/* Status Toggle (Active / Inactive) */}
                         <div className="flex items-center gap-1.5 bg-zinc-900/90 border border-zinc-800 px-3 py-1.5 rounded-xl">
-                          <span className="text-[11px] text-zinc-300 font-mono">Status:</span>
+                          <span className="text-[11px] text-zinc-300 font-mono">
+                            Gateway {gw.status === 'active' ? 'Active' : 'Inactive'}:
+                          </span>
                           <button
+                            type="button"
                             onClick={() => {
                               const nextStatus = gw.status === 'active' ? 'disabled' : 'active';
                               updateAutoCryptoGateway(gw.id, { status: nextStatus });
-                              showToast(`${gw.name} marked as ${nextStatus.toUpperCase()}`);
                             }}
                             className={`cursor-pointer ${gw.status === 'active' ? 'text-emerald-400' : 'text-zinc-600'}`}
                           >
@@ -7070,11 +7473,55 @@ export const AdminDashboard: React.FC = () => {
 
                     {/* Gateway Config Form (Inline Editable) */}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                      {/* Left Column: Blockchain Addresses & Node URLs */}
+                      {/* Left Column: Provider Identity, Addresses & Node URLs */}
                       <div className="space-y-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-[11px] font-bold text-zinc-400 block mb-1">
+                              Gateway Display Name
+                            </label>
+                            <input
+                              type="text"
+                              value={isEditing ? draft.name : gw.name}
+                              onChange={(e) => {
+                                if (!isEditing) {
+                                  setEditingGatewayId(gw.id);
+                                  setGatewayEditDraft({ name: e.target.value });
+                                } else {
+                                  setGatewayEditDraft((prev) => ({ ...prev, name: e.target.value }));
+                                }
+                              }}
+                              className="w-full bg-zinc-900 border border-zinc-700 focus:border-emerald-500 rounded-xl px-3 py-2 text-xs text-white outline-none"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="text-[11px] font-bold text-zinc-400 block mb-1">
+                              Gateway Provider Type
+                            </label>
+                            <select
+                              value={(isEditing ? draft.providerType : gw.providerType) || 'standard_node'}
+                              onChange={(e) => {
+                                const val = e.target.value as AutoCryptoGateway['providerType'];
+                                if (!isEditing) {
+                                  setEditingGatewayId(gw.id);
+                                  setGatewayEditDraft({ providerType: val });
+                                } else {
+                                  setGatewayEditDraft((prev) => ({ ...prev, providerType: val }));
+                                }
+                              }}
+                              className="w-full bg-zinc-900 border border-zinc-700 focus:border-emerald-500 rounded-xl px-3 py-2 text-xs font-mono text-white outline-none"
+                            >
+                              <option value="standard_node">Standard Blockchain Node</option>
+                              <option value="metamask">MetaMask Web3 (EIP-1193)</option>
+                              <option value="trust_wallet">Trust Wallet Connect (WC2)</option>
+                            </select>
+                          </div>
+                        </div>
+
                         <div>
                           <label className="text-[11px] font-bold text-zinc-400 block mb-1">
-                            Receiving Address ({gw.network} Network)
+                            Receiving Vault Address ({gw.network} Network)
                           </label>
                           <input
                             type="text"
@@ -7111,6 +7558,54 @@ export const AdminDashboard: React.FC = () => {
                             placeholder="https://rpc.node.example.com"
                           />
                         </div>
+
+                        {(draft.providerType === 'metamask' || draft.providerType === 'trust_wallet' || gw.chainId || gw.walletConnectProjectId) && (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                              <label className="text-[11px] font-bold text-zinc-400 block mb-1">
+                                EVM Chain ID &amp; Label
+                              </label>
+                              <input
+                                type="text"
+                                value={isEditing ? (draft.chainId || '') : (gw.chainId || '')}
+                                onChange={(e) => {
+                                  if (!isEditing) {
+                                    setEditingGatewayId(gw.id);
+                                    setGatewayEditDraft({ chainId: e.target.value });
+                                  } else {
+                                    setGatewayEditDraft((prev) => ({ ...prev, chainId: e.target.value }));
+                                  }
+                                }}
+                                className="w-full bg-zinc-900 border border-zinc-700 focus:border-emerald-500 rounded-xl px-3 py-2 text-xs font-mono text-white outline-none"
+                                placeholder="0x1 (ETH) or 0x38 (BSC)"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[11px] font-bold text-zinc-400 block mb-1">
+                                {draft.providerType === 'trust_wallet' ? 'WalletConnect v2 Project ID' : 'Chain Network Name'}
+                              </label>
+                              <input
+                                type="text"
+                                value={
+                                  draft.providerType === 'trust_wallet'
+                                    ? (isEditing ? (draft.walletConnectProjectId || '') : (gw.walletConnectProjectId || ''))
+                                    : (isEditing ? (draft.chainName || '') : (gw.chainName || ''))
+                                }
+                                onChange={(e) => {
+                                  const fieldKey = draft.providerType === 'trust_wallet' ? 'walletConnectProjectId' : 'chainName';
+                                  if (!isEditing) {
+                                    setEditingGatewayId(gw.id);
+                                    setGatewayEditDraft({ [fieldKey]: e.target.value });
+                                  } else {
+                                    setGatewayEditDraft((prev) => ({ ...prev, [fieldKey]: e.target.value }));
+                                  }
+                                }}
+                                className="w-full bg-zinc-900 border border-zinc-700 focus:border-emerald-500 rounded-xl px-3 py-2 text-xs font-mono text-white outline-none"
+                                placeholder={draft.providerType === 'trust_wallet' ? 'wc2-project-id' : 'Ethereum Mainnet'}
+                              />
+                            </div>
+                          </div>
+                        )}
 
                         <div>
                           <div className="flex justify-between items-center mb-1">
@@ -7294,13 +7789,17 @@ export const AdminDashboard: React.FC = () => {
                               updateAutoCryptoGateway(gw.id, gatewayEditDraft);
                               setEditingGatewayId(null);
                               setGatewayEditDraft({});
-                              showToast(`Saved modifications to ${gw.name} successfully!`, 'success');
                             } else {
                               setEditingGatewayId(gw.id);
                               setGatewayEditDraft({
+                                name: gw.name,
+                                providerType: gw.providerType || 'standard_node',
                                 receivingAddress: gw.receivingAddress,
                                 rpcEndpoint: gw.rpcEndpoint,
                                 webhookSecret: gw.webhookSecret,
+                                chainId: gw.chainId || '',
+                                chainName: gw.chainName || '',
+                                walletConnectProjectId: gw.walletConnectProjectId || '',
                                 requiredConfirmations: gw.requiredConfirmations,
                                 minDepositUsd: gw.minDepositUsd,
                                 maxDepositUsd: gw.maxDepositUsd,
@@ -7318,19 +7817,36 @@ export const AdminDashboard: React.FC = () => {
                           <span>{isEditing ? 'Save Changes' : 'Edit Gateway'}</span>
                         </button>
 
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (confirm(`Are you sure you want to delete ${gw.name}? This will remove automated processing for this network.`)) {
-                              deleteAutoCryptoGateway(gw.id);
-                              showToast(`Deleted ${gw.name}`, 'info');
-                            }
-                          }}
-                          className="p-2 rounded-xl bg-red-950/30 hover:bg-red-900/50 border border-red-500/30 text-red-400 transition cursor-pointer"
-                          title="Delete Gateway"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        {pendingDeleteGatewayId === gw.id ? (
+                          <div className="inline-flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                deleteAutoCryptoGateway(gw.id);
+                                setPendingDeleteGatewayId(null);
+                              }}
+                              className="px-3 py-1.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold cursor-pointer"
+                            >
+                              Confirm Delete
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setPendingDeleteGatewayId(null)}
+                              className="px-2.5 py-1.5 rounded-xl bg-zinc-800 text-zinc-300 text-xs font-semibold cursor-pointer"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setPendingDeleteGatewayId(gw.id)}
+                            className="p-2 rounded-xl bg-red-950/30 hover:bg-red-900/50 border border-red-500/30 text-red-400 transition cursor-pointer"
+                            title="Delete Gateway"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -7348,7 +7864,7 @@ export const AdminDashboard: React.FC = () => {
               <div className="flex items-center gap-2">
                 <Server className="w-5 h-5 text-emerald-400" />
                 <h3 className="font-heading font-black text-lg sm:text-xl text-white">
-                  Add Automated Crypto Gateway
+                  Add Crypto / Web3 Payment Gateway
                 </h3>
               </div>
               <button
@@ -7361,13 +7877,52 @@ export const AdminDashboard: React.FC = () => {
 
             <div className="space-y-3 text-xs">
               <div>
+                <label className="text-[11px] font-bold text-zinc-400 block mb-1">Provider Type</label>
+                <select
+                  value={newGatewayForm.providerType || 'standard_node'}
+                  onChange={(e) => {
+                    const pType = e.target.value as AutoCryptoGateway['providerType'];
+                    setNewGatewayForm((prev) => ({
+                      ...prev,
+                      providerType: pType,
+                      ...(pType === 'metamask'
+                        ? {
+                            name: 'MetaMask Web3 EVM Gateway',
+                            network: 'ERC20',
+                            currency: 'USDT',
+                            symbol: 'METAMASK-WEB3',
+                            chainId: '0x1',
+                            chainName: 'Ethereum Mainnet (EIP-1193)',
+                          }
+                        : pType === 'trust_wallet'
+                        ? {
+                            name: 'Trust Wallet Connect v2 Node',
+                            network: 'BEP20',
+                            currency: 'BNB',
+                            symbol: 'TRUST-WC2',
+                            chainId: '0x38',
+                            chainName: 'BNB Smart Chain & WalletConnect v2',
+                            walletConnectProjectId: prev.walletConnectProjectId || 'apex-tesla-wc2-' + Math.random().toString(36).slice(2, 8),
+                          }
+                        : {}),
+                    }));
+                  }}
+                  className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono outline-none"
+                >
+                  <option value="standard_node">Standard Blockchain Node</option>
+                  <option value="metamask">MetaMask Web3 Browser Wallet (EIP-1193)</option>
+                  <option value="trust_wallet">Trust Wallet Connect v2 Relay</option>
+                </select>
+              </div>
+
+              <div>
                 <label className="text-[11px] font-bold text-zinc-400 block mb-1">Gateway Name</label>
                 <input
                   type="text"
                   value={newGatewayForm.name}
                   onChange={(e) => setNewGatewayForm({ ...newGatewayForm, name: e.target.value })}
                   className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-medium outline-none focus:border-emerald-500"
-                  placeholder="e.g. Solana SPL Automated Node"
+                  placeholder="e.g. MetaMask Mainnet Vault"
                 />
               </div>
 
@@ -8259,19 +8814,63 @@ export const AdminDashboard: React.FC = () => {
 
           {/* Published Marketing Banners List */}
           <div className="p-5 sm:p-6 rounded-3xl bg-zinc-950 border border-zinc-800 space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-zinc-800 pb-3">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-zinc-800 pb-3">
               <div>
-                <h4 className="font-heading font-bold text-base text-white">
-                  Active & Draft Promotional Banners ({marketingBanners.length})
-                </h4>
-                <p className="text-xs text-zinc-400">
-                  Every published banner is rendered in interactive 3D / HD perspective on the Promotional Banners page with user referral links attached.
+                <div className="flex flex-wrap items-center gap-2">
+                  <h4 className="font-heading font-bold text-base text-white">
+                    Active &amp; Draft Promotional Banners ({marketingBanners.length})
+                  </h4>
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold inline-flex items-center gap-1 border ${
+                      firebaseCloudConnected
+                        ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                        : 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+                    }`}
+                  >
+                    <Database className="w-3 h-3" />
+                    <span>{firebaseCloudConnected ? 'Firestore Live' : 'Local + Sync Ready'}</span>
+                  </span>
+                </div>
+                <p className="text-xs text-zinc-400 mt-0.5">
+                  Every published banner is persisted in Firestore and rendered in interactive 3D / HD perspective with referral tracking.
                 </p>
+              </div>
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                <input
+                  type="text"
+                  value={bannerSearchTerm}
+                  onChange={(e) => setBannerSearchTerm(e.target.value)}
+                  placeholder="Search banner title or headline..."
+                  className="bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500"
+                />
+                <select
+                  value={bannerSizeFilter}
+                  onChange={(e) => setBannerSizeFilter(e.target.value as 'all' | BannerSizeType)}
+                  className="bg-zinc-900 border border-zinc-700 rounded-xl px-2.5 py-1.5 text-xs text-zinc-200 font-mono"
+                >
+                  <option value="all">All Sizes</option>
+                  <option value="leaderboard">Leaderboard</option>
+                  <option value="square">Square</option>
+                  <option value="rectangle">Rectangle</option>
+                  <option value="sidebar">Sidebar</option>
+                  <option value="custom">Custom</option>
+                </select>
               </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {marketingBanners.map((b) => (
+              {marketingBanners
+                .filter((b) => bannerSizeFilter === 'all' || b.size === bannerSizeFilter)
+                .filter((b) => {
+                  const q = bannerSearchTerm.trim().toLowerCase();
+                  return (
+                    !q ||
+                    b.title.toLowerCase().includes(q) ||
+                    b.headline.toLowerCase().includes(q) ||
+                    (b.carRenderModel || '').toLowerCase().includes(q)
+                  );
+                })
+                .map((b) => (
                 <div
                   key={b.id}
                   className="p-4 rounded-2xl bg-zinc-900/70 border border-zinc-800 space-y-3 flex flex-col justify-between"
@@ -8361,14 +8960,36 @@ export const AdminDashboard: React.FC = () => {
                       >
                         <Edit3 className="w-3.5 h-3.5" />
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => deleteMarketingBanner(b.id)}
-                        className="p-1.5 rounded-lg bg-zinc-950 hover:bg-rose-950/60 text-zinc-400 hover:text-rose-400 cursor-pointer"
-                        title="Delete banner"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      {pendingDeleteBannerId === b.id ? (
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              deleteMarketingBanner(b.id);
+                              setPendingDeleteBannerId(null);
+                            }}
+                            className="px-2 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-[10px] font-bold cursor-pointer"
+                          >
+                            Confirm
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setPendingDeleteBannerId(null)}
+                            className="px-1.5 py-1 rounded-lg bg-zinc-800 text-zinc-300 text-[10px] cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setPendingDeleteBannerId(b.id)}
+                          className="p-1.5 rounded-lg bg-zinc-950 hover:bg-rose-950/60 text-zinc-400 hover:text-rose-400 cursor-pointer"
+                          title="Delete banner"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -9888,6 +10509,38 @@ export const AdminDashboard: React.FC = () => {
                 />
               </div>
 
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-zinc-400 block mb-1 flex items-center gap-1">
+                    <Star className="w-3 h-3 text-amber-400" />
+                    <span>Rating (0 – 5.0)</span>
+                  </label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    max="5"
+                    value={productForm.rating ?? 4.9}
+                    onChange={(e) =>
+                      setProductForm({ ...productForm, rating: Math.min(5, Math.max(0, parseFloat(e.target.value) || 0)) })
+                    }
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="text-zinc-400 block mb-1">Verified Reviews Count</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={productForm.reviewsCount ?? 12}
+                    onChange={(e) =>
+                      setProductForm({ ...productForm, reviewsCount: Math.max(0, parseInt(e.target.value, 10) || 0) })
+                    }
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono"
+                  />
+                </div>
+              </div>
+
               <div>
                 <label className="text-zinc-400 block mb-1">Compatible Models</label>
                 <input
@@ -10370,6 +11023,241 @@ export const AdminDashboard: React.FC = () => {
       {/* TAB: BUSINESS & OPERATING LICENSE CERTIFICATES CMS */}
       {activeAdminTab === 'certificates_cms' && hasAdminPrivilege('manage_site_cms') && (
         <AdminCertificatesManager />
+      )}
+
+      {/* User Management Modal (Create / Edit User Record -> Firestore `/managed_users`) */}
+      {isUserModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md">
+          <div className="relative w-full max-w-xl bg-zinc-950 border border-zinc-800 rounded-3xl p-6 space-y-4 text-zinc-100 shadow-2xl max-h-[92vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+              <div>
+                <h3 className="font-heading font-bold text-base text-white">
+                  {editingUserId ? 'Edit User Profile & Loyalty Volume' : 'Create New Platform User'}
+                </h3>
+                <p className="text-[11px] text-zinc-400">
+                  Changes sync directly to the user directory and Firestore /managed_users collection.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsUserModalOpen(false)}
+                className="p-1 rounded-lg text-zinc-400 hover:text-white cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3.5 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-zinc-400 block mb-1">Full Name</label>
+                  <input
+                    type="text"
+                    value={userForm.name}
+                    onChange={(e) => setUserForm({ ...userForm, name: e.target.value })}
+                    placeholder="e.g. Marcus Vance"
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white"
+                  />
+                </div>
+                <div>
+                  <label className="text-zinc-400 block mb-1">Email Address</label>
+                  <input
+                    type="email"
+                    value={userForm.email}
+                    onChange={(e) => setUserForm({ ...userForm, email: e.target.value })}
+                    placeholder="member@example.com"
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-cyan-300 font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div>
+                  <label className="text-zinc-400 block mb-1">Role</label>
+                  <select
+                    value={userForm.role}
+                    onChange={(e) => setUserForm({ ...userForm, role: e.target.value as 'customer' | 'admin' })}
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-2.5 py-2 text-white"
+                  >
+                    <option value="customer">Customer</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-zinc-400 block mb-1">Membership</label>
+                  <select
+                    value={userForm.tier}
+                    onChange={(e) =>
+                      setUserForm({
+                        ...userForm,
+                        tier: e.target.value as 'Standard' | 'Plaid Member' | 'Founders Club',
+                      })
+                    }
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-2.5 py-2 text-white"
+                  >
+                    <option value="Standard">Standard</option>
+                    <option value="Plaid Member">Plaid Member</option>
+                    <option value="Founders Club">Founders Club</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-zinc-400 block mb-1">Status</label>
+                  <select
+                    value={userForm.accountStatus}
+                    onChange={(e) =>
+                      setUserForm({
+                        ...userForm,
+                        accountStatus: e.target.value as 'active' | 'suspended' | 'flagged' | 'banned',
+                      })
+                    }
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-2.5 py-2 text-white"
+                  >
+                    <option value="active">Active</option>
+                    <option value="suspended">Suspended</option>
+                    <option value="flagged">Flagged</option>
+                    <option value="banned">Banned</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-zinc-400 block mb-1">KYC Tier</label>
+                  <select
+                    value={userForm.kycStatus}
+                    onChange={(e) =>
+                      setUserForm({
+                        ...userForm,
+                        kycStatus: e.target.value as 'unverified' | 'in_review' | 'verified' | 'rejected',
+                      })
+                    }
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-2.5 py-2 text-white"
+                  >
+                    <option value="unverified">Unverified</option>
+                    <option value="in_review">In Review</option>
+                    <option value="verified">Verified</option>
+                    <option value="rejected">Rejected</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="text-zinc-400 block mb-1">Cumulative Deposits ($ USD)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="10"
+                    value={userForm.totalDepositedUsd}
+                    onChange={(e) =>
+                      setUserForm({ ...userForm, totalDepositedUsd: Math.max(0, parseFloat(e.target.value) || 0) })
+                    }
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-emerald-400 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="text-zinc-400 block mb-1">Referral Count</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={userForm.referralCount}
+                    onChange={(e) =>
+                      setUserForm({ ...userForm, referralCount: Math.max(0, parseInt(e.target.value, 10) || 0) })
+                    }
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="text-zinc-400 block mb-1">Referral Earnings ($)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={userForm.referralEarningsUsd}
+                    onChange={(e) =>
+                      setUserForm({
+                        ...userForm,
+                        referralEarningsUsd: Math.max(0, parseFloat(e.target.value) || 0),
+                      })
+                    }
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-zinc-400 block mb-1">Location / City</label>
+                  <input
+                    type="text"
+                    value={userForm.location}
+                    onChange={(e) => setUserForm({ ...userForm, location: e.target.value })}
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white"
+                  />
+                </div>
+                <div>
+                  <label className="text-zinc-400 block mb-1">Phone Number</label>
+                  <input
+                    type="text"
+                    value={userForm.phone}
+                    onChange={(e) => setUserForm({ ...userForm, phone: e.target.value })}
+                    placeholder="+1 (512) 555-0199"
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-zinc-400 block mb-1">Preferred Service Center</label>
+                <input
+                  type="text"
+                  value={userForm.preferredServiceCenter}
+                  onChange={(e) => setUserForm({ ...userForm, preferredServiceCenter: e.target.value })}
+                  className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white"
+                />
+              </div>
+
+              <div>
+                <label className="text-zinc-400 block mb-1">Admin Notes / Member Bio</label>
+                <textarea
+                  rows={2}
+                  value={userForm.bio}
+                  onChange={(e) => setUserForm({ ...userForm, bio: e.target.value })}
+                  className="w-full bg-zinc-900 border border-zinc-700 rounded-xl p-3 text-white"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setIsUserModalOpen(false)}
+                  className="flex-1 py-2.5 rounded-xl bg-zinc-800 text-zinc-300 font-bold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={!userForm.name.trim() || !userForm.email.includes('@')}
+                  onClick={() => {
+                    if (editingUserId) {
+                      updateManagedUser(editingUserId, userForm);
+                    } else {
+                      const emailTaken = allUsers.some(
+                        (u) => u.email.toLowerCase() === userForm.email.trim().toLowerCase()
+                      );
+                      if (emailTaken) {
+                        showToast('A user with this email address already exists.', 'error');
+                        return;
+                      }
+                      createManagedUser(userForm);
+                    }
+                    setIsUserModalOpen(false);
+                  }}
+                  className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold disabled:opacity-50 cursor-pointer"
+                >
+                  {editingUserId ? 'Save User Changes' : 'Create User Account'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

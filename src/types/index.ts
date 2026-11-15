@@ -56,6 +56,7 @@ export interface User {
   totalWithdrawnUsd?: number;
   ipAddress?: string;
   deviceInfo?: string;
+  themePreference?: 'dark' | 'light';
 }
 
 export interface UserKycData {
@@ -97,12 +98,32 @@ export interface EmailCampaign {
   title: string;
   subject: string;
   templateId?: string;
-  targetAudience: 'all_users' | 'plaid_members' | 'custom_list' | 'external_leads';
+  targetAudience:
+    | 'all_users'
+    | 'plaid_members'
+    | 'custom_list'
+    | 'external_leads'
+    | 'newsletter_subscribers'
+    | 'all_registered_and_subscribers';
   recipientsCount: number;
   sentAt: string;
   status: 'sent' | 'scheduled' | 'draft';
   openRate: number;
   clickRate: number;
+}
+
+export interface NewsletterSubscriber {
+  id: string;
+  email: string;
+  name?: string;
+  interestCategory:
+    | 'All Updates'
+    | 'Service & Wraps'
+    | 'Fleet & Yield'
+    | 'Vehicle Drops & Promos';
+  status: 'active' | 'unsubscribed';
+  source: 'home_banner' | 'footer' | 'admin_manual' | 'registered_sync';
+  subscribedAt: string;
 }
 
 export interface TestEmailResult {
@@ -156,6 +177,35 @@ export interface CryptoNetworkInfo {
   memoTag?: string;
 }
 
+export interface TransactionInvoiceItem {
+  name: string;
+  category?: string;
+  quantity: number;
+  unitPriceUsd: number;
+  lineTotalUsd: number;
+}
+
+export interface TransactionInvoiceDetails {
+  invoiceNumber: string;
+  receiptCategory: 'shop_order' | 'service_booking' | 'deposit' | 'withdrawal' | 'investment' | 'reward';
+  customerName: string;
+  customerEmail: string;
+  customerLocation?: string;
+  vehicleName?: string;
+  serviceMode?: string;
+  scheduledDate?: string;
+  timeSlot?: string;
+  location?: string;
+  technicianNotes?: string;
+  paymentMethod: string;
+  couponCode?: string;
+  subtotalUsd: number;
+  discountUsd: number;
+  shippingUsd: number;
+  totalUsd: number;
+  items: TransactionInvoiceItem[];
+}
+
 export interface Transaction {
   id: string;
   type: 'deposit' | 'service_payment' | 'rental_payment' | 'investment_deposit' | 'dividend_claim' | 'promotion_win' | 'scratch_card_purchase' | 'referral_credit';
@@ -166,6 +216,7 @@ export interface Transaction {
   status: 'completed' | 'confirming' | 'pending';
   txHash: string;
   description: string;
+  invoiceData?: TransactionInvoiceDetails;
 }
 
 export interface TeslaVehicle {
@@ -202,6 +253,7 @@ export interface ServiceBooking {
   totalCostUsd: number;
   paidWith: string;
   createdAt: string;
+  invoiceNumber?: string;
 }
 
 export interface RentalVehicle {
@@ -721,15 +773,20 @@ export interface FeatureToggles {
 }
 
 export interface AutoCryptoGateway {
-
   id: string;
   name: string;
+  providerType?: 'standard_node' | 'metamask' | 'trust_wallet';
   network: 'TRC20' | 'ERC20' | 'BTC' | 'ETH' | 'BEP20' | 'XRPL';
   currency: 'USDT' | 'BTC' | 'ETH' | 'BNB' | 'XRP';
   symbol: string;
   receivingAddress: string;
   rpcEndpoint: string;
   webhookSecret: string;
+  chainId?: string;
+  chainName?: string;
+  walletConnectProjectId?: string;
+  supportedTokens?: CryptoCurrency[];
+  description?: string;
   requiredConfirmations: number;
   minDepositUsd: number;
   maxDepositUsd: number;

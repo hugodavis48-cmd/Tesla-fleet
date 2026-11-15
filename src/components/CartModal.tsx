@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
-import { X, Trash2, ShoppingBag, ArrowRight, ShieldCheck, Plus, Tag, Sparkles } from 'lucide-react';
+import { X, Trash2, ShoppingBag, ArrowRight, ShieldCheck, Plus, Tag, Sparkles, CheckCircle2, Download, FileText } from 'lucide-react';
+import { downloadTransactionInvoicePdf } from '../lib/invoicePdf';
+import { Transaction } from '../types';
 
 interface CartModalProps {
   isOpen: boolean;
@@ -10,15 +12,13 @@ interface CartModalProps {
 
 export const CartModal: React.FC<CartModalProps> = ({ isOpen, onClose, onOpenDeposit }) => {
   const {
-    currentUser,
     cart,
     removeFromCart,
     addToCart,
     checkoutCart,
+    lastCheckoutTransaction,
+    currentUser,
     balances,
-    lockedWinBalanceUsd,
-    minDepositToActivateWinsUsd,
-    openWinActivationPopup,
     activeCoupon,
     applyCoupon,
     removeCoupon,
@@ -26,6 +26,23 @@ export const CartModal: React.FC<CartModalProps> = ({ isOpen, onClose, onOpenDep
   } = useApp();
   const [couponInput, setCouponInput] = useState('');
   const [couponError, setCouponError] = useState<string | null>(null);
+  const [awaitingReceiptTx, setAwaitingReceiptTx] = useState(false);
+  const [completedTx, setCompletedTx] = useState<Transaction | null>(null);
+  const downloadedTxIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setAwaitingReceiptTx(false);
+      setCompletedTx(null);
+      return;
+    }
+    if (awaitingReceiptTx && lastCheckoutTransaction && downloadedTxIdRef.current !== lastCheckoutTransaction.id) {
+      downloadedTxIdRef.current = lastCheckoutTransaction.id;
+      setCompletedTx(lastCheckoutTransaction);
+      setAwaitingReceiptTx(false);
+      downloadTransactionInvoicePdf(lastCheckoutTransaction, currentUser);
+    }
+  }, [isOpen, awaitingReceiptTx, lastCheckoutTransaction, currentUser]);
 
   if (!isOpen) return null;
 
@@ -60,16 +77,17 @@ export const CartModal: React.FC<CartModalProps> = ({ isOpen, onClose, onOpenDep
   };
 
   const handleCheckout = () => {
-    if (!hasSufficientBalance && lockedWinBalanceUsd > 0 && (currentUser?.totalDepositedUsd || 0) < minDepositToActivateWinsUsd) {
-      openWinActivationPopup({
-        actionLabel: 'Store Checkout',
-        prizeAmountUsd: lockedWinBalanceUsd,
-      });
-      return;
+    setAwaitingReceiptTx(true);
+    const ok = checkoutCart();
+    if (!ok) {
+      setAwaitingReceiptTx(false);
     }
-    if (checkoutCart()) {
-      onClose();
-    }
+  };
+
+  const handleCloseModal = () => {
+    setCompletedTx(null);
+    setAwaitingReceiptTx(false);
+    onClose();
   };
 
   return (
@@ -78,15 +96,69 @@ export const CartModal: React.FC<CartModalProps> = ({ isOpen, onClose, onOpenDep
         <div className="px-6 py-4 bg-zinc-900 border-b border-zinc-800 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <ShoppingBag className="w-5 h-5 text-red-500" />
-            <h3 className="font-heading font-bold text-lg text-white">Tesla Parts & Accessories Cart</h3>
+            <h3 className="font-heading font-bold text-lg text-white">
+              {completedTx ? 'Order Confirmed & Receipt Issued' : 'Tesla Parts & Accessories Cart'}
+            </h3>
           </div>
-          <button onClick={onClose} className="p-1.5 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800">
+          <button onClick={handleCloseModal} className="p-1.5 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 cursor-pointer">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="p-6 max-h-[50vh] overflow-y-auto space-y-3">
-          {cart.length === 0 ? (
+        <div className="p-6 max-h-[55vh] overflow-y-auto space-y-3">
+          {completedTx ? (
+            <div className="py-4 space-y-5">
+              <div className="flex flex-col items-center text-center space-y-2">
+                <div className="w-12 h-12 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                  <CheckCircle2 className="w-6 h-6" />
+                </div>
+                <h4 className="font-heading font-bold text-lg text-white">Checkout Completed</h4>
+                <p className="text-xs text-zinc-400 max-w-sm">
+                  Your automated formal PDF tax invoice has been generated and saved to your downloads. You can also download it anytime from Dashboard → Wallet.
+                </p>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-zinc-900/90 border border-zinc-800 space-y-2 text-xs font-mono">
+                <div className="flex justify-between items-center">
+                  <span className="text-zinc-500">Invoice Number:</span>
+                  <span className="text-white font-bold">{completedTx.invoiceData?.invoiceNumber || completedTx.id}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-zinc-500">TX Ledger Hash:</span>
+                  <span className="text-zinc-300">{completedTx.txHash}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-zinc-500">Timestamp:</span>
+                  <span className="text-zinc-300">{completedTx.timestamp}</span>
+                </div>
+                <div className="flex justify-between items-center pt-2 border-t border-zinc-800">
+                  <span className="text-zinc-300 font-bold">Total Settled:</span>
+                  <span className="text-emerald-400 font-black text-sm tabular-nums">
+                    {formatCurrency(completedTx.usdEquivalent, { includeCode: true })}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => downloadTransactionInvoicePdf(completedTx, currentUser)}
+                  className="flex-1 py-3 px-4 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Download PDF Invoice Again</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCloseModal}
+                  className="py-3 px-5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>Done</span>
+                </button>
+              </div>
+            </div>
+          ) : cart.length === 0 ? (
             <div className="text-center py-10 space-y-2">
               <ShoppingBag className="w-12 h-12 text-zinc-600 mx-auto" />
               <p className="text-zinc-400 text-sm">Your order cart is currently empty.</p>
@@ -125,7 +197,7 @@ export const CartModal: React.FC<CartModalProps> = ({ isOpen, onClose, onOpenDep
           )}
         </div>
 
-        {cart.length > 0 && (
+        {!completedTx && cart.length > 0 && (
           <div className="p-6 bg-zinc-900/90 border-t border-zinc-800 space-y-4">
             {/* Promo Code Entry Box */}
             <div className="space-y-1.5">
@@ -205,16 +277,6 @@ export const CartModal: React.FC<CartModalProps> = ({ isOpen, onClose, onOpenDep
 
             {!hasSufficientBalance ? (
               <div className="space-y-2">
-                {lockedWinBalanceUsd > 0 && (currentUser?.totalDepositedUsd || 0) < minDepositToActivateWinsUsd && (
-                  <button
-                    type="button"
-                    onClick={handleCheckout}
-                    className="w-full py-3 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 text-white font-heading font-bold text-xs shadow-lg shadow-red-900/40 flex items-center justify-center gap-2 transition cursor-pointer"
-                  >
-                    <span>Pay with Vault &amp; Promotional Winnings</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </button>
-                )}
                 <button
                   onClick={() => {
                     onClose();
@@ -232,14 +294,14 @@ export const CartModal: React.FC<CartModalProps> = ({ isOpen, onClose, onOpenDep
                 onClick={handleCheckout}
                 className="w-full py-3 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 text-white font-heading font-bold text-sm shadow-lg shadow-red-900/40 flex items-center justify-center gap-2 transition cursor-pointer"
               >
-                <span>Instant Checkout from Vault Balance</span>
+                <span>Instant Checkout & Download PDF Invoice</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
             )}
 
             <div className="flex items-center justify-center gap-1 text-[11px] text-zinc-500">
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Includes 2-Year Apex Warranty & Tesla Certified Fitment Guarantee</span>
+              <span>Includes 2-Year Apex Warranty & Automated Sealed PDF Receipt</span>
             </div>
           </div>
         )}

@@ -66,6 +66,11 @@
           "minLength": 0,
           "maxLength": 160
         },
+        "themePreference": {
+          "type": "string",
+          "description": "Persisted light or dark UI theme preference synced across sessions.",
+          "enum": ["dark", "light"]
+        },
         "createdAt": {
           "type": "string",
           "format": "date-time",
@@ -199,6 +204,111 @@
         "uploadedByUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" }
       },
       "required": ["id", "role", "name", "storagePath", "downloadUrl", "contentType", "sizeBytes", "uploadedAt", "uploadedByUid"]
+    },
+    "CatalogProduct": {
+      "title": "CatalogProduct",
+      "description": "Storefront hardware, wrap, wheel, or tech catalog item managed by administrators.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 180 },
+        "category": { "type": "string", "enum": ["Wraps & Film", "Wheels & Performance", "Interior & Yoke", "Aero & Carbon", "Charging & Tech", "Vehicle Sales"] },
+        "priceUsd": { "type": "number" },
+        "rating": { "type": "number" },
+        "reviewsCount": { "type": "number" },
+        "image": { "type": "string", "minLength": 0, "maxLength": 1500 },
+        "description": { "type": "string", "minLength": 0, "maxLength": 2000 },
+        "compatibility": { "type": "string", "minLength": 0, "maxLength": 300 },
+        "inStock": { "type": "boolean" },
+        "updatedByUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "category", "priceUsd", "rating", "reviewsCount", "image", "description", "compatibility", "inStock", "updatedByUid", "updatedAt"]
+    },
+    "PromotionalBanner": {
+      "title": "PromotionalBanner",
+      "description": "Admin-managed 3D/HD promotional marketing banner persisted in Firestore.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 180 },
+        "size": { "type": "string", "enum": ["leaderboard", "square", "rectangle", "sidebar", "billboard", "wide_skyscraper", "social_og", "story", "mobile_banner", "custom"] },
+        "dimensions": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "customWidth": { "type": "number" },
+        "customHeight": { "type": "number" },
+        "imageMode": { "type": "string", "enum": ["single", "multi"] },
+        "transitionEffect": { "type": "string", "enum": ["fade", "slide", "zoom"] },
+        "headline": { "type": "string", "minLength": 1, "maxLength": 240 },
+        "subheadline": { "type": "string", "minLength": 0, "maxLength": 500 },
+        "ctaText": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "badgeText": { "type": "string", "minLength": 0, "maxLength": 80 },
+        "themeGradient": { "type": "string", "minLength": 0, "maxLength": 200 },
+        "accentColor": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "targetTab": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "imageUrl": { "type": "string", "minLength": 0, "maxLength": 1500 },
+        "slideImages": { "type": "array" },
+        "slideIntervalSec": { "type": "number" },
+        "isActive": { "type": "boolean" },
+        "isAiGenerated": { "type": "boolean" },
+        "is3dHd": { "type": "boolean" },
+        "style3dPreset": { "type": "string", "enum": ["cyber_perspective", "holographic_depth", "studio_4k_bevel", "obsidian_neon"] },
+        "resolutionQuality": { "type": "string", "enum": ["4K UHD", "HD 1080p"] },
+        "carRenderModel": { "type": "string", "minLength": 0, "maxLength": 120 },
+        "clicksCount": { "type": "number" },
+        "createdAt": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "updatedByUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "title", "size", "dimensions", "headline", "subheadline", "ctaText", "badgeText", "themeGradient", "accentColor", "targetTab", "imageUrl", "isActive", "isAiGenerated", "is3dHd", "style3dPreset", "resolutionQuality", "carRenderModel", "clicksCount", "createdAt", "updatedByUid", "updatedAt"]
+    },
+    "ManagedUserRecord": {
+      "title": "ManagedUserRecord",
+      "description": "Admin-managed directory record for user accounts, tiers, cumulative deposits, and KYC status.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "email": { "type": "string", "format": "email", "minLength": 3, "maxLength": 200 },
+        "role": { "type": "string", "enum": ["customer", "admin"] },
+        "tier": { "type": "string", "enum": ["Standard", "Plaid Member", "Founders Club"] },
+        "accountStatus": { "type": "string", "enum": ["active", "suspended", "flagged", "banned"] },
+        "kycStatus": { "type": "string", "enum": ["unverified", "in_review", "verified", "rejected"] },
+        "totalDepositedUsd": { "type": "number" },
+        "referralCount": { "type": "number" },
+        "referralEarningsUsd": { "type": "number" },
+        "referralCode": { "type": "string", "minLength": 2, "maxLength": 32 },
+        "location": { "type": "string", "minLength": 0, "maxLength": 120 },
+        "phone": { "type": "string", "minLength": 0, "maxLength": 40 },
+        "bio": { "type": "string", "minLength": 0, "maxLength": 500 },
+        "preferredServiceCenter": { "type": "string", "minLength": 0, "maxLength": 160 },
+        "avatar": { "type": "string", "minLength": 0, "maxLength": 500 },
+        "memberSince": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "walletAddress": { "type": "string", "minLength": 0, "maxLength": 128 },
+        "twoFactorEnabled": { "type": "boolean" },
+        "updatedByUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "email", "role", "tier", "accountStatus", "kycStatus", "totalDepositedUsd", "referralCount", "referralEarningsUsd", "referralCode", "location", "phone", "bio", "preferredServiceCenter", "avatar", "memberSince", "walletAddress", "twoFactorEnabled", "updatedByUid", "updatedAt"]
+    },
+    "NewsletterSubscriber": {
+      "title": "NewsletterSubscriber",
+      "description": "Email mailing list subscriber persisted in Firestore for bulk updates and announcements.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "email": { "type": "string", "format": "email", "minLength": 3, "maxLength": 200 },
+        "name": { "type": "string", "minLength": 0, "maxLength": 120 },
+        "interestCategory": {
+          "type": "string",
+          "enum": ["All Updates", "Service & Wraps", "Fleet & Yield", "Vehicle Drops & Promos"]
+        },
+        "status": { "type": "string", "enum": ["active", "unsubscribed"] },
+        "source": { "type": "string", "enum": ["home_banner", "footer", "admin_manual", "registered_sync"] },
+        "subscribedAt": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "email", "interestCategory", "status", "source", "subscribedAt", "createdAt", "updatedAt"]
     }
   },
   "firestore": {
@@ -225,6 +335,22 @@
     "/media_assets/{assetId}": {
       "schema": { "$ref": "#/entities/MediaAssetRecord" },
       "description": "Metadata registry for Firebase Storage branding uploads (logo, favicon, OG images)."
+    },
+    "/products/{productId}": {
+      "schema": { "$ref": "#/entities/CatalogProduct" },
+      "description": "Publicly readable Tesla parts, wraps, and accessories inventory managed by admins."
+    },
+    "/marketing_banners/{bannerId}": {
+      "schema": { "$ref": "#/entities/PromotionalBanner" },
+      "description": "Publicly readable 3D/HD promotional banners managed by admins."
+    },
+    "/managed_users/{userId}": {
+      "schema": { "$ref": "#/entities/ManagedUserRecord" },
+      "description": "Admin-isolated directory records for full User Management CRUD persistence."
+    },
+    "/newsletter_subscribers/{subscriberId}": {
+      "schema": { "$ref": "#/entities/NewsletterSubscriber" },
+      "description": "Admin-isolated mailing list subscribers collected via NewsletterSignup."
     }
   }
 }

@@ -16,7 +16,12 @@ export interface RuntimeSmtpConfig {
 
 export interface EmailDispatchLog {
   id: string;
-  type: 'registration_welcome' | 'deposit_confirmation' | 'maturity_settlement' | 'test_dispatch';
+  type:
+    | 'registration_welcome'
+    | 'deposit_confirmation'
+    | 'maturity_settlement'
+    | 'test_dispatch'
+    | 'newsletter_bulk';
   recipient: string;
   subject: string;
   amountUsd: number;
@@ -393,3 +398,43 @@ export async function sendMaturityNotificationEmail(params: {
     certificateId: params.certificateId,
   });
 }
+
+export async function sendBulkNewsletterEmail(params: {
+  recipientEmail: string;
+  campaignTitle: string;
+  subject: string;
+  bodyContent: string;
+  smtpOverride?: RuntimeSmtpConfig;
+}) {
+  const safeBodyHtml = params.bodyContent
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\n/g, '<br/>');
+
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 620px; margin: 0 auto; background: #09090b; color: #f4f4f5; padding: 28px; border-radius: 16px; border: 1px solid #27272a;">
+      <div style="border-bottom: 1px solid #27272a; padding-bottom: 14px; margin-bottom: 18px;">
+        <span style="color: #ef4444; font-weight: bold; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase;">Apex Tesla Hub • Dispatch Bulletin</span>
+        <h2 style="margin: 6px 0 0; color: #ffffff; font-size: 20px;">${params.campaignTitle}</h2>
+      </div>
+      <div style="font-size: 14px; color: #d4d4d8; line-height: 1.65;">
+        ${safeBodyHtml}
+      </div>
+      <div style="margin-top: 24px; padding-top: 14px; border-top: 1px solid #27272a; font-size: 11px; color: #71717a;">
+        You are receiving this official update as a registered Apex Tesla Hub member or mailing list subscriber.
+      </div>
+    </div>
+  `;
+
+  return sendSmtpNotification({
+    type: 'newsletter_bulk',
+    to: params.recipientEmail,
+    subject: params.subject,
+    text: params.bodyContent,
+    html,
+    certificateId: `CAMP-${Date.now().toString().slice(-6)}`,
+    smtpOverride: params.smtpOverride,
+  });
+}
+

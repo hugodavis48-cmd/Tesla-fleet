@@ -13,6 +13,21 @@ import {
   saveAdminSectionToFirestore,
   loadGlobalSeoFromFirestore,
   loadAdminSectionsFromFirestore,
+  loadCatalogProductsFromFirestore,
+  saveProductToFirestore,
+  deleteProductFromFirestore,
+  loadMarketingBannersFromFirestore,
+  saveMarketingBannerToFirestore,
+  deleteMarketingBannerFromFirestore,
+  loadManagedUsersFromFirestore,
+  saveManagedUserToFirestore,
+  deleteManagedUserFromFirestore,
+  sanitizeGatewaysForPublic,
+  subscribeNewsletterInFirestore,
+  loadNewsletterSubscribersFromFirestore,
+  updateNewsletterSubscriberInFirestore,
+  deleteNewsletterSubscriberFromFirestore,
+  toNewsletterSubscriberId,
 } from '../lib/firebase';
 import { PageSeoMeta } from '../types';
 import {
@@ -69,6 +84,7 @@ import {
   PromoVideoItem,
   CurrencyConfig,
   BusinessCertificate,
+  NewsletterSubscriber,
 } from '../types';
 import {
   CRYPTO_NETWORKS,
@@ -207,6 +223,23 @@ interface AppContextType {
     mode?: 'set' | 'add' | 'subtract'
   ) => void;
   updateUserStatus: (userId: string, status: 'active' | 'suspended' | 'flagged' | 'banned') => void;
+  createManagedUser: (userData: {
+    name: string;
+    email: string;
+    role?: UserRole;
+    tier?: User['tier'];
+    accountStatus?: User['accountStatus'];
+    kycStatus?: User['kycStatus'];
+    totalDepositedUsd?: number;
+    referralCount?: number;
+    referralEarningsUsd?: number;
+    location?: string;
+    phone?: string;
+    bio?: string;
+    preferredServiceCenter?: string;
+    avatar?: string;
+  }) => User;
+  updateManagedUser: (userId: string, updates: Partial<User>) => void;
   deleteUser: (userId: string) => void;
   // Email Marketing & Mailer
   smtpConfig: SmtpConfig;
@@ -214,18 +247,42 @@ interface AppContextType {
   importedEmails: string[];
   importEmailList: (emails: string[]) => number;
   emailCampaigns: EmailCampaign[];
+  newsletterSubscribers: NewsletterSubscriber[];
+  subscribeToNewsletter: (input: {
+    email: string;
+    name?: string;
+    interestCategory?: NewsletterSubscriber['interestCategory'];
+    source?: NewsletterSubscriber['source'];
+  }) => Promise<{
+    success: boolean;
+    alreadySubscribed?: boolean;
+    subscriber?: NewsletterSubscriber;
+    error?: string;
+  }>;
+  updateNewsletterSubscriber: (
+    id: string,
+    updates: Partial<Pick<NewsletterSubscriber, 'name' | 'interestCategory' | 'status'>>
+  ) => Promise<void>;
+  deleteNewsletterSubscriber: (id: string) => Promise<void>;
+  refreshNewsletterSubscribers: () => Promise<void>;
   sendTestEmail: (recipientEmail: string, simulateScenario?: string) => Promise<TestEmailResult>;
   sendMarketingCampaign: (campaign: {
     title: string;
     subject: string;
+    bodyContent?: string;
     templateId?: string;
-    targetAudience: 'all_users' | 'plaid_members' | 'custom_list' | 'external_leads';
+    targetAudience: EmailCampaign['targetAudience'];
+    interestFilter?: NewsletterSubscriber['interestCategory'] | 'All';
     customRecipients?: string[];
   }) => Promise<{ success: boolean; message: string }>;
   setRole: (role: UserRole) => void;
   toggle2FA: () => void;
   updatePin: (newPin: string) => void;
-  depositFunds: (currency: CryptoCurrency | 'USD', amount: number) => Promise<Transaction>;
+  depositFunds: (
+    currency: CryptoCurrency | 'USD',
+    amount: number,
+    meta?: { gatewayId?: string; gatewayName?: string; txHash?: string; senderAddress?: string }
+  ) => Promise<Transaction>;
   addVehicle: (vehicle: Omit<TeslaVehicle, 'id' | 'userId'>) => void;
   bookService: (booking: Omit<ServiceBooking, 'id' | 'userId' | 'createdAt' | 'progressPercentage' | 'status'>) => ServiceBooking;
   // Investment & ROI Automation
@@ -301,6 +358,7 @@ interface AppContextType {
   addToCart: (product: ProductItem) => void;
   removeFromCart: (productId: string) => void;
   checkoutCart: () => boolean;
+  lastCheckoutTransaction: Transaction | null;
   showToast: (text: string, type?: 'success' | 'info' | 'error') => void;
   // Referral System
   referralLink: string;
@@ -1313,6 +1371,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const saved = localStorage.getItem('apex_transactions');
     return saved ? JSON.parse(saved) : INITIAL_TRANSACTIONS;
   });
+  const [lastCheckoutTransaction, setLastCheckoutTransaction] = useState<Transaction | null>(null);
 
   const [availableSpins, setAvailableSpins] = useState<number>(0);
   const [spinCostUsd, setSpinCostUsd] = useState<number>(() => {
@@ -1392,7 +1451,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [autoCryptoGateways, setAutoCryptoGateways] = useState<AutoCryptoGateway[]>(() => {
     const saved = localStorage.getItem('apex_auto_crypto_gateways');
-    return saved ? JSON.parse(saved) : DEFAULT_AUTO_CRYPTO_GATEWAYS;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved) as AutoCryptoGateway[];
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const deletedRaw = localStorage.getItem('apex_deleted_gateway_ids_v1');
+          const deletedIds = new Set<string>(deletedRaw ? JSON.parse(deletedRaw) : []);
+          const existingIds = new Set(parsed.map((g) => g.id));
+          const missingDefaults = DEFAULT_AUTO_CRYPTO_GATEWAYS.filter(
+            (d) => !existingIds.has(d.id) && !deletedIds.has(d.id)
+          );
+          return [...parsed, ...missingDefaults];
+        }
+      } catch {
+        // fallback below
+      }
+    }
+    return DEFAULT_AUTO_CRYPTO_GATEWAYS;
   });
 
   const [reviews, setReviews] = useState<ReviewItem[]>(() => {
@@ -1475,6 +1550,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [emailCampaigns, setEmailCampaigns] = useState<EmailCampaign[]>(() => {
     const saved = localStorage.getItem('apex_campaigns');
     return saved ? JSON.parse(saved) : INITIAL_CAMPAIGNS;
+  });
+
+  const [newsletterSubscribers, setNewsletterSubscribers] = useState<NewsletterSubscriber[]>(() => {
+    try {
+      const saved = localStorage.getItem('apex_newsletter_subscribers_v1');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {
+      // fallback
+    }
+    return [];
   });
 
   const [recentWinners, setRecentWinners] = useState<WinRecord[]>(MOCK_WINNERS);
@@ -1692,8 +1780,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const saved = localStorage.getItem('apex_business_certificates_v1');
     if (saved) {
       try {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        const parsed = JSON.parse(saved) as BusinessCertificate[];
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const deletedRaw = localStorage.getItem('apex_deleted_cert_ids_v1');
+          const deletedIds = new Set<string>(deletedRaw ? JSON.parse(deletedRaw) : []);
+          const existingIds = new Set(parsed.map((c) => c.id));
+          const missingDefaults = INITIAL_CERTIFICATES.filter(
+            (c) => !existingIds.has(c.id) && !deletedIds.has(c.id)
+          );
+          if (missingDefaults.length > 0) {
+            return [...parsed, ...missingDefaults].sort((a, b) => a.order - b.order);
+          }
+          return parsed;
+        }
       } catch {
         // fallback
       }
@@ -2091,12 +2190,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       if (Array.isArray(sections.auto_gateways) && sections.auto_gateways.length > 0) {
         setAutoCryptoGateways(sections.auto_gateways);
+      } else if (Array.isArray(sections.deposit_gateways) && sections.deposit_gateways.length > 0) {
+        setAutoCryptoGateways(sections.deposit_gateways);
       }
       if (Array.isArray(sections.won_prizes) && sections.won_prizes.length > 0) {
         setWonPrizes(sections.won_prizes);
       }
       if (Array.isArray(sections.business_certificates) && sections.business_certificates.length > 0) {
-        setBusinessCertificates(sections.business_certificates);
+        const remoteCerts = sections.business_certificates as BusinessCertificate[];
+        const deletedRaw = localStorage.getItem('apex_deleted_cert_ids_v1');
+        const deletedIds = new Set<string>(deletedRaw ? JSON.parse(deletedRaw) : []);
+        const existingIds = new Set(remoteCerts.map((c) => c.id));
+        const missingDefaults = INITIAL_CERTIFICATES.filter(
+          (c) => !existingIds.has(c.id) && !deletedIds.has(c.id)
+        );
+        setBusinessCertificates(
+          [...remoteCerts, ...missingDefaults].sort((a, b) => a.order - b.order)
+        );
       }
     };
 
@@ -2120,6 +2230,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (Array.isArray(st.rssFeedItems) && st.rssFeedItems.length > 0) {
             setRssFeedItems(st.rssFeedItems);
           }
+          if (Array.isArray(st.newsletterSubscribers) && st.newsletterSubscribers.length > 0) {
+            setNewsletterSubscribers((prev) => {
+              const merged = new Map<string, NewsletterSubscriber>();
+              prev.forEach((s) => merged.set(s.email.toLowerCase(), s));
+              (st.newsletterSubscribers as NewsletterSubscriber[]).forEach((s) =>
+                merged.set(s.email.toLowerCase(), s)
+              );
+              return Array.from(merged.values());
+            });
+          }
           applyLoadedSections(st);
         }
       } catch {
@@ -2127,11 +2247,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
 
       try {
-        // 2. Hydrate authoritative Firestore SEO + Admin Config sections
-        const [fbSeo, fbSections] = await Promise.all([
-          loadGlobalSeoFromFirestore(),
-          loadAdminSectionsFromFirestore(currentUser?.role === 'admin'),
-        ]);
+        // 2. Hydrate authoritative Firestore SEO + Admin Config + Collection CRUD records
+        const [fbSeo, fbSections, fbProducts, fbBanners, fbUsers, fbSubscribers] =
+          await Promise.all([
+            loadGlobalSeoFromFirestore(),
+            loadAdminSectionsFromFirestore(currentUser?.role === 'admin'),
+            loadCatalogProductsFromFirestore(),
+            loadMarketingBannersFromFirestore(),
+            auth.currentUser ? loadManagedUsersFromFirestore() : Promise.resolve([] as User[]),
+            auth.currentUser
+              ? loadNewsletterSubscribersFromFirestore()
+              : Promise.resolve([] as NewsletterSubscriber[]),
+          ]);
 
         if (fbSeo.globalSeo || fbSeo.pageMeta) {
           setSeoSettings((prev) => ({
@@ -2144,6 +2271,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }));
         }
         applyLoadedSections(fbSections);
+        if (fbProducts.length > 0) {
+          setProductsList(fbProducts);
+        }
+        if (fbBanners.length > 0) {
+          setMarketingBanners(fbBanners);
+        }
+        if (fbUsers.length > 0) {
+          setAllUsers((prev) => {
+            const merged = new Map<string, User>();
+            prev.forEach((u) => merged.set(u.id, u));
+            fbUsers.forEach((u) => {
+              const existing = merged.get(u.id);
+              merged.set(u.id, existing ? { ...existing, ...u } : u);
+            });
+            return Array.from(merged.values());
+          });
+        }
+        if (fbSubscribers.length > 0) {
+          setNewsletterSubscribers((prev) => {
+            const merged = new Map<string, NewsletterSubscriber>();
+            prev.forEach((s) => merged.set(s.email.toLowerCase(), s));
+            fbSubscribers.forEach((s) => merged.set(s.email.toLowerCase(), s));
+            return Array.from(merged.values());
+          });
+        }
       } finally {
         setTimeout(() => {
           isHydratingRemoteRef.current = false;
@@ -2158,6 +2310,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setFirebaseCloudConnected(Boolean(fbUser?.uid));
       if (fbUser) {
         void loadAdminSectionsFromFirestore(currentUser?.role === 'admin').then(applyLoadedSections).catch(() => {});
+        void loadNewsletterSubscribersFromFirestore()
+          .then((fbSubs) => {
+            if (fbSubs.length > 0) {
+              setNewsletterSubscribers((prev) => {
+                const merged = new Map<string, NewsletterSubscriber>();
+                prev.forEach((s) => merged.set(s.email.toLowerCase(), s));
+                fbSubs.forEach((s) => merged.set(s.email.toLowerCase(), s));
+                return Array.from(merged.values());
+              });
+            }
+          })
+          .catch(() => {});
+        void loadManagedUsersFromFirestore()
+          .then((fbUsers) => {
+            if (fbUsers.length > 0) {
+              setAllUsers((prev) => {
+                const merged = new Map<string, User>();
+                prev.forEach((u) => merged.set(u.id, u));
+                fbUsers.forEach((u) => {
+                  const existing = merged.get(u.id);
+                  merged.set(u.id, existing ? { ...existing, ...u } : u);
+                });
+                return Array.from(merged.values());
+              });
+            }
+          })
+          .catch(() => {});
       }
     });
     return () => unsub();
@@ -2166,6 +2345,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     localStorage.setItem('apex_promo_videos_v1', JSON.stringify(promoVideos));
   }, [promoVideos]);
+
+  useEffect(() => {
+    localStorage.setItem(
+      'apex_newsletter_subscribers_v1',
+      JSON.stringify(newsletterSubscribers)
+    );
+  }, [newsletterSubscribers]);
 
   useEffect(() => {
     localStorage.setItem('apex_currencies_v1', JSON.stringify(currencies));
@@ -2408,11 +2594,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       .then((data) => {
         if (data.user) {
           setCurrentUser(data.user);
+          if (data.user.themePreference === 'dark' || data.user.themePreference === 'light') {
+            window.dispatchEvent(new CustomEvent('apex:theme-sync', { detail: data.user.themePreference }));
+          }
         }
       })
       .catch((_err) => {
         // Ignore transient network errors
       });
+  }, [sessionToken]);
+
+  // Persist user theme changes across backend sessions when toggled inside ThemeProvider
+  useEffect(() => {
+    const handleThemeChanged = (event: Event) => {
+      const nextTheme = (event as CustomEvent<unknown>).detail;
+      if (nextTheme !== 'dark' && nextTheme !== 'light') return;
+      setCurrentUser((prev) => (prev ? { ...prev, themePreference: nextTheme } : prev));
+      if (sessionToken) {
+        fetch('/api/auth/profile', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${sessionToken}`,
+          },
+          body: JSON.stringify({ themePreference: nextTheme }),
+        }).catch(() => {});
+      }
+    };
+    window.addEventListener('apex:theme-changed', handleThemeChanged);
+    return () => window.removeEventListener('apex:theme-changed', handleThemeChanged);
   }, [sessionToken]);
 
   const hasAdminPrivilege = (privilege: AdminPrivilege): boolean => {
@@ -2492,6 +2702,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setSessionToken(data.token);
       localStorage.setItem('apex_session_token', data.token);
       setCurrentUser(data.user);
+      if (data.user?.themePreference === 'dark' || data.user?.themePreference === 'light') {
+        window.dispatchEvent(new CustomEvent('apex:theme-sync', { detail: data.user.themePreference }));
+      }
       showToast(data.message || `Welcome back, ${data.user.name}!`, 'success');
       return true;
     } catch {
@@ -2530,6 +2743,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setSessionToken(data.token);
       localStorage.setItem('apex_session_token', data.token);
       setCurrentUser(data.user);
+      if (data.user?.themePreference === 'dark' || data.user?.themePreference === 'light') {
+        window.dispatchEvent(new CustomEvent('apex:theme-sync', { detail: data.user.themePreference }));
+      }
       showToast(data.message || `Admin console unlocked for ${data.user.name}.`, 'success');
       return { success: true };
     } catch {
@@ -2840,6 +3056,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           .replace(/[^A-Z0-9_-]/g, '')
           .substring(0, 32);
 
+      const localTheme: 'dark' | 'light' =
+        localStorage.getItem('apex_tesla_theme') === 'light' ? 'light' : 'dark';
+      let resolvedRemoteTheme: 'dark' | 'light' = localTheme;
+
       try {
         if (!existingSnap.exists()) {
           await setDoc(userDocRef, {
@@ -2855,15 +3075,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             preferredServiceCenter: (
               data.user?.preferredServiceCenter || 'Apex Fremont Technology Center'
             ).substring(0, 160),
+            themePreference: localTheme,
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
           });
         } else {
+          const existingTheme = existingSnap.data()?.themePreference;
+          if (existingTheme === 'dark' || existingTheme === 'light') {
+            resolvedRemoteTheme = existingTheme;
+          }
           await setDoc(
             userDocRef,
             {
               name: (data.user?.name || fbUser.displayName || 'Tesla Member').substring(0, 120),
               avatar: (data.user?.avatar || fbUser.photoURL || '').substring(0, 500),
+              ...(existingTheme !== 'dark' && existingTheme !== 'light'
+                ? { themePreference: localTheme }
+                : {}),
               updatedAt: serverTimestamp(),
             },
             { merge: true }
@@ -2873,9 +3101,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         handleFirestoreError(err, OperationType.WRITE, userDocPath);
       }
 
+      window.dispatchEvent(new CustomEvent('apex:theme-sync', { detail: resolvedRemoteTheme }));
       setSessionToken(data.token);
       localStorage.setItem('apex_session_token', data.token);
-      setCurrentUser(data.user);
+      setCurrentUser({ ...data.user, themePreference: resolvedRemoteTheme });
 
       if (data.isNewUser) {
         if (welcomeCredit > 0) {
@@ -3178,7 +3407,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const depositFunds = async (currency: CryptoCurrency | 'USD', amount: number): Promise<Transaction> => {
+  const depositFunds = async (
+    currency: CryptoCurrency | 'USD',
+    amount: number,
+    meta?: { gatewayId?: string; gatewayName?: string; txHash?: string; senderAddress?: string }
+  ): Promise<Transaction> => {
     if (!requireSignedIn('deposit funds into your vault')) {
       throw new Error('Authentication required to deposit funds.');
     }
@@ -3190,8 +3423,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     const txId = `tx-${Date.now()}`;
-    const txHash = `0x${Math.random().toString(16).substring(2, 14)}...${Math.random().toString(16).substring(2, 6)}`;
+    const txHash =
+      meta?.txHash ||
+      `0x${Math.random().toString(16).substring(2, 14)}...${Math.random().toString(16).substring(2, 6)}`;
     const usdEquivRounded = Math.round(usdValue * 100) / 100;
+
+    const descParts = [
+      meta?.gatewayName || `${currency} Instant Gateway`,
+      'Deposit Confirmed',
+      meta?.senderAddress ? `(${meta.senderAddress.slice(0, 6)}...${meta.senderAddress.slice(-4)})` : '',
+    ].filter(Boolean);
 
     const newTx: Transaction = {
       id: txId,
@@ -3202,8 +3443,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
       status: 'completed',
       txHash,
-      description: `${currency} Instant Gateway Deposit Confirmed`,
+      description: descParts.join(' '),
     };
+
+    if (meta?.gatewayId) {
+      setAutoCryptoGateways((prev) =>
+        prev.map((gw) =>
+          gw.id === meta.gatewayId
+            ? {
+                ...gw,
+                totalProcessedUsd: Number(((gw.totalProcessedUsd || 0) + usdEquivRounded).toFixed(2)),
+                totalTransactionsCount: (gw.totalTransactionsCount || 0) + 1,
+              }
+            : gw
+        )
+      );
+    }
 
     const nextUsdBalance = Number((balances.usd + (currency === 'USD' ? amount : usdValue)).toFixed(2));
     setBalances((prev) => {
@@ -3231,6 +3486,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setAllUsers((prevUsers) =>
         prevUsers.map((u) => (u.id === currentUser.id ? { ...u, totalDepositedUsd: updatedTotal } : u))
       );
+      void saveManagedUserToFirestore(updatedUser);
 
       const lockedAmt = lockedWinsByUserId[currentUser.id] || 0;
       if (updatedTotal >= MIN_DEPOSIT_TO_ACTIVATE_WINS_USD && lockedAmt > 0) {
@@ -3289,9 +3545,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!requireSignedIn('book a service or wrap appointment')) {
       throw new Error('Sign in required to book services.');
     }
+    const bookingId = `srv-${Date.now()}`;
+    const invoiceNumber = `INV-SRV-${bookingId.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(-8)}`;
     const newBooking: ServiceBooking = {
       ...bookingData,
-      id: `srv-${Date.now()}`,
+      id: bookingId,
+      invoiceNumber,
       userId: currentUser?.id || 'usr-default',
       progressPercentage: 10,
       status: 'Scheduled',
@@ -3300,7 +3559,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setServiceBookings((prev) => [newBooking, ...prev]);
 
-    // Record transaction
+    // Record transaction with complete invoice metadata
     const newTx: Transaction = {
       id: `tx-${Date.now()}`,
       type: 'service_payment',
@@ -3311,6 +3570,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       status: 'completed',
       txHash: `0x${Math.random().toString(16).substring(2, 10)}...${Math.random().toString(16).substring(2, 6)}`,
       description: `${bookingData.serviceType} (${bookingData.serviceMode})`,
+      invoiceData: {
+        invoiceNumber,
+        receiptCategory: 'service_booking',
+        customerName: currentUser?.name || 'Tesla Owner',
+        customerEmail: currentUser?.email || 'member@apex-tesla.io',
+        customerLocation: currentUser?.location || bookingData.location,
+        vehicleName: bookingData.vehicleName,
+        serviceMode: bookingData.serviceMode,
+        scheduledDate: bookingData.scheduledDate,
+        timeSlot: bookingData.timeSlot,
+        location: bookingData.location,
+        technicianNotes: bookingData.technicianNotes,
+        paymentMethod: bookingData.paidWith || 'Apex Dashboard Vault',
+        subtotalUsd: bookingData.totalCostUsd,
+        discountUsd: 0,
+        shippingUsd: 0,
+        totalUsd: bookingData.totalCostUsd,
+        items: [
+          {
+            name: bookingData.serviceType,
+            category: `${bookingData.vehicleName} · ${bookingData.serviceMode}`,
+            quantity: 1,
+            unitPriceUsd: bookingData.totalCostUsd,
+            lineTotalUsd: bookingData.totalCostUsd,
+          },
+        ],
+      },
     };
     setTransactions((prev) => [newTx, ...prev]);
 
@@ -3320,7 +3606,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       usd: Math.max(0, prev.usd - bookingData.totalCostUsd),
     }));
 
-    showToast(`Service appointment booked for ${bookingData.vehicleName} on ${bookingData.scheduledDate}!`);
+    showToast(`Service appointment booked for ${bookingData.vehicleName} on ${bookingData.scheduledDate}! PDF invoice generated.`);
     return newBooking;
   };
 
@@ -4003,25 +4289,46 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast('Investment pool removed.', 'info');
   };
 
-  // Catalog Products & Rentals Handlers
+  // Catalog Products & Rentals Handlers (with direct Firestore CRUD persistence)
   const addProductItem = (productData: Omit<ProductItem, 'id'>) => {
     const newProduct: ProductItem = {
       ...productData,
+      rating: productData.rating ?? 4.9,
+      reviewsCount: productData.reviewsCount ?? 1,
       id: `prod-${Date.now()}`,
     };
     setProductsList((prev) => [newProduct, ...prev]);
-    showToast(`Product "${productData.name}" added to shop!`, 'success');
+    void saveProductToFirestore(newProduct).then((res) => {
+      if (res.synced) {
+        setLastFirestoreSyncAt(new Date().toLocaleTimeString());
+      }
+    });
+    showToast(`Product "${productData.name}" saved to catalog!`, 'success');
   };
 
   const updateProductItem = (id: string, updates: Partial<ProductItem>) => {
-    setProductsList((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, ...updates } : p))
-    );
+    setProductsList((prev) => {
+      const next = prev.map((p) => (p.id === id ? { ...p, ...updates } : p));
+      const updated = next.find((p) => p.id === id);
+      if (updated) {
+        void saveProductToFirestore(updated).then((res) => {
+          if (res.synced) {
+            setLastFirestoreSyncAt(new Date().toLocaleTimeString());
+          }
+        });
+      }
+      return next;
+    });
     showToast('Product item updated.', 'success');
   };
 
   const deleteProductItem = (id: string) => {
     setProductsList((prev) => prev.filter((p) => p.id !== id));
+    void deleteProductFromFirestore(id).then((res) => {
+      if (res.synced) {
+        setLastFirestoreSyncAt(new Date().toLocaleTimeString());
+      }
+    });
     showToast('Product deleted from catalog.', 'info');
   };
 
@@ -4052,16 +4359,108 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast('Rental vehicle updated.', 'success');
   };
 
+  const createManagedUser = (userData: {
+    name: string;
+    email: string;
+    role?: UserRole;
+    tier?: User['tier'];
+    accountStatus?: User['accountStatus'];
+    kycStatus?: User['kycStatus'];
+    totalDepositedUsd?: number;
+    referralCount?: number;
+    referralEarningsUsd?: number;
+    location?: string;
+    phone?: string;
+    bio?: string;
+    preferredServiceCenter?: string;
+    avatar?: string;
+  }): User => {
+    const cleanId = `usr_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+    const cleanName = userData.name.trim() || 'Tesla Member';
+    const refPrefix = cleanName.replace(/[^a-zA-Z0-9]/g, '').slice(0, 6).toUpperCase() || 'APEX';
+    const newUser: User = {
+      id: cleanId,
+      name: cleanName,
+      email: userData.email.trim().toLowerCase(),
+      avatar:
+        userData.avatar?.trim() ||
+        `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(cleanName)}`,
+      role: userData.role || 'customer',
+      walletAddress: `0x${Math.random().toString(16).slice(2, 6).toUpperCase()}...${Math.random().toString(16).slice(2, 6).toUpperCase()}`,
+      twoFactorEnabled: false,
+      pinSet: false,
+      memberSince: new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+      tier: userData.tier || 'Standard',
+      accountStatus: userData.accountStatus || 'active',
+      kycStatus: userData.kycStatus || 'unverified',
+      referralCode: `${refPrefix}-${Math.floor(1000 + Math.random() * 8999)}`,
+      referralCount: Math.max(0, Number(userData.referralCount ?? 0)),
+      referralEarningsUsd: Math.max(0, Number(userData.referralEarningsUsd ?? 0)),
+      totalDepositedUsd: Math.max(0, Number(userData.totalDepositedUsd ?? 0)),
+      referredUsers: [],
+      phone: userData.phone || '',
+      bio: userData.bio || '',
+      location: userData.location || 'Austin, TX, USA',
+      preferredServiceCenter: userData.preferredServiceCenter || 'Apex Austin Gigafactory Service Hub',
+      isOnline: false,
+      lastVisitedPath: '/dashboard',
+    };
+    setAllUsers((prev) => [newUser, ...prev]);
+    void saveManagedUserToFirestore(newUser).then((res) => {
+      if (res.synced) {
+        setLastFirestoreSyncAt(new Date().toLocaleTimeString());
+      }
+    });
+    showToast(`User "${newUser.name}" created and saved!`, 'success');
+    return newUser;
+  };
+
+  const updateManagedUser = (userId: string, updates: Partial<User>) => {
+    setAllUsers((prev) => {
+      const next = prev.map((u) => (u.id === userId ? { ...u, ...updates } : u));
+      const updated = next.find((u) => u.id === userId);
+      if (updated) {
+        void saveManagedUserToFirestore(updated).then((res) => {
+          if (res.synced) {
+            setLastFirestoreSyncAt(new Date().toLocaleTimeString());
+          }
+        });
+      }
+      return next;
+    });
+    if (currentUser?.id === userId) {
+      setCurrentUser((prev) => (prev ? { ...prev, ...updates } : null));
+    }
+    showToast('User profile & tier details updated.', 'success');
+  };
+
   const updateUserStatus = (userId: string, status: 'active' | 'suspended' | 'flagged' | 'banned') => {
-    setAllUsers((prev) =>
-      prev.map((u) => (u.id === userId ? { ...u, accountStatus: status } : u))
-    );
+    setAllUsers((prev) => {
+      const next = prev.map((u) => (u.id === userId ? { ...u, accountStatus: status } : u));
+      const updated = next.find((u) => u.id === userId);
+      if (updated) {
+        void saveManagedUserToFirestore(updated).then((res) => {
+          if (res.synced) {
+            setLastFirestoreSyncAt(new Date().toLocaleTimeString());
+          }
+        });
+      }
+      return next;
+    });
+    if (currentUser?.id === userId) {
+      setCurrentUser((prev) => (prev ? { ...prev, accountStatus: status } : null));
+    }
     showToast(`User status updated to ${status}.`, 'info');
   };
 
   const deleteUser = (userId: string) => {
     setAllUsers((prev) => prev.filter((u) => u.id !== userId));
-    showToast('User account removed.', 'info');
+    void deleteManagedUserFromFirestore(userId).then((res) => {
+      if (res.synced) {
+        setLastFirestoreSyncAt(new Date().toLocaleTimeString());
+      }
+    });
+    showToast('User account deleted.', 'info');
   };
 
   // KYC Submission
@@ -4108,8 +4507,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Admin KYC Status Update
   const adminUpdateKyc = (userId: string, status: 'verified' | 'rejected' | 'in_review', reason?: string) => {
-    setAllUsers((prev) =>
-      prev.map((u) => {
+    setAllUsers((prev) => {
+      const next = prev.map((u) => {
         if (u.id === userId) {
           const updatedKyc = u.kycData
             ? {
@@ -4125,8 +4524,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           };
         }
         return u;
-      })
-    );
+      });
+      const updated = next.find((u) => u.id === userId);
+      if (updated) {
+        void saveManagedUserToFirestore(updated).then((res) => {
+          if (res.synced) setLastFirestoreSyncAt(new Date().toLocaleTimeString());
+        });
+      }
+      return next;
+    });
 
     if (currentUser?.id === userId) {
       setCurrentUser((prev) =>
@@ -4281,40 +4687,233 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  // Send Marketing Campaign
+  // Subscribe to Newsletter Mailing List (Firestore + Express Persistence)
+  const subscribeToNewsletter = async (input: {
+    email: string;
+    name?: string;
+    interestCategory?: NewsletterSubscriber['interestCategory'];
+    source?: NewsletterSubscriber['source'];
+  }): Promise<{
+    success: boolean;
+    alreadySubscribed?: boolean;
+    subscriber?: NewsletterSubscriber;
+    error?: string;
+  }> => {
+    const cleanEmail = input.email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+      return { success: false, error: 'Please enter a valid email address.' };
+    }
+
+    const interestCategory = input.interestCategory || 'All Updates';
+    const source = input.source || 'home_banner';
+    const deterministicId = toNewsletterSubscriberId(cleanEmail);
+
+    const locallyKnown = newsletterSubscribers.find(
+      (s) => s.email.toLowerCase() === cleanEmail
+    );
+
+    let alreadySubscribed = Boolean(locallyKnown);
+    let serverSubscriber: NewsletterSubscriber | null = null;
+
+    try {
+      const res = await fetch('/api/newsletter/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: deterministicId,
+          email: cleanEmail,
+          name: input.name || '',
+          interestCategory,
+          source,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        alreadySubscribed = Boolean(data.alreadySubscribed);
+        if (data.subscriber) {
+          serverSubscriber = data.subscriber as NewsletterSubscriber;
+        }
+      }
+    } catch {
+      // Offline/local fallback continues cleanly
+    }
+
+    let finalSubscriber: NewsletterSubscriber =
+      serverSubscriber ||
+      locallyKnown || {
+        id: deterministicId,
+        email: cleanEmail,
+        name: (input.name || '').trim() || undefined,
+        interestCategory,
+        status: 'active',
+        source,
+        subscribedAt: new Date().toISOString().replace('T', ' ').substring(0, 16),
+      };
+
+    // Persist in Firestore (/newsletter_subscribers/{id})
+    if (!alreadySubscribed) {
+      const fsRes = await subscribeNewsletterInFirestore({
+        email: cleanEmail,
+        name: input.name,
+        interestCategory,
+        source,
+      });
+      if (fsRes.synced) {
+        finalSubscriber = fsRes.subscriber;
+      }
+    } else if (auth.currentUser && currentUser?.role === 'admin') {
+      await updateNewsletterSubscriberInFirestore(finalSubscriber, {
+        name: input.name ?? finalSubscriber.name,
+        interestCategory,
+        status: 'active',
+      });
+    }
+
+    setNewsletterSubscribers((prev) => {
+      const idx = prev.findIndex((s) => s.email.toLowerCase() === cleanEmail);
+      if (idx >= 0) {
+        return prev.map((s, i) => (i === idx ? { ...s, ...finalSubscriber, status: 'active' } : s));
+      }
+      return [finalSubscriber, ...prev];
+    });
+
+    showToast(
+      alreadySubscribed
+        ? `${cleanEmail} is already active on the mailing list (preferences updated).`
+        : `${cleanEmail} subscribed to Apex Tesla Hub dispatches!`,
+      'success'
+    );
+    return { success: true, alreadySubscribed, subscriber: finalSubscriber };
+  };
+
+  const updateNewsletterSubscriber = async (
+    id: string,
+    updates: Partial<Pick<NewsletterSubscriber, 'name' | 'interestCategory' | 'status'>>
+  ) => {
+    const existing = newsletterSubscribers.find((s) => s.id === id);
+    setNewsletterSubscribers((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, ...updates } : s))
+    );
+    try {
+      await fetch(`/api/newsletter/subscribers/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+    } catch {
+      // ignore network error
+    }
+    if (existing) {
+      await updateNewsletterSubscriberInFirestore(existing, updates);
+    }
+    showToast('Subscriber record updated.', 'success');
+  };
+
+  const deleteNewsletterSubscriber = async (id: string) => {
+    setNewsletterSubscribers((prev) => prev.filter((s) => s.id !== id));
+    try {
+      await fetch(`/api/newsletter/subscribers/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      });
+    } catch {
+      // ignore network error
+    }
+    await deleteNewsletterSubscriberFromFirestore(id);
+    showToast('Subscriber removed from mailing list.', 'info');
+  };
+
+  const refreshNewsletterSubscribers = async () => {
+    const [serverRes, fbList] = await Promise.all([
+      fetch('/api/newsletter/subscribers')
+        .then((r) => (r.ok ? r.json() : { subscribers: [] }))
+        .catch(() => ({ subscribers: [] })),
+      loadNewsletterSubscribersFromFirestore(),
+    ]);
+    const serverList: NewsletterSubscriber[] = Array.isArray(serverRes?.subscribers)
+      ? serverRes.subscribers
+      : [];
+    setNewsletterSubscribers((prev) => {
+      const merged = new Map<string, NewsletterSubscriber>();
+      prev.forEach((s) => merged.set(s.email.toLowerCase(), s));
+      serverList.forEach((s) => merged.set(s.email.toLowerCase(), s));
+      fbList.forEach((s) => merged.set(s.email.toLowerCase(), s));
+      return Array.from(merged.values()).sort((a, b) =>
+        b.subscribedAt.localeCompare(a.subscribedAt)
+      );
+    });
+    showToast('Mailing list synchronized with Firestore & Server store.', 'info');
+  };
+
+  // Send Marketing & Bulk Update Campaign
   const sendMarketingCampaign = async (campaignData: {
     title: string;
     subject: string;
+    bodyContent?: string;
     templateId?: string;
-    targetAudience: 'all_users' | 'plaid_members' | 'custom_list' | 'external_leads';
+    targetAudience: EmailCampaign['targetAudience'];
+    interestFilter?: NewsletterSubscriber['interestCategory'] | 'All';
     customRecipients?: string[];
   }): Promise<{ success: boolean; message: string }> => {
+    const activeSubscribers = newsletterSubscribers.filter((s) => {
+      if (s.status !== 'active') return false;
+      if (campaignData.interestFilter && campaignData.interestFilter !== 'All') {
+        return s.interestCategory === campaignData.interestFilter || s.interestCategory === 'All Updates';
+      }
+      return true;
+    });
+
     let recipientList: string[] = [];
 
     if (campaignData.targetAudience === 'all_users') {
       recipientList = allUsers.map((u) => u.email);
     } else if (campaignData.targetAudience === 'plaid_members') {
-      recipientList = allUsers.filter((u) => u.tier === 'Plaid Member').map((u) => u.email);
+      recipientList = allUsers
+        .filter((u) => u.tier === 'Plaid Member' || u.tier === 'Founders Club')
+        .map((u) => u.email);
+    } else if (campaignData.targetAudience === 'newsletter_subscribers') {
+      recipientList = activeSubscribers.map((s) => s.email);
+    } else if (campaignData.targetAudience === 'all_registered_and_subscribers') {
+      recipientList = Array.from(
+        new Set([...allUsers.map((u) => u.email), ...activeSubscribers.map((s) => s.email)])
+      );
     } else if (campaignData.targetAudience === 'external_leads') {
       recipientList = importedEmails;
     } else {
-      recipientList = Array.from(new Set([...allUsers.map((u) => u.email), ...importedEmails]));
+      recipientList = Array.from(
+        new Set([
+          ...allUsers.map((u) => u.email),
+          ...activeSubscribers.map((s) => s.email),
+          ...importedEmails,
+        ])
+      );
     }
 
     if (campaignData.customRecipients && campaignData.customRecipients.length > 0) {
       recipientList = Array.from(new Set([...recipientList, ...campaignData.customRecipients]));
     }
 
+    if (recipientList.length === 0) {
+      showToast('No active recipients found for the selected audience.', 'error');
+      return { success: false, message: 'No active recipients found.' };
+    }
+
+    let serverMessage = `Dispatched to ${recipientList.length} recipient(s)`;
     try {
-      await fetch('/api/mailer/send-campaign', {
+      const res = await fetch('/api/mailer/send-campaign', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           campaignTitle: campaignData.title,
           subject: campaignData.subject,
+          bodyHtml: campaignData.bodyContent,
           recipients: recipientList,
+          smtpConfig,
         }),
       });
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.message) serverMessage = data.message;
+      }
     } catch {
       // Local simulated fallback
     }
@@ -4328,13 +4927,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       recipientsCount: recipientList.length,
       sentAt: new Date().toISOString().replace('T', ' ').substring(0, 16),
       status: 'sent',
-      openRate: 52.4,
-      clickRate: 21.8,
+      openRate: 54.2,
+      clickRate: 23.1,
     };
 
     setEmailCampaigns((prev) => [newCampaign, ...prev]);
-    showToast(`Campaign "${campaignData.title}" dispatched to ${recipientList.length} recipient(s)!`, 'success');
-    return { success: true, message: `Dispatched to ${recipientList.length} subscribers` };
+    showToast(
+      `Campaign "${campaignData.title}" dispatched to ${recipientList.length} recipient(s)!`,
+      'success'
+    );
+    return { success: true, message: serverMessage };
   };
 
   // Paid Spin — Configurable spinCostUsd and admin-editable wheel slice rewards
@@ -5073,32 +5675,77 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // ==========================================
-  // AUTOMATED CRYPTO PAYMENT GATEWAYS CMS
+  // AUTOMATED CRYPTO & WEB3 PAYMENT GATEWAYS CMS
   // ==========================================
 
+  const persistGatewaysNow = (nextGateways: AutoCryptoGateway[]) => {
+    const publicCopy = sanitizeGatewaysForPublic(nextGateways);
+    localStorage.setItem('apex_auto_crypto_gateways', JSON.stringify(nextGateways));
+    fetch('/api/admin/state', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sections: {
+          auto_gateways: nextGateways,
+          deposit_gateways: publicCopy,
+        },
+      }),
+    }).catch(() => {});
+
+    if (auth.currentUser) {
+      void saveAdminSectionToFirestore('auto_gateways', nextGateways);
+      void saveAdminSectionToFirestore('deposit_gateways', publicCopy);
+    }
+  };
+
   const updateAutoCryptoGateway = (id: string, updates: Partial<AutoCryptoGateway>) => {
-    setAutoCryptoGateways((prev) =>
-      prev.map((gw) => (gw.id === id ? { ...gw, ...updates } : gw))
-    );
-    showToast('Auto crypto gateway updated & synchronized successfully!', 'success');
+    setAutoCryptoGateways((prev) => {
+      const next = prev.map((gw) => (gw.id === id ? { ...gw, ...updates } : gw));
+      persistGatewaysNow(next);
+      return next;
+    });
+    showToast('Payment gateway updated & synchronized successfully!', 'success');
   };
 
   const addAutoCryptoGateway = (gateway: Omit<AutoCryptoGateway, 'id' | 'totalProcessedUsd' | 'totalTransactionsCount'>) => {
+    const prefix =
+      gateway.providerType === 'metamask'
+        ? 'gw-metamask'
+        : gateway.providerType === 'trust_wallet'
+        ? 'gw-trust'
+        : `gw-${gateway.network.toLowerCase()}`;
     const newGw: AutoCryptoGateway = {
       ...gateway,
-      id: `gw-${gateway.network.toLowerCase()}-${Date.now().toString(36)}`,
+      id: `${prefix}-${Date.now().toString(36)}`,
       totalProcessedUsd: 0,
       totalTransactionsCount: 0,
       lastPingSuccess: true,
       lastPingAt: new Date().toISOString(),
     };
-    setAutoCryptoGateways((prev) => [...prev, newGw]);
-    showToast(`Added new auto gateway: ${newGw.name}`, 'success');
+    setAutoCryptoGateways((prev) => {
+      const next = [...prev, newGw];
+      persistGatewaysNow(next);
+      return next;
+    });
+    showToast(`Added new gateway: ${newGw.name}`, 'success');
   };
 
   const deleteAutoCryptoGateway = (id: string) => {
-    setAutoCryptoGateways((prev) => prev.filter((gw) => gw.id !== id));
-    showToast('Auto crypto gateway removed.', 'info');
+    try {
+      const raw = localStorage.getItem('apex_deleted_gateway_ids_v1');
+      const existing: string[] = raw ? JSON.parse(raw) : [];
+      if (!existing.includes(id)) {
+        localStorage.setItem('apex_deleted_gateway_ids_v1', JSON.stringify([...existing, id]));
+      }
+    } catch {
+      // ignore
+    }
+    setAutoCryptoGateways((prev) => {
+      const next = prev.filter((gw) => gw.id !== id);
+      persistGatewaysNow(next);
+      return next;
+    });
+    showToast('Payment gateway removed.', 'info');
   };
 
   const testAutoCryptoGatewayPing = async (id: string): Promise<{ success: boolean; latencyMs: number; message: string }> => {
@@ -5395,34 +6042,79 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const checkoutCart = (): boolean => {
     if (!requireSignedIn('complete product checkout')) return false;
-    const total = cart.reduce((acc, item) => acc + item.product.priceUsd * item.quantity, 0);
-    if (balances.usd < total) {
-      if ((currentUser?.totalDepositedUsd || 0) < MIN_DEPOSIT_TO_ACTIVATE_WINS_USD && lockedWinBalanceUsd > 0) {
-        openWinActivationPopup({
-          actionLabel: 'Store Checkout',
-          prizeAmountUsd: lockedWinBalanceUsd,
-        });
+    if (cart.length === 0) return false;
+
+    const subtotalUsd = cart.reduce((acc, item) => acc + item.product.priceUsd * item.quantity, 0);
+    let discountUsd = 0;
+    let appliedCouponCode: string | undefined;
+
+    if (activeCoupon && (activeCoupon.validFor === 'all' || activeCoupon.validFor === 'products')) {
+      if (activeCoupon.discountType === 'percentage') {
+        discountUsd = (subtotalUsd * activeCoupon.discountValue) / 100;
+        if (activeCoupon.maxDiscountUsd && discountUsd > activeCoupon.maxDiscountUsd) {
+          discountUsd = activeCoupon.maxDiscountUsd;
+        }
+      } else if (activeCoupon.discountType === 'fixed_usd') {
+        discountUsd = Math.min(subtotalUsd, activeCoupon.discountValue);
       }
-      showToast(`Cart total is $${total.toLocaleString()}, but wallet balance is $${balances.usd.toFixed(2)}. Please make a deposit.`, 'error');
+      if (discountUsd > 0) {
+        appliedCouponCode = activeCoupon.code;
+      }
+    }
+
+    const finalTotalUsd = Math.max(0, Number((subtotalUsd - discountUsd).toFixed(2)));
+    if (balances.usd < finalTotalUsd) {
+      showToast(
+        `Cart total is $${finalTotalUsd.toLocaleString()}, but wallet balance is $${balances.usd.toFixed(2)}. Please make a deposit.`,
+        'error'
+      );
       return false;
     }
 
-    setBalances((prev) => ({ ...prev, usd: prev.usd - total }));
+    setBalances((prev) => ({ ...prev, usd: Number((prev.usd - finalTotalUsd).toFixed(2)) }));
+
+    const txId = `tx-${Date.now()}`;
+    const invoiceNumber = `INV-SHOP-${txId.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(-8)}`;
+    const itemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
     const newTx: Transaction = {
-      id: `tx-${Date.now()}`,
+      id: txId,
       type: 'service_payment',
       currency: 'USD',
-      amount: total,
-      usdEquivalent: total,
+      amount: finalTotalUsd,
+      usdEquivalent: finalTotalUsd,
       timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
       status: 'completed',
       txHash: `0x${Math.random().toString(16).substring(2, 10)}...sh`,
-      description: `Apex Store Hardware & Accessories Order (${cart.length} items)`,
+      description: `Apex Store Hardware & Accessories Order (${itemCount} item${itemCount === 1 ? '' : 's'})`,
+      invoiceData: {
+        invoiceNumber,
+        receiptCategory: 'shop_order',
+        customerName: currentUser?.name || 'Tesla Owner',
+        customerEmail: currentUser?.email || 'member@apex-tesla.io',
+        customerLocation: currentUser?.location || 'Nationwide Insured Courier Dispatch',
+        paymentMethod: 'Apex Dashboard Vault (USD)',
+        couponCode: appliedCouponCode,
+        subtotalUsd,
+        discountUsd,
+        shippingUsd: 0,
+        totalUsd: finalTotalUsd,
+        items: cart.map((item) => ({
+          name: item.product.name,
+          category: item.product.category,
+          quantity: item.quantity,
+          unitPriceUsd: item.product.priceUsd,
+          lineTotalUsd: Number((item.product.priceUsd * item.quantity).toFixed(2)),
+        })),
+      },
     };
     setTransactions((prev) => [newTx, ...prev]);
+    setLastCheckoutTransaction(newTx);
     setCart([]);
-    showToast(`Order processed for $${total.toLocaleString()}! Hardware dispatch tracking sent to email.`, 'success');
+    if (appliedCouponCode) {
+      setActiveCoupon(null);
+    }
+    showToast(`Order processed for $${finalTotalUsd.toLocaleString()}! Automated PDF invoice (${invoiceNumber}) downloaded.`, 'success');
     return true;
   };
 
@@ -5924,7 +6616,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast('TSLA price alert re-armed for live monitoring.', 'info');
   };
 
-  // Promotional Marketing Banners CMS
+  // Promotional Marketing Banners CMS (with direct Firestore CRUD persistence)
   const createMarketingBanner = (
     bannerData: Omit<MarketingBanner, 'id' | 'createdAt' | 'clicksCount'>
   ): MarketingBanner => {
@@ -5935,19 +6627,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdAt: new Date().toISOString().split('T')[0],
     };
     setMarketingBanners((prev) => [created, ...prev]);
+    void saveMarketingBannerToFirestore(created).then((res) => {
+      if (res.synced) {
+        setLastFirestoreSyncAt(new Date().toLocaleTimeString());
+      }
+    });
     showToast(`Promotional banner "${created.title}" published!`, 'success');
     return created;
   };
 
   const updateMarketingBanner = (id: string, updates: Partial<MarketingBanner>) => {
-    setMarketingBanners((prev) =>
-      prev.map((b) => (b.id === id ? { ...b, ...updates } : b))
-    );
+    setMarketingBanners((prev) => {
+      const next = prev.map((b) => (b.id === id ? { ...b, ...updates } : b));
+      const updated = next.find((b) => b.id === id);
+      if (updated) {
+        void saveMarketingBannerToFirestore(updated).then((res) => {
+          if (res.synced) {
+            setLastFirestoreSyncAt(new Date().toLocaleTimeString());
+          }
+        });
+      }
+      return next;
+    });
     showToast('Promotional banner updated.', 'success');
   };
 
   const deleteMarketingBanner = (id: string) => {
     setMarketingBanners((prev) => prev.filter((b) => b.id !== id));
+    void deleteMarketingBannerFromFirestore(id).then((res) => {
+      if (res.synced) {
+        setLastFirestoreSyncAt(new Date().toLocaleTimeString());
+      }
+    });
     showToast('Promotional banner deleted.', 'info');
   };
 
@@ -5971,13 +6682,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     if (paymentMethod === 'wallet_usd') {
       if (balances.usd < totalRequired) {
-        if ((currentUser?.totalDepositedUsd || 0) < MIN_DEPOSIT_TO_ACTIVATE_WINS_USD) {
-          openWinActivationPopup({
-            actionLabel: 'Won Prize Fee Settlement',
-            prizeLabel: prize.title,
-            prizeAmountUsd: lockedWinBalanceUsd > 0 ? lockedWinBalanceUsd : undefined,
-          });
-        }
         const msg = `Insufficient spendable USD balance ($${balances.usd.toFixed(2)}). Required processing, export documentation & freight total: $${totalRequired.toLocaleString()}.`;
         showToast(msg, 'error');
         return { success: false, message: msg };
@@ -6092,6 +6796,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     spin_cost: spinCostUsd,
     smtp_config: smtpConfig,
     auto_gateways: autoCryptoGateways,
+    deposit_gateways: sanitizeGatewaysForPublic(autoCryptoGateways),
     won_prizes: wonPrizes,
     business_certificates: businessCertificates,
   });
@@ -6146,6 +6851,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deleteBusinessCertificate = (id: string) => {
+    try {
+      const deletedRaw = localStorage.getItem('apex_deleted_cert_ids_v1');
+      const deletedList: string[] = deletedRaw ? JSON.parse(deletedRaw) : [];
+      if (!deletedList.includes(id)) {
+        localStorage.setItem('apex_deleted_cert_ids_v1', JSON.stringify([...deletedList, id]));
+      }
+    } catch {
+      // ignore localStorage error
+    }
     setBusinessCertificates((prev) => {
       const next = prev
         .filter((cert) => cert.id !== id)
@@ -6172,6 +6886,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const resetBusinessCertificates = () => {
+    try {
+      localStorage.removeItem('apex_deleted_cert_ids_v1');
+    } catch {
+      // ignore
+    }
     setBusinessCertificates(INITIAL_CERTIFICATES);
     void saveBusinessCertificatesNow(INITIAL_CERTIFICATES);
     showToast('Certificates registry restored to official defaults.', 'info');
@@ -6223,12 +6942,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         );
       }
 
-      await Promise.all(
-        entries.map(async ([sectionId, payload]) => {
+      await Promise.all([
+        ...entries.map(async ([sectionId, payload]) => {
           const r = await saveAdminSectionToFirestore(sectionId, payload);
           if (r.synced) syncedCount += 1;
-        })
-      );
+        }),
+        ...productsList.map((prod) => saveProductToFirestore(prod)),
+        ...marketingBanners.map((banner) => saveMarketingBannerToFirestore(banner)),
+        ...allUsers.map((usr) => saveManagedUserToFirestore(usr)),
+      ]);
 
       setLastFirestoreSyncAt(new Date().toLocaleTimeString());
       if (!quiet) {
@@ -6548,6 +7270,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         importedEmails,
         importEmailList,
         emailCampaigns,
+        newsletterSubscribers,
+        subscribeToNewsletter,
+        updateNewsletterSubscriber,
+        deleteNewsletterSubscriber,
+        refreshNewsletterSubscribers,
         sendTestEmail,
         sendMarketingCampaign,
         setRole,
@@ -6610,6 +7337,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateScratchCardTier,
         deleteScratchCardTier,
         updateUserStatus,
+        createManagedUser,
+        updateManagedUser,
         deleteUser,
         executeSpin,
         purchaseScratchCard,
@@ -6618,6 +7347,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addToCart,
         removeFromCart,
         checkoutCart,
+        lastCheckoutTransaction,
         showToast,
         referralLink,
         updateReferralCode,

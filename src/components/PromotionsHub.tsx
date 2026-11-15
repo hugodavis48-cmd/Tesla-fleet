@@ -41,8 +41,6 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
     wheelRewards,
     scratchCardTiers,
     siteSettings,
-    minDepositToActivateWinsUsd,
-    openWinActivationPopup,
   } = useApp();
 
   const [isSpinning, setIsSpinning] = useState(false);
@@ -210,13 +208,6 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
         );
       } else {
         showToast(`WINNER! You landed on: ${result.prize} (+$${result.valueUsd.toLocaleString()})!`, 'success');
-        if (result.valueUsd > 0 && (currentUser?.totalDepositedUsd || 0) < minDepositToActivateWinsUsd) {
-          openWinActivationPopup({
-            actionLabel: 'Spin-the-Wheel Cash Win',
-            prizeLabel: result.prize,
-            prizeAmountUsd: result.valueUsd,
-          });
-        }
       }
     }, 4200);
   };

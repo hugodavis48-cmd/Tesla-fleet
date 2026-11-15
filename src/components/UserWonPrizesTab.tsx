@@ -50,9 +50,6 @@ export const UserWonPrizesTab: React.FC<UserWonPrizesTabProps> = ({ onOpenDeposi
     currentUser,
     wonPrizes,
     balances,
-    lockedWinBalanceUsd,
-    minDepositToActivateWinsUsd,
-    openWinActivationPopup,
     submitWonPrizeShippingAndPayFees,
     formatCurrency,
     selectedCurrencyCode,
@@ -120,12 +117,11 @@ export const UserWonPrizesTab: React.FC<UserWonPrizesTabProps> = ({ onOpenDeposi
     const totalFees = Number(
       ((prize.processingFeeUsd || 0) + (prize.shippingDocFeeUsd || 0) + (prize.shippingFreightFeeUsd || 0)).toFixed(2)
     );
-    if (balances.usd < totalFees && (currentUser?.totalDepositedUsd || 0) < minDepositToActivateWinsUsd) {
-      openWinActivationPopup({
-        actionLabel: 'Won Prize Fee Settlement',
-        prizeLabel: prize.title,
-        prizeAmountUsd: lockedWinBalanceUsd > 0 ? lockedWinBalanceUsd : undefined,
-      });
+    if (balances.usd < totalFees) {
+      showToast(
+        `Insufficient wallet balance ($${balances.usd.toFixed(2)}). Please deposit at least $${totalFees.toLocaleString()} to cover shipping & documentation fees.`,
+        'error'
+      );
       return;
     }
 
@@ -496,7 +492,7 @@ export const UserWonPrizesTab: React.FC<UserWonPrizesTabProps> = ({ onOpenDeposi
                         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-2">
                           <button
                             type="button"
-                            disabled={submittingId === prize.id || (!hasEnoughBalance && (currentUser?.totalDepositedUsd || 0) >= minDepositToActivateWinsUsd)}
+                            disabled={submittingId === prize.id || !hasEnoughBalance}
                             onClick={() => handlePayAndShip(prize, 'wallet_usd')}
                             className="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 disabled:opacity-45 disabled:cursor-not-allowed text-white font-heading font-bold text-xs shadow-lg shadow-emerald-950/40 flex items-center justify-center gap-2 transition cursor-pointer"
                           >

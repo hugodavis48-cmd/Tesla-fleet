@@ -62,6 +62,76 @@
   animation: pulse-subtle 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
+/* Certificate Slider Spring Bounce Animations (compositor-only transform & opacity) */
+@keyframes certBounceNext {
+  0% {
+    opacity: 0;
+    transform: translate3d(40px, 0, 0) scale(0.96);
+  }
+  62% {
+    opacity: 1;
+    transform: translate3d(-7px, -4px, 0) scale(1.015);
+  }
+  82% {
+    transform: translate3d(3px, 1px, 0) scale(0.996);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes certBouncePrev {
+  0% {
+    opacity: 0;
+    transform: translate3d(-40px, 0, 0) scale(0.96);
+  }
+  62% {
+    opacity: 1;
+    transform: translate3d(7px, -4px, 0) scale(1.015);
+  }
+  82% {
+    transform: translate3d(-3px, 1px, 0) scale(0.996);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes certBadgeSpring {
+  0% {
+    transform: scale(0.9);
+  }
+  55% {
+    transform: scale(1.08);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.animate-cert-bounce-next {
+  animation: certBounceNext 540ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-cert-bounce-prev {
+  animation: certBouncePrev 540ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-cert-badge-spring {
+  animation: certBadgeSpring 420ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-cert-bounce-next,
+  .animate-cert-bounce-prev,
+  .animate-cert-badge-spring {
+    animation: none !important;
+  }
+}
+
+
 /* =========================================================================
    High-Contrast Light Theme Overrides
    ========================================================================= */

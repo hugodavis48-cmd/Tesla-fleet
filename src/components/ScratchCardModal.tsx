@@ -24,15 +24,13 @@ function pickWeightedPrize(tier: ScratchCardTier): ScratchPrizeOption {
 }
 
 export const ScratchCardModal: React.FC<ScratchCardModalProps> = ({ tier, isOpen, onClose }) => {
-  const { awardScratchPrize, currentUser, minDepositToActivateWinsUsd, openWinActivationPopup } = useApp();
+  const { awardScratchPrize } = useApp();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [isScratching, setIsScratching] = useState(false);
   const [scratchedPercentage, setScratchedPercentage] = useState(0);
   const [revealed, setRevealed] = useState(false);
   const [assignedPrize, setAssignedPrize] = useState<ScratchPrizeOption>(() => pickWeightedPrize(tier));
   const [verifyHash, setVerifyHash] = useState<string>(() => Math.random().toString(16).substring(2, 8));
-  const popupTriggeredRef = useRef(false);
-  const popupTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -40,14 +38,7 @@ export const ScratchCardModal: React.FC<ScratchCardModalProps> = ({ tier, isOpen
       setScratchedPercentage(0);
       setAssignedPrize(pickWeightedPrize(tier));
       setVerifyHash(Math.random().toString(16).substring(2, 8));
-      popupTriggeredRef.current = false;
     }
-    return () => {
-      if (popupTimerRef.current !== null) {
-        window.clearTimeout(popupTimerRef.current);
-        popupTimerRef.current = null;
-      }
-    };
   }, [isOpen, tier]);
 
   // Audio synthesis for scratching sound
@@ -193,40 +184,9 @@ export const ScratchCardModal: React.FC<ScratchCardModalProps> = ({ tier, isOpen
       vehicleModel: assignedPrize.vehicleModel,
       isTryAgain: assignedPrize.isTryAgain || assignedPrize.amountUsd <= 0,
     });
-
-    const isCashWinOutcome =
-      !assignedPrize.isTeslaCar && !assignedPrize.isTryAgain && assignedPrize.amountUsd > 0;
-    const needsDeposit = (currentUser?.totalDepositedUsd || 0) < minDepositToActivateWinsUsd;
-    if (isCashWinOutcome && needsDeposit) {
-      popupTimerRef.current = window.setTimeout(() => {
-        if (!popupTriggeredRef.current) {
-          popupTriggeredRef.current = true;
-          openWinActivationPopup({
-            actionLabel: 'Scratch & Win Cash Prize',
-            prizeLabel: assignedPrize.label,
-            prizeAmountUsd: assignedPrize.amountUsd,
-          });
-        }
-      }, 750);
-    }
   };
 
   const handleCloseModal = () => {
-    if (popupTimerRef.current !== null) {
-      window.clearTimeout(popupTimerRef.current);
-      popupTimerRef.current = null;
-    }
-    const isCashWinOutcome =
-      revealed && !assignedPrize.isTeslaCar && !assignedPrize.isTryAgain && assignedPrize.amountUsd > 0;
-    const needsDeposit = (currentUser?.totalDepositedUsd || 0) < minDepositToActivateWinsUsd;
-    if (isCashWinOutcome && needsDeposit && !popupTriggeredRef.current) {
-      popupTriggeredRef.current = true;
-      openWinActivationPopup({
-        actionLabel: 'Scratch & Win Cash Prize',
-        prizeLabel: assignedPrize.label,
-        prizeAmountUsd: assignedPrize.amountUsd,
-      });
-    }
     onClose();
   };
 

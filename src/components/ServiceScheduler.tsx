@@ -14,6 +14,7 @@ import {
   AlertCircle,
   Car,
 } from 'lucide-react';
+import { downloadServiceInvoicePdf } from '../lib/invoicePdf';
 
 interface ServiceSchedulerProps {
   onOpenDeposit: () => void;
@@ -108,21 +109,24 @@ export const ServiceScheduler: React.FC<ServiceSchedulerProps> = ({
     const vehicleName = vehicleObj ? `${vehicleObj.model} (${vehicleObj.trim})` : customModel;
 
     setTimeout(() => {
-      bookService({
-        vehicleId: vehicleObj?.id || `veh-${Date.now()}`,
-        vehicleName,
-        serviceType: selectedService.name,
-        serviceMode,
-        scheduledDate,
-        timeSlot,
-        location: serviceMode === 'Apex Center Bay' ? customerLocation : 'Client Specified Address (Mobile Ranger)',
-        technicianNotes: technicianNotes || 'Standard service intake requested with telemetry scan.',
-        totalCostUsd: selectedService.price,
-        paidWith: 'Apex Dashboard Vault',
-      });
-
-      setIsSubmitting(false);
-      onNavigateToDashboard();
+      try {
+        const booked = bookService({
+          vehicleId: vehicleObj?.id || `veh-${Date.now()}`,
+          vehicleName,
+          serviceType: selectedService.name,
+          serviceMode,
+          scheduledDate,
+          timeSlot,
+          location: serviceMode === 'Apex Center Bay' ? customerLocation : 'Client Specified Address (Mobile Ranger)',
+          technicianNotes: technicianNotes || 'Standard service intake requested with telemetry scan.',
+          totalCostUsd: selectedService.price,
+          paidWith: 'Apex Dashboard Vault',
+        });
+        downloadServiceInvoicePdf(booked, currentUser);
+      } finally {
+        setIsSubmitting(false);
+        onNavigateToDashboard();
+      }
     }, 1000);
   };
 

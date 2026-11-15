@@ -62,6 +62,7 @@ service cloud.firestore {
           'bio',
           'location',
           'preferredServiceCenter',
+          'themePreference',
           'createdAt',
           'updatedAt'
         ]) &&
@@ -77,6 +78,7 @@ service cloud.firestore {
         (!('bio' in data) || (data.bio is string && data.bio.size() <= 500)) &&
         (!('location' in data) || (data.location is string && data.location.size() <= 120)) &&
         (!('preferredServiceCenter' in data) || (data.preferredServiceCenter is string && data.preferredServiceCenter.size() <= 160)) &&
+        (!('themePreference' in data) || data.themePreference in ['dark', 'light']) &&
         data.createdAt is timestamp &&
         data.updatedAt is timestamp;
     }
@@ -210,6 +212,8 @@ service cloud.firestore {
         'wheel_rewards',
         'scratch_tiers',
         'manual_deposits',
+        'deposit_gateways',
+        'business_certificates',
         'social_links',
         'spin_cost'
       ];
@@ -286,6 +290,7 @@ service cloud.firestore {
           'location',
           'preferredServiceCenter',
           'referralCode',
+          'themePreference',
           'updatedAt'
         ]);
 
@@ -354,6 +359,313 @@ service cloud.firestore {
         incoming().uploadedByUid == request.auth.uid;
 
       allow delete: if isValidId(assetId) && isAdmin();
+    }
+
+    function isValidCatalogProduct(data) {
+      return data.keys().hasAll([
+          'id',
+          'name',
+          'category',
+          'priceUsd',
+          'rating',
+          'reviewsCount',
+          'image',
+          'description',
+          'compatibility',
+          'inStock',
+          'updatedByUid',
+          'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id',
+          'name',
+          'category',
+          'priceUsd',
+          'rating',
+          'reviewsCount',
+          'image',
+          'description',
+          'compatibility',
+          'inStock',
+          'updatedByUid',
+          'updatedAt'
+        ]) &&
+        isValidId(data.id) &&
+        data.name is string && data.name.size() >= 1 && data.name.size() <= 180 &&
+        data.category in ['Wraps & Film', 'Wheels & Performance', 'Interior & Yoke', 'Aero & Carbon', 'Charging & Tech', 'Vehicle Sales'] &&
+        data.priceUsd is number && data.priceUsd >= 0 && data.priceUsd <= 10000000 &&
+        data.rating is number && data.rating >= 0 && data.rating <= 5 &&
+        data.reviewsCount is number && data.reviewsCount >= 0 && data.reviewsCount <= 1000000 &&
+        data.image is string && data.image.size() <= 1500 &&
+        data.description is string && data.description.size() <= 2000 &&
+        data.compatibility is string && data.compatibility.size() <= 300 &&
+        data.inStock is bool &&
+        isValidId(data.updatedByUid) &&
+        data.updatedByUid == request.auth.uid &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidMarketingBanner(data) {
+      return data.keys().hasAll([
+          'id',
+          'title',
+          'size',
+          'dimensions',
+          'headline',
+          'subheadline',
+          'ctaText',
+          'badgeText',
+          'themeGradient',
+          'accentColor',
+          'targetTab',
+          'imageUrl',
+          'isActive',
+          'isAiGenerated',
+          'is3dHd',
+          'style3dPreset',
+          'resolutionQuality',
+          'carRenderModel',
+          'clicksCount',
+          'createdAt',
+          'updatedByUid',
+          'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id',
+          'title',
+          'size',
+          'dimensions',
+          'customWidth',
+          'customHeight',
+          'imageMode',
+          'transitionEffect',
+          'headline',
+          'subheadline',
+          'ctaText',
+          'badgeText',
+          'themeGradient',
+          'accentColor',
+          'targetTab',
+          'imageUrl',
+          'slideImages',
+          'slideIntervalSec',
+          'isActive',
+          'isAiGenerated',
+          'is3dHd',
+          'style3dPreset',
+          'resolutionQuality',
+          'carRenderModel',
+          'clicksCount',
+          'createdAt',
+          'updatedByUid',
+          'updatedAt'
+        ]) &&
+        isValidId(data.id) &&
+        data.title is string && data.title.size() >= 1 && data.title.size() <= 180 &&
+        data.size in ['leaderboard', 'square', 'rectangle', 'sidebar', 'billboard', 'wide_skyscraper', 'social_og', 'story', 'mobile_banner', 'custom'] &&
+        data.dimensions is string && data.dimensions.size() >= 1 && data.dimensions.size() <= 64 &&
+        (!('customWidth' in data) || (data.customWidth is number && data.customWidth >= 50 && data.customWidth <= 8000)) &&
+        (!('customHeight' in data) || (data.customHeight is number && data.customHeight >= 50 && data.customHeight <= 8000)) &&
+        (!('imageMode' in data) || data.imageMode in ['single', 'multi']) &&
+        (!('transitionEffect' in data) || data.transitionEffect in ['fade', 'slide', 'zoom']) &&
+        data.headline is string && data.headline.size() >= 1 && data.headline.size() <= 240 &&
+        data.subheadline is string && data.subheadline.size() <= 500 &&
+        data.ctaText is string && data.ctaText.size() >= 1 && data.ctaText.size() <= 80 &&
+        data.badgeText is string && data.badgeText.size() <= 80 &&
+        data.themeGradient is string && data.themeGradient.size() <= 200 &&
+        data.accentColor is string && data.accentColor.size() >= 1 && data.accentColor.size() <= 40 &&
+        data.targetTab is string && data.targetTab.size() >= 1 && data.targetTab.size() <= 64 &&
+        data.imageUrl is string && data.imageUrl.size() <= 1500 &&
+        (!('slideImages' in data) || (data.slideImages is list && data.slideImages.size() <= 10 && (data.slideImages.size() == 0 || data.slideImages[0] is string))) &&
+        (!('slideIntervalSec' in data) || (data.slideIntervalSec is number && data.slideIntervalSec >= 1 && data.slideIntervalSec <= 120)) &&
+        data.isActive is bool &&
+        data.isAiGenerated is bool &&
+        data.is3dHd is bool &&
+        data.style3dPreset in ['cyber_perspective', 'holographic_depth', 'studio_4k_bevel', 'obsidian_neon'] &&
+        data.resolutionQuality in ['4K UHD', 'HD 1080p'] &&
+        data.carRenderModel is string && data.carRenderModel.size() <= 120 &&
+        data.clicksCount is number && data.clicksCount >= 0 &&
+        data.createdAt is string && data.createdAt.size() >= 1 && data.createdAt.size() <= 64 &&
+        isValidId(data.updatedByUid) &&
+        data.updatedByUid == request.auth.uid &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidManagedUser(data) {
+      return data.keys().hasAll([
+          'id',
+          'name',
+          'email',
+          'role',
+          'tier',
+          'accountStatus',
+          'kycStatus',
+          'totalDepositedUsd',
+          'referralCount',
+          'referralEarningsUsd',
+          'referralCode',
+          'location',
+          'phone',
+          'bio',
+          'preferredServiceCenter',
+          'avatar',
+          'memberSince',
+          'walletAddress',
+          'twoFactorEnabled',
+          'updatedByUid',
+          'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id',
+          'name',
+          'email',
+          'role',
+          'tier',
+          'accountStatus',
+          'kycStatus',
+          'totalDepositedUsd',
+          'referralCount',
+          'referralEarningsUsd',
+          'referralCode',
+          'location',
+          'phone',
+          'bio',
+          'preferredServiceCenter',
+          'avatar',
+          'memberSince',
+          'walletAddress',
+          'twoFactorEnabled',
+          'updatedByUid',
+          'updatedAt'
+        ]) &&
+        isValidId(data.id) &&
+        data.name is string && data.name.size() >= 1 && data.name.size() <= 120 &&
+        data.email is string && data.email.size() >= 3 && data.email.size() <= 200 &&
+        data.role in ['customer', 'admin'] &&
+        data.tier in ['Standard', 'Plaid Member', 'Founders Club'] &&
+        data.accountStatus in ['active', 'suspended', 'flagged', 'banned'] &&
+        data.kycStatus in ['unverified', 'in_review', 'verified', 'rejected'] &&
+        data.totalDepositedUsd is number && data.totalDepositedUsd >= 0 && data.totalDepositedUsd <= 100000000 &&
+        data.referralCount is number && data.referralCount >= 0 && data.referralCount <= 1000000 &&
+        data.referralEarningsUsd is number && data.referralEarningsUsd >= 0 && data.referralEarningsUsd <= 100000000 &&
+        data.referralCode is string && data.referralCode.size() >= 2 && data.referralCode.size() <= 32 &&
+        data.location is string && data.location.size() <= 120 &&
+        data.phone is string && data.phone.size() <= 40 &&
+        data.bio is string && data.bio.size() <= 500 &&
+        data.preferredServiceCenter is string && data.preferredServiceCenter.size() <= 160 &&
+        data.avatar is string && data.avatar.size() <= 500 &&
+        data.memberSince is string && data.memberSince.size() >= 1 && data.memberSince.size() <= 64 &&
+        data.walletAddress is string && data.walletAddress.size() <= 128 &&
+        data.twoFactorEnabled is bool &&
+        isValidId(data.updatedByUid) &&
+        data.updatedByUid == request.auth.uid &&
+        data.updatedAt is timestamp;
+    }
+
+    // Store product inventory (public catalog read, admin-only CRUD)
+    match /products/{productId} {
+      allow get, list: if true;
+
+      allow create, update: if isValidId(productId) &&
+        isAdmin() &&
+        isValidCatalogProduct(incoming()) &&
+        incoming().id == productId &&
+        incoming().updatedByUid == request.auth.uid &&
+        incoming().updatedAt == request.time;
+
+      allow delete: if isValidId(productId) && isAdmin();
+    }
+
+    // Promotional marketing banners (public showcase read, admin-only CRUD)
+    match /marketing_banners/{bannerId} {
+      allow get, list: if true;
+
+      allow create, update: if isValidId(bannerId) &&
+        isAdmin() &&
+        isValidMarketingBanner(incoming()) &&
+        incoming().id == bannerId &&
+        incoming().updatedByUid == request.auth.uid &&
+        incoming().updatedAt == request.time;
+
+      allow delete: if isValidId(bannerId) && isAdmin();
+    }
+
+    // Admin-managed user directory records (strict admin-only PII isolation)
+    match /managed_users/{userId} {
+      allow get: if isValidId(userId) && isAdmin();
+      allow list: if isAdmin();
+
+      allow create, update: if isValidId(userId) &&
+        isAdmin() &&
+        isValidManagedUser(incoming()) &&
+        incoming().id == userId &&
+        incoming().updatedByUid == request.auth.uid &&
+        incoming().updatedAt == request.time;
+
+      allow delete: if isValidId(userId) && isAdmin();
+    }
+
+    function isValidNewsletterSubscriber(data) {
+      return data.keys().hasAll([
+          'id',
+          'email',
+          'interestCategory',
+          'status',
+          'source',
+          'subscribedAt',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id',
+          'email',
+          'name',
+          'interestCategory',
+          'status',
+          'source',
+          'subscribedAt',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        isValidId(data.id) &&
+        data.email is string && data.email.size() >= 3 && data.email.size() <= 200 &&
+        data.email.matches('^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$') &&
+        (!('name' in data) || (data.name is string && data.name.size() <= 120)) &&
+        data.interestCategory in ['All Updates', 'Service & Wraps', 'Fleet & Yield', 'Vehicle Drops & Promos'] &&
+        data.status in ['active', 'unsubscribed'] &&
+        data.source in ['home_banner', 'footer', 'admin_manual', 'registered_sync'] &&
+        data.subscribedAt is string && data.subscribedAt.size() >= 1 && data.subscribedAt.size() <= 64 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    // Newsletter mailing list subscribers (strict admin-only PII read/manage; validated public opt-in create)
+    match /newsletter_subscribers/{subscriberId} {
+      allow get: if isValidId(subscriberId) && isAdmin();
+      allow list: if isAdmin();
+
+      allow create: if isValidId(subscriberId) &&
+        isValidNewsletterSubscriber(incoming()) &&
+        incoming().id == subscriberId &&
+        incoming().status == 'active' &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+
+      allow update: if isValidId(subscriberId) &&
+        isAdmin() &&
+        isValidNewsletterSubscriber(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().email == existing().email &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'name',
+          'interestCategory',
+          'status',
+          'updatedAt'
+        ]);
+
+      allow delete: if isValidId(subscriberId) && isAdmin();
     }
   }
 }

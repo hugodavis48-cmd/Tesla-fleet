@@ -255,7 +255,6 @@ const MainAppContent: React.FC = () => {
               }}
             />
             <FaqSection />
-            <ContactSection />
           </div>
         )}
 

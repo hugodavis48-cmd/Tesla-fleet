@@ -11,6 +11,7 @@ import {
   setRuntimeSmtpConfig,
   sendDepositNotificationEmail,
   sendMaturityNotificationEmail,
+  sendBulkNewsletterEmail,
   getDispatchedEmailLogs,
   getEffectiveSmtpSummary,
 } from './src/server/mailer.ts';
@@ -603,28 +604,149 @@ app.post('/api/mailer/asset-alert', async (req, res) => {
   }
 });
 
-// Send Marketing Campaign
+// Send Marketing / Bulk Newsletter Campaign
 app.post('/api/mailer/send-campaign', async (req, res) => {
   try {
-    const { campaignTitle, subject, bodyHtml, recipients } = req.body;
+    const { campaignTitle, subject, bodyHtml, recipients, smtpConfig } = req.body || {};
 
     if (!recipients || !Array.isArray(recipients) || recipients.length === 0) {
       return res.status(400).json({ error: 'At least one recipient email address is required.' });
+    }
+
+    const cleanRecipients = Array.from(
+      new Set(
+        recipients
+          .map((r: unknown) => String(r || '').trim().toLowerCase())
+          .filter((r: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(r))
+      )
+    );
+
+    if (cleanRecipients.length === 0) {
+      return res.status(400).json({ error: 'No valid email addresses found in recipients list.' });
+    }
+
+    let delivered = 0;
+    let simulated = 0;
+    let failed = 0;
+    const messageBody =
+      String(bodyHtml || '').trim() ||
+      `Hello,\n\nImportant fleet, service, and platform bulletin from Apex Tesla Hub: ${subject || campaignTitle}.\n\nVisit your Member Dashboard for live details.`;
+
+    for (const email of cleanRecipients.slice(0, 250)) {
+      try {
+        const result = await sendBulkNewsletterEmail({
+          recipientEmail: email,
+          campaignTitle: String(campaignTitle || 'Apex Tesla Hub Dispatch'),
+          subject: String(subject || 'Apex Tesla Hub Official Update'),
+          bodyContent: messageBody,
+          smtpOverride: smtpConfig,
+        });
+        if (result.status === 'delivered') {
+          delivered += 1;
+        } else {
+          simulated += 1;
+        }
+      } catch {
+        failed += 1;
+      }
     }
 
     return res.json({
       success: true,
       campaignTitle,
       subject,
-      totalRecipients: recipients.length,
-      delivered: recipients.length,
-      failed: 0,
+      totalRecipients: cleanRecipients.length,
+      delivered: delivered + simulated,
+      liveSmtpDelivered: delivered,
+      queuedOrSimulated: simulated,
+      failed,
       dispatchedAt: new Date().toISOString(),
-      message: `Marketing campaign "${campaignTitle}" successfully dispatched to ${recipients.length} subscriber(s)!`,
+      message: `Bulk update "${campaignTitle}" dispatched to ${cleanRecipients.length} recipient(s) (${delivered} live SMTP, ${simulated} queued/logged).`,
     });
   } catch (error: any) {
     return res.status(500).json({ error: error?.message || 'Campaign dispatch failed' });
   }
+});
+
+// Newsletter Mailing List Endpoints
+app.get('/api/newsletter/subscribers', (_req, res) => {
+  const state = readServerAdminState();
+  const list = Array.isArray(state.newsletterSubscribers) ? state.newsletterSubscribers : [];
+  return res.json({ subscribers: list });
+});
+
+app.post('/api/newsletter/subscribe', (req, res) => {
+  const { email, name, interestCategory, source, id } = req.body || {};
+  const cleanEmail = String(email || '').trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+    return res.status(400).json({ error: 'Please enter a valid email address.' });
+  }
+  const state = readServerAdminState();
+  const existingList: any[] = Array.isArray(state.newsletterSubscribers)
+    ? state.newsletterSubscribers
+    : [];
+  const existingIdx = existingList.findIndex(
+    (item) => String(item.email || '').toLowerCase() === cleanEmail
+  );
+
+  const subscriberRecord = {
+    id:
+      existingIdx >= 0
+        ? existingList[existingIdx].id
+        : String(id || `sub_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`),
+    email: cleanEmail,
+    name: String(name || (existingIdx >= 0 ? existingList[existingIdx].name : '') || '').trim(),
+    interestCategory: interestCategory || 'All Updates',
+    status: 'active',
+    source: source || 'home_banner',
+    subscribedAt:
+      existingIdx >= 0
+        ? existingList[existingIdx].subscribedAt
+        : new Date().toISOString().replace('T', ' ').substring(0, 16),
+  };
+
+  const nextList =
+    existingIdx >= 0
+      ? existingList.map((item, i) => (i === existingIdx ? subscriberRecord : item))
+      : [subscriberRecord, ...existingList];
+
+  writeServerAdminState({ newsletterSubscribers: nextList });
+  return res.json({
+    success: true,
+    alreadySubscribed: existingIdx >= 0,
+    subscriber: subscriberRecord,
+  });
+});
+
+app.patch('/api/newsletter/subscribers/:id', (req, res) => {
+  const { id } = req.params;
+  const { name, interestCategory, status } = req.body || {};
+  const state = readServerAdminState();
+  const existingList: any[] = Array.isArray(state.newsletterSubscribers)
+    ? state.newsletterSubscribers
+    : [];
+  const nextList = existingList.map((item) => {
+    if (item.id !== id) return item;
+    return {
+      ...item,
+      ...(name !== undefined ? { name } : {}),
+      ...(interestCategory !== undefined ? { interestCategory } : {}),
+      ...(status !== undefined ? { status } : {}),
+    };
+  });
+  writeServerAdminState({ newsletterSubscribers: nextList });
+  return res.json({ success: true });
+});
+
+app.delete('/api/newsletter/subscribers/:id', (req, res) => {
+  const { id } = req.params;
+  const state = readServerAdminState();
+  const existingList: any[] = Array.isArray(state.newsletterSubscribers)
+    ? state.newsletterSubscribers
+    : [];
+  const nextList = existingList.filter((item) => item.id !== id);
+  writeServerAdminState({ newsletterSubscribers: nextList });
+  return res.json({ success: true });
 });
 
 // AI Marketing Copilot & Copywriter (Gemini 3.8 Flash)

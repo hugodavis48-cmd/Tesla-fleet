@@ -6,6 +6,7 @@ import {
   getDoc,
   getDocs,
   setDoc,
+  updateDoc,
   deleteDoc,
   collection,
   getDocFromServer,
@@ -21,7 +22,16 @@ import {
   deleteObject,
 } from 'firebase/storage';
 import firebaseConfig from '../../firebase-applet-config.json';
-import { MediaAssetRecord, PageSeoMeta, SeoMetadataConfig } from '../types';
+import {
+  AutoCryptoGateway,
+  MarketingBanner,
+  MediaAssetRecord,
+  NewsletterSubscriber,
+  PageSeoMeta,
+  ProductItem,
+  SeoMetadataConfig,
+  User,
+} from '../types';
 
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
@@ -120,6 +130,8 @@ export const PUBLIC_ADMIN_SETTING_SECTIONS = [
   'wheel_rewards',
   'scratch_tiers',
   'manual_deposits',
+  'deposit_gateways',
+  'business_certificates',
   'social_links',
   'spin_cost',
 ] as const;
@@ -129,6 +141,13 @@ export const PROTECTED_ADMIN_SETTING_SECTIONS = [
   'auto_gateways',
   'won_prizes',
 ] as const;
+
+export function sanitizeGatewaysForPublic(gateways: AutoCryptoGateway[]): AutoCryptoGateway[] {
+  return gateways.map((gw) => ({
+    ...gw,
+    webhookSecret: '',
+  }));
+}
 
 export async function connectFirebaseGoogleAdminSession(): Promise<{
   success: boolean;
@@ -550,3 +569,499 @@ export async function deleteBrandingMediaAsset(asset: MediaAssetRecord): Promise
 
   return { deletedStorage, deletedFirestore };
 }
+
+function toSafeFirestoreId(rawId: string, fallbackPrefix = 'doc'): string {
+  const cleaned = (rawId || `${fallbackPrefix}-${Date.now().toString(36)}`)
+    .replace(/[^a-zA-Z0-9_-]/g, '_')
+    .slice(0, 128);
+  return cleaned || `${fallbackPrefix}_${Date.now().toString(36)}`;
+}
+
+// ---------- PRODUCT INVENTORY FIRESTORE CRUD (`/products/{productId}`) ----------
+
+export async function loadCatalogProductsFromFirestore(): Promise<ProductItem[]> {
+  try {
+    const snap = await getDocs(collection(db, 'products'));
+    if (snap.empty) return [];
+    const items: ProductItem[] = [];
+    snap.forEach((docSnap) => {
+      const d = docSnap.data();
+      if (d && d.name) {
+        items.push({
+          id: String(d.id || docSnap.id),
+          name: String(d.name),
+          category: (d.category as ProductItem['category']) || 'Charging & Tech',
+          priceUsd: Number(d.priceUsd ?? 0),
+          rating: typeof d.rating === 'number' ? d.rating : 4.9,
+          reviewsCount: typeof d.reviewsCount === 'number' ? d.reviewsCount : 12,
+          image: String(d.image || ''),
+          description: String(d.description || ''),
+          compatibility: typeof d.compatibility === 'string' ? d.compatibility : '',
+          inStock: Boolean(d.inStock),
+        });
+      }
+    });
+    return items;
+  } catch {
+    return [];
+  }
+}
+
+export async function saveProductToFirestore(
+  product: ProductItem
+): Promise<{ synced: boolean; reason?: string }> {
+  if (!auth.currentUser) {
+    return { synced: false, reason: 'auth_required' };
+  }
+  const safeId = toSafeFirestoreId(product.id, 'prod');
+  const path = `products/${safeId}`;
+  const validCategories: ProductItem['category'][] = [
+    'Wraps & Film',
+    'Wheels & Performance',
+    'Interior & Yoke',
+    'Aero & Carbon',
+    'Charging & Tech',
+    'Vehicle Sales',
+  ];
+  const safeCategory = validCategories.includes(product.category) ? product.category : 'Charging & Tech';
+
+  try {
+    await setDoc(doc(db, 'products', safeId), {
+      id: safeId,
+      name: (product.name || 'Tesla Hardware Item').slice(0, 180),
+      category: safeCategory,
+      priceUsd: Math.max(0, Math.min(10000000, Number(product.priceUsd) || 0)),
+      rating: Math.max(0, Math.min(5, Number(product.rating ?? 4.9))),
+      reviewsCount: Math.max(0, Math.min(1000000, Number(product.reviewsCount ?? 12))),
+      image: (product.image || '').slice(0, 1500),
+      description: (product.description || '').slice(0, 2000),
+      compatibility: (product.compatibility || '').slice(0, 300),
+      inStock: Boolean(product.inStock),
+      updatedByUid: auth.currentUser.uid,
+      updatedAt: serverTimestamp(),
+    });
+    return { synced: true };
+  } catch (err) {
+    try {
+      handleFirestoreError(err, OperationType.WRITE, path);
+    } catch (wrapped) {
+      return { synced: false, reason: wrapped instanceof Error ? wrapped.message : String(wrapped) };
+    }
+  }
+}
+
+export async function deleteProductFromFirestore(
+  productId: string
+): Promise<{ synced: boolean; reason?: string }> {
+  if (!auth.currentUser) {
+    return { synced: false, reason: 'auth_required' };
+  }
+  const safeId = toSafeFirestoreId(productId, 'prod');
+  const path = `products/${safeId}`;
+  try {
+    await deleteDoc(doc(db, 'products', safeId));
+    return { synced: true };
+  } catch (err) {
+    try {
+      handleFirestoreError(err, OperationType.DELETE, path);
+    } catch (wrapped) {
+      return { synced: false, reason: wrapped instanceof Error ? wrapped.message : String(wrapped) };
+    }
+  }
+}
+
+// ---------- PROMOTIONAL BANNERS FIRESTORE CRUD (`/marketing_banners/{bannerId}`) ----------
+
+export async function loadMarketingBannersFromFirestore(): Promise<MarketingBanner[]> {
+  try {
+    const snap = await getDocs(collection(db, 'marketing_banners'));
+    if (snap.empty) return [];
+    const list: MarketingBanner[] = [];
+    snap.forEach((docSnap) => {
+      const d = docSnap.data();
+      if (d && d.title && d.headline) {
+        list.push({
+          id: String(d.id || docSnap.id),
+          title: String(d.title),
+          size: (d.size as MarketingBanner['size']) || 'leaderboard',
+          dimensions: String(d.dimensions || '1456×180 HD'),
+          customWidth: typeof d.customWidth === 'number' ? d.customWidth : undefined,
+          customHeight: typeof d.customHeight === 'number' ? d.customHeight : undefined,
+          imageMode: d.imageMode === 'multi' ? 'multi' : 'single',
+          transitionEffect:
+            d.transitionEffect === 'slide' || d.transitionEffect === 'zoom' ? d.transitionEffect : 'fade',
+          headline: String(d.headline),
+          subheadline: String(d.subheadline || ''),
+          ctaText: String(d.ctaText || 'Explore'),
+          badgeText: String(d.badgeText || ''),
+          themeGradient: String(d.themeGradient || 'from-zinc-950 via-red-950/80 to-zinc-950'),
+          accentColor: String(d.accentColor || '#ef4444'),
+          targetTab: String(d.targetTab || 'vehicles'),
+          imageUrl: String(d.imageUrl || ''),
+          slideImages: Array.isArray(d.slideImages) ? d.slideImages.map(String) : undefined,
+          slideIntervalSec: typeof d.slideIntervalSec === 'number' ? d.slideIntervalSec : 4,
+          isActive: Boolean(d.isActive),
+          isAiGenerated: Boolean(d.isAiGenerated),
+          is3dHd: Boolean(d.is3dHd),
+          style3dPreset: (d.style3dPreset as MarketingBanner['style3dPreset']) || 'cyber_perspective',
+          resolutionQuality: d.resolutionQuality === 'HD 1080p' ? 'HD 1080p' : '4K UHD',
+          carRenderModel: String(d.carRenderModel || ''),
+          clicksCount: Number(d.clicksCount ?? 0),
+          createdAt: String(d.createdAt || new Date().toISOString().split('T')[0]),
+        });
+      }
+    });
+    return list;
+  } catch {
+    return [];
+  }
+}
+
+export async function saveMarketingBannerToFirestore(
+  banner: MarketingBanner
+): Promise<{ synced: boolean; reason?: string }> {
+  if (!auth.currentUser) {
+    return { synced: false, reason: 'auth_required' };
+  }
+  const safeId = toSafeFirestoreId(banner.id, 'banner');
+  const path = `marketing_banners/${safeId}`;
+  const payload: Record<string, unknown> = {
+    id: safeId,
+    title: (banner.title || 'Promotional Banner').slice(0, 180),
+    size: banner.size || 'leaderboard',
+    dimensions: (banner.dimensions || '1456×180 HD').slice(0, 64),
+    headline: (banner.headline || 'Apex Tesla Hub').slice(0, 240),
+    subheadline: (banner.subheadline || '').slice(0, 500),
+    ctaText: (banner.ctaText || 'Explore').slice(0, 80),
+    badgeText: (banner.badgeText || '').slice(0, 80),
+    themeGradient: (banner.themeGradient || 'from-zinc-950 via-red-950/80 to-zinc-950').slice(0, 200),
+    accentColor: (banner.accentColor || '#ef4444').slice(0, 40),
+    targetTab: (banner.targetTab || 'vehicles').slice(0, 64),
+    imageUrl: (banner.imageUrl || '').slice(0, 1500),
+    isActive: Boolean(banner.isActive),
+    isAiGenerated: Boolean(banner.isAiGenerated),
+    is3dHd: banner.is3dHd ?? true,
+    style3dPreset: banner.style3dPreset || 'cyber_perspective',
+    resolutionQuality: banner.resolutionQuality === 'HD 1080p' ? 'HD 1080p' : '4K UHD',
+    carRenderModel: (banner.carRenderModel || 'Cybertruck Cyberbeast').slice(0, 120),
+    clicksCount: Math.max(0, Number(banner.clicksCount ?? 0)),
+    createdAt: (banner.createdAt || new Date().toISOString().split('T')[0]).slice(0, 64),
+    updatedByUid: auth.currentUser.uid,
+    updatedAt: serverTimestamp(),
+  };
+
+  if (typeof banner.customWidth === 'number') {
+    payload.customWidth = Math.max(50, Math.min(8000, banner.customWidth));
+  }
+  if (typeof banner.customHeight === 'number') {
+    payload.customHeight = Math.max(50, Math.min(8000, banner.customHeight));
+  }
+  if (banner.imageMode === 'single' || banner.imageMode === 'multi') {
+    payload.imageMode = banner.imageMode;
+  }
+  if (banner.transitionEffect === 'fade' || banner.transitionEffect === 'slide' || banner.transitionEffect === 'zoom') {
+    payload.transitionEffect = banner.transitionEffect;
+  }
+  if (Array.isArray(banner.slideImages)) {
+    payload.slideImages = banner.slideImages.slice(0, 10).map((s) => String(s).slice(0, 1500));
+  }
+  if (typeof banner.slideIntervalSec === 'number') {
+    payload.slideIntervalSec = Math.max(1, Math.min(120, banner.slideIntervalSec));
+  }
+
+  try {
+    await setDoc(doc(db, 'marketing_banners', safeId), payload);
+    return { synced: true };
+  } catch (err) {
+    try {
+      handleFirestoreError(err, OperationType.WRITE, path);
+    } catch (wrapped) {
+      return { synced: false, reason: wrapped instanceof Error ? wrapped.message : String(wrapped) };
+    }
+  }
+}
+
+export async function deleteMarketingBannerFromFirestore(
+  bannerId: string
+): Promise<{ synced: boolean; reason?: string }> {
+  if (!auth.currentUser) {
+    return { synced: false, reason: 'auth_required' };
+  }
+  const safeId = toSafeFirestoreId(bannerId, 'banner');
+  const path = `marketing_banners/${safeId}`;
+  try {
+    await deleteDoc(doc(db, 'marketing_banners', safeId));
+    return { synced: true };
+  } catch (err) {
+    try {
+      handleFirestoreError(err, OperationType.DELETE, path);
+    } catch (wrapped) {
+      return { synced: false, reason: wrapped instanceof Error ? wrapped.message : String(wrapped) };
+    }
+  }
+}
+
+// ---------- MANAGED USERS FIRESTORE CRUD (`/managed_users/{userId}`) ----------
+
+export async function loadManagedUsersFromFirestore(): Promise<User[]> {
+  if (!auth.currentUser) return [];
+  try {
+    const snap = await getDocs(collection(db, 'managed_users'));
+    if (snap.empty) return [];
+    const users: User[] = [];
+    snap.forEach((docSnap) => {
+      const d = docSnap.data();
+      if (d && d.email && d.name) {
+        users.push({
+          id: String(d.id || docSnap.id),
+          name: String(d.name),
+          email: String(d.email),
+          role: d.role === 'admin' ? 'admin' : 'customer',
+          tier:
+            d.tier === 'Founders Club' || d.tier === 'Plaid Member' ? d.tier : 'Standard',
+          accountStatus:
+            d.accountStatus === 'suspended' || d.accountStatus === 'flagged' || d.accountStatus === 'banned'
+              ? d.accountStatus
+              : 'active',
+          kycStatus:
+            d.kycStatus === 'in_review' || d.kycStatus === 'verified' || d.kycStatus === 'rejected'
+              ? d.kycStatus
+              : 'unverified',
+          totalDepositedUsd: Number(d.totalDepositedUsd ?? 0),
+          referralCount: Number(d.referralCount ?? 0),
+          referralEarningsUsd: Number(d.referralEarningsUsd ?? 0),
+          referralCode: String(d.referralCode || 'APEX-USER'),
+          location: String(d.location || ''),
+          phone: String(d.phone || ''),
+          bio: String(d.bio || ''),
+          preferredServiceCenter: String(d.preferredServiceCenter || 'Apex Fremont Technology Center'),
+          avatar: String(d.avatar || ''),
+          memberSince: String(d.memberSince || 'Today'),
+          walletAddress: String(d.walletAddress || ''),
+          twoFactorEnabled: Boolean(d.twoFactorEnabled),
+          pinSet: false,
+          referredUsers: [],
+        });
+      }
+    });
+    return users;
+  } catch {
+    return [];
+  }
+}
+
+export async function saveManagedUserToFirestore(
+  user: User
+): Promise<{ synced: boolean; reason?: string }> {
+  if (!auth.currentUser) {
+    return { synced: false, reason: 'auth_required' };
+  }
+  const safeId = toSafeFirestoreId(user.id, 'usr');
+  const path = `managed_users/${safeId}`;
+
+  try {
+    await setDoc(doc(db, 'managed_users', safeId), {
+      id: safeId,
+      name: (user.name || 'Tesla Member').slice(0, 120),
+      email: (user.email || 'member@apex-tesla.io').slice(0, 200),
+      role: user.role === 'admin' ? 'admin' : 'customer',
+      tier:
+        user.tier === 'Founders Club' || user.tier === 'Plaid Member' ? user.tier : 'Standard',
+      accountStatus:
+        user.accountStatus === 'suspended' || user.accountStatus === 'flagged' || user.accountStatus === 'banned'
+          ? user.accountStatus
+          : 'active',
+      kycStatus:
+        user.kycStatus === 'in_review' || user.kycStatus === 'verified' || user.kycStatus === 'rejected'
+          ? user.kycStatus
+          : 'unverified',
+      totalDepositedUsd: Math.max(0, Math.min(100000000, Number(user.totalDepositedUsd ?? 0))),
+      referralCount: Math.max(0, Math.min(1000000, Number(user.referralCount ?? 0))),
+      referralEarningsUsd: Math.max(0, Math.min(100000000, Number(user.referralEarningsUsd ?? 0))),
+      referralCode: (user.referralCode || `APEX-${safeId.slice(0, 6).toUpperCase()}`).slice(0, 32),
+      location: (user.location || '').slice(0, 120),
+      phone: (user.phone || '').slice(0, 40),
+      bio: (user.bio || '').slice(0, 500),
+      preferredServiceCenter: (user.preferredServiceCenter || 'Apex Fremont Technology Center').slice(0, 160),
+      avatar: (user.avatar || '').slice(0, 500),
+      memberSince: (user.memberSince || 'Today').slice(0, 64),
+      walletAddress: (user.walletAddress || '').slice(0, 128),
+      twoFactorEnabled: Boolean(user.twoFactorEnabled),
+      updatedByUid: auth.currentUser.uid,
+      updatedAt: serverTimestamp(),
+    });
+    return { synced: true };
+  } catch (err) {
+    try {
+      handleFirestoreError(err, OperationType.WRITE, path);
+    } catch (wrapped) {
+      return { synced: false, reason: wrapped instanceof Error ? wrapped.message : String(wrapped) };
+    }
+  }
+}
+
+export async function deleteManagedUserFromFirestore(
+  userId: string
+): Promise<{ synced: boolean; reason?: string }> {
+  if (!auth.currentUser) {
+    return { synced: false, reason: 'auth_required' };
+  }
+  const safeId = toSafeFirestoreId(userId, 'usr');
+  const path = `managed_users/${safeId}`;
+  try {
+    await deleteDoc(doc(db, 'managed_users', safeId));
+    return { synced: true };
+  } catch (err) {
+    try {
+      handleFirestoreError(err, OperationType.DELETE, path);
+    } catch (wrapped) {
+      return { synced: false, reason: wrapped instanceof Error ? wrapped.message : String(wrapped) };
+    }
+  }
+}
+
+// ---------- NEWSLETTER SUBSCRIBERS FIRESTORE CRUD (`/newsletter_subscribers/{subscriberId}`) ----------
+
+export function toNewsletterSubscriberId(email: string): string {
+  const normalized = email.trim().toLowerCase();
+  let hash = 2166136261;
+  for (let i = 0; i < normalized.length; i += 1) {
+    hash ^= normalized.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  const hex = (hash >>> 0).toString(36);
+  const slug = normalized.replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 48);
+  return `sub_${slug}_${hex}`.slice(0, 128);
+}
+
+export async function subscribeNewsletterInFirestore(input: {
+  email: string;
+  name?: string;
+  interestCategory: NewsletterSubscriber['interestCategory'];
+  source: NewsletterSubscriber['source'];
+}): Promise<{ synced: boolean; subscriber: NewsletterSubscriber; reason?: string }> {
+  const cleanEmail = input.email.trim().toLowerCase().slice(0, 200);
+  const id = toNewsletterSubscriberId(cleanEmail);
+  const subscribedAt = new Date().toISOString().replace('T', ' ').substring(0, 16);
+  const subscriber: NewsletterSubscriber = {
+    id,
+    email: cleanEmail,
+    name: (input.name || '').trim().slice(0, 120),
+    interestCategory: input.interestCategory,
+    status: 'active',
+    source: input.source,
+    subscribedAt,
+  };
+
+  const path = `newsletter_subscribers/${id}`;
+  try {
+    await setDoc(doc(db, 'newsletter_subscribers', id), {
+      id,
+      email: subscriber.email,
+      name: subscriber.name || '',
+      interestCategory: subscriber.interestCategory,
+      status: 'active',
+      source: subscriber.source,
+      subscribedAt,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+    return { synced: true, subscriber };
+  } catch (err) {
+    try {
+      handleFirestoreError(err, OperationType.CREATE, path);
+    } catch (wrapped) {
+      return {
+        synced: false,
+        subscriber,
+        reason: wrapped instanceof Error ? wrapped.message : String(wrapped),
+      };
+    }
+  }
+}
+
+export async function loadNewsletterSubscribersFromFirestore(): Promise<NewsletterSubscriber[]> {
+  if (!auth.currentUser) return [];
+  try {
+    const snap = await getDocs(collection(db, 'newsletter_subscribers'));
+    if (snap.empty) return [];
+    const list: NewsletterSubscriber[] = [];
+    snap.forEach((docSnap) => {
+      const d = docSnap.data();
+      if (d && d.email) {
+        list.push({
+          id: String(d.id || docSnap.id),
+          email: String(d.email),
+          name: typeof d.name === 'string' && d.name ? d.name : undefined,
+          interestCategory:
+            d.interestCategory === 'Service & Wraps' ||
+            d.interestCategory === 'Fleet & Yield' ||
+            d.interestCategory === 'Vehicle Drops & Promos'
+              ? d.interestCategory
+              : 'All Updates',
+          status: d.status === 'unsubscribed' ? 'unsubscribed' : 'active',
+          source:
+            d.source === 'footer' ||
+            d.source === 'admin_manual' ||
+            d.source === 'registered_sync'
+              ? d.source
+              : 'home_banner',
+          subscribedAt: String(d.subscribedAt || new Date().toISOString().split('T')[0]),
+        });
+      }
+    });
+    return list.sort((a, b) => b.subscribedAt.localeCompare(a.subscribedAt));
+  } catch {
+    return [];
+  }
+}
+
+export async function updateNewsletterSubscriberInFirestore(
+  subscriber: NewsletterSubscriber,
+  updates: Partial<Pick<NewsletterSubscriber, 'name' | 'interestCategory' | 'status'>>
+): Promise<{ synced: boolean; reason?: string }> {
+  if (!auth.currentUser) {
+    return { synced: false, reason: 'auth_required' };
+  }
+  const safeId = toSafeFirestoreId(subscriber.id, 'sub');
+  const path = `newsletter_subscribers/${safeId}`;
+  try {
+    const payload: Record<string, unknown> = {
+      updatedAt: serverTimestamp(),
+    };
+    if (updates.name !== undefined) payload.name = updates.name.slice(0, 120);
+    if (updates.interestCategory !== undefined) payload.interestCategory = updates.interestCategory;
+    if (updates.status !== undefined) payload.status = updates.status;
+
+    await updateDoc(doc(db, 'newsletter_subscribers', safeId), payload);
+    return { synced: true };
+  } catch (err) {
+    try {
+      handleFirestoreError(err, OperationType.UPDATE, path);
+    } catch (wrapped) {
+      return { synced: false, reason: wrapped instanceof Error ? wrapped.message : String(wrapped) };
+    }
+  }
+}
+
+export async function deleteNewsletterSubscriberFromFirestore(
+  subscriberId: string
+): Promise<{ synced: boolean; reason?: string }> {
+  if (!auth.currentUser) {
+    return { synced: false, reason: 'auth_required' };
+  }
+  const safeId = toSafeFirestoreId(subscriberId, 'sub');
+  const path = `newsletter_subscribers/${safeId}`;
+  try {
+    await deleteDoc(doc(db, 'newsletter_subscribers', safeId));
+    return { synced: true };
+  } catch (err) {
+    try {
+      handleFirestoreError(err, OperationType.DELETE, path);
+    } catch (wrapped) {
+      return { synced: false, reason: wrapped instanceof Error ? wrapped.message : String(wrapped) };
+    }
+  }
+}
+
+

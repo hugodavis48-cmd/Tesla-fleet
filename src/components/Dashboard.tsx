@@ -39,6 +39,8 @@ import {
   Trophy,
   Globe,
   Maximize2,
+  Crown,
+  Download,
 } from 'lucide-react';
 import { TeslaVehicle, ServiceBooking, UserKycData, FeaturedStockPlan } from '../types';
 import { ReferralHub } from './ReferralHub';
@@ -46,7 +48,9 @@ import { UserInvestmentBoard } from './UserInvestmentBoard';
 import { NotificationInbox } from './NotificationInbox';
 import { RoiGrowthChart } from './RoiGrowthChart';
 import { UserWonPrizesTab } from './UserWonPrizesTab';
+import { LoyaltyHub, getLoyaltyTierSummary } from './LoyaltyHub';
 import { ImageLightbox } from './ImageLightbox';
+import { downloadTransactionInvoicePdf, downloadServiceInvoicePdf } from '../lib/invoicePdf';
 
 interface DashboardProps {
   onOpenDeposit: () => void;
@@ -131,7 +135,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<
-    'garage' | 'won_prizes' | 'stocks' | 'services' | 'history' | 'wallet' | 'investments' | 'notifications' | 'kyc' | 'referrals' | 'security'
+    'garage' | 'loyalty' | 'won_prizes' | 'stocks' | 'services' | 'history' | 'wallet' | 'investments' | 'notifications' | 'kyc' | 'referrals' | 'security'
   >('garage');
 
   const userWonPrizesCount = wonPrizes.filter((p) => {
@@ -241,7 +245,17 @@ export const Dashboard: React.FC<DashboardProps> = ({
     kycStatus: 'unverified' as const,
     kycData: undefined,
     activeSession: undefined,
+    totalDepositedUsd: 0,
   };
+
+  const depositTransactionsTotalUsd = transactions
+    .filter((t) => t.type === 'deposit')
+    .reduce((sum, t) => sum + Math.max(0, Number(t.usdEquivalent) || 0), 0);
+  const cumulativeDepositVolumeUsd = Math.max(
+    Number(currentUser?.totalDepositedUsd ?? displayUser.totalDepositedUsd ?? 0),
+    depositTransactionsTotalUsd
+  );
+  const loyaltySummary = getLoyaltyTierSummary(cumulativeDepositVolumeUsd);
 
   const handleCreateVehicle = (e: React.FormEvent) => {
     e.preventDefault();
@@ -498,6 +512,18 @@ export const Dashboard: React.FC<DashboardProps> = ({
                     KYC: {kycStatus === 'verified' ? 'TIER 2 VERIFIED' : kycStatus === 'in_review' ? 'PENDING REVIEW' : 'UNVERIFIED'}
                   </span>
                 </button>
+
+                {/* Deposit Loyalty Tier & Multiplier Pill */}
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('loyalty')}
+                  className={`px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold border transition flex items-center gap-1 cursor-pointer ${loyaltySummary.activeTier.accentBg} ${loyaltySummary.activeTier.accentBorder} ${loyaltySummary.activeTier.accentText}`}
+                >
+                  <Crown className="w-3 h-3" />
+                  <span className="tabular-nums">
+                    {loyaltySummary.activeTier.name.toUpperCase()} • {loyaltySummary.activeTier.multiplierLabel}
+                  </span>
+                </button>
               </div>
 
               <p className="text-xs text-zinc-400 font-mono">{displayUser.email}</p>
@@ -631,10 +657,71 @@ export const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
+      {/* Deposit-Based Loyalty Tier & Multipliers Overview Strip */}
+      <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div className="flex flex-wrap items-center gap-4">
+          <div className={`p-2.5 rounded-xl border ${loyaltySummary.activeTier.accentBg} ${loyaltySummary.activeTier.accentBorder} ${loyaltySummary.activeTier.accentText}`}>
+            <Crown className="w-5 h-5" />
+          </div>
+          <div className="space-y-0.5">
+            <div className="flex items-center gap-2">
+              <span className="font-heading font-bold text-sm sm:text-base text-white">
+                {loyaltySummary.activeTier.name} Loyalty Tier
+              </span>
+              <span className={`text-xs font-mono font-bold tabular-nums ${loyaltySummary.activeTier.accentText}`}>
+                {loyaltySummary.activeTier.multiplierLabel} Multiplier
+              </span>
+            </div>
+            <p className="text-xs text-zinc-400 tabular-nums">
+              Cumulative Deposits:{' '}
+              <strong className="text-zinc-200 font-mono">{formatCurrency(loyaltySummary.cumulativeDepositUsd)}</strong>
+              {loyaltySummary.nextTier
+                ? ` • ${formatCurrency(loyaltySummary.depositRemainingToNextUsd)} to ${loyaltySummary.nextTier.name} (${loyaltySummary.nextTier.multiplierLabel})`
+                : ' • Top Platinum Tier Unlocked'}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3 sm:gap-5 text-xs">
+          <div>
+            <span className="text-zinc-500 block text-[10px] font-mono uppercase">Store Cashback</span>
+            <span className="font-mono font-bold text-emerald-400 tabular-nums">
+              {loyaltySummary.activeTier.cashbackRatePct.toFixed(1)}%
+            </span>
+          </div>
+          <div>
+            <span className="text-zinc-500 block text-[10px] font-mono uppercase">Staking Boost</span>
+            <span className="font-mono font-bold text-white tabular-nums">
+              +{loyaltySummary.activeTier.stakingBonusPct.toFixed(1)}% APY
+            </span>
+          </div>
+          <div>
+            <span className="text-zinc-500 block text-[10px] font-mono uppercase">Referral Bonus</span>
+            <span className="font-mono font-bold text-cyan-400 tabular-nums">
+              +{loyaltySummary.activeTier.referralBonusPct}%
+            </span>
+          </div>
+          <div>
+            <span className="text-zinc-500 block text-[10px] font-mono uppercase">Fee Waiver</span>
+            <span className="font-mono font-bold text-zinc-200 tabular-nums">
+              {loyaltySummary.activeTier.feeDiscountPct}%
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActiveTab('loyalty')}
+            className="px-3.5 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-white text-xs font-bold transition cursor-pointer"
+          >
+            View LoyaltyHub
+          </button>
+        </div>
+      </div>
+
       {/* Dashboard Subtabs Navigation */}
       <div className="flex items-center gap-2 border-b border-zinc-800 pb-2 overflow-x-auto">
         {[
           { id: 'garage', label: 'My Digital Garage', count: vehicles.length, icon: Car },
+          { id: 'loyalty', label: 'Loyalty & Tiers', icon: Crown, badge: `${loyaltySummary.activeTier.name.toUpperCase()} ${loyaltySummary.activeTier.multiplierLabel}` },
           { id: 'won_prizes', label: 'Won Prizes & Shipping', count: userWonPrizesCount, icon: Trophy, badge: userWonPrizesCount > 0 ? `${userWonPrizesCount} PRIZES` : undefined },
           { id: 'stocks', label: 'TSLA Stocks & Fast ROI', icon: Activity, badge: `$${tslaQuote.price.toFixed(1)}` },
           { id: 'investments', label: 'Fleet Investments & ROI', count: userInvestments.filter(i => !i.userId || i.userId === displayUser.id).length, icon: TrendingUp, badge: 'ROI' },
@@ -869,13 +956,30 @@ export const Dashboard: React.FC<DashboardProps> = ({
                         <p className="text-xs text-zinc-400">{booking.location}</p>
                       </div>
 
-                      <div className="text-right">
+                      <div className="text-right space-y-1.5">
                         <span className="px-3 py-1 rounded-full bg-red-600/20 text-red-400 border border-red-500/30 text-xs font-bold inline-block">
                           {booking.status}
                         </span>
                         <span className="text-xs text-zinc-400 block mt-1 font-mono">
                           {booking.scheduledDate} @ {booking.timeSlot}
                         </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const matchedTx = transactions.find(
+                              (t) =>
+                                t.type === 'service_payment' &&
+                                (t.invoiceData?.invoiceNumber === booking.invoiceNumber ||
+                                  t.description.includes(booking.serviceType))
+                            );
+                            const filename = downloadServiceInvoicePdf(booking, displayUser, matchedTx);
+                            showToast(`Downloaded service invoice ${filename}`, 'success');
+                          }}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-200 text-xs font-semibold transition cursor-pointer"
+                        >
+                          <Download className="w-3.5 h-3.5 text-red-400" />
+                          <span>PDF Receipt</span>
+                        </button>
                       </div>
                     </div>
 
@@ -999,13 +1103,32 @@ export const Dashboard: React.FC<DashboardProps> = ({
                           ${item.totalCostUsd.toLocaleString()} USD
                         </span>
                       </div>
-                      <button
-                        onClick={() => setShowInvoiceModal(item)}
-                        className="px-3 py-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium flex items-center gap-1.5 transition cursor-pointer"
-                      >
-                        <FileText className="w-3.5 h-3.5 text-red-400" />
-                        <span>Work Order</span>
-                      </button>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          onClick={() => setShowInvoiceModal(item)}
+                          className="px-3 py-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium flex items-center gap-1.5 transition cursor-pointer"
+                        >
+                          <FileText className="w-3.5 h-3.5 text-red-400" />
+                          <span>Work Order</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const matchedTx = transactions.find(
+                              (t) =>
+                                t.type === 'service_payment' &&
+                                (t.invoiceData?.invoiceNumber === item.invoiceNumber ||
+                                  t.description.includes(item.serviceType))
+                            );
+                            const filename = downloadServiceInvoicePdf(item, displayUser, matchedTx);
+                            showToast(`Downloaded formal invoice ${filename}`, 'success');
+                          }}
+                          className="px-3 py-1.5 rounded-xl bg-red-600/90 hover:bg-red-500 text-white text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          <span>PDF Invoice</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -1146,45 +1269,66 @@ export const Dashboard: React.FC<DashboardProps> = ({
               {filteredTransactions.length === 0 ? (
                 <p className="text-zinc-500 text-xs py-8 text-center">No transactions match the selected filter.</p>
               ) : (
-                filteredTransactions.map((tx) => (
-                  <div key={tx.id} className="py-3.5 flex items-center justify-between gap-4 text-xs">
-                    <div className="flex items-center gap-3">
-                      <div
-                        className={`p-2 rounded-xl shrink-0 ${
-                          tx.type === 'deposit' || tx.type === 'promotion_win' || tx.type === 'dividend_claim' || tx.type === 'referral_credit'
-                            ? 'bg-emerald-600/20 text-emerald-400'
-                            : 'bg-zinc-800 text-zinc-400'
-                        }`}
-                      >
-                        {tx.type === 'deposit' || tx.type === 'promotion_win' || tx.type === 'dividend_claim' || tx.type === 'referral_credit' ? (
-                          <ArrowDownLeft className="w-4 h-4" />
-                        ) : (
-                          <ArrowUpRight className="w-4 h-4" />
-                        )}
+                filteredTransactions.map((tx) => {
+                  const matchedBooking = serviceBookings.find(
+                    (b) =>
+                      (tx.invoiceData?.invoiceNumber && b.invoiceNumber === tx.invoiceData.invoiceNumber) ||
+                      (tx.type === 'service_payment' && tx.description.includes(b.serviceType))
+                  );
+                  return (
+                    <div key={tx.id} className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div
+                          className={`p-2 rounded-xl shrink-0 ${
+                            tx.type === 'deposit' || tx.type === 'promotion_win' || tx.type === 'dividend_claim' || tx.type === 'referral_credit'
+                              ? 'bg-emerald-600/20 text-emerald-400'
+                              : 'bg-zinc-800 text-zinc-400'
+                          }`}
+                        >
+                          {tx.type === 'deposit' || tx.type === 'promotion_win' || tx.type === 'dividend_claim' || tx.type === 'referral_credit' ? (
+                            <ArrowDownLeft className="w-4 h-4" />
+                          ) : (
+                            <ArrowUpRight className="w-4 h-4" />
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-semibold text-white truncate max-w-sm sm:max-w-md">{tx.description}</p>
+                          <span className="text-[10px] text-zinc-500 font-mono block truncate">
+                            {tx.timestamp} • TX: {tx.txHash} • Currency: {tx.currency}
+                          </span>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-semibold text-white truncate max-w-sm sm:max-w-md">{tx.description}</p>
-                        <span className="text-[10px] text-zinc-500 font-mono">
-                          {tx.timestamp} • TX: {tx.txHash} • Currency: {tx.currency}
-                        </span>
-                      </div>
-                    </div>
 
-                    <div className="text-right shrink-0">
-                      <span
-                        className={`font-mono font-bold text-sm tabular-nums ${
-                          tx.type === 'deposit' || tx.type === 'promotion_win' || tx.type === 'dividend_claim' || tx.type === 'referral_credit'
-                            ? 'text-emerald-400'
-                            : 'text-zinc-200'
-                        }`}
-                      >
-                        {tx.type === 'deposit' || tx.type === 'promotion_win' || tx.type === 'dividend_claim' || tx.type === 'referral_credit' ? '+' : '-'}
-                        {formatCurrency(tx.usdEquivalent, { includeCode: true })}
-                      </span>
-                      <span className="text-[10px] text-emerald-400 font-mono block capitalize">{tx.status}</span>
+                      <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0">
+                        <div className="text-left sm:text-right">
+                          <span
+                            className={`font-mono font-bold text-sm tabular-nums ${
+                              tx.type === 'deposit' || tx.type === 'promotion_win' || tx.type === 'dividend_claim' || tx.type === 'referral_credit'
+                                ? 'text-emerald-400'
+                                : 'text-zinc-200'
+                            }`}
+                          >
+                            {tx.type === 'deposit' || tx.type === 'promotion_win' || tx.type === 'dividend_claim' || tx.type === 'referral_credit' ? '+' : '-'}
+                            {formatCurrency(tx.usdEquivalent, { includeCode: true })}
+                          </span>
+                          <span className="text-[10px] text-emerald-400 font-mono block capitalize">{tx.status}</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const filename = downloadTransactionInvoicePdf(tx, displayUser, matchedBooking);
+                            showToast(`Receipt downloaded (${filename})`, 'success');
+                          }}
+                          className="px-3 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 hover:border-red-500/40 text-zinc-200 text-[11px] font-semibold flex items-center gap-1.5 transition cursor-pointer shrink-0"
+                          title="Download formal PDF receipt"
+                        >
+                          <Download className="w-3.5 h-3.5 text-red-400" />
+                          <span>PDF Receipt</span>
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>
@@ -1991,6 +2135,15 @@ export const Dashboard: React.FC<DashboardProps> = ({
         </div>
       )}
 
+      {/* Tab: Loyalty & Reward Tiers Hub */}
+      {activeTab === 'loyalty' && (
+        <LoyaltyHub
+          onOpenDeposit={onOpenDeposit}
+          onNavigateTab={(tab) => setActiveTab(tab)}
+          onNavigateToServices={onNavigateToServices}
+        />
+      )}
+
       {/* Tab: Won Prizes & International Shipping */}
       {activeTab === 'won_prizes' && (
         <UserWonPrizesTab onOpenDeposit={onOpenDeposit} />
@@ -2298,12 +2451,20 @@ export const Dashboard: React.FC<DashboardProps> = ({
               <button
                 type="button"
                 onClick={() => {
-                  showToast('Official PDF Invoice downloaded to client storage.', 'success');
+                  const matchedTx = transactions.find(
+                    (t) =>
+                      t.type === 'service_payment' &&
+                      (t.invoiceData?.invoiceNumber === showInvoiceModal.invoiceNumber ||
+                        t.description.includes(showInvoiceModal.serviceType))
+                  );
+                  const filename = downloadServiceInvoicePdf(showInvoiceModal, displayUser, matchedTx);
+                  showToast(`Official PDF Invoice downloaded (${filename}).`, 'success');
                   setShowInvoiceModal(null);
                 }}
-                className="w-full py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs shadow-md transition cursor-pointer"
+                className="w-full py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs shadow-md transition cursor-pointer flex items-center justify-center gap-2"
               >
-                Download Sealed PDF Invoice
+                <Download className="w-4 h-4" />
+                <span>Download Sealed PDF Invoice</span>
               </button>
             </div>
           </div>
