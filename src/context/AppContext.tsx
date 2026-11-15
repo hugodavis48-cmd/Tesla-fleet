@@ -31,6 +31,12 @@ import {
 } from '../lib/firebase';
 import { PageSeoMeta } from '../types';
 import {
+  inferAudioVariantFromMessage,
+  isAudioFeedbackEnabled,
+  playSuccessSound,
+  setAudioFeedbackEnabled,
+} from '../lib/audioFeedback';
+import {
   CryptoCurrency,
   ProductItem,
   RentalVehicle,
@@ -139,6 +145,8 @@ interface AppContextType {
   cart: { product: ProductItem; quantity: number }[];
   bookedRentals: { rentalId: string; vehicle: RentalVehicle; days: number; startDate: string; totalUsd: number }[];
   toastMessage: { text: string; type: 'success' | 'info' | 'error' } | null;
+  soundEnabled: boolean;
+  toggleSoundEnabled: () => void;
   // Auth & Session Management
   sessionToken: string | null;
   activeSession: UserSession | null;
@@ -1569,6 +1577,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [cart, setCart] = useState<{ product: ProductItem; quantity: number }[]>([]);
   const [bookedRentals, setBookedRentals] = useState<{ rentalId: string; vehicle: RentalVehicle; days: number; startDate: string; totalUsd: number }[]>([]);
   const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'info' | 'error' } | null>(null);
+  const [soundEnabled, setSoundEnabled] = useState<boolean>(() => isAudioFeedbackEnabled());
+
+  const toggleSoundEnabled = useCallback(() => {
+    setSoundEnabled((prev) => {
+      const next = !prev;
+      setAudioFeedbackEnabled(next);
+      if (next) {
+        playSuccessSound('default');
+      }
+      return next;
+    });
+  }, []);
 
   // Notifications Hub state
   const [adminNotifications, setAdminNotifications] = useState<AdminNotificationMessage[]>(() => {
@@ -2715,6 +2735,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const showToast = (text: string, type: 'success' | 'info' | 'error' = 'success') => {
     setToastMessage({ text, type });
+    if (type === 'success') {
+      playSuccessSound(inferAudioVariantFromMessage(text));
+    }
     setTimeout(() => {
       setToastMessage(null);
     }, 4500);
@@ -7532,6 +7555,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         resetBusinessCertificates,
         saveBusinessCertificatesNow,
         trackVisitorAction,
+        soundEnabled,
+        toggleSoundEnabled,
       }}
     >
 

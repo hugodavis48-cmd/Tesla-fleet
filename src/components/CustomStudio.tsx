@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { Palette, Check, Sparkles, Shield, Wrench, ArrowRight, Eye, ShieldCheck, Zap, Maximize2 } from 'lucide-react';
 import { ImageLightbox } from './ImageLightbox';
+import { playSuccessSound } from '../lib/audioFeedback';
 
 interface CustomStudioProps {
   onNavigateToServices: () => void;
@@ -117,6 +118,7 @@ export const CustomStudio: React.FC<CustomStudioProps> = ({ onNavigateToServices
       totalCostUsd: grandTotal,
       paidWith: 'Apex Dashboard Vault',
     });
+    playSuccessSound('wrap');
   };
 
   return (

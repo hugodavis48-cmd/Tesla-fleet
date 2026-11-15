@@ -3,6 +3,19 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      (function () {
+        try {
+          var saved = localStorage.getItem('apex_tesla_theme');
+          var theme = saved === 'light' || saved === 'dark' ? saved : 'dark';
+          var root = document.documentElement;
+          root.classList.remove('light', 'dark');
+          root.classList.add(theme);
+          root.setAttribute('data-theme', theme);
+          root.style.colorScheme = theme;
+        } catch (e) {}
+      })();
+    </script>
     <title>Apex Tesla Hub - Service, Customization, Rentals & Fleet Yield</title>
     <meta name="description" content="Comprehensive Tesla vehicle hub for maintenance, wraps & custom accessories, fleet rentals, decentralized investment yields, TSLA stocks, spin & scratch promotions, and Gemini-powered service & fleet ops." />
     <meta name="keywords" content="Tesla Service, Tesla Wraps, TSLA Stocks, Tesla Fleet Yield, Cybertruck Rental, Spin and Win Tesla, EV Maintenance" />

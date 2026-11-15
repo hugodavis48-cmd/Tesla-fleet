@@ -18,18 +18,30 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 const STORAGE_KEY = 'apex_tesla_theme';
 
-export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [theme, setThemeState] = useState<ThemeMode>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY) as ThemeMode | null;
-      if (saved === 'light' || saved === 'dark') {
-        return saved;
-      }
-    } catch {
-      // ignore storage errors
+const readStoredTheme = (): ThemeMode | null => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const saved = window.localStorage.getItem(STORAGE_KEY);
+    if (saved === 'light' || saved === 'dark') {
+      return saved;
     }
-    return 'dark';
-  });
+  } catch {
+    // ignore storage access errors
+  }
+  return null;
+};
+
+const writeStoredTheme = (nextTheme: ThemeMode): void => {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(STORAGE_KEY, nextTheme);
+  } catch {
+    // ignore storage access errors
+  }
+};
+
+export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [theme, setThemeState] = useState<ThemeMode>(() => readStoredTheme() ?? 'dark');
   const [isSyncingTheme, setIsSyncingTheme] = useState<boolean>(false);
   const latestThemeRef = useRef<ThemeMode>(theme);
 
@@ -40,11 +52,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const applyLocalTheme = useCallback((nextTheme: ThemeMode) => {
     setThemeState(nextTheme);
     latestThemeRef.current = nextTheme;
-    try {
-      localStorage.setItem(STORAGE_KEY, nextTheme);
-    } catch {
-      // ignore storage errors
-    }
+    writeStoredTheme(nextTheme);
   }, []);
 
   const persistThemeToFirestore = useCallback(async (nextTheme: ThemeMode) => {
@@ -89,20 +97,21 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setTheme(nextTheme);
   }, [setTheme]);
 
-  // Synchronize themePreference from Firestore user profile across auth sessions
+  // Synchronize themePreference with Firestore without overriding explicit localStorage choices
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
       if (!fbUser) return;
       const userDocPath = `users/${fbUser.uid}`;
       const userDocRef = doc(db, 'users', fbUser.uid);
+      const localPref = readStoredTheme();
       setIsSyncingTheme(true);
       try {
         const snap = await getDoc(userDocRef);
         if (snap.exists()) {
           const remotePref = snap.data()?.themePreference;
-          if (remotePref === 'light' || remotePref === 'dark') {
+          if (!localPref && (remotePref === 'light' || remotePref === 'dark')) {
             applyLocalTheme(remotePref);
-          } else {
+          } else if (remotePref !== latestThemeRef.current) {
             await updateDoc(userDocRef, {
               themePreference: latestThemeRef.current,
               updatedAt: serverTimestamp(),
@@ -123,19 +132,36 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return () => unsubscribe();
   }, [applyLocalTheme]);
 
-  // Listen to cross-context theme hydration events (e.g. from AppContext login/profile sync)
+  // Listen to explicit remote login sync events only when no localStorage preference is set
   useEffect(() => {
     const handleRemoteSync = (event: Event) => {
       const customEvent = event as CustomEvent<unknown>;
       if (customEvent.detail === 'light' || customEvent.detail === 'dark') {
-        applyLocalTheme(customEvent.detail);
+        if (!readStoredTheme()) {
+          applyLocalTheme(customEvent.detail);
+        }
       }
     };
     window.addEventListener('apex:theme-sync', handleRemoteSync);
     return () => window.removeEventListener('apex:theme-sync', handleRemoteSync);
   }, [applyLocalTheme]);
 
+  // Keep theme synchronized across open browser tabs/windows via localStorage storage events
   useEffect(() => {
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.key !== STORAGE_KEY) return;
+      if (event.newValue === 'light' || event.newValue === 'dark') {
+        setThemeState(event.newValue);
+        latestThemeRef.current = event.newValue;
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
+  // Sync DOM attributes and persist active selection in localStorage
+  useEffect(() => {
+    writeStoredTheme(theme);
     const root = document.documentElement;
     const body = document.body;
 
@@ -143,12 +169,14 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       root.classList.add('light');
       root.classList.remove('dark');
       root.setAttribute('data-theme', 'light');
+      root.style.colorScheme = 'light';
       body.classList.add('light');
       body.classList.remove('dark');
     } else {
       root.classList.add('dark');
       root.classList.remove('light');
       root.setAttribute('data-theme', 'dark');
+      root.style.colorScheme = 'dark';
       body.classList.add('dark');
       body.classList.remove('light');
     }

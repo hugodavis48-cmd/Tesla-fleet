@@ -1,4 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
+import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import { useApp } from '../context/AppContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
@@ -34,6 +36,8 @@ import {
   Sun,
   Moon,
   Megaphone,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -73,15 +77,17 @@ export const Navbar: React.FC<NavbarProps> = ({
     selectedCurrency,
     setSelectedCurrencyCode,
     formatCurrency,
+    soundEnabled,
+    toggleSoundEnabled,
   } = useApp();
   const { currentLanguageOption, setLanguage, languages, t } = useLanguage();
   const { isLight, toggleTheme } = useTheme();
+  const prefersReducedMotion = useReducedMotion();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
   const desktopNavRef = useRef<HTMLElement>(null);
   const mobileBarRef = useRef<HTMLDivElement>(null);
   const dropdownPagesRef = useRef<HTMLDivElement>(null);
-  const mobileDrawerPagesRef = useRef<HTMLDivElement>(null);
 
   const [canSlideDesktopLeft, setCanSlideDesktopLeft] = useState(false);
   const [canSlideDesktopRight, setCanSlideDesktopRight] = useState(true);
@@ -195,6 +201,22 @@ export const Navbar: React.FC<NavbarProps> = ({
     window.addEventListener('resize', updateSlideButtons);
     return () => window.removeEventListener('resize', updateSlideButtons);
   }, [updateSlideButtons, navLinks.length]);
+
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setMobileMenuOpen(false);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [mobileMenuOpen]);
 
   const slideContainer = (ref: React.RefObject<HTMLElement | null>, direction: 'left' | 'right', step = 240) => {
     if (!ref.current) return;
@@ -715,6 +737,26 @@ export const Navbar: React.FC<NavbarProps> = ({
                       </button>
                     </div>
 
+                    {/* UI Sound Feedback Toggle */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-xs text-zinc-300">
+                        {soundEnabled ? (
+                          <Volume2 className="w-4 h-4 text-emerald-400" />
+                        ) : (
+                          <VolumeX className="w-4 h-4 text-zinc-500" />
+                        )}
+                        <span className="font-medium">Sound Effects</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={toggleSoundEnabled}
+                        className="px-2.5 py-1 rounded-lg bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-xs font-semibold text-zinc-200 hover:text-white flex items-center gap-1.5 transition cursor-pointer"
+                      >
+                        <span>{soundEnabled ? 'Enabled' : 'Muted'}</span>
+                        <span className="text-[10px] text-zinc-500">Toggle</span>
+                      </button>
+                    </div>
+
                     {/* Language Switcher Selector */}
                     <div>
                       <div className="flex items-center gap-2 text-xs text-zinc-300 mb-1.5">
@@ -800,10 +842,14 @@ export const Navbar: React.FC<NavbarProps> = ({
             )}
           </div>
 
-          {/* Mobile menu burger */}
+          {/* Mobile menu drawer trigger */}
           <button
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="xl:hidden p-2 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white"
+            type="button"
+            onClick={() => setMobileMenuOpen((prev) => !prev)}
+            aria-expanded={mobileMenuOpen}
+            aria-controls="mobile-fullscreen-drawer"
+            aria-label={mobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
+            className="xl:hidden min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 hover:text-white transition cursor-pointer"
           >
             {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
@@ -869,279 +915,548 @@ export const Navbar: React.FC<NavbarProps> = ({
         </button>
       </div>
 
-      {/* Mobile Drawer */}
-      {mobileMenuOpen && (
-        <div className="xl:hidden border-t border-zinc-800 bg-zinc-950/95 backdrop-blur-xl px-4 py-5 space-y-3 max-h-[calc(100vh-7.5rem)] overflow-y-auto animate-in slide-in-from-top-2">
-          {/* Quick Balance Mobile — authenticated users only */}
-          {currentUser && (
-            <>
-              <div className="p-3 rounded-xl bg-zinc-900 border border-zinc-800 mb-2 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-zinc-400">Available Vault Balance</span>
-                  <span className="font-mono font-bold text-sm text-emerald-400">
-                    ${balances.usd.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => {
-                      onOpenDeposit();
-                      setMobileMenuOpen(false);
-                    }}
-                    className="py-1.5 px-3 rounded-lg bg-red-600 text-white font-bold text-xs flex-1 text-center"
-                  >
-                    + Deposit
-                  </button>
-                  {onOpenWithdraw && (
-                    <button
-                      onClick={() => {
-                        onOpenWithdraw();
-                        setMobileMenuOpen(false);
-                      }}
-                      className="py-1.5 px-3 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-200 font-bold text-xs flex-1 text-center"
-                    >
-                      Withdraw
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Mobile Cart & Notifications Quick Actions */}
-              <div className="grid grid-cols-2 gap-2 mb-2">
-                <button
-                  onClick={() => {
-                    onOpenCart();
-                    setMobileMenuOpen(false);
-                  }}
-                  className="p-2.5 rounded-xl bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-zinc-200 font-semibold text-xs flex items-center justify-between transition"
-                >
-                  <div className="flex items-center gap-2">
-                    <ShoppingBag className="w-4 h-4 text-red-500" />
-                    <span>Cart</span>
-                  </div>
-                  {totalCartCount > 0 ? (
-                    <span className="px-1.5 py-0.5 rounded-full bg-red-600 text-white text-[10px] font-bold animate-pulse">
-                      {totalCartCount}
-                    </span>
-                  ) : (
-                    <span className="text-[10px] text-zinc-500">0</span>
-                  )}
-                </button>
-
-                <button
-                  onClick={() => {
-                    handleNavClick('dashboard');
-                    setMobileMenuOpen(false);
-                  }}
-                  className="p-2.5 rounded-xl bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-zinc-200 font-semibold text-xs flex items-center justify-between transition"
-                >
-                  <div className="flex items-center gap-2">
-                    <Bell className="w-4 h-4 text-amber-400" />
-                    <span>Alerts</span>
-                  </div>
-                  {unreadNotificationsCount > 0 ? (
-                    <span className="px-1.5 py-0.5 rounded-full bg-red-600 text-white text-[10px] font-bold animate-pulse">
-                      {unreadNotificationsCount}
-                    </span>
-                  ) : (
-                    <span className="text-[10px] text-zinc-500">0</span>
-                  )}
-                </button>
-              </div>
-            </>
-          )}
-
-          <div className="grid grid-cols-2 gap-2 mb-2">
-            {currentUser && onOpenTracking && (
-              <button
-                onClick={() => {
-                  onOpenTracking();
-                  setMobileMenuOpen(false);
-                }}
-                className="p-2.5 rounded-xl bg-cyan-950/40 border border-cyan-500/30 text-cyan-300 font-semibold text-xs flex items-center justify-center gap-1.5"
+      {/* Full-Screen Animated Slide-In Mobile Drawer */}
+      {typeof document !== 'undefined' &&
+        createPortal(
+          <AnimatePresence>
+            {mobileMenuOpen && (
+              <div
+                id="mobile-fullscreen-drawer"
+                role="dialog"
+                aria-modal="true"
+                aria-label="Mobile navigation drawer"
+                className="xl:hidden fixed inset-0 z-[90] flex justify-end"
               >
-                <Truck className="w-3.5 h-3.5 text-cyan-400" />
-                <span>Track Orders</span>
-              </button>
-            )}
-            <a
-              href={whatsappUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="p-2.5 rounded-xl bg-emerald-950/40 border border-emerald-500/30 text-emerald-300 font-semibold text-xs flex items-center justify-center gap-1.5"
-            >
-              <MessageCircle className="w-3.5 h-3.5 text-emerald-400" />
-              <span>WhatsApp VIP</span>
-            </a>
-          </div>
+                {/* Smooth Backdrop Blur Overlay */}
+                <motion.div
+                  key="mobile-drawer-backdrop"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: prefersReducedMotion ? 0 : 0.24, ease: [0.16, 1, 0.3, 1] }}
+                  onClick={() => setMobileMenuOpen(false)}
+                  aria-hidden="true"
+                  className="fixed inset-0 bg-black/70 backdrop-blur-lg"
+                />
 
-          {/* Slidable Pages Slider inside Mobile Menu */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between px-0.5">
-              <span className="text-[11px] font-mono uppercase tracking-wider text-zinc-400 font-bold">
-                All Platform Pages (Slide)
-              </span>
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={() => slideContainer(mobileDrawerPagesRef, 'left', 220)}
-                  className="p-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-300 hover:text-white cursor-pointer"
-                  aria-label="Slide mobile drawer pages left"
-                >
-                  <ChevronLeft className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => slideContainer(mobileDrawerPagesRef, 'right', 220)}
-                  className="p-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-300 hover:text-white cursor-pointer"
-                  aria-label="Slide mobile drawer pages right"
-                >
-                  <ChevronRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
-
-            <div
-              ref={mobileDrawerPagesRef}
-              className="flex items-stretch gap-2 overflow-x-auto scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden pb-1"
-            >
-              {navLinks.map((link) => (
-                <button
-                  key={link.id}
-                  onClick={() => handleNavClick(link.id)}
-                  className={`px-3.5 py-2.5 rounded-xl text-left text-xs font-semibold flex items-center gap-2 border shrink-0 whitespace-nowrap ${
-                    activeTab === link.id
-                      ? 'bg-red-600/20 border-red-500/50 text-white'
-                      : 'bg-zinc-900/60 border-zinc-800 text-zinc-300'
+                {/* Full-Screen Slide-In Surface */}
+                <motion.aside
+                  key="mobile-drawer-panel"
+                  initial={prefersReducedMotion ? { opacity: 0 } : { x: '100%', opacity: 0.96 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  exit={prefersReducedMotion ? { opacity: 0 } : { x: '100%', opacity: 0.96 }}
+                  transition={{
+                    duration: prefersReducedMotion ? 0 : 0.3,
+                    ease: [0.16, 1, 0.3, 1],
+                  }}
+                  className={`relative z-10 w-full h-[100dvh] flex flex-col overflow-hidden ${
+                    isLight
+                      ? 'bg-white/95 text-slate-900 backdrop-blur-2xl'
+                      : 'bg-zinc-950/95 text-zinc-100 backdrop-blur-2xl'
                   }`}
                 >
-                  {link.icon && <link.icon className="w-4 h-4 text-red-500" />}
-                  <span>{link.label}</span>
-                </button>
-              ))}
-              {mobileOnlyLinks.map((m) => {
-                const MobIcon = (m.iconName && iconMap[m.iconName]) || Megaphone;
-                return (
-                  <button
-                    key={m.id}
-                    onClick={() => handleNavClick(m.targetTab)}
-                    className={`px-3.5 py-2.5 rounded-xl text-left text-xs font-semibold flex items-center gap-2 border shrink-0 whitespace-nowrap ${
-                      activeTab === m.targetTab
-                        ? 'bg-red-600/20 border-red-500/50 text-white'
-                        : 'bg-zinc-900/60 border-zinc-800 text-zinc-300'
+                  {/* Sticky Drawer Top Header with Prominent Close Button */}
+                  <div
+                    className={`px-4 sm:px-6 h-20 flex items-center justify-between gap-3 border-b shrink-0 ${
+                      isLight ? 'border-slate-200 bg-white/90' : 'border-zinc-800/80 bg-zinc-950/90'
                     }`}
                   >
-                    <MobIcon className="w-4 h-4 text-amber-400" />
-                    <span>{m.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+                    <button
+                      type="button"
+                      onClick={() => handleNavClick('home')}
+                      className="flex items-center gap-2.5 min-w-0 text-left cursor-pointer"
+                    >
+                      <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-red-600 via-rose-600 to-red-800 p-0.5 overflow-hidden shrink-0">
+                        <img
+                          src={seoSettings?.logoUrl || '/logo.jpg'}
+                          alt={siteSettings.siteName}
+                          referrerPolicy="no-referrer"
+                          onError={(e) => {
+                            e.currentTarget.onerror = null;
+                            e.currentTarget.src = '/logo.jpg';
+                          }}
+                          className="w-full h-full rounded-[10px] object-cover bg-zinc-950"
+                        />
+                      </div>
+                      <div className="min-w-0">
+                        <span
+                          className={`font-heading font-extrabold text-base tracking-tight block truncate ${
+                            isLight ? 'text-slate-900' : 'text-white'
+                          }`}
+                        >
+                          {brandParts[0]}
+                          {brandParts[1] ? ` ${brandParts[1]}` : ''}
+                        </span>
+                        <span className="text-[11px] text-zinc-400 block truncate">
+                          {currentUser ? currentUser.name : 'Navigation & Preferences'}
+                        </span>
+                      </div>
+                    </button>
 
-          {/* Mobile Language Switcher */}
-          <div className="p-2.5 rounded-xl bg-zinc-900 border border-zinc-800">
-            <div className="flex items-center gap-1.5 text-[11px] font-semibold text-zinc-400 mb-2">
-              <Globe className="w-3.5 h-3.5 text-red-500" />
-              <span>Language / Idioma / 语言 / 言語</span>
-            </div>
-            <div className="grid grid-cols-4 gap-1.5">
-              {languages.map((lang) => {
-                const isSelected = lang.code === currentLanguageOption.code;
-                return (
-                  <button
-                    key={lang.code}
-                    onClick={() => setLanguage(lang.code)}
-                    className={`py-1.5 px-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1 border transition ${
-                      isSelected
-                        ? 'bg-red-600/30 border-red-500 text-white'
-                        : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-white'
+                    <button
+                      type="button"
+                      onClick={() => setMobileMenuOpen(false)}
+                      aria-label="Close navigation drawer"
+                      className={`min-h-[44px] px-3.5 rounded-xl border flex items-center justify-center gap-1.5 text-xs font-semibold transition cursor-pointer shrink-0 ${
+                        isLight
+                          ? 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-900'
+                          : 'bg-zinc-900 hover:bg-zinc-800 border-zinc-700 text-zinc-100'
+                      }`}
+                    >
+                      <X className="w-5 h-5" />
+                      <span>Close</span>
+                    </button>
+                  </div>
+
+                  {/* Scrollable Drawer Body */}
+                  <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-5 space-y-6">
+                    {/* Account & Vault Quick Section */}
+                    {currentUser ? (
+                      <div
+                        className={`p-4 rounded-2xl border space-y-3 ${
+                          isLight
+                            ? 'bg-slate-50 border-slate-200'
+                            : 'bg-zinc-900/80 border-zinc-800'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <img
+                              src={currentUser.avatar}
+                              alt={currentUser.name}
+                              referrerPolicy="no-referrer"
+                              onError={(e) => {
+                                e.currentTarget.onerror = null;
+                                e.currentTarget.src = '/logo.jpg';
+                              }}
+                              className="w-10 h-10 rounded-xl object-cover border border-red-500/40 shrink-0"
+                            />
+                            <div className="min-w-0">
+                              <p
+                                className={`text-sm font-bold truncate ${
+                                  isLight ? 'text-slate-900' : 'text-white'
+                                }`}
+                              >
+                                {currentUser.name}
+                              </p>
+                              <p className="text-xs text-zinc-400 truncate">
+                                {currentUser.tier} Member · {selectedCurrency.code} Vault
+                              </p>
+                            </div>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <span className="text-[11px] text-zinc-400 block">Available</span>
+                            <span className="font-mono font-bold text-base text-emerald-400 tabular-nums">
+                              {formatCurrency(balances.usd)}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onOpenDeposit();
+                              setMobileMenuOpen(false);
+                            }}
+                            className="min-h-[44px] px-3 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                          >
+                            <Plus className="w-4 h-4" />
+                            <span>Deposit</span>
+                          </button>
+                          {onOpenWithdraw && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                onOpenWithdraw();
+                                setMobileMenuOpen(false);
+                              }}
+                              className={`min-h-[44px] px-3 rounded-xl border font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer ${
+                                isLight
+                                  ? 'bg-white border-slate-300 text-slate-800 hover:bg-slate-100'
+                                  : 'bg-zinc-800 border-zinc-700 text-zinc-100 hover:bg-zinc-700'
+                              }`}
+                            >
+                              <ArrowDownLeft className="w-4 h-4 text-red-400" />
+                              <span>Withdraw</span>
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onOpenCart();
+                              setMobileMenuOpen(false);
+                            }}
+                            className={`min-h-[44px] px-3 rounded-xl border font-semibold text-xs flex items-center justify-between transition cursor-pointer ${
+                              isLight
+                                ? 'bg-white border-slate-200 text-slate-800'
+                                : 'bg-zinc-950/70 border-zinc-800 text-zinc-200'
+                            }`}
+                          >
+                            <span className="flex items-center gap-2">
+                              <ShoppingBag className="w-4 h-4 text-red-500" />
+                              <span>Cart</span>
+                            </span>
+                            <span className="font-mono text-xs font-bold tabular-nums text-red-400">
+                              {totalCartCount}
+                            </span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleNavClick('dashboard')}
+                            className={`min-h-[44px] px-3 rounded-xl border font-semibold text-xs flex items-center justify-between transition cursor-pointer ${
+                              isLight
+                                ? 'bg-white border-slate-200 text-slate-800'
+                                : 'bg-zinc-950/70 border-zinc-800 text-zinc-200'
+                            }`}
+                          >
+                            <span className="flex items-center gap-2">
+                              <Bell className="w-4 h-4 text-amber-400" />
+                              <span>Alerts</span>
+                            </span>
+                            <span className="font-mono text-xs font-bold tabular-nums text-amber-400">
+                              {unreadNotificationsCount}
+                            </span>
+                          </button>
+
+                          {onOpenTracking && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                onOpenTracking();
+                                setMobileMenuOpen(false);
+                              }}
+                              className={`col-span-2 sm:col-span-1 min-h-[44px] px-3 rounded-xl border font-semibold text-xs flex items-center justify-center gap-2 transition cursor-pointer ${
+                                isLight
+                                  ? 'bg-cyan-50 border-cyan-200 text-cyan-800'
+                                  : 'bg-cyan-950/35 border-cyan-500/30 text-cyan-300'
+                              }`}
+                            >
+                              <Truck className="w-4 h-4 text-cyan-400" />
+                              <span>Track Orders</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <div
+                        className={`p-4 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                          isLight
+                            ? 'bg-slate-50 border-slate-200'
+                            : 'bg-zinc-900/80 border-zinc-800'
+                        }`}
+                      >
+                        <div>
+                          <p
+                            className={`text-sm font-bold ${
+                              isLight ? 'text-slate-900' : 'text-white'
+                            }`}
+                          >
+                            Apex Tesla Hub Account
+                          </p>
+                          <p className="text-xs text-zinc-400">
+                            Sign in to manage service bays, rentals, and fleet yields.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onOpenAuth();
+                            setMobileMenuOpen(false);
+                          }}
+                          className="min-h-[44px] px-4 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 text-white font-bold text-xs flex items-center justify-center gap-2 shrink-0 cursor-pointer"
+                        >
+                          <User className="w-4 h-4" />
+                          <span>Sign In / Register</span>
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Primary Destinations Directory */}
+                    <div className="space-y-2.5">
+                      <div className="flex items-center justify-between px-1">
+                        <span className="text-xs font-semibold text-zinc-400">
+                          Explore Platform
+                        </span>
+                        <span className="text-xs text-zinc-500 tabular-nums">
+                          {navLinks.length + mobileOnlyLinks.length} destinations
+                        </span>
+                      </div>
+
+                      <nav aria-label="Full-screen mobile navigation links" className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {navLinks.map((link) => {
+                          const active = activeTab === link.id;
+                          return (
+                            <button
+                              key={`fs-nav-${link.id}`}
+                              type="button"
+                              onClick={() => handleNavClick(link.id)}
+                              className={`min-h-[52px] px-3.5 py-2.5 rounded-xl text-left border flex items-center justify-between gap-3 transition cursor-pointer ${
+                                active
+                                  ? 'bg-red-600/20 border-red-500/60 text-white'
+                                  : isLight
+                                  ? 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-900'
+                                  : 'bg-zinc-900/60 hover:bg-zinc-900 border-zinc-800 text-zinc-200'
+                              }`}
+                            >
+                              <span className="flex items-center gap-3 min-w-0">
+                                <span
+                                  className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
+                                    active
+                                      ? 'bg-red-600 text-white'
+                                      : isLight
+                                      ? 'bg-white border border-slate-200 text-red-600'
+                                      : 'bg-zinc-950 border border-zinc-800 text-red-400'
+                                  }`}
+                                >
+                                  {link.icon ? <link.icon className="w-4 h-4" /> : <Zap className="w-4 h-4" />}
+                                </span>
+                                <span className="min-w-0">
+                                  <span className="font-heading font-semibold text-sm block truncate">
+                                    {link.label}
+                                  </span>
+                                  {(link as any).stockPill && (
+                                    <span className="text-[11px] font-mono text-emerald-400">
+                                      TSLA {(link as any).stockPill}
+                                    </span>
+                                  )}
+                                  {link.badge && (
+                                    <span className="text-[11px] font-mono text-emerald-400">
+                                      {link.badge}
+                                    </span>
+                                  )}
+                                </span>
+                              </span>
+                              <ChevronRight className="w-4 h-4 text-zinc-500 shrink-0" />
+                            </button>
+                          );
+                        })}
+
+                        {mobileOnlyLinks.map((m) => {
+                          const MobIcon = (m.iconName && iconMap[m.iconName]) || Megaphone;
+                          const active = activeTab === m.targetTab;
+                          return (
+                            <button
+                              key={`fs-mob-${m.id}`}
+                              type="button"
+                              onClick={() => handleNavClick(m.targetTab)}
+                              className={`min-h-[52px] px-3.5 py-2.5 rounded-xl text-left border flex items-center justify-between gap-3 transition cursor-pointer ${
+                                active
+                                  ? 'bg-red-600/20 border-red-500/60 text-white'
+                                  : isLight
+                                  ? 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-900'
+                                  : 'bg-zinc-900/60 hover:bg-zinc-900 border-zinc-800 text-zinc-200'
+                              }`}
+                            >
+                              <span className="flex items-center gap-3 min-w-0">
+                                <span
+                                  className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
+                                    isLight
+                                      ? 'bg-white border border-slate-200 text-amber-600'
+                                      : 'bg-zinc-950 border border-zinc-800 text-amber-400'
+                                  }`}
+                                >
+                                  <MobIcon className="w-4 h-4" />
+                                </span>
+                                <span className="font-heading font-semibold text-sm truncate">
+                                  {m.label}
+                                </span>
+                              </span>
+                              <ChevronRight className="w-4 h-4 text-zinc-500 shrink-0" />
+                            </button>
+                          );
+                        })}
+                      </nav>
+                    </div>
+
+                    {/* Preferences: Appearance Theme, Language & Currency */}
+                    <div
+                      className={`p-4 rounded-2xl border space-y-4 ${
+                        isLight ? 'bg-slate-50 border-slate-200' : 'bg-zinc-900/70 border-zinc-800'
+                      }`}
+                    >
+                      <span className="text-xs font-semibold text-zinc-400 block">
+                        Display &amp; Regional Preferences
+                      </span>
+
+                      <button
+                        type="button"
+                        onClick={toggleTheme}
+                        className={`w-full min-h-[48px] px-3.5 py-2.5 rounded-xl border flex items-center justify-between gap-3 font-semibold text-xs transition cursor-pointer ${
+                          isLight
+                            ? 'bg-white border-slate-300 text-slate-900 hover:bg-slate-100'
+                            : 'bg-zinc-950 border-zinc-800 text-zinc-100 hover:border-zinc-700'
+                        }`}
+                      >
+                        <span className="flex items-center gap-2.5">
+                          {isLight ? (
+                            <Sun className="w-4 h-4 text-amber-500" />
+                          ) : (
+                            <Moon className="w-4 h-4 text-indigo-400" />
+                          )}
+                          <span>{isLight ? 'Light Mode Active' : 'Dark Mode Active'}</span>
+                        </span>
+                        <span className="text-[11px] font-mono text-red-400">
+                          Switch to {isLight ? 'Dark' : 'Light'}
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={toggleSoundEnabled}
+                        className={`w-full min-h-[48px] px-3.5 py-2.5 rounded-xl border flex items-center justify-between gap-3 font-semibold text-xs transition cursor-pointer ${
+                          isLight
+                            ? 'bg-white border-slate-300 text-slate-900 hover:bg-slate-100'
+                            : 'bg-zinc-950 border-zinc-800 text-zinc-100 hover:border-zinc-700'
+                        }`}
+                      >
+                        <span className="flex items-center gap-2.5">
+                          {soundEnabled ? (
+                            <Volume2 className="w-4 h-4 text-emerald-400" />
+                          ) : (
+                            <VolumeX className="w-4 h-4 text-zinc-500" />
+                          )}
+                          <span>{soundEnabled ? 'UI Sound Effects On' : 'UI Sound Effects Muted'}</span>
+                        </span>
+                        <span className="text-[11px] font-mono text-emerald-400">
+                          {soundEnabled ? 'Mute' : 'Enable'}
+                        </span>
+                      </button>
+
+                      <div>
+                        <div className="flex items-center gap-1.5 text-xs font-medium text-zinc-400 mb-2">
+                          <Globe className="w-3.5 h-3.5 text-cyan-400" />
+                          <span>Language</span>
+                        </div>
+                        <div className="grid grid-cols-4 gap-2">
+                          {languages.map((lang) => {
+                            const isSelected = lang.code === currentLanguageOption.code;
+                            return (
+                              <button
+                                key={lang.code}
+                                type="button"
+                                onClick={() => setLanguage(lang.code)}
+                                className={`min-h-[44px] px-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1 border transition cursor-pointer ${
+                                  isSelected
+                                    ? 'bg-red-600/25 border-red-500 text-white'
+                                    : isLight
+                                    ? 'bg-white border-slate-200 text-slate-700'
+                                    : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-white'
+                                }`}
+                              >
+                                <span>{lang.flag}</span>
+                                <span className="uppercase text-[11px] font-mono">{lang.code}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="flex items-center justify-between text-xs font-medium text-zinc-400 mb-2">
+                          <span className="flex items-center gap-1.5">
+                            <CreditCard className="w-3.5 h-3.5 text-emerald-400" />
+                            <span>Currency</span>
+                          </span>
+                          <span className="font-mono text-emerald-400">
+                            {selectedCurrency.code} (×{selectedCurrency.multiplier})
+                          </span>
+                        </div>
+                        <select
+                          value={selectedCurrencyCode}
+                          onChange={(e) => setSelectedCurrencyCode(e.target.value)}
+                          aria-label="Select display currency"
+                          className={`w-full min-h-[44px] px-3 rounded-xl border text-xs font-mono focus:outline-none focus:border-red-500 cursor-pointer ${
+                            isLight
+                              ? 'bg-white border-slate-300 text-slate-900'
+                              : 'bg-zinc-950 border-zinc-700 text-white'
+                          }`}
+                        >
+                          {currencies
+                            .filter((c) => c.isActive)
+                            .map((c) => (
+                              <option key={c.code} value={c.code}>
+                                {c.code} ({c.symbol.trim()}) — {c.name} (×{c.multiplier})
+                              </option>
+                            ))}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Sticky Thumb-Zone Drawer Footer */}
+                  <div
+                    className={`px-4 sm:px-6 py-4 border-t shrink-0 flex flex-wrap items-center justify-between gap-2.5 ${
+                      isLight ? 'border-slate-200 bg-white/95' : 'border-zinc-800/80 bg-zinc-950/95'
                     }`}
                   >
-                    <span>{lang.flag}</span>
-                    <span className="uppercase text-[10px] font-mono">{lang.code}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+                    <a
+                      href={whatsappUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="min-h-[44px] px-3.5 rounded-xl bg-emerald-950/50 border border-emerald-500/40 text-emerald-300 font-semibold text-xs flex items-center gap-2"
+                    >
+                      <MessageCircle className="w-4 h-4 text-emerald-400" />
+                      <span>WhatsApp VIP</span>
+                    </a>
 
-          {/* Mobile Theme Switcher */}
-          <div className="pt-2 border-t border-zinc-800">
-            <button
-              onClick={toggleTheme}
-              className="w-full p-2.5 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-300 flex items-center justify-center gap-2 cursor-pointer font-semibold text-xs"
-            >
-              {isLight ? (
-                <>
-                  <Moon className="w-4 h-4 text-indigo-400" />
-                  <span>Theme: High-Contrast Light (Click to switch to Dark)</span>
-                </>
-              ) : (
-                <>
-                  <Sun className="w-4 h-4 text-amber-400" />
-                  <span>Theme: Dark Mode (Click to switch to Light)</span>
-                </>
-              )}
-            </button>
-          </div>
+                    <div className="flex items-center gap-2 ml-auto">
+                      {currentUser?.role === 'admin' && (
+                        <button
+                          type="button"
+                          onClick={() => handleNavClick('admin')}
+                          className="min-h-[44px] px-3.5 rounded-xl bg-amber-950/50 border border-amber-500/40 text-amber-300 font-semibold text-xs flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <Shield className="w-4 h-4" />
+                          <span>Admin</span>
+                        </button>
+                      )}
 
-          <div className="pt-1 flex justify-between items-center gap-2 text-xs">
-            {currentUser?.role === 'admin' ? (
-              <button
-                onClick={() => {
-                  handleNavClick('admin');
-                  setMobileMenuOpen(false);
-                }}
-                className="p-2 rounded-lg bg-amber-950/50 border border-amber-500/40 text-amber-300 font-semibold flex items-center gap-1.5 cursor-pointer"
-              >
-                <Shield className="w-3.5 h-3.5" />
-                <span>Admin Suite</span>
-              </button>
-            ) : (
-              <span className="text-[11px] text-zinc-500 font-mono">
-                {currentUser ? `Member: ${currentUser.tier}` : 'Public Customer Access'}
-              </span>
-            )}
-
-            {currentUser ? (
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => {
-                    handleNavClick('dashboard');
-                    setMobileMenuOpen(false);
-                  }}
-                  className="px-3 py-2 rounded-lg bg-red-600 text-white font-bold cursor-pointer"
-                >
-                  Dashboard
-                </button>
-                <button
-                  onClick={() => {
-                    logout();
-                    setMobileMenuOpen(false);
-                  }}
-                  className="px-3 py-2 rounded-lg bg-red-950/60 border border-red-500/40 text-red-300 font-bold flex items-center gap-1 cursor-pointer"
-                >
-                  <LogOut className="w-3.5 h-3.5" />
-                  <span>Log Out</span>
-                </button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => {
-                    onOpenAuth();
-                    setMobileMenuOpen(false);
-                  }}
-                  className="px-3.5 py-2 rounded-lg bg-red-600 text-white font-bold cursor-pointer"
-                >
-                  Sign In / Register
-                </button>
+                      {currentUser ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => handleNavClick('dashboard')}
+                            className="min-h-[44px] px-4 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs cursor-pointer"
+                          >
+                            Dashboard
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              logout();
+                              setMobileMenuOpen(false);
+                            }}
+                            className="min-h-[44px] px-3.5 rounded-xl bg-red-950/60 border border-red-500/40 text-red-300 font-bold text-xs flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <LogOut className="w-4 h-4" />
+                            <span>Log Out</span>
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onOpenAuth();
+                            setMobileMenuOpen(false);
+                          }}
+                          className="min-h-[44px] px-4 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs cursor-pointer"
+                        >
+                          Sign In / Register
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </motion.aside>
               </div>
             )}
-          </div>
-        </div>
-      )}
+          </AnimatePresence>,
+          document.body
+        )}
     </header>
   );
 };
