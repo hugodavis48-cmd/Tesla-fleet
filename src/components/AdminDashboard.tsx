@@ -109,6 +109,10 @@ import {
   SiteSettings,
   AdminPrivilege,
   CronDispatchedEmail,
+  SpinDifficultyLevel,
+  SpinAdminMode,
+  CronJobId,
+  CronJobConfigItem,
 } from '../types';
 import { AdminVisitorAnalytics } from './AdminVisitorAnalytics';
 import { AdminSeoFaqManager } from './AdminSeoFaqManager';
@@ -378,6 +382,10 @@ export const AdminDashboard: React.FC = () => {
     cronLogs,
     dispatchedCronEmails,
     triggerManualCronCycle,
+    cronJobsConfig,
+    updateCronJobsConfig,
+    runCronJobById,
+    toggleCronJobEnabled,
     updateUserInvestment,
     forceMatureInvestment,
     pauseResumeInvestment,
@@ -442,6 +450,12 @@ export const AdminDashboard: React.FC = () => {
     updateWheelReward,
     addWheelReward,
     deleteWheelReward,
+    spinSystemConfig,
+    updateSpinSystemConfig,
+    updateWheelSliceForLevel,
+    addWheelSliceForLevel,
+    deleteWheelSliceForLevel,
+    setUserSpinLevelOverride,
     // Platform Feature Switches
     featureToggles,
     updateFeatureToggles,
@@ -939,14 +953,28 @@ export const AdminDashboard: React.FC = () => {
   });
 
   // Spins CMS State
-  const [localSpinCost, setLocalSpinCost] = useState<number>(spinCostUsd);
+  const [localSpinCost, setLocalSpinCost] = useState<number>(Math.max(150, spinCostUsd));
+  const [activeSpinLevelTab, setActiveSpinLevelTab] = useState<SpinDifficultyLevel>('easy');
+  const [localMaxCashWin, setLocalMaxCashWin] = useState<number>(spinSystemConfig.maxCashWinUsd || 20000);
+  const [localAutoSuperHardThreshold, setLocalAutoSuperHardThreshold] = useState<number>(spinSystemConfig.autoSuperHardWinThreshold || 2);
+  const [localFreeSpinMaxWins, setLocalFreeSpinMaxWins] = useState<number>(spinSystemConfig.freeSpinMaxWinsPerOffer || 1);
+  const [localSpinAdminMode, setLocalSpinAdminMode] = useState<SpinAdminMode>(spinSystemConfig.adminMode || 'auto');
+  const [runningCronJobId, setRunningCronJobId] = useState<CronJobId | null>(null);
+  const [cronIntervalsDraft, setCronIntervalsDraft] = useState<Record<string, number>>({});
+  useEffect(() => {
+    setLocalSpinCost(Math.max(150, spinSystemConfig.minSpinCostUsd || spinCostUsd || 150));
+    setLocalMaxCashWin(spinSystemConfig.maxCashWinUsd || 20000);
+    setLocalAutoSuperHardThreshold(spinSystemConfig.autoSuperHardWinThreshold || 2);
+    setLocalFreeSpinMaxWins(spinSystemConfig.freeSpinMaxWinsPerOffer || 1);
+    setLocalSpinAdminMode(spinSystemConfig.adminMode || 'auto');
+  }, [spinCostUsd, spinSystemConfig]);
   const [editingReward, setEditingReward] = useState<WheelReward | null>(null);
   const [isAddingReward, setIsAddingReward] = useState(false);
   const [newRewardForm, setNewRewardForm] = useState<Omit<WheelReward, 'id'>>({
-    label: '$100 Vault Credit',
-    text: '$100',
-    valueUsd: 100,
-    value: 100,
+    label: '$500 Cash Win',
+    text: '$500',
+    valueUsd: 500,
+    value: 500,
     type: 'usd',
     vehicleModel: 'Tesla Model 3 Performance',
     color: '#06b6d4',
@@ -2245,6 +2273,99 @@ export const AdminDashboard: React.FC = () => {
                 <span className="font-mono text-cyan-400 font-bold text-base">
                   {allInvestments.filter((i: UserInvestment) => i.status === 'running').length} Running
                 </span>
+              </div>
+            </div>
+
+            {/* Multi-Job Server Cron Scheduler Board */}
+            <div className="space-y-3 pt-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-xs font-heading font-bold text-white uppercase tracking-wider">
+                  Automated Platform Cron Jobs ({cronJobsConfig.length} Scheduled Pipelines)
+                </span>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const updated: CronJobConfigItem[] = cronJobsConfig.map((j) => ({
+                      ...j,
+                      intervalMinutes: Math.max(1, cronIntervalsDraft[j.id] ?? j.intervalMinutes),
+                    }));
+                    await updateCronJobsConfig(updated);
+                  }}
+                  className="px-3.5 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-xs font-bold text-emerald-300 cursor-pointer"
+                >
+                  Save Cron Intervals
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {cronJobsConfig.map((job) => {
+                  const intervalVal = cronIntervalsDraft[job.id] ?? job.intervalMinutes;
+                  return (
+                    <div
+                      key={job.id}
+                      className="p-4 rounded-2xl bg-black/70 border border-zinc-800 space-y-2.5 flex flex-col justify-between"
+                    >
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-heading font-bold text-sm text-white truncate">{job.name}</span>
+                          <button
+                            type="button"
+                            onClick={() => void toggleCronJobEnabled(job.id)}
+                            className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold cursor-pointer shrink-0 ${
+                              job.enabled
+                                ? 'bg-emerald-500/15 border border-emerald-500/40 text-emerald-400'
+                                : 'bg-zinc-800 border border-zinc-700 text-zinc-400'
+                            }`}
+                          >
+                            {job.enabled ? 'ACTIVE' : 'PAUSED'}
+                          </button>
+                        </div>
+                        <p className="text-[11px] text-zinc-400 leading-snug">{job.description}</p>
+                      </div>
+
+                      <div className="space-y-2 pt-1 border-t border-zinc-800/80 text-[11px] font-mono">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-zinc-500">Interval (min):</span>
+                          <input
+                            type="number"
+                            min={1}
+                            max={1440}
+                            value={intervalVal}
+                            onChange={(e) =>
+                              setCronIntervalsDraft((prev) => ({
+                                ...prev,
+                                [job.id]: Math.max(1, Number(e.target.value) || 1),
+                              }))
+                            }
+                            className="w-20 rounded-lg bg-zinc-900 border border-zinc-700 px-2 py-1 text-right text-cyan-300"
+                          />
+                        </div>
+                        <div className="flex items-center justify-between text-zinc-400">
+                          <span>Runs: {job.runsCount}</span>
+                          <span>{job.lastRunAt ? new Date(job.lastRunAt).toLocaleTimeString() : 'Standby'}</span>
+                        </div>
+                        {job.lastSummary && (
+                          <p className="text-[10px] text-emerald-300/90 truncate" title={job.lastSummary}>
+                            {job.lastSummary}
+                          </p>
+                        )}
+                        <button
+                          type="button"
+                          disabled={runningCronJobId === job.id}
+                          onClick={async () => {
+                            setRunningCronJobId(job.id);
+                            await runCronJobById(job.id);
+                            setRunningCronJobId(null);
+                          }}
+                          className="w-full py-1.5 rounded-xl bg-zinc-900 hover:bg-emerald-600/25 border border-zinc-700 hover:border-emerald-500/40 text-zinc-200 font-bold flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                        >
+                          <RefreshCw className={`w-3 h-3 ${runningCronJobId === job.id ? 'animate-spin' : ''}`} />
+                          <span>{runningCronJobId === job.id ? 'Running...' : 'Run Job Now'}</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
@@ -4065,11 +4186,12 @@ export const AdminDashboard: React.FC = () => {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="text-zinc-300 block mb-1 font-medium">Wheel Spin Cost (USD)</label>
+                    <label className="text-zinc-300 block mb-1 font-medium">Wheel Spin Cost (USD, $150 Min)</label>
                     <input
                       type="number"
+                      min={150}
                       value={siteSettingsForm.spinCostUsd}
-                      onChange={(e) => setSiteSettingsForm({ ...siteSettingsForm, spinCostUsd: Number(e.target.value) })}
+                      onChange={(e) => setSiteSettingsForm({ ...siteSettingsForm, spinCostUsd: Math.max(150, Number(e.target.value) || 150) })}
                       className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3.5 py-2 text-white font-mono"
                     />
                   </div>
@@ -6839,78 +6961,159 @@ export const AdminDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* 9. Spins Rewards & Spin Cost CMS */}
-      {activeAdminTab === 'spins_cms' && (
+      {/* 9. Spins Rewards & Multi-Level Difficulty CMS */}
+      {activeAdminTab === 'spins_cms' && (() => {
+        const levelSlices: WheelReward[] =
+          spinSystemConfig.levels?.[activeSpinLevelTab] || wheelRewards;
+
+        return (
         <div className="space-y-6">
-          {/* Spin Cost Settings Card */}
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 sm:p-6 space-y-4">
+          {/* Global Spin Engine Policy & Difficulty Switch */}
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 sm:p-6 space-y-5">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-800 pb-4">
               <div>
                 <h3 className="text-lg font-heading font-black text-white flex items-center gap-2">
                   <Coins className="w-5 h-5 text-amber-500" />
-                  Spin Wheel Price & Reward Probabilities CMS
+                  Multi-Level Spin Engine ($150 Min) &amp; Difficulty Overrides CMS
                 </h3>
                 <p className="text-xs text-zinc-400 mt-1">
-                  Adjust the cost per spin in USD and configure every wheel slice reward, value, and probability weight.
+                  Configure global Spin mode (Auto Fair Easy/Hard vs Locked Level), $150+ min cost, $20,000 max win, Free Spin 1-win cap, and multi-win Super Hard auto-switch criteria.
                 </p>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-zinc-400">Current Cost:</span>
-                <span className="px-3 py-1 bg-amber-500/10 border border-amber-500/20 text-amber-400 font-mono font-bold rounded-lg text-sm">
-                  ${spinCostUsd} / Spin
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="px-3 py-1 bg-amber-500/10 border border-amber-500/20 text-amber-400 font-mono font-bold rounded-lg text-xs uppercase">
+                  Mode: {spinSystemConfig.adminMode} · ${Math.max(150, spinCostUsd)}/Spin
                 </span>
               </div>
             </div>
 
-            <div className="flex flex-col sm:flex-row items-end gap-3 pt-2">
-              <div className="w-full sm:w-64 space-y-1">
-                <label className="text-xs font-bold text-zinc-300">Execution Cost Per Spin ($USD)</label>
-                <div className="relative">
-                  <span className="absolute left-3 top-2.5 text-zinc-500 text-sm">$</span>
-                  <input
-                    type="number"
-                    min="1"
-                    value={localSpinCost}
-                    onChange={(e) => setLocalSpinCost(Math.max(1, Number(e.target.value)))}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg pl-7 pr-3 py-2 text-sm text-white font-mono focus:border-amber-500 focus:outline-none"
-                  />
-                </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 text-xs">
+              <div>
+                <label className="text-zinc-300 font-bold block mb-1">Global Spin Level Mode</label>
+                <select
+                  value={localSpinAdminMode}
+                  onChange={(e) => setLocalSpinAdminMode(e.target.value as SpinAdminMode)}
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-white font-mono"
+                >
+                  <option value="auto">Auto (Free-&gt;Super Hard | Paid-&gt;Fair Easy/Hard)</option>
+                  <option value="easy">Force Easy (1 Try Again, 3 Cars)</option>
+                  <option value="hard">Force Hard (3 Try Again, 2 Cars)</option>
+                  <option value="super_hard">Force Super Hard (4 Try Again, 1 Car)</option>
+                </select>
               </div>
+              <div>
+                <label className="text-zinc-300 font-bold block mb-1">Min Spin Cost ($150+)</label>
+                <input
+                  type="number"
+                  min={150}
+                  value={localSpinCost}
+                  onChange={(e) => setLocalSpinCost(Math.max(150, Number(e.target.value) || 150))}
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-amber-400 font-mono"
+                />
+              </div>
+              <div>
+                <label className="text-zinc-300 font-bold block mb-1">Max Cash Spin Win ($USD)</label>
+                <input
+                  type="number"
+                  min={500}
+                  max={20000}
+                  value={localMaxCashWin}
+                  onChange={(e) => setLocalMaxCashWin(Math.min(20000, Math.max(500, Number(e.target.value) || 20000)))}
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-emerald-400 font-mono"
+                />
+              </div>
+              <div>
+                <label className="text-zinc-300 font-bold block mb-1">Multi-Win Super Hard After</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={20}
+                  value={localAutoSuperHardThreshold}
+                  onChange={(e) => setLocalAutoSuperHardThreshold(Math.max(1, Number(e.target.value) || 2))}
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-red-300 font-mono"
+                />
+              </div>
+              <div>
+                <label className="text-zinc-300 font-bold block mb-1">Free Spin Offer Max Wins</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={5}
+                  value={localFreeSpinMaxWins}
+                  onChange={(e) => setLocalFreeSpinMaxWins(Math.max(1, Number(e.target.value) || 1))}
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-cyan-300 font-mono"
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+              <p className="text-[11px] text-zinc-400">
+                Free spins always run on <strong className="text-red-300">Super Hard</strong> with strict {localFreeSpinMaxWins}-win cap across all offered free spins. Users reaching {localAutoSuperHardThreshold}+ wins automatically escalate to Super Hard.
+              </p>
               <button
+                type="button"
                 onClick={() => {
-                  updateSpinCost(localSpinCost);
-                  showToast(`Spin cost updated to $${localSpinCost} USD!`);
+                  const clampedCost = Math.max(150, localSpinCost);
+                  updateSpinCost(clampedCost);
+                  updateSpinSystemConfig({
+                    minSpinCostUsd: clampedCost,
+                    maxCashWinUsd: Math.min(20000, Math.max(500, localMaxCashWin)),
+                    adminMode: localSpinAdminMode,
+                    autoSuperHardWinThreshold: Math.max(1, localAutoSuperHardThreshold),
+                    freeSpinMaxWinsPerOffer: Math.max(1, localFreeSpinMaxWins),
+                  });
                 }}
-                className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-black rounded-xl text-xs font-bold transition-all flex items-center gap-1.5"
+                className="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-black rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
               >
                 <Check className="w-4 h-4" />
-                Save Spin Cost
+                <span>Save Global Spin Rules</span>
               </button>
             </div>
           </div>
 
-          {/* Wheel Slices Rewards List */}
+          {/* Difficulty Level Slice Editor Tabs */}
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 sm:p-6 space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-800 pb-4">
-              <div>
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-zinc-800 pb-4">
+              <div className="space-y-1">
                 <h4 className="text-base font-heading font-black text-white flex items-center gap-2">
                   <Sparkles className="w-4 h-4 text-amber-400" />
-                  Wheel Reward Slices ({wheelRewards.length} Configured)
+                  <span>Difficulty Wheel Slices ({levelSlices.length} Slices on {activeSpinLevelTab.replace('_', ' ').toUpperCase()})</span>
                 </h4>
                 <p className="text-xs text-zinc-400">
-                  Each prize has a visual slice color, reward value, and probability weight. Total weights determine likelihood.
+                  Easy: 1 Try Again + 3 Cars (up to $20k) · Hard: 3 Try Again + 2 Cars (up to $15k) · Super Hard: 4 Try Again + 1 Car (up to $8k).
                 </p>
               </div>
-              <button
-                onClick={() => {
-                  setIsAddingReward(true);
-                  setEditingReward(null);
-                }}
-                className="px-3.5 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5"
-              >
-                <Plus className="w-4 h-4" />
-                Add Wheel Prize Slice
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                {(['easy', 'hard', 'super_hard'] as SpinDifficultyLevel[]).map((lvl) => (
+                  <button
+                    key={lvl}
+                    type="button"
+                    onClick={() => setActiveSpinLevelTab(lvl)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold uppercase cursor-pointer border ${
+                      activeSpinLevelTab === lvl
+                        ? lvl === 'super_hard'
+                          ? 'bg-red-600 border-red-400 text-white'
+                          : lvl === 'hard'
+                          ? 'bg-amber-500 border-amber-400 text-black'
+                          : 'bg-emerald-600 border-emerald-400 text-white'
+                        : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    {lvl.replace('_', ' ')} ({spinSystemConfig.levels?.[lvl]?.length || 0})
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsAddingReward(true);
+                    setEditingReward(null);
+                  }}
+                  className="px-3.5 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Add Slice to {activeSpinLevelTab.replace('_', ' ')}</span>
+                </button>
+              </div>
             </div>
 
             <div className="overflow-x-auto">
@@ -6921,13 +7124,13 @@ export const AdminDashboard: React.FC = () => {
                     <th className="pb-3 font-semibold">PRIZE LABEL</th>
                     <th className="pb-3 font-semibold">TYPE</th>
                     <th className="pb-3 font-semibold">REWARD VALUE</th>
-                    <th className="pb-3 font-semibold">PROBABILITY WEIGHT</th>
+                    <th className="pb-3 font-semibold">WEIGHT</th>
                     <th className="pb-3 font-semibold">ACTIVE</th>
                     <th className="pb-3 font-semibold text-right">ACTION</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-800/60 font-mono">
-                  {wheelRewards.map((reward) => (
+                  {levelSlices.map((reward) => (
                     <tr key={reward.id} className="hover:bg-zinc-800/30 transition-colors">
                       <td className="py-3 pr-2">
                         <div className="flex items-center gap-2">
@@ -6969,8 +7172,9 @@ export const AdminDashboard: React.FC = () => {
                       </td>
                       <td className="py-3 pr-2">
                         <button
-                          onClick={() => updateWheelReward(reward.id, { isActive: !reward.isActive })}
-                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                          type="button"
+                          onClick={() => updateWheelSliceForLevel(activeSpinLevelTab, reward.id, { isActive: !reward.isActive })}
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer ${
                             reward.isActive ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-zinc-800 text-zinc-500'
                           }`}
                         >
@@ -6979,6 +7183,7 @@ export const AdminDashboard: React.FC = () => {
                       </td>
                       <td className="py-3 text-right space-x-2">
                         <button
+                          type="button"
                           onClick={() => {
                             setEditingReward(reward);
                             setNewRewardForm({
@@ -7001,9 +7206,9 @@ export const AdminDashboard: React.FC = () => {
                           <Edit3 className="w-3.5 h-3.5" />
                         </button>
                         <button
+                          type="button"
                           onClick={() => {
-                            deleteWheelReward(reward.id);
-                            showToast(`Removed wheel slice "${reward.label}".`, 'info');
+                            deleteWheelSliceForLevel(activeSpinLevelTab, reward.id);
                           }}
                           className="p-1.5 rounded-lg bg-zinc-800 hover:bg-red-600/30 text-zinc-400 hover:text-red-400 inline-block cursor-pointer"
                         >
@@ -7022,9 +7227,12 @@ export const AdminDashboard: React.FC = () => {
                 <div className="bg-zinc-950 border border-zinc-800 rounded-2xl p-6 w-full max-w-md space-y-4">
                   <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
                     <h3 className="font-heading font-black text-white text-base">
-                      {editingReward ? 'Edit Wheel Reward' : 'Add Wheel Prize Slice'}
+                      {editingReward
+                        ? `Edit ${activeSpinLevelTab.replace('_', ' ').toUpperCase()} Slice`
+                        : `Add Slice to ${activeSpinLevelTab.replace('_', ' ').toUpperCase()}`}
                     </h3>
                     <button
+                      type="button"
                       onClick={() => {
                         setIsAddingReward(false);
                         setEditingReward(null);
@@ -7037,7 +7245,7 @@ export const AdminDashboard: React.FC = () => {
 
                   <div className="space-y-3 text-xs">
                     <div>
-                      <label className="text-zinc-300 font-bold block mb-1">Prize Label (Wheel Slice & Announcement)</label>
+                      <label className="text-zinc-300 font-bold block mb-1">Prize Label (Wheel Slice &amp; Announcement)</label>
                       <input
                         type="text"
                         value={newRewardForm.label}
@@ -7055,15 +7263,15 @@ export const AdminDashboard: React.FC = () => {
                             setNewRewardForm({
                               ...newRewardForm,
                               type: nextType,
-                              value: nextType === 'try_again' ? 0 : (newRewardForm.valueUsd || 100),
-                              valueUsd: nextType === 'try_again' ? 0 : (newRewardForm.valueUsd || 100),
+                              value: nextType === 'try_again' ? 0 : (newRewardForm.valueUsd || 500),
+                              valueUsd: nextType === 'try_again' ? 0 : (newRewardForm.valueUsd || 500),
                             });
                           }}
                           className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-white"
                         >
                           <option value="car">Tesla Car Win</option>
                           <option value="try_again">Try Again ($0)</option>
-                          <option value="usd">USD Cash</option>
+                          <option value="usd">USD Cash (Auto-Added)</option>
                           <option value="credits">Vault Credits</option>
                           <option value="coupon">Discount Coupon</option>
                           <option value="points">Points / XP</option>
@@ -7074,10 +7282,12 @@ export const AdminDashboard: React.FC = () => {
                         <label className="text-zinc-300 font-bold block mb-1">Prize Value ($USD)</label>
                         <input
                           type="number"
+                          max={20000}
                           disabled={newRewardForm.type === 'try_again'}
                           value={newRewardForm.valueUsd ?? newRewardForm.value ?? 0}
                           onChange={(e) => {
-                            const v = Math.max(0, Number(e.target.value) || 0);
+                            const raw = Math.max(0, Number(e.target.value) || 0);
+                            const v = newRewardForm.type === 'car' ? raw : Math.min(20000, raw);
                             setNewRewardForm({ ...newRewardForm, value: v, valueUsd: v });
                           }}
                           className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-white font-mono disabled:opacity-50"
@@ -7134,6 +7344,7 @@ export const AdminDashboard: React.FC = () => {
 
                   <div className="flex justify-end gap-2 pt-2">
                     <button
+                      type="button"
                       onClick={() => {
                         setIsAddingReward(false);
                         setEditingReward(null);
@@ -7143,28 +7354,98 @@ export const AdminDashboard: React.FC = () => {
                       Cancel
                     </button>
                     <button
+                      type="button"
                       onClick={() => {
                         if (editingReward) {
-                          updateWheelReward(editingReward.id, newRewardForm);
-                          showToast('Reward updated successfully');
+                          updateWheelSliceForLevel(activeSpinLevelTab, editingReward.id, newRewardForm);
+                          showToast('Wheel slice updated successfully');
                         } else {
-                          addWheelReward(newRewardForm);
-                          showToast('New reward added');
+                          addWheelSliceForLevel(activeSpinLevelTab, newRewardForm);
+                          showToast('New wheel slice added');
                         }
                         setIsAddingReward(false);
                         setEditingReward(null);
                       }}
                       className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-black rounded-xl text-xs font-bold"
                     >
-                      {editingReward ? 'Save Reward' : 'Add Slice'}
+                      {editingReward ? 'Save Slice' : 'Add Slice'}
                     </button>
                   </div>
                 </div>
               </div>
             )}
           </div>
+
+          {/* Per-User Spin Criteria & Difficulty Override Table */}
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 sm:p-6 space-y-4">
+            <div>
+              <h4 className="text-base font-heading font-black text-white">
+                Per-User Spin Criteria &amp; Manual Level Overrides
+              </h4>
+              <p className="text-xs text-zinc-400">
+                Users with &gt;= {spinSystemConfig.autoSuperHardWinThreshold} wins automatically switch to Super Hard. Override any member directly below.
+              </p>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs text-left">
+                <thead>
+                  <tr className="border-b border-zinc-800 text-zinc-400 font-mono uppercase text-[11px]">
+                    <th className="py-2 pr-3">Member</th>
+                    <th className="py-2 px-3">Paid Spins</th>
+                    <th className="py-2 px-3">Total Wins</th>
+                    <th className="py-2 px-3">Free Offer Wins</th>
+                    <th className="py-2 px-3">Last Level</th>
+                    <th className="py-2 pl-3 text-right">Admin Level Override</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-800/60">
+                  {allUsers.map((u) => {
+                    const tr = spinSystemConfig.userTrackers?.[u.id];
+                    const curOverride = spinSystemConfig.userLevelOverrides?.[u.id] || 'auto';
+                    return (
+                      <tr key={u.id}>
+                        <td className="py-2.5 pr-3">
+                          <span className="font-semibold text-white block">{u.name}</span>
+                          <span className="font-mono text-[10px] text-zinc-400">{u.email}</span>
+                        </td>
+                        <td className="py-2.5 px-3 font-mono text-zinc-300 tabular-nums">{tr?.paidSpinsCount || 0}</td>
+                        <td className="py-2.5 px-3 font-mono font-bold text-amber-300 tabular-nums">
+                          {tr?.totalWinsCount || 0}
+                          {(tr?.totalWinsCount || 0) >= spinSystemConfig.autoSuperHardWinThreshold && (
+                            <span className="ml-1.5 px-1.5 py-0.5 rounded bg-red-500/20 text-red-300 text-[9px]">
+                              MULTI-WIN
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3 font-mono text-cyan-300 tabular-nums">
+                          {tr?.freeSpinOfferWinsUsed || 0}/{spinSystemConfig.freeSpinMaxWinsPerOffer}
+                        </td>
+                        <td className="py-2.5 px-3 font-mono uppercase text-zinc-300">
+                          {tr?.lastResolvedLevel ? tr.lastResolvedLevel.replace('_', ' ') : 'Auto'}
+                        </td>
+                        <td className="py-2.5 pl-3 text-right">
+                          <select
+                            value={curOverride}
+                            onChange={(e) => setUserSpinLevelOverride(u.id, e.target.value as SpinAdminMode)}
+                            className="bg-zinc-950 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-white font-mono text-xs cursor-pointer"
+                          >
+                            <option value="auto">Auto Rules</option>
+                            <option value="easy">Easy</option>
+                            <option value="hard">Hard</option>
+                            <option value="super_hard">Super Hard</option>
+                          </select>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* 10. Platform Feature Switches & Toggles */}
       {activeAdminTab === 'feature_switches' && (

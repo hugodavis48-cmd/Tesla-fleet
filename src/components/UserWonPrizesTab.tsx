@@ -49,7 +49,8 @@ export const UserWonPrizesTab: React.FC<UserWonPrizesTabProps> = ({ onOpenDeposi
   const {
     currentUser,
     wonPrizes,
-    balances,
+    activeDepositBalanceUsd,
+    freeWinBalanceUsd,
     submitWonPrizeShippingAndPayFees,
     formatCurrency,
     selectedCurrencyCode,
@@ -117,17 +118,18 @@ export const UserWonPrizesTab: React.FC<UserWonPrizesTabProps> = ({ onOpenDeposi
     const totalFees = Number(
       ((prize.processingFeeUsd || 0) + (prize.shippingDocFeeUsd || 0) + (prize.shippingFreightFeeUsd || 0)).toFixed(2)
     );
-    if (balances.usd < totalFees) {
+    if (activeDepositBalanceUsd < totalFees) {
       showToast(
-        `Insufficient wallet balance ($${balances.usd.toFixed(2)}). Please deposit at least $${totalFees.toLocaleString()} to cover shipping & documentation fees.`,
+        `Verified deposit balance ($${activeDepositBalanceUsd.toFixed(2)}) is insufficient for the $${totalFees.toLocaleString()} vehicle shipping & documentation fees. Free promotional winnings ($${freeWinBalanceUsd.toFixed(2)}) cannot be used for vehicle fee settlement.`,
         'error'
       );
+      onOpenDeposit();
       return;
     }
 
     setSubmittingId(prize.id);
     try {
-      await submitWonPrizeShippingAndPayFees(prize.id, form, 'wallet_usd');
+      await submitWonPrizeShippingAndPayFees(prize.id, form, 'deposit');
     } finally {
       setSubmittingId(null);
     }
@@ -179,15 +181,21 @@ export const UserWonPrizesTab: React.FC<UserWonPrizesTabProps> = ({ onOpenDeposi
             </h3>
           </div>
           <p className="text-xs text-zinc-400 max-w-2xl">
-            Manage international &amp; domestic delivery for Tesla vehicles or products won via Spin-the-Wheel and Scratch Cards. Submit your destination details and pay required processing, export documentation, and carrier freight fees directly from your Vault Balance or via Crypto Deposit.
+            Manage international &amp; domestic delivery for Tesla vehicles or products won via Spin-the-Wheel and Scratch Cards. Submit your destination details and settle required processing, export documentation, and carrier freight fees strictly from your <strong className="text-emerald-400">Verified Deposit Balance</strong> (free promo/win cash balances cannot be applied).
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3 shrink-0">
-          <div className="px-4 py-2.5 rounded-2xl bg-zinc-900 border border-zinc-800 text-right">
-            <span className="text-[10px] font-mono text-zinc-500 block uppercase">Spendable Vault</span>
+          <div className="px-4 py-2.5 rounded-2xl bg-zinc-900 border border-emerald-500/35 text-right">
+            <span className="text-[10px] font-mono text-zinc-400 block uppercase">Verified Deposit Balance</span>
             <span className="font-heading font-black text-lg text-emerald-400 tabular-nums">
-              {formatCurrency(balances.usd, { includeCode: true })}
+              {formatCurrency(activeDepositBalanceUsd, { includeCode: true })}
+            </span>
+          </div>
+          <div className="px-4 py-2.5 rounded-2xl bg-zinc-900 border border-zinc-800 text-right">
+            <span className="text-[10px] font-mono text-zinc-500 block uppercase">Free Win Balance (Excl.)</span>
+            <span className="font-heading font-bold text-base text-amber-400 tabular-nums">
+              {formatCurrency(freeWinBalanceUsd, { includeCode: true })}
             </span>
           </div>
           <button
@@ -217,7 +225,7 @@ export const UserWonPrizesTab: React.FC<UserWonPrizesTabProps> = ({ onOpenDeposi
             const totalFees = Number(
               ((prize.processingFeeUsd || 0) + (prize.shippingDocFeeUsd || 0) + (prize.shippingFreightFeeUsd || 0)).toFixed(2)
             );
-            const hasEnoughBalance = balances.usd >= totalFees;
+            const hasEnoughBalance = activeDepositBalanceUsd >= totalFees;
 
             return (
               <div
@@ -480,11 +488,11 @@ export const UserWonPrizesTab: React.FC<UserWonPrizesTabProps> = ({ onOpenDeposi
                         </div>
 
                         {!hasEnoughBalance && (
-                          <div className="p-3 rounded-xl bg-amber-950/35 border border-amber-500/40 flex items-center gap-2 text-xs text-amber-200">
-                            <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
+                          <div className="p-3 rounded-xl bg-amber-950/35 border border-amber-500/40 flex items-start gap-2 text-xs text-amber-200">
+                            <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
                             <span>
-                              Spendable Vault Balance is short by{' '}
-                              <strong>{formatCurrency(totalFees - balances.usd, { includeCode: true })}</strong>. Make a crypto deposit to cover documentation &amp; shipping fees.
+                              Verified Deposit Balance is short by{' '}
+                              <strong>{formatCurrency(Math.max(0, totalFees - activeDepositBalanceUsd), { includeCode: true })}</strong>. Free promotional winnings ({formatCurrency(freeWinBalanceUsd, { includeCode: true })}) cannot be used for won-vehicle processing, documentation, or shipping fees — make a wallet deposit to proceed.
                             </span>
                           </div>
                         )}
@@ -500,17 +508,17 @@ export const UserWonPrizesTab: React.FC<UserWonPrizesTabProps> = ({ onOpenDeposi
                             <span>
                               {submittingId === prize.id
                                 ? 'Processing Shipment...'
-                                : `Pay ${formatCurrency(totalFees)} Fees from Wallet & Ship`}
+                                : `Pay ${formatCurrency(totalFees)} from Verified Deposits & Ship`}
                             </span>
                           </button>
 
                           <button
                             type="button"
                             onClick={() => handlePayAndShip(prize, 'deposit')}
-                            className="py-3 px-4 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-200 font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer"
+                            className="py-3 px-4 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer"
                           >
-                            <Truck className="w-4 h-4 text-red-400" />
-                            <span>Deposit to Cover Fees</span>
+                            <Truck className="w-4 h-4" />
+                            <span>Deposit Funds to Pay Fees</span>
                           </button>
                         </div>
 

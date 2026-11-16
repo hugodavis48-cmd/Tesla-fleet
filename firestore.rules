@@ -218,7 +218,10 @@ service cloud.firestore {
         'blog_comments',
         'engagement_reward_config',
         'social_links',
-        'spin_cost'
+        'spin_cost',
+        'streak_config',
+        'spin_system_config',
+        'cron_jobs_config'
       ];
     }
 
@@ -723,6 +726,127 @@ service cloud.firestore {
 
       allow update: if false;
       allow delete: if isValidId(activityId) && isAdmin();
+    }
+
+    function isValidDepositRecord(data) {
+      return data.keys().hasAll([
+          'id',
+          'userId',
+          'currency',
+          'amount',
+          'usdEquivalent',
+          'remainingUsd',
+          'txHash',
+          'gatewayName',
+          'source',
+          'status',
+          'signature',
+          'createdAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id',
+          'userId',
+          'currency',
+          'amount',
+          'usdEquivalent',
+          'remainingUsd',
+          'txHash',
+          'gatewayName',
+          'source',
+          'status',
+          'signature',
+          'createdAt'
+        ]) &&
+        isValidId(data.id) &&
+        isValidId(data.userId) &&
+        data.currency is string && data.currency.size() >= 2 && data.currency.size() <= 16 &&
+        data.amount is number && data.amount > 0 && data.amount <= 50000000 &&
+        data.usdEquivalent is number && data.usdEquivalent > 0 && data.usdEquivalent <= 50000000 &&
+        data.remainingUsd is number && data.remainingUsd >= 0 && data.remainingUsd <= data.usdEquivalent &&
+        data.txHash is string && data.txHash.size() >= 6 && data.txHash.size() <= 160 &&
+        data.gatewayName is string && data.gatewayName.size() >= 1 && data.gatewayName.size() <= 120 &&
+        data.source in ['seed_vault', 'gateway_deposit', 'manual_approved', 'investment_maturity', 'admin_deposit_credit'] &&
+        data.status in ['verified', 'revoked'] &&
+        data.signature is string && data.signature.size() >= 16 && data.signature.size() <= 128 &&
+        data.createdAt is timestamp;
+    }
+
+    function isValidTransactionAudit(data) {
+      return data.keys().hasAll([
+          'id',
+          'userId',
+          'category',
+          'amountUsd',
+          'depositConsumedUsd',
+          'freeWinConsumedUsd',
+          'outcome',
+          'reason',
+          'signature',
+          'createdAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id',
+          'userId',
+          'category',
+          'amountUsd',
+          'depositConsumedUsd',
+          'freeWinConsumedUsd',
+          'outcome',
+          'rejectionCode',
+          'reason',
+          'signature',
+          'createdAt'
+        ]) &&
+        isValidId(data.id) &&
+        isValidId(data.userId) &&
+        data.category in ['spin_payment', 'scratch_purchase', 'won_vehicle_shipping', 'vehicle_order_shipping', 'deposit_record', 'admin_adjust', 'security_rejection'] &&
+        data.amountUsd is number && data.amountUsd >= 0 && data.amountUsd <= 50000000 &&
+        data.depositConsumedUsd is number && data.depositConsumedUsd >= 0 && data.depositConsumedUsd <= 50000000 &&
+        data.freeWinConsumedUsd is number && data.freeWinConsumedUsd >= 0 && data.freeWinConsumedUsd <= 50000000 &&
+        data.outcome in ['approved', 'rejected'] &&
+        (!('rejectionCode' in data) || (data.rejectionCode is string && data.rejectionCode.size() <= 80)) &&
+        data.reason is string && data.reason.size() >= 1 && data.reason.size() <= 400 &&
+        data.signature is string && data.signature.size() >= 16 && data.signature.size() <= 128 &&
+        data.createdAt is timestamp;
+    }
+
+    // Verified user deposit records (admin-minted only; prevents client deposit spoofing)
+    match /deposit_records/{recordId} {
+      allow get: if isValidId(recordId) && isVerifiedUser() && (isAdmin() || existing().userId == request.auth.uid);
+      allow list: if isVerifiedUser() && (isAdmin() || existing().userId == request.auth.uid);
+
+      allow create: if isValidId(recordId) &&
+        isAdmin() &&
+        isValidDepositRecord(incoming()) &&
+        incoming().id == recordId &&
+        incoming().createdAt == request.time;
+
+      allow update: if isValidId(recordId) &&
+        isAdmin() &&
+        isValidDepositRecord(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().userId == existing().userId &&
+        incoming().txHash == existing().txHash &&
+        incoming().usdEquivalent == existing().usdEquivalent &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['remainingUsd', 'status']);
+
+      allow delete: if isValidId(recordId) && isAdmin();
+    }
+
+    // Immutable transaction cross-reference validation audits (admin-written, owner/admin readable)
+    match /transaction_audits/{auditId} {
+      allow get: if isValidId(auditId) && isVerifiedUser() && (isAdmin() || existing().userId == request.auth.uid);
+      allow list: if isVerifiedUser() && (isAdmin() || existing().userId == request.auth.uid);
+
+      allow create: if isValidId(auditId) &&
+        isAdmin() &&
+        isValidTransactionAudit(incoming()) &&
+        incoming().id == auditId &&
+        incoming().createdAt == request.time;
+
+      allow update: if false;
+      allow delete: if isValidId(auditId) && isAdmin();
     }
   }
 }

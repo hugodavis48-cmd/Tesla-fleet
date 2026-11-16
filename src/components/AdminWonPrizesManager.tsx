@@ -1,10 +1,51 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
 import { WonPrizeItem } from '../types';
-import { Trophy, Globe, Plus, Truck, CheckCircle2, FileText } from 'lucide-react';
+import { Trophy, Globe, Plus, Truck, CheckCircle2, Trash2, ShieldCheck, ShieldAlert, RefreshCw } from 'lucide-react';
+
+interface SecurityAuditRow {
+  id: string;
+  userId: string;
+  category: string;
+  amountUsd: number;
+  depositConsumedUsd: number;
+  freeWinConsumedUsd: number;
+  depositRecordIdsUsed: string[];
+  verifiedDepositBeforeUsd: number;
+  verifiedDepositAfterUsd: number;
+  outcome: 'approved' | 'rejected';
+  rejectionCode?: string;
+  reason: string;
+  createdAt: string;
+  signature: string;
+}
 
 export const AdminWonPrizesManager: React.FC = () => {
-  const { wonPrizes, updateWonPrizeItem, createWonPrizeItem, allUsers } = useApp();
+  const { wonPrizes, updateWonPrizeItem, createWonPrizeItem, deleteWonPrizeItem, allUsers } = useApp();
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [audits, setAudits] = useState<SecurityAuditRow[]>([]);
+  const [loadingAudits, setLoadingAudits] = useState(false);
+
+  const loadAudits = useCallback(async () => {
+    setLoadingAudits(true);
+    try {
+      const res = await fetch('/api/security/transaction-audits?limit=25');
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.audits)) {
+          setAudits(data.audits);
+        }
+      }
+    } catch {
+      // ignore offline
+    } finally {
+      setLoadingAudits(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadAudits();
+  }, [loadAudits]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTracking, setEditTracking] = useState('');
   const [editCarrier, setEditCarrier] = useState('');
@@ -226,7 +267,7 @@ export const AdminWonPrizesManager: React.FC = () => {
 
                 <div className="flex flex-wrap items-center gap-2 shrink-0">
                   <div className="px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 font-mono text-right">
-                    <span className="text-[10px] text-zinc-500 block">Required Fees</span>
+                    <span className="text-[10px] text-zinc-500 block">Required Fees (Deposit-Only)</span>
                     <span className="font-bold text-white tabular-nums">${totalFees.toLocaleString()} USD</span>
                   </div>
                   <button
@@ -243,6 +284,26 @@ export const AdminWonPrizesManager: React.FC = () => {
                   >
                     <Truck className="w-3.5 h-3.5" />
                     <span>{isEditing ? 'Close' : 'Manage Logistics'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (confirmDeleteId === prize.id) {
+                        deleteWonPrizeItem(prize.id);
+                        setConfirmDeleteId(null);
+                      } else {
+                        setConfirmDeleteId(prize.id);
+                      }
+                    }}
+                    className={`px-2.5 py-2 rounded-xl border font-bold cursor-pointer flex items-center gap-1 ${
+                      confirmDeleteId === prize.id
+                        ? 'bg-rose-600 border-rose-500 text-white'
+                        : 'bg-zinc-900 hover:bg-rose-950/60 border-zinc-700 text-rose-400'
+                    }`}
+                    title="Delete won prize entry"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    {confirmDeleteId === prize.id && <span>Confirm</span>}
                   </button>
                 </div>
               </div>
@@ -323,6 +384,82 @@ export const AdminWonPrizesManager: React.FC = () => {
             </div>
           );
         })}
+      </div>
+
+      {/* Server-Side Deposit Cross-Reference & Anti-Manipulation Audit Log */}
+      <div className="p-5 rounded-3xl bg-zinc-950 border border-zinc-800 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h5 className="font-heading font-bold text-base text-white flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-emerald-400" />
+              Server Deposit Cross-Reference &amp; Anti-Manipulation Audits
+            </h5>
+            <p className="text-[11px] text-zinc-400 mt-0.5">
+              Live HMAC-signed ledger verifying every spin payment, scratch card purchase, and won-vehicle shipping fee against actual user deposit records.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void loadAudits()}
+            disabled={loadingAudits}
+            className="px-3.5 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-200 font-semibold flex items-center gap-1.5 shrink-0 cursor-pointer disabled:opacity-50"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loadingAudits ? 'animate-spin' : ''}`} />
+            <span>Refresh Audits</span>
+          </button>
+        </div>
+
+        {audits.length === 0 ? (
+          <p className="text-zinc-500 text-xs font-mono py-4 text-center">
+            No validated deposit cross-reference events recorded yet in this session.
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-[11px]">
+              <thead>
+                <tr className="border-b border-zinc-800 text-zinc-400 font-mono uppercase">
+                  <th className="py-2 pr-3">Outcome</th>
+                  <th className="py-2 pr-3">User ID</th>
+                  <th className="py-2 pr-3">Category</th>
+                  <th className="py-2 pr-3">Amount</th>
+                  <th className="py-2 pr-3">Deposit Consumed</th>
+                  <th className="py-2 pr-3">Deposit Records</th>
+                  <th className="py-2">Reason / Signature</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-900">
+                {audits.map((row) => (
+                  <tr key={row.id} className="hover:bg-zinc-900/40">
+                    <td className="py-2.5 pr-3 whitespace-nowrap">
+                      {row.outcome === 'approved' ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-400 font-mono font-bold">
+                          <ShieldCheck className="w-3 h-3" /> APPROVED
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-500/15 border border-rose-500/40 text-rose-400 font-mono font-bold">
+                          <ShieldAlert className="w-3 h-3" /> {row.rejectionCode || 'REJECTED'}
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-2.5 pr-3 font-mono text-zinc-200">{row.userId}</td>
+                    <td className="py-2.5 pr-3 font-mono text-amber-300 uppercase">{row.category.replace(/_/g, ' ')}</td>
+                    <td className="py-2.5 pr-3 font-mono text-white font-bold tabular-nums">${row.amountUsd.toLocaleString()}</td>
+                    <td className="py-2.5 pr-3 font-mono text-emerald-300 tabular-nums">
+                      ${row.depositConsumedUsd.toLocaleString()} <span className="text-zinc-500">({row.freeWinConsumedUsd > 0 ? `+$${row.freeWinConsumedUsd} fw` : 'dep-only'})</span>
+                    </td>
+                    <td className="py-2.5 pr-3 font-mono text-zinc-400 max-w-[160px] truncate" title={(row.depositRecordIdsUsed || []).join(', ')}>
+                      {(row.depositRecordIdsUsed || []).length > 0 ? row.depositRecordIdsUsed.join(', ') : '—'}
+                    </td>
+                    <td className="py-2.5 text-zinc-300">
+                      <div>{row.reason}</div>
+                      <div className="text-[10px] font-mono text-zinc-500">sig: {row.signature.slice(0, 14)}…</div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );

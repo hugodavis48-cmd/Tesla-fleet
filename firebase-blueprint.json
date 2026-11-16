@@ -328,6 +328,51 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "userId", "userTier", "activityType", "pageTab", "centsEarned", "pointsEarned", "createdAt"]
+    },
+    "DepositRecord": {
+      "title": "DepositRecord",
+      "description": "Verified deposit ledger record used to cross-reference spin, scratch, and shipping payments.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "userId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "currency": { "type": "string", "minLength": 2, "maxLength": 16 },
+        "amount": { "type": "number" },
+        "usdEquivalent": { "type": "number" },
+        "remainingUsd": { "type": "number" },
+        "txHash": { "type": "string", "minLength": 6, "maxLength": 160 },
+        "gatewayName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "source": {
+          "type": "string",
+          "enum": ["seed_vault", "gateway_deposit", "manual_approved", "investment_maturity", "admin_deposit_credit"]
+        },
+        "status": { "type": "string", "enum": ["verified", "revoked"] },
+        "signature": { "type": "string", "minLength": 16, "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "currency", "amount", "usdEquivalent", "remainingUsd", "txHash", "gatewayName", "source", "status", "signature", "createdAt"]
+    },
+    "TransactionValidationAudit": {
+      "title": "TransactionValidationAudit",
+      "description": "Immutable server validation audit entry recording cross-referenced deposit checks and anti-manipulation rejections.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "userId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "category": {
+          "type": "string",
+          "enum": ["spin_payment", "scratch_purchase", "won_vehicle_shipping", "vehicle_order_shipping", "deposit_record", "admin_adjust", "security_rejection"]
+        },
+        "amountUsd": { "type": "number" },
+        "depositConsumedUsd": { "type": "number" },
+        "freeWinConsumedUsd": { "type": "number" },
+        "outcome": { "type": "string", "enum": ["approved", "rejected"] },
+        "rejectionCode": { "type": "string", "minLength": 0, "maxLength": 80 },
+        "reason": { "type": "string", "minLength": 1, "maxLength": 400 },
+        "signature": { "type": "string", "minLength": 16, "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "category", "amountUsd", "depositConsumedUsd", "freeWinConsumedUsd", "outcome", "reason", "signature", "createdAt"]
     }
   },
   "firestore": {
@@ -374,6 +419,14 @@
     "/engagement_activities/{activityId}": {
       "schema": { "$ref": "#/entities/EngagementActivity" },
       "description": "Owner-isolated user engagement activity telemetry (page dwell time & social share interactions) for cent rewards."
+    },
+    "/deposit_records/{recordId}": {
+      "schema": { "$ref": "#/entities/DepositRecord" },
+      "description": "Admin/server-minted verified deposit records cross-referenced before spin, scratch, or shipping settlements."
+    },
+    "/transaction_audits/{auditId}": {
+      "schema": { "$ref": "#/entities/TransactionValidationAudit" },
+      "description": "Immutable transaction validation & anti-manipulation audit log."
     }
   }
 }

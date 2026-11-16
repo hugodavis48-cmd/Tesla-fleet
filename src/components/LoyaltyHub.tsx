@@ -16,6 +16,7 @@ import {
   Car,
   Zap,
 } from 'lucide-react';
+import { DailyStreakCard } from './DailyStreakCard';
 
 export type LoyaltyTierId = 'bronze' | 'silver' | 'gold' | 'platinum';
 
@@ -454,6 +455,9 @@ export const LoyaltyHub: React.FC<LoyaltyHubProps> = ({
 
   return (
     <div className="space-y-6">
+      {/* Daily Visit Streak Progress Strip */}
+      <DailyStreakCard compact />
+
       {/* Section 1: Active Tier Status & Deposit-Volume Multiplier Progression */}
       <div className="rounded-3xl border border-zinc-800 bg-zinc-950 p-6 sm:p-7 space-y-6">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">

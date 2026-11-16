@@ -51,6 +51,7 @@ import { NotificationInbox } from './NotificationInbox';
 import { RoiGrowthChart } from './RoiGrowthChart';
 import { UserWonPrizesTab } from './UserWonPrizesTab';
 import { LoyaltyHub, getLoyaltyTierSummary } from './LoyaltyHub';
+import { DailyStreakCard } from './DailyStreakCard';
 import { ImageLightbox } from './ImageLightbox';
 import { downloadTransactionInvoicePdf, downloadServiceInvoicePdf } from '../lib/invoicePdf';
 
@@ -790,6 +791,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
       {/* Tab 1: Digital Garage */}
       {activeTab === 'garage' && (
         <div className="space-y-6">
+          <DailyStreakCard compact onOpenAuth={onOpenAuth} />
+
           {/* Visual Recharts ROI Growth & Compounding Chart */}
           <RoiGrowthChart
             onOpenDeposit={onOpenDeposit}
@@ -1826,6 +1829,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
               </div>
             </div>
 
+            {/* Daily Streak Tracker Card */}
+            <DailyStreakCard onOpenAuth={onOpenAuth} />
+
             {/* Tier Level Progress & Tiered Benefits ($25-$200 Referrals) */}
             <div className="rounded-3xl bg-zinc-950 border border-zinc-800 p-6 space-y-5">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -1916,6 +1922,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   {(
                     [
                       { id: 'all', label: 'All' },
+                      { id: 'daily_streak', label: 'Daily Streak' },
                       { id: 'page_dwell', label: 'Page Dwell' },
                       { id: 'social_share', label: 'Social Shares' },
                       { id: 'read_article', label: 'Reads' },

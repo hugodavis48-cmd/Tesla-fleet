@@ -80,7 +80,7 @@
         "pageKey": "banners",
         "pageLabel": "Promo Banners & Videos",
         "metaTitle": "3D/HD Promotional Banners & Short Promo Videos | Apex Tesla Hub",
-        "metaDescription": "Download and share multi-slide 3D/HD promotional banners and AI short promo videos with instant $100 referral tracking.",
+        "metaDescription": "Download and share multi-slide 3D/HD promotional banners and AI short promo videos with instant $25–$200 tiered referral tracking.",
         "keywords": "Tesla Ambassador Banners, 3D Promo Banners, Tesla Short Videos, Referral Kit"
       },
       "coupons": {
@@ -93,9 +93,9 @@
       "referrals": {
         "pageKey": "referrals",
         "pageLabel": "Affiliate & Referrals",
-        "metaTitle": "Invite Tesla Drivers & Earn $100 USD Vault Credit | Apex Tesla Hub",
-        "metaDescription": "Share your unique Apex referral link and earn $100 USD credit plus bonus wheel spins for every verified member deposit.",
-        "keywords": "Tesla Referral Program, Earn $100 EV Credit, Apex Affiliate"
+        "metaTitle": "Invite Tesla Drivers & Earn $25–$200 USD Vault Credit | Apex Tesla Hub",
+        "metaDescription": "Share your unique Apex referral link and earn $25 to $200 USD tier-scaled credit plus bonus wheel spins for every verified member deposit.",
+        "keywords": "Tesla Referral Program, Earn Tiered EV Credit, Apex Affiliate"
       },
       "about": {
         "pageKey": "about",
@@ -132,6 +132,13 @@
         "metaDescription": "Complete navigational index and search engine XML sitemap for all Apex Tesla Hub vehicles, services, and yield modules.",
         "keywords": "Apex Tesla Sitemap, sitemap.xml, EV Portal Directory"
       },
+      "blog": {
+        "pageKey": "blog",
+        "pageLabel": "EV News & Engineering Blog",
+        "metaTitle": "Tesla Engineering Blog, Fleet Yield News & Guides | Apex Tesla Hub",
+        "metaDescription": "Read SEO technical briefings on Cybertruck 800V diagnostics, 3M cleanroom wraps, Robotaxi staking yields, and TSLA markets while earning tier-boosted cent rewards.",
+        "keywords": "Tesla Engineering Blog, Cybertruck Maintenance Guide, 3M Tesla Wrap PPF, Robotaxi Fleet Yield News, TSLA Crypto Settlement"
+      },
       "rss": {
         "pageKey": "rss",
         "pageLabel": "RSS News & XML Feed",
@@ -141,7 +148,7 @@
       }
     }
   },
-  "updatedAt": "2026-11-15T18:40:48.654Z",
+  "updatedAt": "2026-11-15T23:58:18.987Z",
   "sitemapEntries": [
     {
       "id": "sm-home",
@@ -303,6 +310,17 @@
       "title": "About Apex Tesla Hub & Engineering Philosophy",
       "priority": 0.85,
       "changeFreq": "monthly",
+      "isActive": true,
+      "lastMod": "2026-11-15"
+    },
+    {
+      "id": "sm-blog",
+      "path": "blog",
+      "title": "EV News & Engineering Blog",
+      "description": "Technical Tesla diagnostics guides, 3M cleanroom wrap briefings, Robotaxi yield analysis & earn-per-share engagement.",
+      "category": "Editorial",
+      "priority": 0.9,
+      "changeFreq": "daily",
       "isActive": true,
       "lastMod": "2026-11-15"
     }
@@ -3288,6 +3306,1184 @@
       "displayOnAbout": true,
       "order": 6,
       "updatedAt": "2026-11-15"
+    }
+  ],
+  "streakConfig": {
+    "enabled": true,
+    "graceWindowHours": 36,
+    "resetAfterHours": 48,
+    "autoResetMissedDays": true,
+    "maxStreakMultiplier": 2.5,
+    "dailyRates": [
+      {
+        "day": 1,
+        "label": "Day 1 Ignition",
+        "bonusPoints": 25,
+        "bonusCents": 5
+      },
+      {
+        "day": 2,
+        "label": "Day 2 Supercharge",
+        "bonusPoints": 40,
+        "bonusCents": 8
+      },
+      {
+        "day": 3,
+        "label": "Day 3 Autopilot",
+        "bonusPoints": 60,
+        "bonusCents": 12
+      },
+      {
+        "day": 4,
+        "label": "Day 4 Dual Motor",
+        "bonusPoints": 85,
+        "bonusCents": 18
+      },
+      {
+        "day": 5,
+        "label": "Day 5 Ludicrous",
+        "bonusPoints": 115,
+        "bonusCents": 25
+      },
+      {
+        "day": 6,
+        "label": "Day 6 Plaid Velocity",
+        "bonusPoints": 150,
+        "bonusCents": 35
+      },
+      {
+        "day": 7,
+        "label": "Day 7 Founders Apex",
+        "bonusPoints": 225,
+        "bonusCents": 50
+      }
+    ],
+    "milestoneBonuses": [
+      {
+        "daysRequired": 3,
+        "label": "3-Day Pulse Milestone",
+        "bonusPoints": 100,
+        "bonusCents": 25,
+        "bonusFreeSpins": 0
+      },
+      {
+        "daysRequired": 7,
+        "label": "7-Day Apex Driver Streak",
+        "bonusPoints": 300,
+        "bonusCents": 100,
+        "bonusFreeSpins": 1
+      },
+      {
+        "daysRequired": 14,
+        "label": "14-Day Plaid Veteran",
+        "bonusPoints": 650,
+        "bonusCents": 250,
+        "bonusFreeSpins": 2
+      },
+      {
+        "daysRequired": 30,
+        "label": "30-Day Founders Legend",
+        "bonusPoints": 1500,
+        "bonusCents": 500,
+        "bonusFreeSpins": 3
+      }
+    ]
+  },
+  "streakStates": {
+    "usr-qa-verify-1794786512526": {
+      "userId": "usr-qa-verify-1794786512526",
+      "currentStreak": 1,
+      "longestStreak": 1,
+      "totalCheckIns": 1,
+      "totalStreakPoints": 25,
+      "totalStreakCents": 5,
+      "lastCheckInDateUtc": "2026-11-15",
+      "lastCheckInAtIso": "2026-11-15T23:48:32.780Z",
+      "checkedInToday": true,
+      "claimedMilestones": [],
+      "history": [
+        {
+          "dateUtc": "2026-11-15",
+          "streakDay": 1,
+          "pointsAwarded": 25,
+          "centsAwarded": 5,
+          "milestoneBonusPoints": 0,
+          "timestamp": "2026-11-15T23:48:32.780Z"
+        }
+      ],
+      "securitySig": "9ae12e92916d2a37d604d3340fe04ba14bad999462eb4c2fe2a3aa61c5b68b2b"
+    }
+  },
+  "spinSystemConfig": {
+    "minSpinCostUsd": 150,
+    "maxCashWinUsd": 20000,
+    "adminMode": "auto",
+    "autoSuperHardWinThreshold": 2,
+    "freeSpinMaxWinsPerOffer": 1,
+    "levels": {
+      "easy": [
+        {
+          "id": "ez-1",
+          "label": "Tesla Model 3 Highland",
+          "text": "Model 3 Win",
+          "valueUsd": 42490,
+          "value": 42490,
+          "type": "car",
+          "vehicleModel": "2026 Tesla Model 3 Highland AWD",
+          "color": "#dc2626",
+          "textColor": "white",
+          "weight": 4,
+          "probabilityWeight": 4,
+          "isActive": true
+        },
+        {
+          "id": "ez-2",
+          "label": "$20,000 Max Cash Jackpot",
+          "text": "$20,000 USD",
+          "valueUsd": 20000,
+          "value": 20000,
+          "type": "crypto",
+          "color": "#16a34a",
+          "textColor": "white",
+          "weight": 5,
+          "probabilityWeight": 5,
+          "isActive": true
+        },
+        {
+          "id": "ez-3",
+          "label": "$2,500 USDT Vault",
+          "text": "$2,500 USDT",
+          "valueUsd": 2500,
+          "value": 2500,
+          "type": "crypto",
+          "color": "#2563eb",
+          "textColor": "white",
+          "weight": 16,
+          "probabilityWeight": 16,
+          "isActive": true
+        },
+        {
+          "id": "ez-4",
+          "label": "Tesla Model Y Performance",
+          "text": "Model Y Win",
+          "valueUsd": 52490,
+          "value": 52490,
+          "type": "car",
+          "vehicleModel": "2026 Tesla Model Y Performance",
+          "color": "#ea580c",
+          "textColor": "white",
+          "weight": 4,
+          "probabilityWeight": 4,
+          "isActive": true
+        },
+        {
+          "id": "ez-5",
+          "label": "$10,000 Cash Prize",
+          "text": "$10,000 USD",
+          "valueUsd": 10000,
+          "value": 10000,
+          "type": "credits",
+          "color": "#ca8a04",
+          "textColor": "white",
+          "weight": 9,
+          "probabilityWeight": 9,
+          "isActive": true
+        },
+        {
+          "id": "ez-6",
+          "label": "Try Again",
+          "text": "Try Again",
+          "valueUsd": 0,
+          "value": 0,
+          "type": "try_again",
+          "color": "#1e293b",
+          "textColor": "white",
+          "weight": 14,
+          "probabilityWeight": 14,
+          "isActive": true
+        },
+        {
+          "id": "ez-7",
+          "label": "$5,000 Vault Payout",
+          "text": "$5,000 USD",
+          "valueUsd": 5000,
+          "value": 5000,
+          "type": "crypto",
+          "color": "#0891b2",
+          "textColor": "white",
+          "weight": 12,
+          "probabilityWeight": 12,
+          "isActive": true
+        },
+        {
+          "id": "ez-8",
+          "label": "Tesla Cybertruck AWD",
+          "text": "Cybertruck",
+          "valueUsd": 79990,
+          "value": 79990,
+          "type": "car",
+          "vehicleModel": "2026 Tesla Cybertruck Foundation AWD",
+          "color": "#b91c1c",
+          "textColor": "white",
+          "weight": 3,
+          "probabilityWeight": 3,
+          "isActive": true
+        },
+        {
+          "id": "ez-9",
+          "label": "$1,000 Cash Credit",
+          "text": "$1,000 USD",
+          "valueUsd": 1000,
+          "value": 1000,
+          "type": "credits",
+          "color": "#7c3aed",
+          "textColor": "white",
+          "weight": 17,
+          "probabilityWeight": 17,
+          "isActive": true
+        },
+        {
+          "id": "ez-10",
+          "label": "$500 Wallet Bonus",
+          "text": "$500 USD",
+          "valueUsd": 500,
+          "value": 500,
+          "type": "credits",
+          "color": "#475569",
+          "textColor": "white",
+          "weight": 16,
+          "probabilityWeight": 16,
+          "isActive": true
+        }
+      ],
+      "hard": [
+        {
+          "id": "hd-1",
+          "label": "Tesla Model 3 Highland",
+          "text": "Model 3 Win",
+          "valueUsd": 42490,
+          "value": 42490,
+          "type": "car",
+          "vehicleModel": "2026 Tesla Model 3 Highland AWD",
+          "color": "#dc2626",
+          "textColor": "white",
+          "weight": 2,
+          "probabilityWeight": 2,
+          "isActive": true
+        },
+        {
+          "id": "hd-2",
+          "label": "Try Again",
+          "text": "Try Again",
+          "valueUsd": 0,
+          "value": 0,
+          "type": "try_again",
+          "color": "#1e293b",
+          "textColor": "white",
+          "weight": 18,
+          "probabilityWeight": 18,
+          "isActive": true
+        },
+        {
+          "id": "hd-3",
+          "label": "$15,000 Max Cash Jackpot",
+          "text": "$15,000 USD",
+          "valueUsd": 15000,
+          "value": 15000,
+          "type": "crypto",
+          "color": "#16a34a",
+          "textColor": "white",
+          "weight": 4,
+          "probabilityWeight": 4,
+          "isActive": true
+        },
+        {
+          "id": "hd-4",
+          "label": "$2,500 USDT Vault",
+          "text": "$2,500 USDT",
+          "valueUsd": 2500,
+          "value": 2500,
+          "type": "crypto",
+          "color": "#2563eb",
+          "textColor": "white",
+          "weight": 10,
+          "probabilityWeight": 10,
+          "isActive": true
+        },
+        {
+          "id": "hd-5",
+          "label": "Try Again",
+          "text": "Try Again",
+          "valueUsd": 0,
+          "value": 0,
+          "type": "try_again",
+          "color": "#334155",
+          "textColor": "white",
+          "weight": 17,
+          "probabilityWeight": 17,
+          "isActive": true
+        },
+        {
+          "id": "hd-6",
+          "label": "$7,500 Cash Payout",
+          "text": "$7,500 USD",
+          "valueUsd": 7500,
+          "value": 7500,
+          "type": "credits",
+          "color": "#ca8a04",
+          "textColor": "white",
+          "weight": 6,
+          "probabilityWeight": 6,
+          "isActive": true
+        },
+        {
+          "id": "hd-7",
+          "label": "Tesla Cybertruck AWD",
+          "text": "Cybertruck",
+          "valueUsd": 79990,
+          "value": 79990,
+          "type": "car",
+          "vehicleModel": "2026 Tesla Cybertruck Foundation AWD",
+          "color": "#ea580c",
+          "textColor": "white",
+          "weight": 2,
+          "probabilityWeight": 2,
+          "isActive": true
+        },
+        {
+          "id": "hd-8",
+          "label": "$1,000 Cash Credit",
+          "text": "$1,000 USD",
+          "valueUsd": 1000,
+          "value": 1000,
+          "type": "credits",
+          "color": "#0891b2",
+          "textColor": "white",
+          "weight": 13,
+          "probabilityWeight": 13,
+          "isActive": true
+        },
+        {
+          "id": "hd-9",
+          "label": "Try Again",
+          "text": "Try Again",
+          "valueUsd": 0,
+          "value": 0,
+          "type": "try_again",
+          "color": "#0f172a",
+          "textColor": "white",
+          "weight": 17,
+          "probabilityWeight": 17,
+          "isActive": true
+        },
+        {
+          "id": "hd-10",
+          "label": "$500 Wallet Bonus",
+          "text": "$500 USD",
+          "valueUsd": 500,
+          "value": 500,
+          "type": "credits",
+          "color": "#7c3aed",
+          "textColor": "white",
+          "weight": 11,
+          "probabilityWeight": 11,
+          "isActive": true
+        }
+      ],
+      "super_hard": [
+        {
+          "id": "sh-1",
+          "label": "Tesla Model 3 RWD",
+          "text": "Model 3 Win",
+          "valueUsd": 38990,
+          "value": 38990,
+          "type": "car",
+          "vehicleModel": "2026 Tesla Model 3 Standard Range RWD",
+          "color": "#dc2626",
+          "textColor": "white",
+          "weight": 1,
+          "probabilityWeight": 1,
+          "isActive": true
+        },
+        {
+          "id": "sh-2",
+          "label": "Try Again",
+          "text": "Try Again",
+          "valueUsd": 0,
+          "value": 0,
+          "type": "try_again",
+          "color": "#1e293b",
+          "textColor": "white",
+          "weight": 19,
+          "probabilityWeight": 19,
+          "isActive": true
+        },
+        {
+          "id": "sh-3",
+          "label": "$8,000 Max Cash Jackpot",
+          "text": "$8,000 USD",
+          "valueUsd": 8000,
+          "value": 8000,
+          "type": "crypto",
+          "color": "#16a34a",
+          "textColor": "white",
+          "weight": 3,
+          "probabilityWeight": 3,
+          "isActive": true
+        },
+        {
+          "id": "sh-4",
+          "label": "Try Again",
+          "text": "Try Again",
+          "valueUsd": 0,
+          "value": 0,
+          "type": "try_again",
+          "color": "#334155",
+          "textColor": "white",
+          "weight": 19,
+          "probabilityWeight": 19,
+          "isActive": true
+        },
+        {
+          "id": "sh-5",
+          "label": "$4,000 Cash Payout",
+          "text": "$4,000 USD",
+          "valueUsd": 4000,
+          "value": 4000,
+          "type": "crypto",
+          "color": "#2563eb",
+          "textColor": "white",
+          "weight": 6,
+          "probabilityWeight": 6,
+          "isActive": true
+        },
+        {
+          "id": "sh-6",
+          "label": "Try Again",
+          "text": "Try Again",
+          "valueUsd": 0,
+          "value": 0,
+          "type": "try_again",
+          "color": "#0f172a",
+          "textColor": "white",
+          "weight": 18,
+          "probabilityWeight": 18,
+          "isActive": true
+        },
+        {
+          "id": "sh-7",
+          "label": "$1,500 Wallet Credit",
+          "text": "$1,500 USD",
+          "valueUsd": 1500,
+          "value": 1500,
+          "type": "credits",
+          "color": "#ca8a04",
+          "textColor": "white",
+          "weight": 9,
+          "probabilityWeight": 9,
+          "isActive": true
+        },
+        {
+          "id": "sh-8",
+          "label": "$500 Cash Prize",
+          "text": "$500 USD",
+          "valueUsd": 500,
+          "value": 500,
+          "type": "credits",
+          "color": "#0891b2",
+          "textColor": "white",
+          "weight": 10,
+          "probabilityWeight": 10,
+          "isActive": true
+        },
+        {
+          "id": "sh-9",
+          "label": "Try Again",
+          "text": "Try Again",
+          "valueUsd": 0,
+          "value": 0,
+          "type": "try_again",
+          "color": "#475569",
+          "textColor": "white",
+          "weight": 18,
+          "probabilityWeight": 18,
+          "isActive": true
+        },
+        {
+          "id": "sh-10",
+          "label": "$250 Consolation Cash",
+          "text": "$250 USD",
+          "valueUsd": 250,
+          "value": 250,
+          "type": "credits",
+          "color": "#7c3aed",
+          "textColor": "white",
+          "weight": 12,
+          "probabilityWeight": 12,
+          "isActive": true
+        }
+      ]
+    },
+    "userLevelOverrides": {
+      "usr-qa-verify-1794786512526-multi": "super_hard"
+    },
+    "userTrackers": {
+      "usr-qa-verify-1794786512526": {
+        "paidSpinsCount": 0,
+        "totalWinsCount": 0,
+        "freeSpinOfferWinsUsed": 0,
+        "freeSpinOffersRedeemed": 1,
+        "activeOfferSpinsRemaining": 2,
+        "lastReason": "free_spin_bonus_super_hard",
+        "lastSpinAt": "2026-11-15T23:48:32.865Z",
+        "lastResolvedLevel": "super_hard"
+      },
+      "usr-qa-verify-1794786512526-paid": {
+        "paidSpinsCount": 1,
+        "totalWinsCount": 1,
+        "freeSpinOfferWinsUsed": 0,
+        "freeSpinOffersRedeemed": 0,
+        "activeOfferSpinsRemaining": 0,
+        "lastSpinAt": "2026-11-15T23:48:33.267Z",
+        "lastResolvedLevel": "easy",
+        "lastReason": "paid_fair_random_easy"
+      },
+      "usr-qa-verify-1794786512526-multi": {
+        "paidSpinsCount": 1,
+        "totalWinsCount": 3,
+        "freeSpinOfferWinsUsed": 0,
+        "freeSpinOffersRedeemed": 0,
+        "activeOfferSpinsRemaining": 0,
+        "lastSpinAt": "2026-11-15T23:48:33.292Z",
+        "lastResolvedLevel": "super_hard",
+        "lastReason": "multi_win_auto_super_hard"
+      },
+      "usr-sec-test-1794787098730": {
+        "paidSpinsCount": 1,
+        "totalWinsCount": 1,
+        "freeSpinOfferWinsUsed": 0,
+        "freeSpinOffersRedeemed": 0,
+        "activeOfferSpinsRemaining": 0,
+        "lastSpinAt": "2026-11-15T23:58:18.977Z",
+        "lastResolvedLevel": "easy",
+        "lastReason": "paid_fair_random_easy"
+      }
+    }
+  },
+  "cronJobs": [
+    {
+      "id": "roi_accrual",
+      "name": "Fleet Staking & TSLA Fast-ROI Accrual",
+      "description": "Accrues daily dividends across running fleet & Fast-ROI equity plans and settles matured positions.",
+      "enabled": true,
+      "intervalMinutes": 1,
+      "lastRunAt": "2026-11-15T23:57:32.302Z",
+      "runsCount": 188,
+      "lastSummary": "Accrued $8.56 ROI; 0 matured."
+    },
+    {
+      "id": "daily_streak_audit",
+      "name": "Daily Streak Continuity & Reset Audit",
+      "description": "Audits UTC check-in timestamps, resets expired streaks beyond resetAfterHours, and seals milestone claims.",
+      "enabled": true,
+      "intervalMinutes": 15,
+      "lastRunAt": "2026-11-15T23:48:33.722Z",
+      "runsCount": 43,
+      "lastSummary": "Audited 1 member streak ledger(s); auto-reset 0 lapsed streak(s) exceeding 48h."
+    },
+    {
+      "id": "spin_criteria_audit",
+      "name": "Spin & Win Multi-Win Criteria Enforcer",
+      "description": "Automatically switches repeat winners (>= threshold wins) to Super Hard difficulty and audits free-spin win caps.",
+      "enabled": true,
+      "intervalMinutes": 5,
+      "lastRunAt": "2026-11-15T23:53:51.827Z",
+      "runsCount": 96,
+      "lastSummary": "Audited 3 spin profile(s); switched 0 multi-winner account(s) (>= 2 wins) to Super Hard."
+    },
+    {
+      "id": "won_prize_logistics",
+      "name": "Won Vehicle Custody & Logistics Progression",
+      "description": "Advances fee-paid won vehicles from fees_paid_processing to documentation_ready and carrier dispatch.",
+      "enabled": true,
+      "intervalMinutes": 10,
+      "lastRunAt": "2026-11-15T23:58:08.669Z",
+      "runsCount": 32,
+      "lastSummary": "Verified 0 won-prize vault item(s); prepared export documentation for 0 deposit-cleared vehicle(s)."
+    },
+    {
+      "id": "tsla_market_sync",
+      "name": "TSLA Market Telemetry & Price Alert Check",
+      "description": "Refreshes TSLA quote baselines and triggers active user price alerts when thresholds cross.",
+      "enabled": true,
+      "intervalMinutes": 5,
+      "lastRunAt": "2026-11-15T23:53:21.830Z",
+      "runsCount": 119,
+      "lastSummary": "Synced live NASDAQ: TSLA telemetry feed ($329.77)."
+    }
+  ],
+  "scratchTiers": [
+    {
+      "id": "scratch-tier-gold",
+      "name": "Giga Gold Plaid VIP",
+      "priceUsd": 1000,
+      "maxPrizeUsd": 15000,
+      "possiblePrizes": [
+        {
+          "amountUsd": 15000,
+          "label": "$15,000 Max Cash Jackpot",
+          "weight": 4
+        },
+        {
+          "amountUsd": 38990,
+          "label": "Win 1 Tesla Model 3 RWD",
+          "weight": 2,
+          "isTeslaCar": true,
+          "vehicleModel": "2026 Tesla Model 3 Standard Range RWD"
+        },
+        {
+          "amountUsd": 5000,
+          "label": "$5,000 USDT Vault Credit",
+          "weight": 10
+        },
+        {
+          "amountUsd": 2500,
+          "label": "$2,500 Plaid Bonus",
+          "weight": 18
+        },
+        {
+          "amountUsd": 1000,
+          "label": "$1,000 Cash Return",
+          "weight": 28
+        },
+        {
+          "amountUsd": 0,
+          "label": "Try Again ($0)",
+          "weight": 38,
+          "isTryAgain": true
+        }
+      ]
+    },
+    {
+      "id": "scratch-tier-diamond",
+      "name": "Founders Roadster Apex Grand",
+      "priceUsd": 8000,
+      "maxPrizeUsd": 50000,
+      "possiblePrizes": [
+        {
+          "amountUsd": 50000,
+          "label": "$50,000 Max Cash Jackpot",
+          "weight": 5
+        },
+        {
+          "amountUsd": 200000,
+          "label": "Win 1 Tesla Roadster Founders",
+          "weight": 3,
+          "isTeslaCar": true,
+          "vehicleModel": "2026 Tesla Roadster Founders Edition"
+        },
+        {
+          "amountUsd": 99990,
+          "label": "Win 1 Tesla Cyberbeast AWD",
+          "weight": 4,
+          "isTeslaCar": true,
+          "vehicleModel": "2026 Tesla Cybertruck Cyberbeast AWD"
+        },
+        {
+          "amountUsd": 89990,
+          "label": "Win 1 Tesla Model S Plaid",
+          "weight": 5,
+          "isTeslaCar": true,
+          "vehicleModel": "2026 Tesla Model S Plaid Tri-Motor"
+        },
+        {
+          "amountUsd": 25000,
+          "label": "$25,000 Apex Gold Payout",
+          "weight": 12
+        },
+        {
+          "amountUsd": 12000,
+          "label": "$12,000 Vault Credit",
+          "weight": 20
+        },
+        {
+          "amountUsd": 4000,
+          "label": "$4,000 Rebate Credit",
+          "weight": 26
+        },
+        {
+          "amountUsd": 0,
+          "label": "Try Again ($0)",
+          "weight": 25,
+          "isTryAgain": true
+        }
+      ]
+    }
+  ],
+  "depositRecords": {
+    "usr-alex-001": [
+      {
+        "id": "dep-seed-usr-alex-001",
+        "userId": "usr-alex-001",
+        "currency": "USD",
+        "amount": 12450,
+        "usdEquivalent": 12450,
+        "remainingUsd": 12450,
+        "txHash": "0xseed4375306298b8906fa1a2aa1165c9",
+        "gatewayName": "Apex Verified Custody Vault",
+        "source": "seed_vault",
+        "status": "verified",
+        "createdAt": "2026-10-01T00:00:00.000Z",
+        "signature": "206ca8d6a0036be1b474db5b202c486b72cbfc5439caba08f4f71a3cb6b018c4"
+      }
+    ],
+    "usr-apex-001": [
+      {
+        "id": "dep-seed-usr-apex-001",
+        "userId": "usr-apex-001",
+        "currency": "USD",
+        "amount": 12450,
+        "usdEquivalent": 12450,
+        "remainingUsd": 12450,
+        "txHash": "0xseede7f32144c6c2feef1b032d70e3ef",
+        "gatewayName": "Apex Verified Custody Vault",
+        "source": "seed_vault",
+        "status": "verified",
+        "createdAt": "2026-10-01T00:00:00.000Z",
+        "signature": "75c769795a7583fe8306d702ceb21e9d35e440f9e3326a2d212323f76291886f"
+      }
+    ],
+    "usr-003": [
+      {
+        "id": "dep-seed-usr-003",
+        "userId": "usr-003",
+        "currency": "USD",
+        "amount": 4280,
+        "usdEquivalent": 4280,
+        "remainingUsd": 4280,
+        "txHash": "0xseedae728d1c1b308bca66cf5e212f76",
+        "gatewayName": "Apex Verified Custody Vault",
+        "source": "seed_vault",
+        "status": "verified",
+        "createdAt": "2026-10-01T00:00:00.000Z",
+        "signature": "614c20708ad777883659830c75e9c86eff07693ab7a974cf6ae2dacc63966528"
+      }
+    ],
+    "usr-004": [
+      {
+        "id": "dep-seed-usr-004",
+        "userId": "usr-004",
+        "currency": "USD",
+        "amount": 9850,
+        "usdEquivalent": 9850,
+        "remainingUsd": 9850,
+        "txHash": "0xseed11f8f197534f13dac0f98613e53e",
+        "gatewayName": "Apex Verified Custody Vault",
+        "source": "seed_vault",
+        "status": "verified",
+        "createdAt": "2026-10-01T00:00:00.000Z",
+        "signature": "8710999acc3c47f763407671a57bd1d1fbe7a893dd1cfffa8b90744a3af75d42"
+      }
+    ],
+    "usr-005": [
+      {
+        "id": "dep-seed-usr-005",
+        "userId": "usr-005",
+        "currency": "USD",
+        "amount": 1820,
+        "usdEquivalent": 1820,
+        "remainingUsd": 1820,
+        "txHash": "0xseedd05a20b8cb2ab7b7b61d8b9bc637",
+        "gatewayName": "Apex Verified Custody Vault",
+        "source": "seed_vault",
+        "status": "verified",
+        "createdAt": "2026-10-01T00:00:00.000Z",
+        "signature": "a5bf3d2c1ede535570feb541b987c95555f788fb6b3e447944026c20337e1311"
+      }
+    ],
+    "usr-006": [
+      {
+        "id": "dep-seed-usr-006",
+        "userId": "usr-006",
+        "currency": "USD",
+        "amount": 24500,
+        "usdEquivalent": 24500,
+        "remainingUsd": 24500,
+        "txHash": "0xseeda5bac1e2ede64283f0ac55478db2",
+        "gatewayName": "Apex Verified Custody Vault",
+        "source": "seed_vault",
+        "status": "verified",
+        "createdAt": "2026-10-01T00:00:00.000Z",
+        "signature": "8cbcc66870095043e18be46d0c49b9bbd3dbce8463b956fc50317c10d95e020a"
+      }
+    ],
+    "usr-007": [
+      {
+        "id": "dep-seed-usr-007",
+        "userId": "usr-007",
+        "currency": "USD",
+        "amount": 15400,
+        "usdEquivalent": 15400,
+        "remainingUsd": 15400,
+        "txHash": "0xseed79df9798d1ea87384f36b3ba675d",
+        "gatewayName": "Apex Verified Custody Vault",
+        "source": "seed_vault",
+        "status": "verified",
+        "createdAt": "2026-10-01T00:00:00.000Z",
+        "signature": "c662dcc9fdec4c39a36e06b697e6e934ed0cc73ed1e0a2e4a01743f29c8350f4"
+      }
+    ],
+    "usr-008": [
+      {
+        "id": "dep-seed-usr-008",
+        "userId": "usr-008",
+        "currency": "USD",
+        "amount": 7600,
+        "usdEquivalent": 7600,
+        "remainingUsd": 7600,
+        "txHash": "0xseedb739ef8ade9827333a9106f828b8",
+        "gatewayName": "Apex Verified Custody Vault",
+        "source": "seed_vault",
+        "status": "verified",
+        "createdAt": "2026-10-01T00:00:00.000Z",
+        "signature": "b0d78357dbd5176d58935bc8183adba9401f2a961c2c040596f6a701b72777e1"
+      }
+    ],
+    "usr-009": [
+      {
+        "id": "dep-seed-usr-009",
+        "userId": "usr-009",
+        "currency": "USD",
+        "amount": 2940,
+        "usdEquivalent": 2940,
+        "remainingUsd": 2940,
+        "txHash": "0xseedf80c06391f5e7f1b0f8975d7521c",
+        "gatewayName": "Apex Verified Custody Vault",
+        "source": "seed_vault",
+        "status": "verified",
+        "createdAt": "2026-10-01T00:00:00.000Z",
+        "signature": "bd458ea3fb2bec186df2856492dfe244d1af4c0f1cbffc2eb3f6a1b3670adc02"
+      }
+    ],
+    "usr-010": [
+      {
+        "id": "dep-seed-usr-010",
+        "userId": "usr-010",
+        "currency": "USD",
+        "amount": 31200,
+        "usdEquivalent": 31200,
+        "remainingUsd": 31200,
+        "txHash": "0xseeda3aac7e83d3dc8beb34a0e946227",
+        "gatewayName": "Apex Verified Custody Vault",
+        "source": "seed_vault",
+        "status": "verified",
+        "createdAt": "2026-10-01T00:00:00.000Z",
+        "signature": "23e7a5a018a1fe7f450ac21913b61819b33b809d29cfbf4e5403e812398e0a8b"
+      }
+    ],
+    "usr-sec-test-1794787098730": [
+      {
+        "id": "dep-mwihwcow-9d56b2",
+        "userId": "usr-sec-test-1794787098730",
+        "currency": "USD",
+        "amount": 3000,
+        "usdEquivalent": 3000,
+        "remainingUsd": 1500,
+        "txHash": "0xtest1794787098941",
+        "gatewayName": "Test Wire",
+        "source": "gateway_deposit",
+        "status": "verified",
+        "createdAt": "2026-11-15T23:58:18.944Z",
+        "signature": "95bf696c5de0ff25ffd62b15273f7cf2d75f0cf30471580744913dbd07e3c247"
+      }
+    ]
+  },
+  "transactionAudits": [
+    {
+      "userId": "usr-sec-test-1794787098730",
+      "category": "won_vehicle_shipping",
+      "amountUsd": 1500,
+      "depositConsumedUsd": 1500,
+      "freeWinConsumedUsd": 0,
+      "depositRecordIdsUsed": [
+        "dep-mwihwcow-9d56b2"
+      ],
+      "verifiedDepositBeforeUsd": 3000,
+      "verifiedDepositAfterUsd": 1500,
+      "freeWinBeforeUsd": 5850,
+      "freeWinAfterUsd": 5850,
+      "outcome": "approved",
+      "reason": "Won vehicle shipping/doc/processing fee ($1500) settled strictly from verified deposit records.",
+      "id": "audit-mwihwcq1-92ee87",
+      "createdAt": "2026-11-15T23:58:18.985Z",
+      "signature": "3fe96c50c9f4e823a3fb5cdc1994e5612204512728a558b3e412339ca3046c3b"
+    },
+    {
+      "userId": "usr-sec-test-1794787098730",
+      "category": "spin_payment",
+      "amountUsd": 150,
+      "depositConsumedUsd": 0,
+      "freeWinConsumedUsd": 150,
+      "depositRecordIdsUsed": [],
+      "verifiedDepositBeforeUsd": 3000,
+      "verifiedDepositAfterUsd": 3000,
+      "freeWinBeforeUsd": 5000,
+      "freeWinAfterUsd": 4850,
+      "outcome": "approved",
+      "reason": "Paid Spin Wheel fee ($150 USD min $150) cross-referenced against deposit records.",
+      "id": "audit-mwihwcpt-e27144",
+      "createdAt": "2026-11-15T23:58:18.977Z",
+      "signature": "30c6597ec4dac98179467c6194c08ebd18a93b2c8798741eff07579ec02c6c93"
+    },
+    {
+      "userId": "usr-sec-test-1794787098730",
+      "category": "scratch_purchase",
+      "amountUsd": 1000,
+      "depositConsumedUsd": 0,
+      "freeWinConsumedUsd": 1000,
+      "depositRecordIdsUsed": [],
+      "verifiedDepositBeforeUsd": 3000,
+      "verifiedDepositAfterUsd": 3000,
+      "freeWinBeforeUsd": 5000,
+      "freeWinAfterUsd": 4000,
+      "outcome": "approved",
+      "reason": "Scratch Card \"Giga Gold Plaid VIP\" ($1000) cross-referenced against deposit records.",
+      "id": "audit-mwihwcpk-992cb1",
+      "createdAt": "2026-11-15T23:58:18.968Z",
+      "signature": "3f4714ce10e7187fb5b5d552187fd805ada880437d3cdf479edb6a679936fd5d"
+    },
+    {
+      "userId": "usr-sec-test-1794787098730",
+      "category": "security_rejection",
+      "amountUsd": 1,
+      "depositConsumedUsd": 0,
+      "freeWinConsumedUsd": 0,
+      "depositRecordIdsUsed": [],
+      "verifiedDepositBeforeUsd": 3000,
+      "verifiedDepositAfterUsd": 3000,
+      "freeWinBeforeUsd": 5000,
+      "freeWinAfterUsd": 5000,
+      "outcome": "rejected",
+      "rejectionCode": "FEE_AMOUNT_TAMPERED",
+      "reason": "Submitted payment $1 is below authoritative server fee/cost $8000.00.",
+      "clientClaimedDepositUsd": 3000,
+      "clientClaimedWalletUsd": 8000,
+      "id": "audit-mwihwcpa-11176a",
+      "createdAt": "2026-11-15T23:58:18.959Z",
+      "signature": "823082f18e42b56eb387bcd3eea8f74fc6b87e7ce5d8719b5594ea36c7efb91b"
+    },
+    {
+      "userId": "usr-sec-test-1794787098730",
+      "category": "deposit_record",
+      "amountUsd": 3000,
+      "depositConsumedUsd": 0,
+      "freeWinConsumedUsd": 0,
+      "depositRecordIdsUsed": [
+        "dep-mwihwcow-9d56b2"
+      ],
+      "verifiedDepositBeforeUsd": 3000,
+      "verifiedDepositAfterUsd": 3000,
+      "freeWinBeforeUsd": 5000,
+      "freeWinAfterUsd": 5000,
+      "outcome": "approved",
+      "reason": "Verified deposit record (gateway_deposit) via Test Wire",
+      "id": "audit-mwihwcow-4af8f0",
+      "createdAt": "2026-11-15T23:58:18.944Z",
+      "signature": "072f16156a93b59eccd4fbc2a0cdce85fcf63247b655b3ecd64f0a42af8036ac"
+    },
+    {
+      "userId": "usr-sec-test-1794787098730",
+      "category": "won_vehicle_shipping",
+      "amountUsd": 1500,
+      "depositConsumedUsd": 0,
+      "freeWinConsumedUsd": 0,
+      "depositRecordIdsUsed": [],
+      "verifiedDepositBeforeUsd": 0,
+      "verifiedDepositAfterUsd": 0,
+      "freeWinBeforeUsd": 5000,
+      "freeWinAfterUsd": 5000,
+      "outcome": "rejected",
+      "rejectionCode": "DEPOSIT_REQUIRED_FOR_VEHICLE_FEES",
+      "reason": "Verified deposit balance $0.00 is below required $1500.00 (free win balance $5000.00 excluded).",
+      "id": "audit-mwihwcon-a0d29b",
+      "createdAt": "2026-11-15T23:58:18.935Z",
+      "signature": "e854525ed8b9c8a63ecf77ed2fc54077afcfddb050ebaa809ef3a6afe4092e9f"
+    },
+    {
+      "userId": "usr-sec-test-1794787098730",
+      "category": "security_rejection",
+      "amountUsd": 101190,
+      "depositConsumedUsd": 0,
+      "freeWinConsumedUsd": 0,
+      "depositRecordIdsUsed": [],
+      "verifiedDepositBeforeUsd": 0,
+      "verifiedDepositAfterUsd": 0,
+      "freeWinBeforeUsd": 0,
+      "freeWinAfterUsd": 0,
+      "outcome": "rejected",
+      "rejectionCode": "BALANCE_MANIPULATION_DETECTED",
+      "reason": "Client claimed deposit=$100000 wallet=$100000, but verified server ledger is deposit=$0 wallet=$0.",
+      "clientClaimedDepositUsd": 100000,
+      "clientClaimedWalletUsd": 100000,
+      "id": "audit-mwihwco3-a20f2b",
+      "createdAt": "2026-11-15T23:58:18.915Z",
+      "signature": "dfa16b593636a08f0924af95eb613c6195ae24d0ba008d8fbec4323f9cebfe4a"
+    },
+    {
+      "userId": "usr-sec-test-1794787098730",
+      "category": "security_rejection",
+      "amountUsd": 2000,
+      "depositConsumedUsd": 0,
+      "freeWinConsumedUsd": 0,
+      "depositRecordIdsUsed": [],
+      "verifiedDepositBeforeUsd": 0,
+      "verifiedDepositAfterUsd": 0,
+      "freeWinBeforeUsd": 0,
+      "freeWinAfterUsd": 0,
+      "outcome": "rejected",
+      "rejectionCode": "BALANCE_MANIPULATION_DETECTED",
+      "reason": "Client claimed deposit=$9000 wallet=$9000, but verified server ledger is deposit=$0 wallet=$0.",
+      "clientClaimedDepositUsd": 9000,
+      "clientClaimedWalletUsd": 9000,
+      "id": "audit-mwihwcnr-83abee",
+      "createdAt": "2026-11-15T23:58:18.903Z",
+      "signature": "3bab73faa12cb00db4a549d575b5a6eada4ffe0138603c0af45d2e1ea06214f2"
+    },
+    {
+      "userId": "usr-sec-test-1794787098730",
+      "category": "security_rejection",
+      "amountUsd": 1000,
+      "depositConsumedUsd": 0,
+      "freeWinConsumedUsd": 0,
+      "depositRecordIdsUsed": [],
+      "verifiedDepositBeforeUsd": 0,
+      "verifiedDepositAfterUsd": 0,
+      "freeWinBeforeUsd": 0,
+      "freeWinAfterUsd": 0,
+      "outcome": "rejected",
+      "rejectionCode": "BALANCE_MANIPULATION_DETECTED",
+      "reason": "Client claimed deposit=$50000 wallet=$50000, but verified server ledger is deposit=$0 wallet=$0.",
+      "clientClaimedDepositUsd": 50000,
+      "clientClaimedWalletUsd": 50000,
+      "id": "audit-mwihwcng-34d5a9",
+      "createdAt": "2026-11-15T23:58:18.892Z",
+      "signature": "92a47381a50ea30157620afe2a488e1c9cb869f3f245db7c6283bdf3433f1f95"
+    },
+    {
+      "userId": "usr-sec-test-1794787098730",
+      "category": "security_rejection",
+      "amountUsd": 150,
+      "depositConsumedUsd": 0,
+      "freeWinConsumedUsd": 0,
+      "depositRecordIdsUsed": [],
+      "verifiedDepositBeforeUsd": 0,
+      "verifiedDepositAfterUsd": 0,
+      "freeWinBeforeUsd": 0,
+      "freeWinAfterUsd": 0,
+      "outcome": "rejected",
+      "rejectionCode": "BALANCE_MANIPULATION_DETECTED",
+      "reason": "Client claimed deposit=$50000 wallet=$50000, but verified server ledger is deposit=$0 wallet=$0.",
+      "clientClaimedDepositUsd": 50000,
+      "clientClaimedWalletUsd": 50000,
+      "id": "audit-mwihwcn6-3760f1",
+      "createdAt": "2026-11-15T23:58:18.882Z",
+      "signature": "f378b0a0e5889b0c9b707a44aa80b869754aecf274a66e1e8c4c91b462dd0a24"
+    },
+    {
+      "userId": "usr-sec-test-1794787068677",
+      "category": "security_rejection",
+      "amountUsd": 2000,
+      "depositConsumedUsd": 0,
+      "freeWinConsumedUsd": 0,
+      "depositRecordIdsUsed": [],
+      "verifiedDepositBeforeUsd": 0,
+      "verifiedDepositAfterUsd": 0,
+      "freeWinBeforeUsd": 0,
+      "freeWinAfterUsd": 0,
+      "outcome": "rejected",
+      "rejectionCode": "BALANCE_MANIPULATION_DETECTED",
+      "reason": "Client claimed deposit=$9000 wallet=$9000, but verified server ledger is deposit=$0 wallet=$0.",
+      "clientClaimedDepositUsd": 9000,
+      "clientClaimedWalletUsd": 9000,
+      "id": "audit-mwihvpi9-c75b8d",
+      "createdAt": "2026-11-15T23:57:48.897Z",
+      "signature": "9e6df7f7de033de1b658e663d5c50169f140f05403bacef246a1ac6514b30363"
+    },
+    {
+      "userId": "usr-sec-test-1794787068677",
+      "category": "security_rejection",
+      "amountUsd": 1000,
+      "depositConsumedUsd": 0,
+      "freeWinConsumedUsd": 0,
+      "depositRecordIdsUsed": [],
+      "verifiedDepositBeforeUsd": 0,
+      "verifiedDepositAfterUsd": 0,
+      "freeWinBeforeUsd": 0,
+      "freeWinAfterUsd": 0,
+      "outcome": "rejected",
+      "rejectionCode": "BALANCE_MANIPULATION_DETECTED",
+      "reason": "Client claimed deposit=$50000 wallet=$50000, but verified server ledger is deposit=$0 wallet=$0.",
+      "clientClaimedDepositUsd": 50000,
+      "clientClaimedWalletUsd": 50000,
+      "id": "audit-mwihvphy-e72e32",
+      "createdAt": "2026-11-15T23:57:48.886Z",
+      "signature": "71327b4d7a5897c0da47fd5d8c2af4d41571806d01bd0ecd7e549424cdd3ffb1"
+    },
+    {
+      "userId": "usr-sec-test-1794787068677",
+      "category": "security_rejection",
+      "amountUsd": 150,
+      "depositConsumedUsd": 0,
+      "freeWinConsumedUsd": 0,
+      "depositRecordIdsUsed": [],
+      "verifiedDepositBeforeUsd": 0,
+      "verifiedDepositAfterUsd": 0,
+      "freeWinBeforeUsd": 0,
+      "freeWinAfterUsd": 0,
+      "outcome": "rejected",
+      "rejectionCode": "BALANCE_MANIPULATION_DETECTED",
+      "reason": "Client claimed deposit=$50000 wallet=$50000, but verified server ledger is deposit=$0 wallet=$0.",
+      "clientClaimedDepositUsd": 50000,
+      "clientClaimedWalletUsd": 50000,
+      "id": "audit-mwihvph6-b7db26",
+      "createdAt": "2026-11-15T23:57:48.858Z",
+      "signature": "9fe4c67af07b334a7fca64e6b7022d8245006ae6f1e6ee00176c60b9f009f9a7"
+    }
+  ],
+  "serverWalletsFreeWin": {
+    "usr-alex-001": 0,
+    "usr-apex-001": 0,
+    "usr-003": 0,
+    "usr-004": 0,
+    "usr-005": 0,
+    "usr-006": 0,
+    "usr-007": 0,
+    "usr-008": 0,
+    "usr-009": 0,
+    "usr-010": 0,
+    "usr-sec-test-1794787034898": 0,
+    "usr-sec-test-1794787068677": 0,
+    "usr-sec-test-1794787098730": 5850
+  },
+  "wonPrizesList": [
+    {
+      "id": "prize-ship-ok",
+      "userId": "usr-sec-test-1794787098730",
+      "feesPaid": true,
+      "paidAt": "2026-11-15T23:58:18.985Z",
+      "paymentMethod": "deposit",
+      "shippingAddress": {
+        "fullName": "Test",
+        "country": "US",
+        "city": "Austin",
+        "postalCode": "78701",
+        "street": "1 Tesla Rd",
+        "phone": "555-0100",
+        "deliveryMethod": "RoRo"
+      },
+      "shippingStatus": "fees_paid_processing",
+      "trackingNumber": "APX-EXP-MWIHWCQ1",
+      "carrierName": "Apex Bonded Enclosed EV Carrier"
     }
   ]
 }

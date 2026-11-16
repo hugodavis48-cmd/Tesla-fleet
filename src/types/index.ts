@@ -1228,6 +1228,7 @@ export type EngagementActionType =
   | 'share_article'
   | 'engagement_action'
   | 'time_on_platform'
+  | 'daily_streak'
   | 'admin_bonus';
 
 export interface EngagementTierMultipliers {
@@ -1245,6 +1246,105 @@ export interface EngagementTierLevel {
   minDepositUsd: number;
   multiplier: number;
   referralRewardUsd: number;
+}
+
+export interface StreakTierRate {
+  day: number;
+  label: string;
+  bonusPoints: number;
+  bonusCents: number;
+}
+
+export interface StreakMilestoneBonus {
+  daysRequired: number;
+  label: string;
+  bonusPoints: number;
+  bonusCents: number;
+  bonusFreeSpins?: number;
+}
+
+export interface DailyStreakConfig {
+  enabled: boolean;
+  graceWindowHours: number;
+  resetAfterHours: number;
+  autoResetMissedDays: boolean;
+  maxStreakMultiplier: number;
+  dailyRates: StreakTierRate[];
+  milestoneBonuses: StreakMilestoneBonus[];
+}
+
+export interface StreakCheckInEntry {
+  dateUtc: string;
+  streakDay: number;
+  pointsAwarded: number;
+  centsAwarded: number;
+  milestoneBonusPoints?: number;
+  timestamp: string;
+}
+
+export interface UserDailyStreakState {
+  userId: string;
+  currentStreak: number;
+  longestStreak: number;
+  totalCheckIns: number;
+  totalStreakPoints: number;
+  totalStreakCents: number;
+  lastCheckInDateUtc: string | null;
+  lastCheckInAtIso: string | null;
+  checkedInToday: boolean;
+  claimedMilestones: number[];
+  history: StreakCheckInEntry[];
+  securitySig?: string;
+}
+
+export type SpinDifficultyLevel = 'easy' | 'hard' | 'super_hard';
+export type SpinAdminMode = 'auto' | SpinDifficultyLevel;
+
+export interface UserSpinTracker {
+  paidSpinsCount: number;
+  totalWinsCount: number;
+  freeSpinOfferWinsUsed: number;
+  freeSpinOffersRedeemed: number;
+  activeOfferSpinsRemaining?: number;
+  lastSpinAt?: string;
+  lastResolvedLevel?: SpinDifficultyLevel;
+  lastReason?: string;
+}
+
+export interface SpinSystemConfig {
+  minSpinCostUsd: number; // strictly >= 150
+  maxCashWinUsd: number; // max $20,000
+  adminMode: SpinAdminMode;
+  autoSuperHardWinThreshold: number; // switch user to super_hard after >= N wins
+  freeSpinMaxWinsPerOffer: number; // strictly 1 win across offered free spins
+  levels: Record<SpinDifficultyLevel, WheelReward[]>;
+  userLevelOverrides: Record<string, SpinAdminMode>;
+  userTrackers?: Record<string, UserSpinTracker>;
+}
+
+export interface WalletLedgerSummary {
+  spendableUsd: number;
+  activeDepositBalanceUsd: number;
+  freeWinBalanceUsd: number;
+  lockedWinUsd: number;
+}
+
+export type CronJobId =
+  | 'roi_accrual'
+  | 'daily_streak_audit'
+  | 'spin_criteria_audit'
+  | 'won_prize_logistics'
+  | 'tsla_market_sync';
+
+export interface CronJobConfigItem {
+  id: CronJobId;
+  name: string;
+  description: string;
+  enabled: boolean;
+  intervalMinutes: number;
+  lastRunAt: string | null;
+  runsCount: number;
+  lastSummary: string;
 }
 
 export interface EngagementRewardConfig {
@@ -1297,5 +1397,3 @@ export interface EngagementActivityRecord {
   pointsEarned: number;
   createdAt: string;
 }
-
-

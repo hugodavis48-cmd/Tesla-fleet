@@ -10,6 +10,8 @@
 - `/site_config/seo`, `/page_seo/{pageId}`, and `/media_assets/{assetId}` contain only non-PII public site branding/SEO data; reads are public and writes are strictly restricted to verified admins (`isAdmin()`).
 - `/admin_settings/{sectionId}` permits explicit `get` for non-secret storefront sections (`site_settings`, `currencies`, `feature_toggles`, `faqs`, `navigation_menus`, `site_pages`, etc.), while sensitive admin slices (`smtp_config`, `auto_gateways`, `won_prizes`) and collection `list` are strictly restricted to `isAdmin()`.
 - `/engagement_activities/{activityId}` stores immutable, non-PII user dwell time and social share events; `userId` must match `request.auth.uid`, `createdAt == request.time`, and only the owning verified user or an admin can read/list matching records.
+- `/deposit_records/{recordId}` stores server/admin-verified deposit records (`remainingUsd <= usdEquivalent`, immutable `txHash`/`userId`/`createdAt`); clients cannot mint or inflate their own deposit records via Firestore SDK.
+- `/transaction_audits/{auditId}` stores immutable payment cross-reference audit logs (`allow update: if false`) restricted to `isAdmin()` or owning verified user.
 - No collection permits blanket `list` queries on PII or secret operational settings.
 
 ## 2. Adversarial Payloads ("Dirty Dozen")
@@ -26,3 +28,4 @@
 11. Authenticated non-admin writing to `/site_config/seo`, `/page_seo/home`, `/admin_settings/site_settings`, or `/media_assets/a1` -> PERMISSION_DENIED.
 12. Unauthenticated or non-admin reading `/admin_settings/smtp_config` or listing `/admin_settings` -> PERMISSION_DENIED.
 13. Authenticated user `u1` forging `/engagement_activities/a1` with `userId: "u2"` or modifying an existing activity record -> PERMISSION_DENIED.
+14. Authenticated non-admin creating or inflating `/deposit_records/dep1` or mutating `/transaction_audits/aud1` -> PERMISSION_DENIED.

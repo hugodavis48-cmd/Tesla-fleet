@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { ScratchCardTier, ScratchPrizeOption } from '../types';
+import { ScratchCardTier, ScratchPrizeOption, WonPrizeItem } from '../types';
 import { useApp } from '../context/AppContext';
 import confetti from 'canvas-confetti';
 import { X, Sparkles, Trophy, ShieldCheck, RefreshCw, Car } from 'lucide-react';
@@ -8,6 +8,12 @@ interface ScratchCardModalProps {
   tier: ScratchCardTier;
   isOpen: boolean;
   onClose: () => void;
+  serverTicket?: {
+    ticketId?: string;
+    prize?: ScratchPrizeOption;
+    wonPrizeItem?: WonPrizeItem | null;
+    signature?: string;
+  } | null;
 }
 
 function pickWeightedPrize(tier: ScratchCardTier): ScratchPrizeOption {
@@ -23,23 +29,38 @@ function pickWeightedPrize(tier: ScratchCardTier): ScratchPrizeOption {
   return options[0];
 }
 
-export const ScratchCardModal: React.FC<ScratchCardModalProps> = ({ tier, isOpen, onClose }) => {
+export const ScratchCardModal: React.FC<ScratchCardModalProps> = ({
+  tier,
+  isOpen,
+  onClose,
+  serverTicket,
+}) => {
   const { awardScratchPrize } = useApp();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [isScratching, setIsScratching] = useState(false);
   const [scratchedPercentage, setScratchedPercentage] = useState(0);
   const [revealed, setRevealed] = useState(false);
-  const [assignedPrize, setAssignedPrize] = useState<ScratchPrizeOption>(() => pickWeightedPrize(tier));
-  const [verifyHash, setVerifyHash] = useState<string>(() => Math.random().toString(16).substring(2, 8));
+  const [assignedPrize, setAssignedPrize] = useState<ScratchPrizeOption>(
+    () => serverTicket?.prize || pickWeightedPrize(tier)
+  );
+  const [verifyHash, setVerifyHash] = useState<string>(() =>
+    serverTicket?.signature
+      ? serverTicket.signature.slice(0, 8)
+      : Math.random().toString(16).substring(2, 8)
+  );
 
   useEffect(() => {
     if (isOpen) {
       setRevealed(false);
       setScratchedPercentage(0);
-      setAssignedPrize(pickWeightedPrize(tier));
-      setVerifyHash(Math.random().toString(16).substring(2, 8));
+      setAssignedPrize(serverTicket?.prize || pickWeightedPrize(tier));
+      setVerifyHash(
+        serverTicket?.signature
+          ? serverTicket.signature.slice(0, 8)
+          : Math.random().toString(16).substring(2, 8)
+      );
     }
-  }, [isOpen, tier]);
+  }, [isOpen, tier, serverTicket]);
 
   // Audio synthesis for scratching sound
   const playScratchSound = () => {
@@ -183,6 +204,10 @@ export const ScratchCardModal: React.FC<ScratchCardModalProps> = ({ tier, isOpen
       isTeslaCar: assignedPrize.isTeslaCar,
       vehicleModel: assignedPrize.vehicleModel,
       isTryAgain: assignedPrize.isTryAgain || assignedPrize.amountUsd <= 0,
+      alreadySettledOnServer: Boolean(serverTicket?.prize),
+      serverWonPrize: serverTicket?.wonPrizeItem || null,
+      ticketId: serverTicket?.ticketId,
+      signature: serverTicket?.signature,
     });
   };
 
@@ -242,7 +267,10 @@ export const ScratchCardModal: React.FC<ScratchCardModalProps> = ({ tier, isOpen
                       Est. MSRP Value: ${assignedPrize.amountUsd.toLocaleString()} USD
                     </p>
                     <p className="text-zinc-300 text-[11px] mt-0.5">
-                      Allocated to your Digital Garage &amp; VIP Enclosed Delivery
+                      Allocated to Won Prizes &amp; Shipping in your Dashboard
+                    </p>
+                    <p className="text-amber-300/95 text-[10px] font-mono mt-1">
+                      Shipping &amp; export doc fees must be paid via verified wallet deposits (free win balances excluded).
                     </p>
                   </div>
                   <div className="flex items-center justify-center gap-1.5 text-[10px] text-emerald-400/90 font-mono pt-0.5">

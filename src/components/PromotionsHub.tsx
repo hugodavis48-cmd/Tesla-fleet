@@ -22,6 +22,8 @@ import {
   TrendingUp,
   Pause,
   Play,
+  Ticket,
+  AlertTriangle,
 } from 'lucide-react';
 
 interface PromotionsHubProps {
@@ -36,22 +38,37 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
     recentWinners,
     purchaseScratchCard,
     balances,
+    activeDepositBalanceUsd,
+    freeWinBalanceUsd,
     showToast,
     spinCostUsd,
-    wheelRewards,
+    spinSystemConfig,
+    getResolvedSpinContext,
+    applyCoupon,
     scratchCardTiers,
     siteSettings,
   } = useApp();
 
   const [isSpinning, setIsSpinning] = useState(false);
   const [wheelRotation, setWheelRotation] = useState(0);
+  const [useFreeSpinMode, setUseFreeSpinMode] = useState(true);
+  const [spinCouponCode, setSpinCouponCode] = useState('');
   const [lastWonPrize, setLastWonPrize] = useState<{
     prize: string;
     valueUsd: number;
     type?: string;
     vehicleModel?: string;
+    resolvedLevel?: string;
+    reason?: string;
+    usedFreeSpin?: boolean;
   } | null>(null);
   const [selectedScratchTier, setSelectedScratchTier] = useState<ScratchCardTier | null>(null);
+  const [activeScratchTicket, setActiveScratchTicket] = useState<{
+    ticketId?: string;
+    prize?: any;
+    wonPrizeItem?: any;
+    signature?: string;
+  } | null>(null);
   const [activeSlideIndex, setActiveSlideIndex] = useState(0);
   const scratchSliderRef = useRef<HTMLDivElement>(null);
 
@@ -95,18 +112,13 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
     return () => clearInterval(t);
   }, [winAutoSlide, filteredWinners.length, scrollChildHorizontally]);
 
-  // Dynamic wheel slices from admin-editable rewards
-  const activeRewards = wheelRewards.filter((r) => r.isActive);
-  const wheelSlices = activeRewards.length >= 4 ? activeRewards : [
-    { id: '1', label: 'Cybertruck Pass', color: '#dc2626', textColor: 'white', valueUsd: 1500, type: 'pass', weight: 3, isActive: true },
-    { id: '2', label: '1,000 USDT', color: '#16a34a', textColor: 'white', valueUsd: 1000, type: 'crypto', weight: 5, isActive: true },
-    { id: '3', label: 'Full Body Wrap', color: '#0891b2', textColor: 'white', valueUsd: 3800, type: 'service', weight: 2, isActive: true },
-    { id: '4', label: '500 Credits', color: '#eab308', textColor: 'black', valueUsd: 500, type: 'credits', weight: 12, isActive: true },
-    { id: '5', label: '100 USDT', color: '#2563eb', textColor: 'white', valueUsd: 100, type: 'crypto', weight: 25, isActive: true },
-    { id: '6', label: 'Supercharge 1k kWh', color: '#9333ea', textColor: 'white', valueUsd: 350, type: 'service', weight: 15, isActive: true },
-    { id: '7', label: 'Gold Card ($1k)', color: '#d97706', textColor: 'white', valueUsd: 1000, type: 'pass', weight: 6, isActive: true },
-    { id: '8', label: '50 Credits', color: '#475569', textColor: 'white', valueUsd: 50, type: 'credits', weight: 32, isActive: true },
-  ];
+  const resolvedSpinCtx = getResolvedSpinContext(useFreeSpinMode && availableSpins > 0);
+  const wheelSlices = React.useMemo(() => {
+    const active = (resolvedSpinCtx.slices || []).filter((s) => s.isActive);
+    return active.length > 0 ? active : resolvedSpinCtx.slices;
+  }, [resolvedSpinCtx.slices]);
+
+  const effectivePaidCostUsd = Math.max(150, spinSystemConfig.minSpinCostUsd || 150, spinCostUsd || 150);
 
   // Synthesized mechanical ticking sound for the wheel
   const playTickSound = () => {
@@ -127,15 +139,31 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
     }
   };
 
-  const handleSpinClick = () => {
+  const handleActivateSpinCoupon = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentUser) {
+      window.dispatchEvent(new CustomEvent('apex:require-auth', { detail: 'redeem a free spin coupon' }));
+      showToast('Please sign in to activate a free spin coupon.', 'error');
+      return;
+    }
+    if (!spinCouponCode.trim()) return;
+    const res = applyCoupon(spinCouponCode.trim(), 'spins');
+    if (res.success) {
+      setSpinCouponCode('');
+      setUseFreeSpinMode(true);
+    }
+  };
+
+  const handleSpinClick = async () => {
     if (isSpinning) return;
     if (!currentUser) {
       window.dispatchEvent(new CustomEvent('apex:require-auth', { detail: 'spin the promotional wheel' }));
       showToast('Please sign in or register to spin the promotional wheel.', 'error');
       return;
     }
-    if (balances.usd < spinCostUsd) {
-      showToast(`Spin cost is $${spinCostUsd} USD per spin. Please deposit funds to spin.`, 'error');
+    const wantFreeSpin = useFreeSpinMode && availableSpins > 0;
+    if (!wantFreeSpin && balances.usd < effectivePaidCostUsd) {
+      showToast(`Minimum paid spin cost is $${effectivePaidCostUsd} USD per spin. Please deposit funds or redeem a free-spin coupon.`, 'error');
       onOpenDeposit();
       return;
     }
@@ -143,7 +171,6 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
     setIsSpinning(true);
     setLastWonPrize(null);
 
-    // Pick outcome with configurable spin fee deducted from balance
     let result: {
       prize: string;
       valueUsd: number;
@@ -151,9 +178,12 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
       sliceId?: string;
       sliceIndex?: number;
       vehicleModel?: string;
+      resolvedLevel?: string;
+      reason?: string;
+      usedFreeSpin?: boolean;
     };
     try {
-      result = executeSpin();
+      result = await executeSpin(wantFreeSpin);
     } catch (err: unknown) {
       const error = err as Error;
       setIsSpinning(false);
@@ -170,7 +200,7 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
     }, 150);
 
     // Compute exact wheel rotation so pointer at top (0 deg) lands on selected slice
-    const count = wheelSlices.length;
+    const count = Math.max(1, wheelSlices.length);
     const sliceAngle = 360 / count;
     const idx =
       typeof result.sliceIndex === 'number' && result.sliceIndex >= 0 && result.sliceIndex < count
@@ -190,7 +220,7 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
       setLastWonPrize(result);
 
       if (result.type === 'try_again') {
-        showToast('Wheel landed on Try Again! Better luck on your next spin.', 'info');
+        showToast('Wheel landed on Try Again! Spin again for cash or a Tesla vehicle.', 'info');
         return;
       }
 
@@ -203,24 +233,31 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
 
       if (result.type === 'car') {
         showToast(
-          `🚗 JACKPOT TESLA WIN! You won a ${result.vehicleModel || result.prize}! Added to your garage & delivery order confirmed.`,
+          `JACKPOT TESLA WIN! You won a ${result.vehicleModel || result.prize}! Added to Won Prizes & Shipping in your Dashboard.`,
           'success'
         );
       } else {
-        showToast(`WINNER! You landed on: ${result.prize} (+$${result.valueUsd.toLocaleString()})!`, 'success');
+        showToast(`WINNER! You landed on: ${result.prize} (+$${result.valueUsd.toLocaleString()} auto-added to your balance)!`, 'success');
       }
     }, 4200);
   };
 
-  const handleBuyScratchCard = (tier: ScratchCardTier) => {
+  const handleBuyScratchCard = async (tier: ScratchCardTier) => {
     if (!currentUser) {
       window.dispatchEvent(new CustomEvent('apex:require-auth', { detail: 'purchase scratch cards' }));
       showToast('Please sign in or register to purchase and play Scratch & Win cards.', 'error');
       return;
     }
-    if (purchaseScratchCard(tier)) {
-      setSelectedScratchTier(tier);
-    } else {
+    const res = await purchaseScratchCard(tier);
+    if (res.success) {
+      setActiveScratchTicket({
+        ticketId: res.ticketId,
+        prize: res.prize,
+        wonPrizeItem: res.wonPrizeItem,
+        signature: res.signature,
+      });
+      setSelectedScratchTier(res.tier || tier);
+    } else if (res.error && res.error.toLowerCase().includes('insufficient')) {
       onOpenDeposit();
     }
   };
@@ -327,41 +364,130 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
           </div>
 
           {/* Right: Spin Controls & Information */}
-          <div className="lg:col-span-5 space-y-6">
+          <div className="lg:col-span-5 space-y-5">
             <div className="space-y-2">
-              <span className="text-xs uppercase font-mono font-bold text-yellow-400 tracking-wider">
-                Daily Platform Wheel
-              </span>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-xs uppercase font-mono font-bold text-yellow-400 tracking-wider">
+                  Multi-Tier Cryptographic Wheel
+                </span>
+                <span
+                  className={`px-2.5 py-0.5 rounded-full text-[10px] font-mono font-black uppercase border ${
+                    resolvedSpinCtx.resolvedLevel === 'super_hard'
+                      ? 'bg-red-600/20 border-red-500/50 text-red-300'
+                      : resolvedSpinCtx.resolvedLevel === 'hard'
+                      ? 'bg-amber-500/20 border-amber-500/50 text-amber-300'
+                      : 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300'
+                  }`}
+                >
+                  Level: {resolvedSpinCtx.resolvedLevel.replace('_', ' ').toUpperCase()}
+                </span>
+              </div>
               <h3 className="font-heading font-black text-2xl sm:text-3xl text-white">
-                SPIN TO WIN TESLA PERKS
+                SPIN TO WIN UP TO $20,000 OR A TESLA
               </h3>
               <p className="text-xs text-zinc-400 leading-relaxed">
-                Features <strong className="text-amber-400">2 Grand Tesla Car Win slices</strong> (Model 3 &amp; Cybertruck), instant USDT credits, full body wraps, Supercharging passes &amp; a Try Again slice!
+                Cash prizes up to <strong className="text-emerald-400">$20,000 USD</strong> auto-credit directly to your wallet balance. Tesla vehicle jackpots queue in your Dashboard for deposit-funded shipping &amp; export documentation.
               </p>
+
+              {/* Active Level Specs */}
               <div className="flex flex-wrap gap-1.5 pt-1">
                 <span className="inline-flex items-center gap-1 text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-red-600/20 border border-red-500/40 text-red-300">
                   <Car className="w-3 h-3" />
-                  2 Tesla Car Jackpots
+                  {wheelSlices.filter((s) => s.type === 'car').length} Tesla Car Slice(s)
                 </span>
                 <span className="inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded bg-zinc-800 border border-zinc-700 text-zinc-300">
-                  Try Again Slice Active
+                  {wheelSlices.filter((s) => s.type === 'try_again').length} Try Again Slice(s)
                 </span>
+                {resolvedSpinCtx.autoSwitchedSuperHard && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded bg-amber-500/15 border border-amber-500/40 text-amber-300">
+                    Multi-Win Super Hard Guard Active
+                  </span>
+                )}
               </div>
             </div>
 
-            {/* Spin cost banner */}
-            <div className="p-4 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-between">
+            {/* Spin Mode Toggle (Free Spins vs Paid $150+) */}
+            {availableSpins > 0 && (
+              <div className="p-3 rounded-2xl bg-zinc-900/90 border border-emerald-500/35 space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-emerald-300 flex items-center gap-1.5">
+                    <Gift className="w-4 h-4" />
+                    <span>{availableSpins} Free Bonus Spin(s) Available</span>
+                  </span>
+                  <span className="font-mono text-[10px] text-zinc-400 tabular-nums">
+                    Offer Wins: {resolvedSpinCtx.freeWinsUsed}/{resolvedSpinCtx.freeWinsMax} max
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-[11px]">
+                  <button
+                    type="button"
+                    onClick={() => setUseFreeSpinMode(true)}
+                    className={`py-2 px-3 rounded-xl font-bold border transition cursor-pointer ${
+                      useFreeSpinMode
+                        ? 'bg-emerald-600 border-emerald-400 text-white'
+                        : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    Use Free Spin (Super Hard)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setUseFreeSpinMode(false)}
+                    className={`py-2 px-3 rounded-xl font-bold border transition cursor-pointer ${
+                      !useFreeSpinMode
+                        ? 'bg-amber-500 border-amber-400 text-black'
+                        : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    Paid Spin (${effectivePaidCostUsd})
+                  </button>
+                </div>
+                <p className="text-[10px] text-zinc-400">
+                  Free bonus spins execute on Super Hard and allow max 1 win per free-spin offer. Switch to Paid Spin (${effectivePaidCostUsd}) for fair Easy/Hard odds.
+                </p>
+              </div>
+            )}
+
+            {/* Free Spin Coupon Activation */}
+            <form onSubmit={handleActivateSpinCoupon} className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <Ticket className="w-3.5 h-3.5 text-amber-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={spinCouponCode}
+                  onChange={(e) => setSpinCouponCode(e.target.value.toUpperCase())}
+                  placeholder="Enter Free Spin Coupon (e.g. FREESPINS5)"
+                  className="w-full pl-9 pr-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-xs text-white font-mono outline-none focus:border-amber-500"
+                />
+              </div>
+              <button
+                type="submit"
+                className="px-3.5 py-2 rounded-xl bg-zinc-800 hover:bg-amber-500 hover:text-black border border-zinc-700 text-xs font-bold text-amber-300 transition cursor-pointer shrink-0"
+              >
+                Activate
+              </button>
+            </form>
+
+            {/* Spin cost & wallet banner */}
+            <div className="p-4 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-between gap-3">
               <div>
-                <span className="text-[11px] text-zinc-400 block font-mono">EXECUTION COST</span>
-                <span className="font-heading font-black text-2xl text-amber-400">
-                  ${spinCostUsd.toFixed(2)} <span className="text-xs font-normal text-zinc-300">USD / Spin</span>
+                <span className="text-[11px] text-zinc-400 block font-mono uppercase">
+                  {resolvedSpinCtx.isUsingFreeSpin ? 'Free Bonus Spin Mode' : 'Minimum Paid Spin Cost'}
+                </span>
+                <span className="font-heading font-black text-2xl text-amber-400 tabular-nums">
+                  {resolvedSpinCtx.isUsingFreeSpin ? '$0.00' : `$${effectivePaidCostUsd.toFixed(2)}`}{' '}
+                  <span className="text-xs font-normal text-zinc-300">
+                    {resolvedSpinCtx.isUsingFreeSpin ? 'USD (1 Free Spin)' : 'USD / Spin'}
+                  </span>
                 </span>
               </div>
               <div className="text-right">
                 <span className="text-[10px] px-2.5 py-1 rounded-full bg-red-600/20 text-red-400 border border-red-500/30 font-mono font-bold block mb-1">
                   {currentUser ? 'READY TO SPIN' : 'SIGN IN REQUIRED'}
                 </span>
-                <span className="text-[10px] text-zinc-400 font-mono">Deducted from Vault</span>
+                <span className="text-[10px] text-zinc-400 font-mono tabular-nums">
+                  Deposits: ${activeDepositBalanceUsd.toLocaleString()} · Wins: ${freeWinBalanceUsd.toLocaleString()}
+                </span>
               </div>
             </div>
 
@@ -377,7 +503,7 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
                     {lastWonPrize.prize}
                   </h4>
                   <p className="text-zinc-400 text-xs">
-                    No prize credited this round ($0.00 USD) — spin again to land on a Tesla car or USDT vault slice!
+                    No prize credited this round ($0.00 USD) — spin again to land on a cash jackpot or Tesla vehicle!
                   </p>
                 </div>
               ) : lastWonPrize.type === 'car' ? (
@@ -390,7 +516,7 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
                     {lastWonPrize.vehicleModel || lastWonPrize.prize}
                   </h4>
                   <p className="text-emerald-300 text-xs font-semibold">
-                    Added to your Digital Garage &amp; VIP Delivery Queue (Est. Value ${lastWonPrize.valueUsd.toLocaleString()})!
+                    Added to Won Prizes &amp; Shipping in Dashboard (Est. Value ${lastWonPrize.valueUsd.toLocaleString()}). Required shipping &amp; documentation fees must be settled from verified wallet deposits.
                   </p>
                 </div>
               ) : (
@@ -403,7 +529,7 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
                     {lastWonPrize.prize}
                   </h4>
                   <p className="text-emerald-400 text-xs font-semibold">
-                    +${lastWonPrize.valueUsd.toLocaleString()} USD credited to your dashboard wallet!
+                    +${lastWonPrize.valueUsd.toLocaleString()} USD auto-added to your dashboard balance!
                   </p>
                 </div>
               )
@@ -420,17 +546,29 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
                   <RefreshCw className="w-5 h-5 animate-spin" />
                   <span>WHEEL IS SPINNING...</span>
                 </>
+              ) : resolvedSpinCtx.isUsingFreeSpin ? (
+                <>
+                  <Gift className="w-5 h-5 text-yellow-300" />
+                  <span>USE FREE BONUS SPIN (SUPER HARD)</span>
+                </>
               ) : (
                 <>
                   <Coins className="w-5 h-5 text-yellow-300" />
-                  <span>SPIN WHEEL (${spinCostUsd} USD)</span>
+                  <span>SPIN WHEEL (${effectivePaidCostUsd} USD)</span>
                 </>
               )}
             </button>
 
+            <div className="flex items-start gap-2 text-[11px] text-zinc-400 bg-zinc-900/60 border border-zinc-800 rounded-xl p-2.5">
+              <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+              <span>
+                Vehicle prize shipping &amp; export documentation fees require an active wallet deposit; free promotional win balances cannot be used for vehicle fee settlement.
+              </span>
+            </div>
+
             <div className="flex items-center justify-center gap-1.5 text-[11px] text-zinc-500">
               <ShieldCheck className="w-4 h-4 text-emerald-400" />
-              <span>Cryptographic Randomness (SHA-256 Proven Outcome)</span>
+              <span>Cryptographic Randomness (HMAC-SHA256 Server Verified)</span>
             </div>
           </div>
         </div>
@@ -795,8 +933,12 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
       {selectedScratchTier && (
         <ScratchCardModal
           tier={selectedScratchTier}
+          serverTicket={activeScratchTicket}
           isOpen={!!selectedScratchTier}
-          onClose={() => setSelectedScratchTier(null)}
+          onClose={() => {
+            setSelectedScratchTier(null);
+            setActiveScratchTicket(null);
+          }}
         />
       )}
     </div>

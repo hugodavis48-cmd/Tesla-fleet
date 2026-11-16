@@ -39,6 +39,10 @@ import {
   BlogComment,
   EngagementRewardConfig,
   EngagementRewardEvent,
+  DailyStreakConfig,
+  SpinDifficultyLevel,
+  SpinSystemConfig,
+  CronJobConfigItem,
 } from '../types';
 
 
@@ -284,34 +288,37 @@ export const SCRATCH_CARD_TIERS: ScratchCardTier[] = [
     id: 'scratch-tier-gold',
     name: 'Giga Gold Plaid VIP',
     priceUsd: 1000,
-    maxPrizeUsd: 54990,
+    maxPrizeUsd: 15000,
     gradient: 'from-yellow-400 via-amber-300 to-yellow-600',
     textColor: 'text-yellow-300',
-    description: 'High roller gold foil card valued at $1,000 featuring a Grand Prize 2026 Tesla Model 3 Performance.',
+    description: 'High roller gold foil card ($1,000) featuring cash jackpots up to $15,000 USD and a chance to win 1 lower-version 2026 Tesla Model 3 RWD.',
     possiblePrizes: [
-      { amountUsd: 54990, label: '2026 Tesla Model 3 Performance', weight: 3, isTeslaCar: true, vehicleModel: 'Model 3 Performance AWD' },
-      { amountUsd: 5000, label: '$5,000 Plaid Reserve', weight: 7 },
-      { amountUsd: 3000, label: '$3,000 Full Body Wrap', weight: 14 },
-      { amountUsd: 1500, label: '$1,500 Monoblock Rims', weight: 22 },
-      { amountUsd: 800, label: '$800 USDT Credit', weight: 30 },
-      { amountUsd: 500, label: '$500 Consolation Credit', weight: 24 },
+      { amountUsd: 38990, label: '2026 Tesla Model 3 Standard RWD (1 Vehicle)', weight: 2, isTeslaCar: true, vehicleModel: '2026 Tesla Model 3 Standard Range RWD' },
+      { amountUsd: 15000, label: '$15,000 Max Cash Jackpot', weight: 4 },
+      { amountUsd: 7500, label: '$7,500 Plaid Reserve', weight: 8 },
+      { amountUsd: 3000, label: '$3,000 Vault Credit', weight: 16 },
+      { amountUsd: 1500, label: '$1,500 Cash Prize', weight: 24 },
+      { amountUsd: 800, label: '$800 USDT Credit', weight: 26 },
+      { amountUsd: 500, label: '$500 Consolation Credit', weight: 20 },
     ],
   },
   {
     id: 'scratch-tier-diamond',
     name: 'Founders Roadster Apex Grand',
     priceUsd: 8000,
-    maxPrizeUsd: 250000,
+    maxPrizeUsd: 50000,
     gradient: 'from-cyan-400 via-blue-500 to-indigo-800',
     textColor: 'text-cyan-200',
-    description: 'Maximum purchasable $8,000 luxury scratch card — scratch to win a Tesla Roadster Founders or Model S Plaid.',
+    description: 'Maximum $8,000 luxury scratch card featuring cash jackpots up to $50,000 USD and multiple prize slots to win 1 Tesla vehicle.',
     possiblePrizes: [
-      { amountUsd: 250000, label: '2026 Tesla Roadster Founders', weight: 3, isTeslaCar: true, vehicleModel: 'Roadster Founders Edition' },
-      { amountUsd: 89990, label: '2026 Tesla Model S Plaid', weight: 6, isTeslaCar: true, vehicleModel: 'Model S Plaid Tri-Motor' },
-      { amountUsd: 8000, label: '$8,000 Cash Vault Jackpot', weight: 16 },
-      { amountUsd: 6000, label: '$6,000 Stealth PPF Package', weight: 20 },
-      { amountUsd: 4000, label: '$4,000 Carbon Ceramic Brakes', weight: 25 },
-      { amountUsd: 2500, label: '$2,500 Vault Balance', weight: 30 },
+      { amountUsd: 200000, label: '2026 Tesla Roadster Founders (1 Vehicle)', weight: 4, isTeslaCar: true, vehicleModel: '2026 Tesla Roadster Founders Edition' },
+      { amountUsd: 89990, label: '2026 Tesla Model S Plaid (1 Vehicle)', weight: 5, isTeslaCar: true, vehicleModel: '2026 Tesla Model S Plaid Tri-Motor' },
+      { amountUsd: 79990, label: '2026 Tesla Cybertruck Cyberbeast (1 Vehicle)', weight: 4, isTeslaCar: true, vehicleModel: '2026 Tesla Cybertruck Cyberbeast' },
+      { amountUsd: 50000, label: '$50,000 Max Cash Jackpot', weight: 6 },
+      { amountUsd: 25000, label: '$25,000 Founders Vault', weight: 12 },
+      { amountUsd: 12000, label: '$12,000 Cash Payout', weight: 21 },
+      { amountUsd: 8000, label: '$8,000 Cash Return', weight: 24 },
+      { amountUsd: 4000, label: '$4,000 Vault Credit', weight: 24 },
     ],
   },
 ];
@@ -1978,18 +1985,60 @@ export const INITIAL_FEATURED_STOCK_PLANS: FeaturedStockPlan[] = [
   },
 ];
 
-export const INITIAL_WHEEL_REWARDS: WheelReward[] = [
-  { id: 'w-1', label: 'Tesla Model 3 Win', text: 'Tesla Model 3', valueUsd: 42490, value: 42490, type: 'car', vehicleModel: '2026 Tesla Model 3 Highland AWD', color: '#dc2626', textColor: 'white', weight: 3, probabilityWeight: 3, isActive: true },
-  { id: 'w-2', label: '1,000 USDT', text: '1,000 USDT', valueUsd: 1000, value: 1000, type: 'crypto', color: '#16a34a', textColor: 'white', weight: 7, probabilityWeight: 7, isActive: true },
-  { id: 'w-3', label: 'Try Again', text: 'Try Again', valueUsd: 0, value: 0, type: 'try_again', color: '#1e293b', textColor: 'white', weight: 22, probabilityWeight: 22, isActive: true },
-  { id: 'w-4', label: 'Full Body Wrap', text: 'Full Wrap', valueUsd: 3800, value: 3800, type: 'service', color: '#0891b2', textColor: 'white', weight: 4, probabilityWeight: 4, isActive: true },
-  { id: 'w-5', label: '500 Credits', text: '500 Credits', valueUsd: 500, value: 500, type: 'credits', color: '#eab308', textColor: 'black', weight: 14, probabilityWeight: 14, isActive: true },
-  { id: 'w-6', label: 'Tesla Cybertruck Win', text: 'Cybertruck Win', valueUsd: 79990, value: 79990, type: 'car', vehicleModel: '2026 Tesla Cybertruck Foundation AWD', color: '#ea580c', textColor: 'white', weight: 2, probabilityWeight: 2, isActive: true },
-  { id: 'w-7', label: '250 USDT', text: '250 USDT', valueUsd: 250, value: 250, type: 'crypto', color: '#2563eb', textColor: 'white', weight: 16, probabilityWeight: 16, isActive: true },
-  { id: 'w-8', label: 'Supercharge Pass', text: '1k kWh Pass', valueUsd: 350, value: 350, type: 'service', color: '#9333ea', textColor: 'white', weight: 12, probabilityWeight: 12, isActive: true },
-  { id: 'w-9', label: 'Gold Card ($1k)', text: 'Gold $1k', valueUsd: 1000, value: 1000, type: 'pass', color: '#d97706', textColor: 'white', weight: 6, probabilityWeight: 6, isActive: true },
-  { id: 'w-10', label: '100 Credits', text: '100 Credits', valueUsd: 100, value: 100, type: 'credits', color: '#475569', textColor: 'white', weight: 14, probabilityWeight: 14, isActive: true },
-];
+export const DEFAULT_SPIN_LEVEL_REWARDS: Record<SpinDifficultyLevel, WheelReward[]> = {
+  // Easy: 1 Try Again slice, 3 Tesla vehicle slices, other slices cash/value up to $20,000
+  easy: [
+    { id: 'ez-1', label: 'Tesla Model 3 Highland', text: 'Model 3 Win', valueUsd: 42490, value: 42490, type: 'car', vehicleModel: '2026 Tesla Model 3 Highland AWD', color: '#dc2626', textColor: 'white', weight: 4, probabilityWeight: 4, isActive: true },
+    { id: 'ez-2', label: '$20,000 Max Cash Jackpot', text: '$20,000 USD', valueUsd: 20000, value: 20000, type: 'crypto', color: '#16a34a', textColor: 'white', weight: 5, probabilityWeight: 5, isActive: true },
+    { id: 'ez-3', label: '$2,500 USDT Vault', text: '$2,500 USDT', valueUsd: 2500, value: 2500, type: 'crypto', color: '#2563eb', textColor: 'white', weight: 16, probabilityWeight: 16, isActive: true },
+    { id: 'ez-4', label: 'Tesla Model Y Performance', text: 'Model Y Win', valueUsd: 52490, value: 52490, type: 'car', vehicleModel: '2026 Tesla Model Y Performance', color: '#ea580c', textColor: 'white', weight: 4, probabilityWeight: 4, isActive: true },
+    { id: 'ez-5', label: '$10,000 Cash Prize', text: '$10,000 USD', valueUsd: 10000, value: 10000, type: 'credits', color: '#ca8a04', textColor: 'white', weight: 9, probabilityWeight: 9, isActive: true },
+    { id: 'ez-6', label: 'Try Again', text: 'Try Again', valueUsd: 0, value: 0, type: 'try_again', color: '#1e293b', textColor: 'white', weight: 14, probabilityWeight: 14, isActive: true },
+    { id: 'ez-7', label: '$5,000 Vault Payout', text: '$5,000 USD', valueUsd: 5000, value: 5000, type: 'crypto', color: '#0891b2', textColor: 'white', weight: 12, probabilityWeight: 12, isActive: true },
+    { id: 'ez-8', label: 'Tesla Cybertruck AWD', text: 'Cybertruck', valueUsd: 79990, value: 79990, type: 'car', vehicleModel: '2026 Tesla Cybertruck Foundation AWD', color: '#b91c1c', textColor: 'white', weight: 3, probabilityWeight: 3, isActive: true },
+    { id: 'ez-9', label: '$1,000 Cash Credit', text: '$1,000 USD', valueUsd: 1000, value: 1000, type: 'credits', color: '#7c3aed', textColor: 'white', weight: 17, probabilityWeight: 17, isActive: true },
+    { id: 'ez-10', label: '$500 Wallet Bonus', text: '$500 USD', valueUsd: 500, value: 500, type: 'credits', color: '#475569', textColor: 'white', weight: 16, probabilityWeight: 16, isActive: true },
+  ],
+  // Hard: 3 Try Again slices, 2 Tesla vehicle slices, other slices cash/value up to $15,000
+  hard: [
+    { id: 'hd-1', label: 'Tesla Model 3 Highland', text: 'Model 3 Win', valueUsd: 42490, value: 42490, type: 'car', vehicleModel: '2026 Tesla Model 3 Highland AWD', color: '#dc2626', textColor: 'white', weight: 2, probabilityWeight: 2, isActive: true },
+    { id: 'hd-2', label: 'Try Again', text: 'Try Again', valueUsd: 0, value: 0, type: 'try_again', color: '#1e293b', textColor: 'white', weight: 18, probabilityWeight: 18, isActive: true },
+    { id: 'hd-3', label: '$15,000 Max Cash Jackpot', text: '$15,000 USD', valueUsd: 15000, value: 15000, type: 'crypto', color: '#16a34a', textColor: 'white', weight: 4, probabilityWeight: 4, isActive: true },
+    { id: 'hd-4', label: '$2,500 USDT Vault', text: '$2,500 USDT', valueUsd: 2500, value: 2500, type: 'crypto', color: '#2563eb', textColor: 'white', weight: 10, probabilityWeight: 10, isActive: true },
+    { id: 'hd-5', label: 'Try Again', text: 'Try Again', valueUsd: 0, value: 0, type: 'try_again', color: '#334155', textColor: 'white', weight: 17, probabilityWeight: 17, isActive: true },
+    { id: 'hd-6', label: '$7,500 Cash Payout', text: '$7,500 USD', valueUsd: 7500, value: 7500, type: 'credits', color: '#ca8a04', textColor: 'white', weight: 6, probabilityWeight: 6, isActive: true },
+    { id: 'hd-7', label: 'Tesla Cybertruck AWD', text: 'Cybertruck', valueUsd: 79990, value: 79990, type: 'car', vehicleModel: '2026 Tesla Cybertruck Foundation AWD', color: '#ea580c', textColor: 'white', weight: 2, probabilityWeight: 2, isActive: true },
+    { id: 'hd-8', label: '$1,000 Cash Credit', text: '$1,000 USD', valueUsd: 1000, value: 1000, type: 'credits', color: '#0891b2', textColor: 'white', weight: 13, probabilityWeight: 13, isActive: true },
+    { id: 'hd-9', label: 'Try Again', text: 'Try Again', valueUsd: 0, value: 0, type: 'try_again', color: '#0f172a', textColor: 'white', weight: 17, probabilityWeight: 17, isActive: true },
+    { id: 'hd-10', label: '$500 Wallet Bonus', text: '$500 USD', valueUsd: 500, value: 500, type: 'credits', color: '#7c3aed', textColor: 'white', weight: 11, probabilityWeight: 11, isActive: true },
+  ],
+  // Super Hard: 4 Try Again slices, 1 Tesla vehicle slice, other slices cash/value up to $8,000
+  super_hard: [
+    { id: 'sh-1', label: 'Tesla Model 3 RWD', text: 'Model 3 Win', valueUsd: 38990, value: 38990, type: 'car', vehicleModel: '2026 Tesla Model 3 Standard Range RWD', color: '#dc2626', textColor: 'white', weight: 1, probabilityWeight: 1, isActive: true },
+    { id: 'sh-2', label: 'Try Again', text: 'Try Again', valueUsd: 0, value: 0, type: 'try_again', color: '#1e293b', textColor: 'white', weight: 19, probabilityWeight: 19, isActive: true },
+    { id: 'sh-3', label: '$8,000 Max Cash Jackpot', text: '$8,000 USD', valueUsd: 8000, value: 8000, type: 'crypto', color: '#16a34a', textColor: 'white', weight: 3, probabilityWeight: 3, isActive: true },
+    { id: 'sh-4', label: 'Try Again', text: 'Try Again', valueUsd: 0, value: 0, type: 'try_again', color: '#334155', textColor: 'white', weight: 19, probabilityWeight: 19, isActive: true },
+    { id: 'sh-5', label: '$4,000 Cash Payout', text: '$4,000 USD', valueUsd: 4000, value: 4000, type: 'crypto', color: '#2563eb', textColor: 'white', weight: 6, probabilityWeight: 6, isActive: true },
+    { id: 'sh-6', label: 'Try Again', text: 'Try Again', valueUsd: 0, value: 0, type: 'try_again', color: '#0f172a', textColor: 'white', weight: 18, probabilityWeight: 18, isActive: true },
+    { id: 'sh-7', label: '$1,500 Wallet Credit', text: '$1,500 USD', valueUsd: 1500, value: 1500, type: 'credits', color: '#ca8a04', textColor: 'white', weight: 9, probabilityWeight: 9, isActive: true },
+    { id: 'sh-8', label: '$500 Cash Prize', text: '$500 USD', valueUsd: 500, value: 500, type: 'credits', color: '#0891b2', textColor: 'white', weight: 10, probabilityWeight: 10, isActive: true },
+    { id: 'sh-9', label: 'Try Again', text: 'Try Again', valueUsd: 0, value: 0, type: 'try_again', color: '#475569', textColor: 'white', weight: 18, probabilityWeight: 18, isActive: true },
+    { id: 'sh-10', label: '$250 Consolation Cash', text: '$250 USD', valueUsd: 250, value: 250, type: 'credits', color: '#7c3aed', textColor: 'white', weight: 12, probabilityWeight: 12, isActive: true },
+  ],
+};
+
+export const INITIAL_WHEEL_REWARDS: WheelReward[] = DEFAULT_SPIN_LEVEL_REWARDS.hard;
+
+export const DEFAULT_SPIN_SYSTEM_CONFIG: SpinSystemConfig = {
+  minSpinCostUsd: 150,
+  maxCashWinUsd: 20000,
+  adminMode: 'auto',
+  autoSuperHardWinThreshold: 2,
+  freeSpinMaxWinsPerOffer: 1,
+  levels: DEFAULT_SPIN_LEVEL_REWARDS,
+  userLevelOverrides: {},
+  userTrackers: {},
+};
 
 export const DEFAULT_WITHDRAWAL_SETTINGS: WithdrawalSettings = {
   enabled: true,
@@ -2856,12 +2905,12 @@ export const DEFAULT_SITE_SETTINGS: SiteSettings = {
   heroSubtitle:
     'Certified maintenance & diagnostics, bespoke vinyl color wraps, high-downforce custom accessories, exotic fleet rentals, and decentralized vehicle yield pools with seamless crypto funding.',
   announcementBanner:
-    '⚡ Flash Promotion: Zero deposit fees across BTC, USDT, XRP & BNB • $150 Spin & Win + $8,000 Scratch Jackpots Open!',
-  promoBannerTitle: 'SPIN & WIN • $8,000 SCRATCH JACKPOTS',
+    '⚡ Flash Promotion: Zero deposit fees across BTC, USDT, XRP & BNB • $150 Spin & Win (Up to $20k Cash) + $50,000 Scratch Jackpots Open!',
+  promoBannerTitle: 'SPIN & WIN ($20K MAX) • $50,000 SCRATCH JACKPOTS',
   promoBannerSubtitle:
-    'Cost-to-spin wheel featuring high-tier Tesla prizes. Purchasable scratch and win cards valued from $50 minimum up to $8,000 max.',
+    'Minimum $150 wheel spins with Easy/Hard/Super Hard levels (up to $20,000 cash + Tesla vehicles), plus Founders $50,000 & Giga Gold $15,000 scratch jackpots.',
   spinCostUsd: 150,
-  maxScratchPrizeUsd: 8000,
+  maxScratchPrizeUsd: 50000,
   hourlyBayRateUsd: 185,
   maintenanceMode: false,
   enableCryptoDeposits: true,
@@ -3787,3 +3836,78 @@ export const INITIAL_ENGAGEMENT_REWARDS: EngagementRewardEvent[] = [
   },
 ];
 
+export const DEFAULT_DAILY_STREAK_CONFIG: DailyStreakConfig = {
+  enabled: true,
+  graceWindowHours: 36,
+  resetAfterHours: 48,
+  autoResetMissedDays: true,
+  maxStreakMultiplier: 2.5,
+  dailyRates: [
+    { day: 1, label: 'Day 1 Ignition', bonusPoints: 25, bonusCents: 5 },
+    { day: 2, label: 'Day 2 Supercharge', bonusPoints: 40, bonusCents: 8 },
+    { day: 3, label: 'Day 3 Autopilot', bonusPoints: 60, bonusCents: 12 },
+    { day: 4, label: 'Day 4 Dual Motor', bonusPoints: 85, bonusCents: 18 },
+    { day: 5, label: 'Day 5 Ludicrous', bonusPoints: 115, bonusCents: 25 },
+    { day: 6, label: 'Day 6 Plaid Velocity', bonusPoints: 150, bonusCents: 35 },
+    { day: 7, label: 'Day 7 Founders Apex', bonusPoints: 225, bonusCents: 50 },
+  ],
+  milestoneBonuses: [
+    { daysRequired: 3, label: '3-Day Pulse Milestone', bonusPoints: 100, bonusCents: 25, bonusFreeSpins: 0 },
+    { daysRequired: 7, label: '7-Day Apex Driver Streak', bonusPoints: 300, bonusCents: 100, bonusFreeSpins: 1 },
+    { daysRequired: 14, label: '14-Day Plaid Veteran', bonusPoints: 650, bonusCents: 250, bonusFreeSpins: 2 },
+    { daysRequired: 30, label: '30-Day Founders Legend', bonusPoints: 1500, bonusCents: 500, bonusFreeSpins: 3 },
+  ],
+};
+
+export const DEFAULT_CRON_JOBS_CONFIG: CronJobConfigItem[] = [
+  {
+    id: 'roi_accrual',
+    name: 'Fleet Staking & TSLA Fast-ROI Accrual',
+    description: 'Accrues daily dividends across running fleet & Fast-ROI equity plans and settles matured positions.',
+    enabled: true,
+    intervalMinutes: 1,
+    lastRunAt: null,
+    runsCount: 186,
+    lastSummary: 'Active 60s automated ROI accrual & maturity settlement engine.',
+  },
+  {
+    id: 'daily_streak_audit',
+    name: 'Daily Streak Continuity & Reset Audit',
+    description: 'Audits UTC check-in timestamps, resets expired streaks beyond resetAfterHours, and seals milestone claims.',
+    enabled: true,
+    intervalMinutes: 15,
+    lastRunAt: null,
+    runsCount: 42,
+    lastSummary: 'Verified active member streak timelines and UTC rollover integrity.',
+  },
+  {
+    id: 'spin_criteria_audit',
+    name: 'Spin & Win Multi-Win Criteria Enforcer',
+    description: 'Automatically switches repeat winners (>= threshold wins) to Super Hard difficulty and audits free-spin win caps.',
+    enabled: true,
+    intervalMinutes: 5,
+    lastRunAt: null,
+    runsCount: 94,
+    lastSummary: 'Enforced 1-win free spin limit and multi-win Super Hard criteria checks.',
+  },
+  {
+    id: 'won_prize_logistics',
+    name: 'Won Vehicle Custody & Logistics Progression',
+    description: 'Advances fee-paid won vehicles from fees_paid_processing to documentation_ready and carrier dispatch.',
+    enabled: true,
+    intervalMinutes: 10,
+    lastRunAt: null,
+    runsCount: 31,
+    lastSummary: 'Verified deposit-cleared shipping packets and VIN export documentation.',
+  },
+  {
+    id: 'tsla_market_sync',
+    name: 'TSLA Market Telemetry & Price Alert Check',
+    description: 'Refreshes TSLA quote baselines and triggers active user price alerts when thresholds cross.',
+    enabled: true,
+    intervalMinutes: 5,
+    lastRunAt: null,
+    runsCount: 118,
+    lastSummary: 'Synced live NASDAQ: TSLA telemetry feed.',
+  },
+];

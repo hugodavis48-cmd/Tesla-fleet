@@ -175,6 +175,9 @@ export const PUBLIC_ADMIN_SETTING_SECTIONS = [
   'engagement_reward_config',
   'social_links',
   'spin_cost',
+  'streak_config',
+  'spin_system_config',
+  'cron_jobs_config',
 ] as const;
 
 export const PROTECTED_ADMIN_SETTING_SECTIONS = [

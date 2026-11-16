@@ -4,11 +4,14 @@ import {
   BlogCategory,
   BlogPost,
   BlogPostStatus,
+  DailyStreakConfig,
   EngagementActionType,
   EngagementTierLevel,
   SocialSharePlatformId,
+  StreakMilestoneBonus,
+  StreakTierRate,
 } from '../types';
-import { DEFAULT_ENGAGEMENT_REWARD_CONFIG } from '../data/mockData';
+import { DEFAULT_DAILY_STREAK_CONFIG, DEFAULT_ENGAGEMENT_REWARD_CONFIG } from '../data/mockData';
 import { SOCIAL_SHARE_PLATFORMS } from '../lib/socialShare';
 import {
   Newspaper,
@@ -34,6 +37,7 @@ import {
   Save,
   X,
   Star,
+  Flame,
 } from 'lucide-react';
 
 const COVER_PRESETS: { label: string; url: string }[] = [
@@ -134,6 +138,10 @@ export const AdminBlogRewardsManager: React.FC<AdminBlogRewardsManagerProps> = (
     revokeEngagementReward,
     resetDailyEngagementUsage,
     setActiveBlogPostSlug,
+    dailyStreakConfig,
+    allUserStreakStates,
+    updateDailyStreakConfig,
+    adminUpdateUserStreak,
     showToast,
   } = useApp();
 
@@ -210,6 +218,32 @@ export const AdminBlogRewardsManager: React.FC<AdminBlogRewardsManagerProps> = (
           : DEFAULT_ENGAGEMENT_REWARD_CONFIG.tierLevels || [],
     });
   }, [engagementRewardConfig]);
+
+  const [streakDraft, setStreakDraft] = useState<DailyStreakConfig>(() => ({
+    ...DEFAULT_DAILY_STREAK_CONFIG,
+    ...dailyStreakConfig,
+    dailyRates: dailyStreakConfig.dailyRates?.length
+      ? dailyStreakConfig.dailyRates
+      : DEFAULT_DAILY_STREAK_CONFIG.dailyRates,
+    milestoneBonuses: dailyStreakConfig.milestoneBonuses?.length
+      ? dailyStreakConfig.milestoneBonuses
+      : DEFAULT_DAILY_STREAK_CONFIG.milestoneBonuses,
+  }));
+
+  useEffect(() => {
+    setStreakDraft({
+      ...DEFAULT_DAILY_STREAK_CONFIG,
+      ...dailyStreakConfig,
+      dailyRates: dailyStreakConfig.dailyRates?.length
+        ? dailyStreakConfig.dailyRates
+        : DEFAULT_DAILY_STREAK_CONFIG.dailyRates,
+      milestoneBonuses: dailyStreakConfig.milestoneBonuses?.length
+        ? dailyStreakConfig.milestoneBonuses
+        : DEFAULT_DAILY_STREAK_CONFIG.milestoneBonuses,
+    });
+  }, [dailyStreakConfig]);
+
+  const [streakUserEdits, setStreakUserEdits] = useState<Record<string, { currentStreak: number; totalStreakPoints: number }>>({});
 
   const [grantUserId, setGrantUserId] = useState<string>(allUsers[0]?.id || 'usr-apex-001');
   const [grantCents, setGrantCents] = useState<number>(150);
@@ -385,6 +419,7 @@ export const AdminBlogRewardsManager: React.FC<AdminBlogRewardsManagerProps> = (
       share_article: 0,
       engagement_action: 0,
       time_on_platform: 0,
+      daily_streak: 0,
       admin_bonus: 0,
     };
     const byPlatform: Record<string, number> = {};
@@ -1452,6 +1487,468 @@ export const AdminBlogRewardsManager: React.FC<AdminBlogRewardsManagerProps> = (
               </div>
             </div>
           </div>
+
+          {/* Full-Width Daily Visit Streak Tracker Config & Member Overrides */}
+          <div className="lg:col-span-12 rounded-3xl bg-zinc-950 border border-zinc-800 p-6 space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-800 pb-4">
+              <div>
+                <h3 className="font-heading font-bold text-base text-white flex items-center gap-2">
+                  <Flame className="w-4 h-4 text-amber-400" />
+                  <span>Daily Visit Streak Tracker — Bonus Rates, Milestones &amp; Member Overrides</span>
+                </h3>
+                <p className="text-xs text-zinc-400">
+                  Configure consecutive UTC daily visit points, fractional cent payouts, milestone free-spin chests, and per-member streak overrides.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setStreakDraft((prev) => ({
+                      ...prev,
+                      enabled: !prev.enabled,
+                    }))
+                  }
+                  className={`px-3.5 py-2 rounded-xl border text-xs font-bold cursor-pointer ${
+                    streakDraft.enabled
+                      ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300'
+                      : 'bg-zinc-900 border-zinc-700 text-zinc-400'
+                  }`}
+                >
+                  Streak Tracker: {streakDraft.enabled ? 'ACTIVE' : 'PAUSED'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => updateDailyStreakConfig(streakDraft)}
+                  className="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-zinc-950 text-xs font-bold flex items-center gap-2 cursor-pointer"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>Save Daily Streak Config</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Global Streak Policy Controls */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
+              <div>
+                <label className="text-zinc-400 block mb-1">Grace Window (Hours)</label>
+                <input
+                  type="number"
+                  min={24}
+                  max={72}
+                  value={streakDraft.graceWindowHours}
+                  onChange={(e) =>
+                    setStreakDraft((prev) => ({
+                      ...prev,
+                      graceWindowHours: Math.max(24, Number(e.target.value) || 36),
+                    }))
+                  }
+                  className="w-full rounded-xl bg-zinc-900 border border-zinc-800 px-3 py-2 text-white font-mono"
+                />
+              </div>
+              <div>
+                <label className="text-zinc-400 block mb-1">Reset Threshold (Hours)</label>
+                <input
+                  type="number"
+                  min={24}
+                  max={120}
+                  value={streakDraft.resetAfterHours}
+                  onChange={(e) =>
+                    setStreakDraft((prev) => ({
+                      ...prev,
+                      resetAfterHours: Math.max(24, Number(e.target.value) || 48),
+                    }))
+                  }
+                  className="w-full rounded-xl bg-zinc-900 border border-zinc-800 px-3 py-2 text-white font-mono"
+                />
+              </div>
+              <div>
+                <label className="text-zinc-400 block mb-1">Max Streak Multiplier (×)</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={10}
+                  step={0.1}
+                  value={streakDraft.maxStreakMultiplier}
+                  onChange={(e) =>
+                    setStreakDraft((prev) => ({
+                      ...prev,
+                      maxStreakMultiplier: Math.max(1, Number(e.target.value) || 2.5),
+                    }))
+                  }
+                  className="w-full rounded-xl bg-zinc-900 border border-zinc-800 px-3 py-2 text-amber-300 font-mono font-bold"
+                />
+              </div>
+              <div className="flex items-end">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setStreakDraft((prev) => ({
+                      ...prev,
+                      autoResetMissedDays: !prev.autoResetMissedDays,
+                    }))
+                  }
+                  className={`w-full px-3 py-2 rounded-xl border text-xs font-semibold cursor-pointer ${
+                    streakDraft.autoResetMissedDays
+                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                      : 'bg-zinc-900 border-zinc-800 text-zinc-400'
+                  }`}
+                >
+                  Auto-Reset Missed Days: {streakDraft.autoResetMissedDays ? 'ON' : 'OFF'}
+                </button>
+              </div>
+            </div>
+
+            {/* Daily Ladder & Milestone Chests CRUD */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Consecutive Day Rates CRUD */}
+              <div className="rounded-2xl bg-zinc-900/60 border border-zinc-800 p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-heading font-bold text-sm text-white">
+                    Consecutive Day Bonus Rates ({streakDraft.dailyRates.length})
+                  </h4>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const nextDay =
+                        streakDraft.dailyRates.reduce((m, r) => Math.max(m, r.day), 0) + 1;
+                      setStreakDraft((prev) => ({
+                        ...prev,
+                        dailyRates: [
+                          ...prev.dailyRates,
+                          {
+                            day: nextDay,
+                            label: `Day ${nextDay}`,
+                            bonusPoints: 100 + nextDay * 25,
+                            bonusCents: 10 + nextDay * 2,
+                          },
+                        ],
+                      }));
+                    }}
+                    className="px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs font-semibold text-white flex items-center gap-1 cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add Day</span>
+                  </button>
+                </div>
+
+                <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                  {streakDraft.dailyRates.map((rate, idx) => (
+                    <div
+                      key={`${rate.day}-${idx}`}
+                      className="grid grid-cols-12 gap-2 items-center rounded-xl bg-zinc-950 border border-zinc-800 p-2 text-xs"
+                    >
+                      <div className="col-span-2">
+                        <label className="text-[10px] text-zinc-500 block">Day #</label>
+                        <input
+                          type="number"
+                          min={1}
+                          value={rate.day}
+                          onChange={(e) => {
+                            const next = [...streakDraft.dailyRates];
+                            next[idx] = { ...rate, day: Math.max(1, Number(e.target.value) || 1) };
+                            setStreakDraft((prev) => ({ ...prev, dailyRates: next }));
+                          }}
+                          className="w-full rounded-lg bg-zinc-900 border border-zinc-800 px-2 py-1 text-white font-mono"
+                        />
+                      </div>
+                      <div className="col-span-4">
+                        <label className="text-[10px] text-zinc-500 block">Label</label>
+                        <input
+                          type="text"
+                          value={rate.label}
+                          onChange={(e) => {
+                            const next = [...streakDraft.dailyRates];
+                            next[idx] = { ...rate, label: e.target.value };
+                            setStreakDraft((prev) => ({ ...prev, dailyRates: next }));
+                          }}
+                          className="w-full rounded-lg bg-zinc-900 border border-zinc-800 px-2 py-1 text-white"
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <label className="text-[10px] text-amber-400 block">Pts</label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={rate.bonusPoints}
+                          onChange={(e) => {
+                            const next = [...streakDraft.dailyRates];
+                            next[idx] = { ...rate, bonusPoints: Math.max(0, Number(e.target.value) || 0) };
+                            setStreakDraft((prev) => ({ ...prev, dailyRates: next }));
+                          }}
+                          className="w-full rounded-lg bg-zinc-900 border border-zinc-800 px-2 py-1 text-amber-300 font-mono"
+                        />
+                      </div>
+                      <div className="col-span-3">
+                        <label className="text-[10px] text-emerald-400 block">Cents (¢)</label>
+                        <input
+                          type="number"
+                          min={0}
+                          step={0.5}
+                          value={rate.bonusCents}
+                          onChange={(e) => {
+                            const next = [...streakDraft.dailyRates];
+                            next[idx] = { ...rate, bonusCents: Math.max(0, Number(e.target.value) || 0) };
+                            setStreakDraft((prev) => ({ ...prev, dailyRates: next }));
+                          }}
+                          className="w-full rounded-lg bg-zinc-900 border border-zinc-800 px-2 py-1 text-emerald-400 font-mono"
+                        />
+                      </div>
+                      <div className="col-span-1 flex justify-end pt-3">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (streakDraft.dailyRates.length <= 1) return;
+                            setStreakDraft((prev) => ({
+                              ...prev,
+                              dailyRates: prev.dailyRates.filter((_, i) => i !== idx),
+                            }));
+                          }}
+                          title="Delete day rate"
+                          className="p-1.5 rounded-lg text-zinc-500 hover:text-red-400 hover:bg-red-500/10 cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Milestone Bonus Chests CRUD */}
+              <div className="rounded-2xl bg-zinc-900/60 border border-zinc-800 p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-heading font-bold text-sm text-white">
+                    Streak Milestone Chests ({streakDraft.milestoneBonuses.length})
+                  </h4>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const nextReq =
+                        streakDraft.milestoneBonuses.reduce((m, r) => Math.max(m, r.daysRequired), 0) + 7;
+                      setStreakDraft((prev) => ({
+                        ...prev,
+                        milestoneBonuses: [
+                          ...prev.milestoneBonuses,
+                          {
+                            daysRequired: nextReq,
+                            label: `${nextReq}-Day Milestone Chest`,
+                            bonusPoints: 500,
+                            bonusCents: 100,
+                            bonusFreeSpins: 1,
+                          },
+                        ],
+                      }));
+                    }}
+                    className="px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs font-semibold text-white flex items-center gap-1 cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add Milestone</span>
+                  </button>
+                </div>
+
+                <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                  {streakDraft.milestoneBonuses.map((ms, idx) => (
+                    <div
+                      key={`${ms.daysRequired}-${idx}`}
+                      className="grid grid-cols-12 gap-2 items-center rounded-xl bg-zinc-950 border border-zinc-800 p-2 text-xs"
+                    >
+                      <div className="col-span-2">
+                        <label className="text-[10px] text-zinc-500 block">Days</label>
+                        <input
+                          type="number"
+                          min={2}
+                          value={ms.daysRequired}
+                          onChange={(e) => {
+                            const next = [...streakDraft.milestoneBonuses];
+                            next[idx] = { ...ms, daysRequired: Math.max(2, Number(e.target.value) || 2) };
+                            setStreakDraft((prev) => ({ ...prev, milestoneBonuses: next }));
+                          }}
+                          className="w-full rounded-lg bg-zinc-900 border border-zinc-800 px-2 py-1 text-white font-mono"
+                        />
+                      </div>
+                      <div className="col-span-3">
+                        <label className="text-[10px] text-zinc-500 block">Chest Title</label>
+                        <input
+                          type="text"
+                          value={ms.label}
+                          onChange={(e) => {
+                            const next = [...streakDraft.milestoneBonuses];
+                            next[idx] = { ...ms, label: e.target.value };
+                            setStreakDraft((prev) => ({ ...prev, milestoneBonuses: next }));
+                          }}
+                          className="w-full rounded-lg bg-zinc-900 border border-zinc-800 px-2 py-1 text-white"
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <label className="text-[10px] text-amber-400 block">Pts</label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={ms.bonusPoints}
+                          onChange={(e) => {
+                            const next = [...streakDraft.milestoneBonuses];
+                            next[idx] = { ...ms, bonusPoints: Math.max(0, Number(e.target.value) || 0) };
+                            setStreakDraft((prev) => ({ ...prev, milestoneBonuses: next }));
+                          }}
+                          className="w-full rounded-lg bg-zinc-900 border border-zinc-800 px-2 py-1 text-amber-300 font-mono"
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <label className="text-[10px] text-emerald-400 block">¢ Bonus</label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={ms.bonusCents}
+                          onChange={(e) => {
+                            const next = [...streakDraft.milestoneBonuses];
+                            next[idx] = { ...ms, bonusCents: Math.max(0, Number(e.target.value) || 0) };
+                            setStreakDraft((prev) => ({ ...prev, milestoneBonuses: next }));
+                          }}
+                          className="w-full rounded-lg bg-zinc-900 border border-zinc-800 px-2 py-1 text-emerald-400 font-mono"
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <label className="text-[10px] text-sky-400 block">Free Spins</label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={ms.bonusFreeSpins ?? 0}
+                          onChange={(e) => {
+                            const next = [...streakDraft.milestoneBonuses];
+                            next[idx] = { ...ms, bonusFreeSpins: Math.max(0, Number(e.target.value) || 0) };
+                            setStreakDraft((prev) => ({ ...prev, milestoneBonuses: next }));
+                          }}
+                          className="w-full rounded-lg bg-zinc-900 border border-zinc-800 px-2 py-1 text-sky-300 font-mono"
+                        />
+                      </div>
+                      <div className="col-span-1 flex justify-end pt-3">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setStreakDraft((prev) => ({
+                              ...prev,
+                              milestoneBonuses: prev.milestoneBonuses.filter((_, i) => i !== idx),
+                            }));
+                          }}
+                          title="Delete milestone"
+                          className="p-1.5 rounded-lg text-zinc-500 hover:text-red-400 hover:bg-red-500/10 cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Member Daily Streak Audit & Manual Override Table */}
+            <div className="rounded-2xl bg-zinc-900/50 border border-zinc-800 p-4 space-y-3">
+              <h4 className="font-heading font-bold text-sm text-white">
+                Member Daily Streak States &amp; Overrides
+              </h4>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs text-left">
+                  <thead>
+                    <tr className="border-b border-zinc-800 text-zinc-400 font-mono uppercase text-[11px]">
+                      <th className="py-2 pr-3">Member</th>
+                      <th className="py-2 px-3">Last Check-In (UTC)</th>
+                      <th className="py-2 px-3">Current Streak (Days)</th>
+                      <th className="py-2 px-3">Total Streak Pts</th>
+                      <th className="py-2 pl-3 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-800/80 tabular-nums">
+                    {allUsers.map((member) => {
+                      const st = allUserStreakStates[member.id];
+                      const edit = streakUserEdits[member.id] ?? {
+                        currentStreak: st?.currentStreak ?? 0,
+                        totalStreakPoints: st?.totalStreakPoints ?? 0,
+                      };
+                      return (
+                        <tr key={member.id}>
+                          <td className="py-2.5 pr-3">
+                            <span className="font-semibold text-white block">{member.name}</span>
+                            <span className="text-[10px] font-mono text-zinc-500">{member.email}</span>
+                          </td>
+                          <td className="py-2.5 px-3 font-mono text-zinc-400">
+                            {st?.lastCheckInDateUtc || 'Never'}
+                            {st?.checkedInToday && (
+                              <span className="ml-2 text-emerald-400">[Today]</span>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-3">
+                            <input
+                              type="number"
+                              min={0}
+                              value={edit.currentStreak}
+                              onChange={(e) =>
+                                setStreakUserEdits((prev) => ({
+                                  ...prev,
+                                  [member.id]: {
+                                    ...edit,
+                                    currentStreak: Math.max(0, Number(e.target.value) || 0),
+                                  },
+                                }))
+                              }
+                              className="w-24 rounded-lg bg-zinc-950 border border-zinc-800 px-2.5 py-1 text-amber-300 font-mono font-bold"
+                            />
+                          </td>
+                          <td className="py-2.5 px-3">
+                            <input
+                              type="number"
+                              min={0}
+                              value={edit.totalStreakPoints}
+                              onChange={(e) =>
+                                setStreakUserEdits((prev) => ({
+                                  ...prev,
+                                  [member.id]: {
+                                    ...edit,
+                                    totalStreakPoints: Math.max(0, Number(e.target.value) || 0),
+                                  },
+                                }))
+                              }
+                              className="w-28 rounded-lg bg-zinc-950 border border-zinc-800 px-2.5 py-1 text-emerald-400 font-mono font-bold"
+                            />
+                          </td>
+                          <td className="py-2.5 pl-3 text-right">
+                            <div className="inline-flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  adminUpdateUserStreak(member.id, {
+                                    currentStreak: edit.currentStreak,
+                                    totalStreakPoints: edit.totalStreakPoints,
+                                  })
+                                }
+                                className="px-2.5 py-1 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 font-semibold cursor-pointer"
+                              >
+                                Save
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setStreakUserEdits((prev) => ({
+                                    ...prev,
+                                    [member.id]: { currentStreak: 0, totalStreakPoints: 0 },
+                                  }));
+                                  adminUpdateUserStreak(member.id, { reset: true });
+                                }}
+                                className="px-2.5 py-1 rounded-lg bg-red-600/15 hover:bg-red-600/25 border border-red-500/30 text-red-300 font-semibold cursor-pointer"
+                              >
+                                Reset
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -1488,12 +1985,17 @@ export const AdminBlogRewardsManager: React.FC<AdminBlogRewardsManagerProps> = (
               </span>
             </div>
             <div className="rounded-2xl bg-zinc-950 border border-zinc-800 p-4 space-y-1">
-              <span className="text-[11px] font-mono text-zinc-400 uppercase">Active Dwell & Bonus</span>
+              <span className="text-[11px] font-mono text-zinc-400 uppercase">Active Dwell, Streak &amp; Bonus</span>
               <p className="font-heading font-black text-2xl text-amber-400 tabular-nums">
-                {(analyticsStats.byAction.time_on_platform + analyticsStats.byAction.admin_bonus).toFixed(1)}¢
+                {(
+                  analyticsStats.byAction.time_on_platform +
+                  analyticsStats.byAction.daily_streak +
+                  analyticsStats.byAction.admin_bonus
+                ).toFixed(1)}
+                ¢
               </p>
               <span className="text-xs font-mono text-zinc-500 tabular-nums">
-                Engage Paid: {analyticsStats.byAction.engagement_action.toFixed(1)}¢
+                Streak: {analyticsStats.byAction.daily_streak.toFixed(1)}¢ · Engage: {analyticsStats.byAction.engagement_action.toFixed(1)}¢
               </span>
             </div>
           </div>
@@ -1643,6 +2145,7 @@ export const AdminBlogRewardsManager: React.FC<AdminBlogRewardsManagerProps> = (
                     { id: 'share_article', label: 'Social Shares' },
                     { id: 'engagement_action', label: 'Engagements' },
                     { id: 'time_on_platform', label: 'Active Time' },
+                    { id: 'daily_streak', label: 'Daily Streaks' },
                     { id: 'admin_bonus', label: 'Admin Bonus' },
                   ] as const
                 ).map((f) => (

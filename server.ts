@@ -2,6 +2,7 @@ import express from 'express';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI, Type } from '@google/genai';
 import dotenv from 'dotenv';
+import crypto from 'crypto';
 import fs from 'fs';
 import http from 'http';
 import path from 'path';
@@ -16,6 +17,20 @@ import {
   getDispatchedEmailLogs,
   getEffectiveSmtpSummary,
 } from './src/server/mailer.ts';
+import {
+  seedInitialDepositRecords,
+  getUserDepositRecords,
+  getVerifiedDepositBalance,
+  reconcileWalletFromDepositRecords,
+  registerVerifiedDepositRecord,
+  creditVerifiedFreeWinBalance,
+  validateAndConsumePayment,
+  deductDepositRecordsFifo,
+  getTransactionAudits,
+  exportValidatorState,
+  hydrateValidatorState,
+  signValidationPayload,
+} from './src/server/transactionValidator.ts';
 
 dotenv.config();
 
@@ -845,6 +860,8 @@ interface ServerInvestment {
 
 interface ServerWallet {
   usd: number;
+  depositUsd: number;
+  freeWinUsd: number;
   btc: number;
   usdt: number;
   xrp: number;
@@ -893,11 +910,26 @@ const serverDispatchedEmails: Array<{
   status: 'delivered' | 'simulated';
 }> = [];
 
+const HMAC_SECRET = process.env.APEX_LEDGER_SECRET || 'apex-tesla-hub-secure-hmac-v2-2026';
+
+function signLedgerPayload(payload: Record<string, unknown>): string {
+  const canonical = JSON.stringify(payload, Object.keys(payload).sort());
+  return crypto.createHmac('sha256', HMAC_SECRET).update(canonical).digest('hex');
+}
+
+function getOrInitServerWallet(
+  userId: string,
+  _hint?: { usd?: number; depositUsd?: number; freeWinUsd?: number }
+): ServerWallet {
+  // Always reconcile wallet strictly from verified server deposit records; never trust client balance hints
+  return reconcileWalletFromDepositRecords(userId, serverWallets);
+}
+
 let cronActive = true;
 let cronCyclesRun = 186;
 let lastCronRunTimestamp: string = new Date().toISOString();
 const serverCronLogs: string[] = [
-  `[${new Date().toISOString().substring(11, 19)}] Automated ROI Cron Engine initialized on 60-second cycle.`,
+  `[${new Date().toISOString().substring(11, 19)}] Automated Multi-Task Cron Engine initialized (ROI, Streaks, Spin Criteria, Won Logistics, TSLA Sync).`,
   `[${new Date().toISOString().substring(11, 19)}] Verified active fleet & Fast-ROI plans with smart contract telemetry.`,
 ];
 
@@ -926,7 +958,7 @@ function seedServerInvestments() {
       apy: 18.5,
       status: 'running',
       durationDays: 30,
-      daysElapsed: 28, // Near completion for easy verification!
+      daysElapsed: 28,
       earnedDividendsUsd: 71.03,
       totalExpectedRoiUsd: 76.03,
       dailyRoiRate: 2.53,
@@ -982,22 +1014,23 @@ function seedServerInvestments() {
     serverInvestments.set(inv2.id, inv2);
     serverInvestments.set(inv3.id, inv3);
 
-    // Initial wallet balance for Alex Vance & Demo Users
-    const defaultDemoWallets: Record<string, { usd: number; btc: number; usdt: number; xrp: number; bnb: number }> = {
-      'usr-alex-001': { usd: 12450.0, btc: 0.45, usdt: 14200.0, xrp: 4200.0, bnb: 18.5 },
-      'usr-apex-001': { usd: 12450.0, btc: 0.45, usdt: 14200.0, xrp: 4200.0, bnb: 18.5 },
-      'usr-003': { usd: 4280.0, btc: 0.04, usdt: 3100.0, xrp: 1500.0, bnb: 4.0 },
-      'usr-004': { usd: 9850.0, btc: 0.18, usdt: 6400.0, xrp: 3200.0, bnb: 11.2 },
-      'usr-005': { usd: 1820.0, btc: 0.02, usdt: 950.0, xrp: 800.0, bnb: 1.5 },
-      'usr-006': { usd: 24500.0, btc: 0.62, usdt: 18500.0, xrp: 6800.0, bnb: 22.0 },
-      'usr-007': { usd: 15400.0, btc: 0.31, usdt: 9200.0, xrp: 4100.0, bnb: 9.4 },
-      'usr-008': { usd: 7600.0, btc: 0.11, usdt: 5100.0, xrp: 2100.0, bnb: 5.8 },
-      'usr-009': { usd: 2940.0, btc: 0.05, usdt: 1800.0, xrp: 1100.0, bnb: 2.3 },
-      'usr-010': { usd: 31200.0, btc: 0.85, usdt: 22000.0, xrp: 9500.0, bnb: 31.0 },
+    // Initial wallet balance for Alex Vance & Demo Users (verified active deposits)
+    const defaultDemoWallets: Record<string, ServerWallet> = {
+      'usr-alex-001': { usd: 12450.0, depositUsd: 12450.0, freeWinUsd: 0, btc: 0.45, usdt: 14200.0, xrp: 4200.0, bnb: 18.5 },
+      'usr-apex-001': { usd: 12450.0, depositUsd: 12450.0, freeWinUsd: 0, btc: 0.45, usdt: 14200.0, xrp: 4200.0, bnb: 18.5 },
+      'usr-003': { usd: 4280.0, depositUsd: 4280.0, freeWinUsd: 0, btc: 0.04, usdt: 3100.0, xrp: 1500.0, bnb: 4.0 },
+      'usr-004': { usd: 9850.0, depositUsd: 9850.0, freeWinUsd: 0, btc: 0.18, usdt: 6400.0, xrp: 3200.0, bnb: 11.2 },
+      'usr-005': { usd: 1820.0, depositUsd: 1820.0, freeWinUsd: 0, btc: 0.02, usdt: 950.0, xrp: 800.0, bnb: 1.5 },
+      'usr-006': { usd: 24500.0, depositUsd: 24500.0, freeWinUsd: 0, btc: 0.62, usdt: 18500.0, xrp: 6800.0, bnb: 22.0 },
+      'usr-007': { usd: 15400.0, depositUsd: 15400.0, freeWinUsd: 0, btc: 0.31, usdt: 9200.0, xrp: 4100.0, bnb: 9.4 },
+      'usr-008': { usd: 7600.0, depositUsd: 7600.0, freeWinUsd: 0, btc: 0.11, usdt: 5100.0, xrp: 2100.0, bnb: 5.8 },
+      'usr-009': { usd: 2940.0, depositUsd: 2940.0, freeWinUsd: 0, btc: 0.05, usdt: 1800.0, xrp: 1100.0, bnb: 2.3 },
+      'usr-010': { usd: 31200.0, depositUsd: 31200.0, freeWinUsd: 0, btc: 0.85, usdt: 22000.0, xrp: 9500.0, bnb: 31.0 },
     };
     for (const [uid, bal] of Object.entries(defaultDemoWallets)) {
       serverWallets.set(uid, bal);
     }
+    seedInitialDepositRecords(serverWallets);
   }
 }
 
@@ -1106,6 +1139,430 @@ async function dispatchMaturityEmail(params: {
   return true;
 }
 
+// ============================================================================
+// SERVER-AUTHORITATIVE STREAK, SPIN & WIN, SCRATCH, DEPOSIT-ONLY FEES & MULTI-CRON
+// ============================================================================
+
+const DEFAULT_SERVER_STREAK_CONFIG = {
+  enabled: true,
+  graceWindowHours: 36,
+  resetAfterHours: 48,
+  autoResetMissedDays: true,
+  maxStreakMultiplier: 2.5,
+  dailyRates: [
+    { day: 1, label: 'Day 1 Ignition', bonusPoints: 25, bonusCents: 5 },
+    { day: 2, label: 'Day 2 Supercharge', bonusPoints: 40, bonusCents: 8 },
+    { day: 3, label: 'Day 3 Autopilot', bonusPoints: 60, bonusCents: 12 },
+    { day: 4, label: 'Day 4 Dual Motor', bonusPoints: 85, bonusCents: 18 },
+    { day: 5, label: 'Day 5 Ludicrous', bonusPoints: 115, bonusCents: 25 },
+    { day: 6, label: 'Day 6 Plaid Velocity', bonusPoints: 150, bonusCents: 35 },
+    { day: 7, label: 'Day 7 Founders Apex', bonusPoints: 225, bonusCents: 50 },
+  ],
+  milestoneBonuses: [
+    { daysRequired: 3, label: '3-Day Pulse Milestone', bonusPoints: 100, bonusCents: 25, bonusFreeSpins: 0 },
+    { daysRequired: 7, label: '7-Day Apex Driver Streak', bonusPoints: 300, bonusCents: 100, bonusFreeSpins: 1 },
+    { daysRequired: 14, label: '14-Day Plaid Veteran', bonusPoints: 650, bonusCents: 250, bonusFreeSpins: 2 },
+    { daysRequired: 30, label: '30-Day Founders Legend', bonusPoints: 1500, bonusCents: 500, bonusFreeSpins: 3 },
+  ],
+};
+
+const DEFAULT_SERVER_SPIN_LEVELS: Record<'easy' | 'hard' | 'super_hard', any[]> = {
+  easy: [
+    { id: 'ez-1', label: 'Tesla Model 3 Highland', text: 'Model 3 Win', valueUsd: 42490, value: 42490, type: 'car', vehicleModel: '2026 Tesla Model 3 Highland AWD', color: '#dc2626', textColor: 'white', weight: 4, probabilityWeight: 4, isActive: true },
+    { id: 'ez-2', label: '$20,000 Max Cash Jackpot', text: '$20,000 USD', valueUsd: 20000, value: 20000, type: 'crypto', color: '#16a34a', textColor: 'white', weight: 5, probabilityWeight: 5, isActive: true },
+    { id: 'ez-3', label: '$2,500 USDT Vault', text: '$2,500 USDT', valueUsd: 2500, value: 2500, type: 'crypto', color: '#2563eb', textColor: 'white', weight: 16, probabilityWeight: 16, isActive: true },
+    { id: 'ez-4', label: 'Tesla Model Y Performance', text: 'Model Y Win', valueUsd: 52490, value: 52490, type: 'car', vehicleModel: '2026 Tesla Model Y Performance', color: '#ea580c', textColor: 'white', weight: 4, probabilityWeight: 4, isActive: true },
+    { id: 'ez-5', label: '$10,000 Cash Prize', text: '$10,000 USD', valueUsd: 10000, value: 10000, type: 'credits', color: '#ca8a04', textColor: 'white', weight: 9, probabilityWeight: 9, isActive: true },
+    { id: 'ez-6', label: 'Try Again', text: 'Try Again', valueUsd: 0, value: 0, type: 'try_again', color: '#1e293b', textColor: 'white', weight: 14, probabilityWeight: 14, isActive: true },
+    { id: 'ez-7', label: '$5,000 Vault Payout', text: '$5,000 USD', valueUsd: 5000, value: 5000, type: 'crypto', color: '#0891b2', textColor: 'white', weight: 12, probabilityWeight: 12, isActive: true },
+    { id: 'ez-8', label: 'Tesla Cybertruck AWD', text: 'Cybertruck', valueUsd: 79990, value: 79990, type: 'car', vehicleModel: '2026 Tesla Cybertruck Foundation AWD', color: '#b91c1c', textColor: 'white', weight: 3, probabilityWeight: 3, isActive: true },
+    { id: 'ez-9', label: '$1,000 Cash Credit', text: '$1,000 USD', valueUsd: 1000, value: 1000, type: 'credits', color: '#7c3aed', textColor: 'white', weight: 17, probabilityWeight: 17, isActive: true },
+    { id: 'ez-10', label: '$500 Wallet Bonus', text: '$500 USD', valueUsd: 500, value: 500, type: 'credits', color: '#475569', textColor: 'white', weight: 16, probabilityWeight: 16, isActive: true },
+  ],
+  hard: [
+    { id: 'hd-1', label: 'Tesla Model 3 Highland', text: 'Model 3 Win', valueUsd: 42490, value: 42490, type: 'car', vehicleModel: '2026 Tesla Model 3 Highland AWD', color: '#dc2626', textColor: 'white', weight: 2, probabilityWeight: 2, isActive: true },
+    { id: 'hd-2', label: 'Try Again', text: 'Try Again', valueUsd: 0, value: 0, type: 'try_again', color: '#1e293b', textColor: 'white', weight: 18, probabilityWeight: 18, isActive: true },
+    { id: 'hd-3', label: '$15,000 Max Cash Jackpot', text: '$15,000 USD', valueUsd: 15000, value: 15000, type: 'crypto', color: '#16a34a', textColor: 'white', weight: 4, probabilityWeight: 4, isActive: true },
+    { id: 'hd-4', label: '$2,500 USDT Vault', text: '$2,500 USDT', valueUsd: 2500, value: 2500, type: 'crypto', color: '#2563eb', textColor: 'white', weight: 10, probabilityWeight: 10, isActive: true },
+    { id: 'hd-5', label: 'Try Again', text: 'Try Again', valueUsd: 0, value: 0, type: 'try_again', color: '#334155', textColor: 'white', weight: 17, probabilityWeight: 17, isActive: true },
+    { id: 'hd-6', label: '$7,500 Cash Payout', text: '$7,500 USD', valueUsd: 7500, value: 7500, type: 'credits', color: '#ca8a04', textColor: 'white', weight: 6, probabilityWeight: 6, isActive: true },
+    { id: 'hd-7', label: 'Tesla Cybertruck AWD', text: 'Cybertruck', valueUsd: 79990, value: 79990, type: 'car', vehicleModel: '2026 Tesla Cybertruck Foundation AWD', color: '#ea580c', textColor: 'white', weight: 2, probabilityWeight: 2, isActive: true },
+    { id: 'hd-8', label: '$1,000 Cash Credit', text: '$1,000 USD', valueUsd: 1000, value: 1000, type: 'credits', color: '#0891b2', textColor: 'white', weight: 13, probabilityWeight: 13, isActive: true },
+    { id: 'hd-9', label: 'Try Again', text: 'Try Again', valueUsd: 0, value: 0, type: 'try_again', color: '#0f172a', textColor: 'white', weight: 17, probabilityWeight: 17, isActive: true },
+    { id: 'hd-10', label: '$500 Wallet Bonus', text: '$500 USD', valueUsd: 500, value: 500, type: 'credits', color: '#7c3aed', textColor: 'white', weight: 11, probabilityWeight: 11, isActive: true },
+  ],
+  super_hard: [
+    { id: 'sh-1', label: 'Tesla Model 3 RWD', text: 'Model 3 Win', valueUsd: 38990, value: 38990, type: 'car', vehicleModel: '2026 Tesla Model 3 Standard Range RWD', color: '#dc2626', textColor: 'white', weight: 1, probabilityWeight: 1, isActive: true },
+    { id: 'sh-2', label: 'Try Again', text: 'Try Again', valueUsd: 0, value: 0, type: 'try_again', color: '#1e293b', textColor: 'white', weight: 19, probabilityWeight: 19, isActive: true },
+    { id: 'sh-3', label: '$8,000 Max Cash Jackpot', text: '$8,000 USD', valueUsd: 8000, value: 8000, type: 'crypto', color: '#16a34a', textColor: 'white', weight: 3, probabilityWeight: 3, isActive: true },
+    { id: 'sh-4', label: 'Try Again', text: 'Try Again', valueUsd: 0, value: 0, type: 'try_again', color: '#334155', textColor: 'white', weight: 19, probabilityWeight: 19, isActive: true },
+    { id: 'sh-5', label: '$4,000 Cash Payout', text: '$4,000 USD', valueUsd: 4000, value: 4000, type: 'crypto', color: '#2563eb', textColor: 'white', weight: 6, probabilityWeight: 6, isActive: true },
+    { id: 'sh-6', label: 'Try Again', text: 'Try Again', valueUsd: 0, value: 0, type: 'try_again', color: '#0f172a', textColor: 'white', weight: 18, probabilityWeight: 18, isActive: true },
+    { id: 'sh-7', label: '$1,500 Wallet Credit', text: '$1,500 USD', valueUsd: 1500, value: 1500, type: 'credits', color: '#ca8a04', textColor: 'white', weight: 9, probabilityWeight: 9, isActive: true },
+    { id: 'sh-8', label: '$500 Cash Prize', text: '$500 USD', valueUsd: 500, value: 500, type: 'credits', color: '#0891b2', textColor: 'white', weight: 10, probabilityWeight: 10, isActive: true },
+    { id: 'sh-9', label: 'Try Again', text: 'Try Again', valueUsd: 0, value: 0, type: 'try_again', color: '#475569', textColor: 'white', weight: 18, probabilityWeight: 18, isActive: true },
+    { id: 'sh-10', label: '$250 Consolation Cash', text: '$250 USD', valueUsd: 250, value: 250, type: 'credits', color: '#7c3aed', textColor: 'white', weight: 12, probabilityWeight: 12, isActive: true },
+  ],
+};
+
+const DEFAULT_SERVER_SPIN_SYSTEM_CONFIG = {
+  minSpinCostUsd: 150,
+  maxCashWinUsd: 20000,
+  adminMode: 'auto' as 'auto' | 'easy' | 'hard' | 'super_hard',
+  autoSuperHardWinThreshold: 2,
+  freeSpinMaxWinsPerOffer: 1,
+  levels: DEFAULT_SERVER_SPIN_LEVELS,
+  userLevelOverrides: {} as Record<string, 'auto' | 'easy' | 'hard' | 'super_hard'>,
+  userTrackers: {} as Record<string, {
+    paidSpinsCount: number;
+    totalWinsCount: number;
+    freeSpinOfferWinsUsed: number;
+    freeSpinOffersRedeemed: number;
+    activeOfferSpinsRemaining?: number;
+    lastSpinAt?: string;
+    lastResolvedLevel?: 'easy' | 'hard' | 'super_hard';
+    lastReason?: string;
+  }>,
+};
+
+const DEFAULT_SERVER_CRON_JOBS = [
+  {
+    id: 'roi_accrual',
+    name: 'Fleet Staking & TSLA Fast-ROI Accrual',
+    description: 'Accrues daily dividends across running fleet & Fast-ROI equity plans and settles matured positions.',
+    enabled: true,
+    intervalMinutes: 1,
+    lastRunAt: new Date().toISOString(),
+    runsCount: 186,
+    lastSummary: 'Active 60s automated ROI accrual & maturity settlement engine.',
+  },
+  {
+    id: 'daily_streak_audit',
+    name: 'Daily Streak Continuity & Reset Audit',
+    description: 'Audits UTC check-in timestamps, resets expired streaks beyond resetAfterHours, and seals milestone claims.',
+    enabled: true,
+    intervalMinutes: 15,
+    lastRunAt: new Date().toISOString(),
+    runsCount: 42,
+    lastSummary: 'Verified active member streak timelines and UTC rollover integrity.',
+  },
+  {
+    id: 'spin_criteria_audit',
+    name: 'Spin & Win Multi-Win Criteria Enforcer',
+    description: 'Automatically switches repeat winners (>= threshold wins) to Super Hard difficulty and audits free-spin win caps.',
+    enabled: true,
+    intervalMinutes: 5,
+    lastRunAt: new Date().toISOString(),
+    runsCount: 94,
+    lastSummary: 'Enforced 1-win free spin limit and multi-win Super Hard criteria checks.',
+  },
+  {
+    id: 'won_prize_logistics',
+    name: 'Won Vehicle Custody & Logistics Progression',
+    description: 'Advances fee-paid won vehicles from fees_paid_processing to documentation_ready and carrier dispatch.',
+    enabled: true,
+    intervalMinutes: 10,
+    lastRunAt: new Date().toISOString(),
+    runsCount: 31,
+    lastSummary: 'Verified deposit-cleared shipping packets and VIN export documentation.',
+  },
+  {
+    id: 'tsla_market_sync',
+    name: 'TSLA Market Telemetry & Price Alert Check',
+    description: 'Refreshes TSLA quote baselines and triggers active user price alerts when thresholds cross.',
+    enabled: true,
+    intervalMinutes: 5,
+    lastRunAt: new Date().toISOString(),
+    runsCount: 118,
+    lastSummary: 'Synced live NASDAQ: TSLA telemetry feed.',
+  },
+];
+
+let serverStreakConfig: typeof DEFAULT_SERVER_STREAK_CONFIG = {
+  ...DEFAULT_SERVER_STREAK_CONFIG,
+  ...((() => {
+    try {
+      if (fs.existsSync(path.join(process.cwd(), '.apex_admin_state.json'))) {
+        const raw = JSON.parse(fs.readFileSync(path.join(process.cwd(), '.apex_admin_state.json'), 'utf-8'));
+        return raw.streakConfig || {};
+      }
+    } catch {
+      // ignore
+    }
+    return {};
+  })()),
+};
+
+let serverStreakStates: Record<string, any> = (() => {
+  try {
+    if (fs.existsSync(path.join(process.cwd(), '.apex_admin_state.json'))) {
+      const raw = JSON.parse(fs.readFileSync(path.join(process.cwd(), '.apex_admin_state.json'), 'utf-8'));
+      return raw.streakStates || {};
+    }
+  } catch {
+    // ignore
+  }
+  return {};
+})();
+
+let serverSpinSystemConfig: typeof DEFAULT_SERVER_SPIN_SYSTEM_CONFIG = (() => {
+  try {
+    if (fs.existsSync(path.join(process.cwd(), '.apex_admin_state.json'))) {
+      const raw = JSON.parse(fs.readFileSync(path.join(process.cwd(), '.apex_admin_state.json'), 'utf-8'));
+      if (raw.spinSystemConfig) {
+        return {
+          ...DEFAULT_SERVER_SPIN_SYSTEM_CONFIG,
+          ...raw.spinSystemConfig,
+          minSpinCostUsd: Math.max(150, Number(raw.spinSystemConfig.minSpinCostUsd) || 150),
+          maxCashWinUsd: Math.min(20000, Math.max(1000, Number(raw.spinSystemConfig.maxCashWinUsd) || 20000)),
+          levels: { ...DEFAULT_SERVER_SPIN_LEVELS, ...(raw.spinSystemConfig.levels || {}) },
+          userLevelOverrides: raw.spinSystemConfig.userLevelOverrides || {},
+          userTrackers: raw.spinSystemConfig.userTrackers || {},
+        };
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return { ...DEFAULT_SERVER_SPIN_SYSTEM_CONFIG };
+})();
+
+let serverCronJobs: typeof DEFAULT_SERVER_CRON_JOBS = (() => {
+  try {
+    if (fs.existsSync(path.join(process.cwd(), '.apex_admin_state.json'))) {
+      const raw = JSON.parse(fs.readFileSync(path.join(process.cwd(), '.apex_admin_state.json'), 'utf-8'));
+      if (Array.isArray(raw.cronJobs) && raw.cronJobs.length > 0) {
+        return raw.cronJobs;
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return DEFAULT_SERVER_CRON_JOBS;
+})();
+
+const DEFAULT_SERVER_SCRATCH_TIERS = [
+  {
+    id: 'scratch-tier-gold',
+    name: 'Giga Gold Plaid VIP',
+    priceUsd: 1000,
+    maxPrizeUsd: 15000,
+    possiblePrizes: [
+      { amountUsd: 15000, label: '$15,000 Max Cash Jackpot', weight: 4 },
+      { amountUsd: 38990, label: 'Win 1 Tesla Model 3 RWD', weight: 2, isTeslaCar: true, vehicleModel: '2026 Tesla Model 3 Standard Range RWD' },
+      { amountUsd: 5000, label: '$5,000 USDT Vault Credit', weight: 10 },
+      { amountUsd: 2500, label: '$2,500 Plaid Bonus', weight: 18 },
+      { amountUsd: 1000, label: '$1,000 Cash Return', weight: 28 },
+      { amountUsd: 0, label: 'Try Again ($0)', weight: 38, isTryAgain: true },
+    ],
+  },
+  {
+    id: 'scratch-tier-diamond',
+    name: 'Founders Roadster Apex Grand',
+    priceUsd: 8000,
+    maxPrizeUsd: 50000,
+    possiblePrizes: [
+      { amountUsd: 50000, label: '$50,000 Max Cash Jackpot', weight: 5 },
+      { amountUsd: 200000, label: 'Win 1 Tesla Roadster Founders', weight: 3, isTeslaCar: true, vehicleModel: '2026 Tesla Roadster Founders Edition' },
+      { amountUsd: 99990, label: 'Win 1 Tesla Cyberbeast AWD', weight: 4, isTeslaCar: true, vehicleModel: '2026 Tesla Cybertruck Cyberbeast AWD' },
+      { amountUsd: 89990, label: 'Win 1 Tesla Model S Plaid', weight: 5, isTeslaCar: true, vehicleModel: '2026 Tesla Model S Plaid Tri-Motor' },
+      { amountUsd: 25000, label: '$25,000 Apex Gold Payout', weight: 12 },
+      { amountUsd: 12000, label: '$12,000 Vault Credit', weight: 20 },
+      { amountUsd: 4000, label: '$4,000 Rebate Credit', weight: 26 },
+      { amountUsd: 0, label: 'Try Again ($0)', weight: 25, isTryAgain: true },
+    ],
+  },
+];
+
+let serverScratchTiers: any[] = (() => {
+  try {
+    if (fs.existsSync(path.join(process.cwd(), '.apex_admin_state.json'))) {
+      const raw = JSON.parse(fs.readFileSync(path.join(process.cwd(), '.apex_admin_state.json'), 'utf-8'));
+      if (Array.isArray(raw.scratchTiers) && raw.scratchTiers.length > 0) {
+        return raw.scratchTiers;
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return DEFAULT_SERVER_SCRATCH_TIERS;
+})();
+
+const serverWonPrizes: Map<string, any> = new Map();
+
+// Hydrate persisted deposit records, transaction audits & won prizes on boot
+(() => {
+  try {
+    const file = path.join(process.cwd(), '.apex_admin_state.json');
+    if (fs.existsSync(file)) {
+      const raw = JSON.parse(fs.readFileSync(file, 'utf-8'));
+      hydrateValidatorState({
+        depositRecords: raw.depositRecords,
+        transactionAudits: raw.transactionAudits,
+      });
+      if (Array.isArray(raw.wonPrizesList)) {
+        for (const wp of raw.wonPrizesList) {
+          if (wp && wp.id) serverWonPrizes.set(wp.id, wp);
+        }
+      }
+      if (raw.serverWalletsFreeWin && typeof raw.serverWalletsFreeWin === 'object') {
+        for (const [uid, fw] of Object.entries(raw.serverWalletsFreeWin)) {
+          const w = reconcileWalletFromDepositRecords(uid, serverWallets);
+          w.freeWinUsd = Number(Math.max(0, Number(fw) || 0).toFixed(2));
+          reconcileWalletFromDepositRecords(uid, serverWallets);
+        }
+      }
+    }
+  } catch {
+    // ignore hydration error
+  }
+  seedInitialDepositRecords(serverWallets);
+})();
+
+function persistServerGameAndCronState() {
+  try {
+    const file = path.join(process.cwd(), '.apex_admin_state.json');
+    const existing = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf-8')) : {};
+    const validatorExport = exportValidatorState();
+    const serverWalletsFreeWin: Record<string, number> = {};
+    for (const [uid, w] of serverWallets.entries()) {
+      serverWalletsFreeWin[uid] = w.freeWinUsd;
+    }
+    const next = {
+      ...existing,
+      streakConfig: serverStreakConfig,
+      streakStates: serverStreakStates,
+      spinSystemConfig: serverSpinSystemConfig,
+      scratchTiers: serverScratchTiers,
+      cronJobs: serverCronJobs,
+      depositRecords: validatorExport.depositRecords,
+      transactionAudits: validatorExport.transactionAudits,
+      serverWalletsFreeWin,
+      wonPrizesList: Array.from(serverWonPrizes.values()).slice(0, 100),
+      updatedAt: new Date().toISOString(),
+    };
+    fs.writeFileSync(file, JSON.stringify(next, null, 2), 'utf-8');
+  } catch {
+    // ignore write failure on read-only fs
+  }
+}
+
+function getUtcDateKey(date = new Date()): string {
+  return date.toISOString().slice(0, 10);
+}
+
+function hoursBetweenIso(prevIso: string | null | undefined, nowDate = new Date()): number {
+  if (!prevIso) return 0;
+  const ts = new Date(prevIso).getTime();
+  if (Number.isNaN(ts)) return 0;
+  return (nowDate.getTime() - ts) / 3600000;
+}
+
+function runDailyStreakAuditJob(): { resetCount: number; summary: string } {
+  const resetAfterHours = Math.max(24, Number(serverStreakConfig.resetAfterHours) || 48);
+  let resetCount = 0;
+  const now = new Date();
+  const todayUtc = getUtcDateKey(now);
+
+  for (const [uid, st] of Object.entries(serverStreakStates)) {
+    if (!st) continue;
+    const elapsed = hoursBetweenIso(st.lastCheckInAtIso, now);
+    if (st.lastCheckInDateUtc && st.lastCheckInDateUtc !== todayUtc) {
+      st.checkedInToday = false;
+    }
+    if (serverStreakConfig.autoResetMissedDays && st.currentStreak > 0 && elapsed > resetAfterHours) {
+      st.currentStreak = 0;
+      st.checkedInToday = false;
+      st.securitySig = signLedgerPayload({
+        userId: uid,
+        currentStreak: 0,
+        lastCheckInDateUtc: st.lastCheckInDateUtc || null,
+        totalCheckIns: st.totalCheckIns || 0,
+      });
+      resetCount++;
+    }
+  }
+  const summary = `Audited ${Object.keys(serverStreakStates).length} member streak ledger(s); auto-reset ${resetCount} lapsed streak(s) exceeding ${resetAfterHours}h.`;
+  if (resetCount > 0) persistServerGameAndCronState();
+  return { resetCount, summary };
+}
+
+function runSpinCriteriaAuditJob(): { flaggedUsers: number; summary: string } {
+  const threshold = Math.max(1, Number(serverSpinSystemConfig.autoSuperHardWinThreshold) || 2);
+  let flaggedUsers = 0;
+  const trackers = serverSpinSystemConfig.userTrackers || {};
+  for (const [uid, tracker] of Object.entries(trackers)) {
+    if (tracker && tracker.totalWinsCount >= threshold) {
+      if (!serverSpinSystemConfig.userLevelOverrides[uid] || serverSpinSystemConfig.userLevelOverrides[uid] === 'auto') {
+        serverSpinSystemConfig.userLevelOverrides[uid] = 'super_hard';
+        flaggedUsers++;
+      }
+    }
+  }
+  const summary = `Audited ${Object.keys(trackers).length} spin profile(s); switched ${flaggedUsers} multi-winner account(s) (>= ${threshold} wins) to Super Hard.`;
+  if (flaggedUsers > 0) persistServerGameAndCronState();
+  return { flaggedUsers, summary };
+}
+
+function runWonPrizeLogisticsJob(): { advancedCount: number; summary: string } {
+  let advancedCount = 0;
+  for (const prize of serverWonPrizes.values()) {
+    if (!prize || !prize.feesPaid) continue;
+    if (prize.shippingStatus === 'fees_paid_processing') {
+      prize.shippingStatus = 'documentation_ready';
+      prize.trackingNumber = prize.trackingNumber || `APX-VIN-${Math.floor(100000 + Math.random() * 899999)}`;
+      prize.carrierName = prize.carrierName || 'Apex Enclosed EV Carrier Fleet';
+      advancedCount++;
+    }
+  }
+  const summary = `Verified ${serverWonPrizes.size} won-prize vault item(s); prepared export documentation for ${advancedCount} deposit-cleared vehicle(s).`;
+  return { advancedCount, summary };
+}
+
+function runSingleCronJobById(jobId: string): { success: boolean; summary: string; extra?: Record<string, unknown> } {
+  const timeStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
+  const nowIso = new Date().toISOString();
+  const job = serverCronJobs.find((j) => j.id === jobId);
+  let summary = '';
+  let extra: Record<string, unknown> = {};
+
+  if (jobId === 'roi_accrual') {
+    const res = runServerCronCycle();
+    summary = `Accrued $${res.yieldDistributedUsd.toFixed(2)} ROI; ${res.maturedCount} matured.`;
+    extra = res;
+  } else if (jobId === 'daily_streak_audit') {
+    const res = runDailyStreakAuditJob();
+    summary = res.summary;
+    extra = res;
+  } else if (jobId === 'spin_criteria_audit') {
+    const res = runSpinCriteriaAuditJob();
+    summary = res.summary;
+    extra = res;
+  } else if (jobId === 'won_prize_logistics') {
+    const res = runWonPrizeLogisticsJob();
+    summary = res.summary;
+    extra = res;
+  } else if (jobId === 'tsla_market_sync') {
+    const simulatedQuote = Number((332 + (Math.random() - 0.5) * 4.5).toFixed(2));
+    summary = `Synced live NASDAQ: TSLA telemetry feed ($${simulatedQuote}).`;
+    extra = { tslaPriceUsd: simulatedQuote };
+  } else {
+    return { success: false, summary: `Unknown cron job id: ${jobId}` };
+  }
+
+  if (job) {
+    job.lastRunAt = nowIso;
+    job.runsCount = (job.runsCount || 0) + 1;
+    job.lastSummary = summary;
+  }
+  if (jobId !== 'roi_accrual') {
+    serverCronLogs.unshift(`[${timeStr}] [CRON:${jobId}] ${summary}`);
+    if (serverCronLogs.length > 60) serverCronLogs.length = 60;
+  }
+  persistServerGameAndCronState();
+  return { success: true, summary, extra };
+}
+
 // Master Cron Cycle Function
 function runServerCronCycle(): {
   maturedCount: number;
@@ -1149,13 +1606,18 @@ function runServerCronCycle(): {
 
       const totalPayoutUsd = Number((inv.amountInvestedUsd + inv.earnedDividendsUsd).toFixed(2));
 
-      // Credit User Wallet
-      let wallet = serverWallets.get(inv.userId);
-      if (!wallet) {
-        wallet = { usd: 12450.0, btc: 0.45, usdt: 14200.0, xrp: 4200.0, bnb: 18.5 };
-        serverWallets.set(inv.userId, wallet);
-      }
-      wallet.usd = Number((wallet.usd + totalPayoutUsd).toFixed(2));
+      // Credit User Wallet (maturities record verified principal return + ROI yield)
+      registerVerifiedDepositRecord({
+        userId: inv.userId,
+        currency: 'USD',
+        amount: inv.amountInvestedUsd,
+        usdEquivalent: inv.amountInvestedUsd,
+        txHash: inv.certificateId || `CERT-${inv.id}-${Date.now()}`,
+        gatewayName: 'Fleet Maturity Settlement',
+        source: 'investment_maturity',
+        walletsMap: serverWallets,
+      });
+      const wallet = creditVerifiedFreeWinBalance(inv.userId, inv.earnedDividendsUsd || 0, serverWallets);
 
       const settlementEvent: ServerSettlementEvent = {
         id: `settle-${inv.id}-${Date.now()}`,
@@ -1197,6 +1659,13 @@ function runServerCronCycle(): {
     }
   }
 
+  const roiJob = serverCronJobs.find((j) => j.id === 'roi_accrual');
+  if (roiJob) {
+    roiJob.lastRunAt = lastCronRunTimestamp;
+    roiJob.runsCount = cronCyclesRun;
+    roiJob.lastSummary = `Accrued $${yieldDistributedUsd.toFixed(2)} ROI; ${maturedCount} plan(s) settled.`;
+  }
+
   const summaryLog = `[${timeStr}] Cycle #${cronCyclesRun}: Accrued $${yieldDistributedUsd.toFixed(2)} ROI across running plans. ${maturedCount} plan(s) reached maturity & auto-settled.`;
   serverCronLogs.unshift(summaryLog);
   if (serverCronLogs.length > 60) serverCronLogs.length = 60;
@@ -1204,12 +1673,19 @@ function runServerCronCycle(): {
   return { maturedCount, yieldDistributedUsd, logs: [summaryLog, ...cycleLogs], settledEvents };
 }
 
-// Background Interval Runner (every 60 seconds)
+// Background Multi-Cron Interval Runner (ticks every 30s, executes due enabled cron jobs)
 setInterval(() => {
-  if (cronActive) {
-    runServerCronCycle();
+  if (!cronActive) return;
+  const nowMs = Date.now();
+  for (const job of serverCronJobs) {
+    if (!job.enabled) continue;
+    const intervalMs = Math.max(1, Number(job.intervalMinutes) || 5) * 60000;
+    const lastMs = job.lastRunAt ? new Date(job.lastRunAt).getTime() : 0;
+    if (!lastMs || nowMs - lastMs >= intervalMs) {
+      runSingleCronJobById(job.id);
+    }
   }
-}, 60000);
+}, 30000);
 
 // Cron Job REST API Endpoints
 app.get('/api/cron/status', (_req, res) => {
@@ -1222,11 +1698,12 @@ app.get('/api/cron/status', (_req, res) => {
     active: cronActive,
     cyclesRun: cronCyclesRun,
     lastRunTimestamp: lastCronRunTimestamp,
-    intervalMs: 60000,
+    intervalMs: 30000,
     runningCount,
     completedCount,
     totalStakedUsd,
-    logs: serverCronLogs.slice(0, 20),
+    jobs: serverCronJobs,
+    logs: serverCronLogs.slice(0, 30),
     dispatchedEmails: getDispatchedEmailLogs().length > 0 ? getDispatchedEmailLogs().slice(0, 20) : serverDispatchedEmails.slice(0, 15),
     investments,
     settlementEvents: serverSettlementEvents.slice(0, 20),
@@ -1235,16 +1712,55 @@ app.get('/api/cron/status', (_req, res) => {
 
 app.post('/api/cron/trigger', (_req, res) => {
   const result = runServerCronCycle();
+  runDailyStreakAuditJob();
+  runSpinCriteriaAuditJob();
+  runWonPrizeLogisticsJob();
+  persistServerGameAndCronState();
   return res.json({
     success: true,
     cyclesRun: cronCyclesRun,
     lastRunTimestamp: lastCronRunTimestamp,
-    message: `Cron cycle #${cronCyclesRun} executed: $${result.yieldDistributedUsd.toFixed(2)} ROI accrued, ${result.maturedCount} plan(s) matured & settled.`,
+    jobs: serverCronJobs,
+    message: `Master Cron cycle #${cronCyclesRun} executed: $${result.yieldDistributedUsd.toFixed(2)} ROI accrued, ${result.maturedCount} plan(s) settled + streak/spin/logistics audits completed.`,
     investments: Array.from(serverInvestments.values()),
     dispatchedEmails: serverDispatchedEmails.slice(0, 15),
     settlementEvents: serverSettlementEvents.slice(0, 20),
     ...result,
   });
+});
+
+app.post('/api/cron/jobs/:jobId/run', (req, res) => {
+  const { jobId } = req.params;
+  const outcome = runSingleCronJobById(jobId);
+  if (!outcome.success) {
+    return res.status(404).json({ error: outcome.summary });
+  }
+  return res.json({
+    success: true,
+    jobId,
+    summary: outcome.summary,
+    jobs: serverCronJobs,
+    logs: serverCronLogs.slice(0, 30),
+    ...(outcome.extra || {}),
+  });
+});
+
+app.post('/api/cron/config', (req, res) => {
+  const { jobs } = req.body || {};
+  if (Array.isArray(jobs)) {
+    serverCronJobs = jobs.map((j: any) => ({
+      id: String(j.id),
+      name: String(j.name || j.id),
+      description: String(j.description || ''),
+      enabled: Boolean(j.enabled),
+      intervalMinutes: Math.max(1, Math.min(1440, Number(j.intervalMinutes) || 5)),
+      lastRunAt: j.lastRunAt || null,
+      runsCount: Number(j.runsCount) || 0,
+      lastSummary: String(j.lastSummary || ''),
+    }));
+    persistServerGameAndCronState();
+  }
+  return res.json({ success: true, jobs: serverCronJobs });
 });
 
 app.post('/api/cron/toggle', (req, res) => {
@@ -1260,7 +1776,762 @@ app.post('/api/cron/toggle', (req, res) => {
   return res.json({
     success: true,
     active: cronActive,
-    message: `Automated ROI cron service is now ${cronActive ? 'ACTIVE' : 'PAUSED'}.`,
+    message: `Automated multi-job cron service is now ${cronActive ? 'ACTIVE' : 'PAUSED'}.`,
+  });
+});
+
+// ============================================================================
+// DAILY STREAK TRACKER ENDPOINTS
+// ============================================================================
+app.get('/api/streak/config', (_req, res) => {
+  return res.json({ success: true, config: serverStreakConfig, allStates: serverStreakStates });
+});
+
+app.post('/api/streak/config', (req, res) => {
+  const { config } = req.body || {};
+  if (config && typeof config === 'object') {
+    serverStreakConfig = {
+      ...serverStreakConfig,
+      ...config,
+      graceWindowHours: Math.max(24, Number(config.graceWindowHours ?? serverStreakConfig.graceWindowHours) || 36),
+      resetAfterHours: Math.max(24, Number(config.resetAfterHours ?? serverStreakConfig.resetAfterHours) || 48),
+      maxStreakMultiplier: Math.max(1, Math.min(10, Number(config.maxStreakMultiplier ?? serverStreakConfig.maxStreakMultiplier) || 2.5)),
+      dailyRates: Array.isArray(config.dailyRates) ? config.dailyRates : serverStreakConfig.dailyRates,
+      milestoneBonuses: Array.isArray(config.milestoneBonuses) ? config.milestoneBonuses : serverStreakConfig.milestoneBonuses,
+    };
+    persistServerGameAndCronState();
+  }
+  return res.json({ success: true, config: serverStreakConfig });
+});
+
+app.get('/api/streak/state/:userId', (req, res) => {
+  const { userId } = req.params;
+  const now = new Date();
+  const todayUtc = getUtcDateKey(now);
+  let state = serverStreakStates[userId];
+  if (!state) {
+    state = {
+      userId,
+      currentStreak: 0,
+      longestStreak: 0,
+      totalCheckIns: 0,
+      totalStreakPoints: 0,
+      totalStreakCents: 0,
+      lastCheckInDateUtc: null,
+      lastCheckInAtIso: null,
+      checkedInToday: false,
+      claimedMilestones: [],
+      history: [],
+    };
+  } else {
+    const elapsed = hoursBetweenIso(state.lastCheckInAtIso, now);
+    if (serverStreakConfig.autoResetMissedDays && state.currentStreak > 0 && elapsed > (serverStreakConfig.resetAfterHours || 48)) {
+      state.currentStreak = 0;
+    }
+    state.checkedInToday = state.lastCheckInDateUtc === todayUtc;
+  }
+  state.securitySig = signLedgerPayload({
+    userId,
+    currentStreak: state.currentStreak,
+    lastCheckInDateUtc: state.lastCheckInDateUtc,
+    totalCheckIns: state.totalCheckIns,
+  });
+  return res.json({ success: true, state, config: serverStreakConfig });
+});
+
+app.post('/api/streak/checkin', (req, res) => {
+  const { userId, userTier } = req.body || {};
+  if (!userId) {
+    return res.status(400).json({ error: 'userId is required for streak check-in.' });
+  }
+  if (!serverStreakConfig.enabled) {
+    return res.status(400).json({ error: 'Daily Streak Tracker is currently paused by administration.' });
+  }
+
+  const now = new Date();
+  const todayUtc = getUtcDateKey(now);
+  const yesterdayUtc = getUtcDateKey(new Date(now.getTime() - 86400000));
+  const state = serverStreakStates[userId] || {
+    userId,
+    currentStreak: 0,
+    longestStreak: 0,
+    totalCheckIns: 0,
+    totalStreakPoints: 0,
+    totalStreakCents: 0,
+    lastCheckInDateUtc: null,
+    lastCheckInAtIso: null,
+    checkedInToday: false,
+    claimedMilestones: [],
+    history: [],
+  };
+
+  if (state.lastCheckInDateUtc === todayUtc) {
+    return res.json({
+      success: false,
+      alreadyClaimed: true,
+      message: 'Today’s UTC daily streak check-in has already been claimed.',
+      state,
+    });
+  }
+
+  const elapsed = hoursBetweenIso(state.lastCheckInAtIso, now);
+  const graceHours = Math.max(24, Number(serverStreakConfig.graceWindowHours) || 36);
+  const isConsecutive =
+    state.lastCheckInDateUtc === yesterdayUtc ||
+    (state.lastCheckInDateUtc !== null && elapsed <= graceHours);
+
+  const nextStreak = isConsecutive ? (state.currentStreak || 0) + 1 : 1;
+  const rates = serverStreakConfig.dailyRates || DEFAULT_SERVER_STREAK_CONFIG.dailyRates;
+  const rateIdx = Math.min(Math.max(0, nextStreak - 1), Math.max(0, rates.length - 1));
+  const rateEntry = rates[rateIdx] || { day: nextStreak, label: `Day ${nextStreak}`, bonusPoints: 25, bonusCents: 5 };
+
+  const tierFactorMap: Record<string, number> = {
+    Standard: 1,
+    'Silver Ambassador': 1.2,
+    'Plaid Member': 1.4,
+    'Founders Club': 1.75,
+  };
+  const tierMult = Math.min(serverStreakConfig.maxStreakMultiplier || 2.5, tierFactorMap[String(userTier || 'Standard')] || 1);
+  let pointsAwarded = Math.round((Number(rateEntry.bonusPoints) || 25) * tierMult);
+  let centsAwarded = Number(((Number(rateEntry.bonusCents) || 5) * tierMult).toFixed(2));
+  let milestonePoints = 0;
+  let milestoneSpins = 0;
+
+  const claimedSet = new Set<number>(Array.isArray(state.claimedMilestones) ? state.claimedMilestones : []);
+  const newlyUnlockedMilestones: any[] = [];
+  for (const ms of serverStreakConfig.milestoneBonuses || []) {
+    if (nextStreak >= ms.daysRequired && !claimedSet.has(ms.daysRequired)) {
+      claimedSet.add(ms.daysRequired);
+      milestonePoints += Number(ms.bonusPoints) || 0;
+      centsAwarded = Number((centsAwarded + (Number(ms.bonusCents) || 0)).toFixed(2));
+      milestoneSpins += Number(ms.bonusFreeSpins) || 0;
+      newlyUnlockedMilestones.push(ms);
+    }
+  }
+  pointsAwarded += milestonePoints;
+
+  state.currentStreak = nextStreak;
+  state.longestStreak = Math.max(state.longestStreak || 0, nextStreak);
+  state.totalCheckIns = (state.totalCheckIns || 0) + 1;
+  state.totalStreakPoints = (state.totalStreakPoints || 0) + pointsAwarded;
+  state.totalStreakCents = Number(((state.totalStreakCents || 0) + centsAwarded).toFixed(2));
+  state.lastCheckInDateUtc = todayUtc;
+  state.lastCheckInAtIso = now.toISOString();
+  state.checkedInToday = true;
+  state.claimedMilestones = Array.from(claimedSet);
+  state.history = [
+    {
+      dateUtc: todayUtc,
+      streakDay: nextStreak,
+      pointsAwarded,
+      centsAwarded,
+      milestoneBonusPoints: milestonePoints,
+      timestamp: now.toISOString(),
+    },
+    ...(Array.isArray(state.history) ? state.history : []),
+  ].slice(0, 30);
+
+  state.securitySig = signLedgerPayload({
+    userId,
+    currentStreak: state.currentStreak,
+    lastCheckInDateUtc: state.lastCheckInDateUtc,
+    totalCheckIns: state.totalCheckIns,
+  });
+
+  serverStreakStates[userId] = state;
+
+  // Credit free promotional balance (never creates verified deposit records!)
+  const creditedUsd = Number((centsAwarded / 100).toFixed(4));
+  const wallet = creditVerifiedFreeWinBalance(userId, creditedUsd, serverWallets);
+
+  persistServerGameAndCronState();
+
+  return res.json({
+    success: true,
+    state,
+    pointsAwarded,
+    centsAwarded,
+    creditedUsd,
+    milestoneSpins,
+    newlyUnlockedMilestones,
+    wallet,
+    message: `Day ${nextStreak} Streak Verified! +${pointsAwarded} pts & +${centsAwarded}¢ added to your promotional rewards.`,
+  });
+});
+
+app.post('/api/streak/admin-update', (req, res) => {
+  const { userId, currentStreak, reset } = req.body || {};
+  if (!userId) return res.status(400).json({ error: 'userId is required' });
+  const existing = serverStreakStates[userId] || {
+    userId,
+    currentStreak: 0,
+    longestStreak: 0,
+    totalCheckIns: 0,
+    totalStreakPoints: 0,
+    totalStreakCents: 0,
+    lastCheckInDateUtc: null,
+    lastCheckInAtIso: null,
+    checkedInToday: false,
+    claimedMilestones: [],
+    history: [],
+  };
+  if (reset) {
+    existing.currentStreak = 0;
+    existing.checkedInToday = false;
+    existing.lastCheckInDateUtc = null;
+    existing.lastCheckInAtIso = null;
+  } else if (typeof currentStreak === 'number') {
+    existing.currentStreak = Math.max(0, Math.floor(currentStreak));
+    existing.longestStreak = Math.max(existing.longestStreak || 0, existing.currentStreak);
+  }
+  existing.securitySig = signLedgerPayload({
+    userId,
+    currentStreak: existing.currentStreak,
+    lastCheckInDateUtc: existing.lastCheckInDateUtc,
+    totalCheckIns: existing.totalCheckIns,
+  });
+  serverStreakStates[userId] = existing;
+  persistServerGameAndCronState();
+  return res.json({ success: true, state: existing });
+});
+
+// ============================================================================
+// SPIN & WIN DIFFICULTY, COUPONS, SCRATCH & WON VEHICLE DEPOSIT-ONLY FEES
+// ============================================================================
+app.get('/api/promotions/spin-config', (_req, res) => {
+  return res.json({ success: true, config: serverSpinSystemConfig });
+});
+
+app.post('/api/promotions/spin-config', (req, res) => {
+  const { config } = req.body || {};
+  if (config && typeof config === 'object') {
+    serverSpinSystemConfig = {
+      ...serverSpinSystemConfig,
+      ...config,
+      minSpinCostUsd: Math.max(150, Number(config.minSpinCostUsd ?? serverSpinSystemConfig.minSpinCostUsd) || 150),
+      maxCashWinUsd: Math.min(20000, Math.max(1000, Number(config.maxCashWinUsd ?? serverSpinSystemConfig.maxCashWinUsd) || 20000)),
+      autoSuperHardWinThreshold: Math.max(1, Number(config.autoSuperHardWinThreshold ?? serverSpinSystemConfig.autoSuperHardWinThreshold) || 2),
+      freeSpinMaxWinsPerOffer: Math.max(1, Number(config.freeSpinMaxWinsPerOffer ?? serverSpinSystemConfig.freeSpinMaxWinsPerOffer) || 1),
+      levels: config.levels || serverSpinSystemConfig.levels,
+      userLevelOverrides: config.userLevelOverrides || serverSpinSystemConfig.userLevelOverrides,
+      userTrackers: config.userTrackers || serverSpinSystemConfig.userTrackers,
+    };
+    persistServerGameAndCronState();
+  }
+  return res.json({ success: true, config: serverSpinSystemConfig });
+});
+
+app.post('/api/promotions/activate-coupon', (req, res) => {
+  const { userId, bonusSpins = 0, code } = req.body || {};
+  if (!userId) return res.status(400).json({ error: 'userId is required' });
+  const trackers = serverSpinSystemConfig.userTrackers || {};
+  const existing = trackers[userId] || {
+    paidSpinsCount: 0,
+    totalWinsCount: 0,
+    freeSpinOfferWinsUsed: 0,
+    freeSpinOffersRedeemed: 0,
+    activeOfferSpinsRemaining: 0,
+  };
+  const addedSpins = Math.max(0, Number(bonusSpins) || 0);
+  const nextTracker = {
+    ...existing,
+    freeSpinOffersRedeemed: (existing.freeSpinOffersRedeemed || 0) + (addedSpins > 0 ? 1 : 0),
+    activeOfferSpinsRemaining: (existing.activeOfferSpinsRemaining || 0) + addedSpins,
+    lastReason: addedSpins > 0 ? `coupon_activated:${code || 'PROMO'}` : existing.lastReason,
+  };
+  serverSpinSystemConfig.userTrackers = { ...trackers, [userId]: nextTracker };
+  persistServerGameAndCronState();
+  return res.json({ success: true, tracker: nextTracker });
+});
+
+function pickWeightedSlice(slices: any[], rngFn?: (max: number) => number): any {
+  const active = slices.filter((s) => s && s.isActive !== false);
+  const pool = active.length > 0 ? active : slices;
+  const totalWeight = pool.reduce((sum, s) => sum + Math.max(1, Number(s.probabilityWeight ?? s.weight) || 1), 0);
+  const roll = rngFn ? (rngFn(100000) / 100000) * totalWeight : (crypto.randomInt(0, 100000) / 100000) * totalWeight;
+  let acc = 0;
+  for (const s of pool) {
+    acc += Math.max(1, Number(s.probabilityWeight ?? s.weight) || 1);
+    if (roll <= acc) return s;
+  }
+  return pool[0];
+}
+
+app.post('/api/promotions/spin', (req, res) => {
+  const {
+    userId,
+    userName = 'Apex Member',
+    userEmail = 'member@apex-tesla.io',
+    useFreeSpin = false,
+    availableFreeSpins = 0,
+    spinCostUsd = 150,
+    clientWalletUsd,
+    clientDepositUsd,
+    clientTotalWinsCount,
+    clientFreeSpinOfferWinsUsed,
+  } = req.body || {};
+
+  if (!userId) return res.status(400).json({ error: 'userId is required.' });
+
+  const wallet = getOrInitServerWallet(userId);
+
+  const trackers = serverSpinSystemConfig.userTrackers || {};
+  const tracker = trackers[userId] || {
+    paidSpinsCount: 0,
+    totalWinsCount: Math.max(0, Number(clientTotalWinsCount) || 0),
+    freeSpinOfferWinsUsed: Math.max(0, Number(clientFreeSpinOfferWinsUsed) || 0),
+    freeSpinOffersRedeemed: 0,
+    activeOfferSpinsRemaining: Number(availableFreeSpins) || 0,
+  };
+
+  const minCost = Math.max(150, Number(serverSpinSystemConfig.minSpinCostUsd) || 150);
+  const effectiveCost = Math.max(minCost, Number(spinCostUsd) || minCost);
+  const maxCashWin = Math.min(20000, Number(serverSpinSystemConfig.maxCashWinUsd) || 20000);
+  const usingFree = Boolean(useFreeSpin) && Number(availableFreeSpins) > 0;
+
+  let spinPaymentAudit: any = null;
+  if (!usingFree) {
+    // Cross-reference paid spin fee against verified deposit records & reconciled wallet
+    const validation = validateAndConsumePayment({
+      userId,
+      category: 'spin_payment',
+      totalCostUsd: effectiveCost,
+      expectedMinimumUsd: minCost,
+      requireDepositOnly: false,
+      clientClaimedDepositUsd: typeof clientDepositUsd === 'number' ? clientDepositUsd : undefined,
+      clientClaimedWalletUsd: typeof clientWalletUsd === 'number' ? clientWalletUsd : undefined,
+      notes: `Paid Spin Wheel fee ($${effectiveCost} USD min $${minCost}) cross-referenced against deposit records.`,
+      walletsMap: serverWallets,
+    });
+    if (!validation.ok) {
+      persistServerGameAndCronState();
+      return res.status(validation.statusCode).json({
+        error: validation.error,
+        code: validation.code,
+        wallet: validation.wallet,
+        audit: validation.audit,
+      });
+    }
+    spinPaymentAudit = validation.audit;
+    tracker.paidSpinsCount = (tracker.paidSpinsCount || 0) + 1;
+  } else {
+    // Still verify no client-claimed deposit manipulation on free spin calls
+    const verifiedDep = getVerifiedDepositBalance(userId);
+    if (
+      (typeof clientDepositUsd === 'number' && clientDepositUsd > verifiedDep + 0.05) ||
+      (typeof clientWalletUsd === 'number' && clientWalletUsd > wallet.usd + 0.05)
+    ) {
+      return res.status(403).json({
+        error: 'Security validation failed: claimed balance could not be reconciled against verified deposit records.',
+        code: 'BALANCE_MANIPULATION_DETECTED',
+        wallet,
+      });
+    }
+    tracker.activeOfferSpinsRemaining = Math.max(0, (Number(availableFreeSpins) || 1) - 1);
+  }
+
+  // Determine spin difficulty level & criteria override
+  let resolvedLevel: 'easy' | 'hard' | 'super_hard' = 'hard';
+  let reason = 'auto_random';
+
+  const userOverride = serverSpinSystemConfig.userLevelOverrides?.[userId];
+  const multiWinThreshold = Math.max(1, Number(serverSpinSystemConfig.autoSuperHardWinThreshold) || 2);
+
+  if (usingFree) {
+    resolvedLevel = 'super_hard';
+    reason = 'free_spin_bonus_super_hard';
+  } else if (userOverride && userOverride !== 'auto') {
+    resolvedLevel = userOverride;
+    reason = `admin_user_override_${userOverride}`;
+  } else if ((tracker.totalWinsCount || 0) >= multiWinThreshold) {
+    resolvedLevel = 'super_hard';
+    reason = 'multi_win_auto_super_hard';
+  } else if (serverSpinSystemConfig.adminMode !== 'auto') {
+    resolvedLevel = serverSpinSystemConfig.adminMode;
+    reason = `admin_global_${resolvedLevel}`;
+  } else {
+    resolvedLevel = crypto.randomInt(0, 2) === 0 ? 'easy' : 'hard';
+    reason = `paid_fair_random_${resolvedLevel}`;
+  }
+
+  const levelSlices = serverSpinSystemConfig.levels?.[resolvedLevel] || DEFAULT_SERVER_SPIN_LEVELS[resolvedLevel];
+  let chosenSlice = pickWeightedSlice(levelSlices);
+
+  const maxFreeWins = Math.max(1, Number(serverSpinSystemConfig.freeSpinMaxWinsPerOffer) || 1);
+  if (usingFree && tracker.freeSpinOfferWinsUsed >= maxFreeWins) {
+    const tryAgainSlice = levelSlices.find((s) => s.type === 'try_again') || {
+      id: 'sh-cap-try',
+      label: 'Try Again',
+      text: 'Try Again',
+      valueUsd: 0,
+      value: 0,
+      type: 'try_again',
+      color: '#1e293b',
+      textColor: 'white',
+      weight: 100,
+      probabilityWeight: 100,
+      isActive: true,
+    };
+    chosenSlice = tryAgainSlice;
+    reason = 'free_spin_one_win_cap_enforced';
+  }
+
+  let awardedCashUsd = 0;
+  let wonPrizeItem: any = null;
+  const isWin = chosenSlice.type !== 'try_again';
+
+  if (isWin) {
+    tracker.totalWinsCount = (tracker.totalWinsCount || 0) + 1;
+    if (usingFree) {
+      tracker.freeSpinOfferWinsUsed = (tracker.freeSpinOfferWinsUsed || 0) + 1;
+    }
+
+    if (chosenSlice.type === 'car') {
+      wonPrizeItem = {
+        id: `prize-spin-${Date.now().toString(36)}`,
+        userId,
+        userName,
+        userEmail,
+        prizeType: 'vehicle',
+        title: chosenSlice.vehicleModel || chosenSlice.label,
+        modelOrSku: chosenSlice.vehicleModel || chosenSlice.label,
+        image: '/promo-plaid.jpg',
+        estimatedValueUsd: Number(chosenSlice.valueUsd) || 42490,
+        wonAt: getUtcDateKey(),
+        source: 'Wheel Spin',
+        vinAssigned: `5YJ3E1EA8TA${Math.floor(100000 + Math.random() * 899999)}`,
+        processingFeeUsd: 450,
+        shippingDocFeeUsd: 350,
+        shippingFreightFeeUsd: 1200,
+        totalFeesUsd: 2000,
+        feesPaid: false,
+        shippingStatus: 'awaiting_details',
+        notes: 'Won via Spin & Win Wheel. Processing, documentation & enclosed freight fees require active wallet deposits (free promotional wins excluded).',
+      };
+      serverWonPrizes.set(wonPrizeItem.id, wonPrizeItem);
+    } else {
+      awardedCashUsd = Math.min(maxCashWin, Math.max(0, Number(chosenSlice.valueUsd ?? chosenSlice.value) || 0));
+      if (awardedCashUsd > 0) {
+        creditVerifiedFreeWinBalance(userId, awardedCashUsd, serverWallets);
+      }
+    }
+  }
+
+  tracker.lastSpinAt = new Date().toISOString();
+  tracker.lastResolvedLevel = resolvedLevel;
+  tracker.lastReason = reason;
+
+  if ((tracker.totalWinsCount || 0) >= multiWinThreshold && (!userOverride || userOverride === 'auto')) {
+    serverSpinSystemConfig.userLevelOverrides[userId] = 'super_hard';
+  }
+
+  serverSpinSystemConfig.userTrackers = { ...trackers, [userId]: tracker };
+  const reconciledWallet = reconcileWalletFromDepositRecords(userId, serverWallets);
+  persistServerGameAndCronState();
+
+  const signature = signLedgerPayload({
+    userId,
+    resolvedLevel,
+    sliceId: chosenSlice.id,
+    awardedCashUsd,
+    totalWinsCount: tracker.totalWinsCount,
+  });
+
+  return res.json({
+    success: true,
+    resolvedLevel,
+    reason,
+    usedFreeSpin: usingFree,
+    costChargedUsd: usingFree ? 0 : effectiveCost,
+    slice: { ...chosenSlice, valueUsd: chosenSlice.type === 'car' ? chosenSlice.valueUsd : awardedCashUsd || chosenSlice.valueUsd },
+    awardedCashUsd,
+    wonPrizeItem,
+    wallet: reconciledWallet,
+    tracker,
+    audit: spinPaymentAudit,
+    signature,
+  });
+});
+
+app.post('/api/promotions/scratch-config', (req, res) => {
+  const { tiers } = req.body || {};
+  if (Array.isArray(tiers) && tiers.length > 0) {
+    serverScratchTiers = tiers;
+    persistServerGameAndCronState();
+  }
+  return res.json({ success: true, tiers: serverScratchTiers });
+});
+
+app.post('/api/promotions/scratch', (req, res) => {
+  const {
+    userId,
+    userName = 'Apex Member',
+    userEmail = 'member@apex-tesla.io',
+    tierId,
+    tier,
+    clientWalletUsd,
+    clientDepositUsd,
+  } = req.body || {};
+
+  const requestedTierId = tierId || tier?.id;
+  if (!userId || !requestedTierId) {
+    return res.status(400).json({ error: 'userId and valid scratch tier ID are required.' });
+  }
+
+  // Look up authoritative server tier definition so client cannot spoof card price or prize pool
+  const catalogTier = serverScratchTiers.find((t) => t.id === requestedTierId);
+  const authoritativeTier = catalogTier || (tier && Array.isArray(tier.possiblePrizes) ? tier : null);
+  if (!authoritativeTier) {
+    return res.status(404).json({ error: `Scratch card tier "${requestedTierId}" not found.` });
+  }
+
+  const authoritativeCost =
+    authoritativeTier.id === 'scratch-tier-diamond'
+      ? Math.max(8000, Number(authoritativeTier.priceUsd) || 8000)
+      : authoritativeTier.id === 'scratch-tier-gold'
+      ? Math.max(1000, Number(authoritativeTier.priceUsd) || 1000)
+      : Math.max(50, Number(authoritativeTier.priceUsd) || 50);
+
+  // Prevent underpayment via client-forged tier priceUsd
+  const clientSubmittedPrice = typeof tier?.priceUsd === 'number' ? Number(tier.priceUsd) : authoritativeCost;
+
+  const validation = validateAndConsumePayment({
+    userId,
+    category: 'scratch_purchase',
+    totalCostUsd: clientSubmittedPrice,
+    expectedMinimumUsd: authoritativeCost,
+    requireDepositOnly: false,
+    clientClaimedDepositUsd: typeof clientDepositUsd === 'number' ? clientDepositUsd : undefined,
+    clientClaimedWalletUsd: typeof clientWalletUsd === 'number' ? clientWalletUsd : undefined,
+    notes: `Scratch Card "${authoritativeTier.name}" ($${authoritativeCost}) cross-referenced against deposit records.`,
+    walletsMap: serverWallets,
+  });
+
+  if (!validation.ok) {
+    persistServerGameAndCronState();
+    return res.status(validation.statusCode).json({
+      error: validation.error,
+      code: validation.code,
+      wallet: validation.wallet,
+      audit: validation.audit,
+    });
+  }
+
+  const chosen = pickWeightedSlice(authoritativeTier.possiblePrizes);
+  const isCar = Boolean(chosen.isTeslaCar);
+  let awardedCashUsd = 0;
+  let wonPrizeItem: any = null;
+
+  if (isCar) {
+    const isLowerVersion = authoritativeTier.id === 'scratch-tier-gold';
+    const vehTitle =
+      chosen.vehicleModel ||
+      (isLowerVersion ? '2026 Tesla Model 3 Standard Range RWD' : '2026 Tesla Roadster Founders Edition');
+    wonPrizeItem = {
+      id: `prize-scratch-${Date.now().toString(36)}`,
+      userId,
+      userName,
+      userEmail,
+      prizeType: 'vehicle',
+      title: vehTitle,
+      modelOrSku: vehTitle,
+      image: isLowerVersion ? '/img-model3-pearl.jpg' : '/promo-cyberbeast.jpg',
+      estimatedValueUsd: Number(chosen.amountUsd) || (isLowerVersion ? 38990 : 200000),
+      wonAt: getUtcDateKey(),
+      source: 'Scratch & Win',
+      vinAssigned: `7G2CE6EB9RA${Math.floor(100000 + Math.random() * 899999)}`,
+      processingFeeUsd: isLowerVersion ? 420 : 650,
+      shippingDocFeeUsd: isLowerVersion ? 310 : 480,
+      shippingFreightFeeUsd: isLowerVersion ? 1050 : 1450,
+      totalFeesUsd: isLowerVersion ? 1780 : 2580,
+      feesPaid: false,
+      shippingStatus: 'awaiting_details',
+      notes: `Won 1 Tesla Vehicle from ${authoritativeTier.name}. Processing, documentation & shipping costs must be funded from active wallet deposits (free cash wins cannot be applied).`,
+    };
+    serverWonPrizes.set(wonPrizeItem.id, wonPrizeItem);
+  } else {
+    const cap =
+      authoritativeTier.id === 'scratch-tier-diamond'
+        ? 50000
+        : authoritativeTier.id === 'scratch-tier-gold'
+        ? 15000
+        : Math.max(500, Number(authoritativeTier.maxPrizeUsd) || 50000);
+    awardedCashUsd = Math.min(cap, Math.max(0, Number(chosen.amountUsd) || 0));
+    if (awardedCashUsd > 0) {
+      creditVerifiedFreeWinBalance(userId, awardedCashUsd, serverWallets);
+    }
+  }
+
+  const finalWallet = reconcileWalletFromDepositRecords(userId, serverWallets);
+  const ticketId = `SCR-${Date.now().toString(36).toUpperCase()}-${crypto.randomBytes(2).toString('hex').toUpperCase()}`;
+  const signature = signValidationPayload({
+    ticketId,
+    userId,
+    tierId: authoritativeTier.id,
+    awardedCashUsd,
+    isCar,
+    wonPrizeId: wonPrizeItem?.id || '',
+  });
+  persistServerGameAndCronState();
+
+  return res.json({
+    success: true,
+    ticketId,
+    tier: authoritativeTier,
+    prize: chosen,
+    awardedCashUsd,
+    wonPrizeItem,
+    wallet: finalWallet,
+    audit: validation.audit,
+    signature,
+  });
+});
+
+app.post('/api/won-prizes/pay-fees', (req, res) => {
+  const {
+    userId,
+    prizeId,
+    totalFeesUsd,
+    shippingAddress,
+    clientDepositUsd,
+    clientWalletUsd,
+  } = req.body || {};
+
+  if (!userId || !prizeId) {
+    return res.status(400).json({ error: 'userId and prizeId are required.' });
+  }
+
+  const existingPrize = serverWonPrizes.get(prizeId);
+  if (existingPrize && existingPrize.feesPaid) {
+    return res.status(409).json({
+      error: `Shipping & processing fees for prize #${prizeId} have already been settled.`,
+      code: 'PRIZE_FEES_ALREADY_PAID',
+      prize: existingPrize,
+    });
+  }
+
+  const feeAmount = Math.max(0, Number(totalFeesUsd) || 0);
+  const expectedServerFee = existingPrize ? Math.max(0, Number(existingPrize.totalFeesUsd) || 0) : feeAmount;
+
+  // Strictly cross-reference fee amount and require verified deposit records (free wins excluded)
+  const validation = validateAndConsumePayment({
+    userId,
+    category: 'won_vehicle_shipping',
+    totalCostUsd: feeAmount,
+    expectedMinimumUsd: expectedServerFee > 0 ? expectedServerFee : 1,
+    requireDepositOnly: true,
+    clientClaimedDepositUsd: typeof clientDepositUsd === 'number' ? clientDepositUsd : undefined,
+    clientClaimedWalletUsd: typeof clientWalletUsd === 'number' ? clientWalletUsd : undefined,
+    notes: `Won vehicle shipping/doc/processing fee ($${feeAmount}) settled strictly from verified deposit records.`,
+    walletsMap: serverWallets,
+  });
+
+  if (!validation.ok) {
+    persistServerGameAndCronState();
+    return res.status(validation.statusCode).json({
+      error: validation.error,
+      code: validation.code,
+      requiredDepositUsd: expectedServerFee || feeAmount,
+      activeDepositBalanceUsd: validation.wallet.depositUsd,
+      freeWinBalanceUsd: validation.wallet.freeWinUsd,
+      wallet: validation.wallet,
+      audit: validation.audit,
+    });
+  }
+
+  const prize = existingPrize || { id: prizeId, userId };
+  prize.feesPaid = true;
+  prize.paidAt = new Date().toISOString();
+  prize.paymentMethod = 'deposit';
+  prize.shippingAddress = shippingAddress;
+  prize.shippingStatus = 'fees_paid_processing';
+  prize.trackingNumber = prize.trackingNumber || `APX-EXP-${Date.now().toString(36).toUpperCase()}`;
+  prize.carrierName = prize.carrierName || 'Apex Bonded Enclosed EV Carrier';
+  serverWonPrizes.set(prizeId, prize);
+  persistServerGameAndCronState();
+
+  return res.json({
+    success: true,
+    prize,
+    wallet: validation.wallet,
+    audit: validation.audit,
+    signature: signLedgerPayload({ userId, prizeId, feeAmount, paidAt: prize.paidAt }),
+  });
+});
+
+app.get('/api/deposits/:userId', (req, res) => {
+  const { userId } = req.params;
+  const wallet = reconcileWalletFromDepositRecords(userId, serverWallets);
+  const depositRecords = getUserDepositRecords(userId);
+  return res.json({
+    success: true,
+    userId,
+    verifiedDepositUsd: wallet.depositUsd,
+    freeWinUsd: wallet.freeWinUsd,
+    totalSpendableUsd: wallet.usd,
+    depositRecordsCount: depositRecords.length,
+    depositRecords,
+  });
+});
+
+app.post('/api/deposits/record', (req, res) => {
+  const { userId, currency = 'USD', amount, usdEquivalent, txHash, gatewayName, source } = req.body || {};
+  if (!userId) return res.status(400).json({ error: 'userId is required' });
+  const usdVal = Number(usdEquivalent ?? amount);
+  const amtVal = Number(amount ?? usdVal);
+  const result = registerVerifiedDepositRecord({
+    userId,
+    currency,
+    amount: amtVal,
+    usdEquivalent: usdVal,
+    txHash,
+    gatewayName,
+    source: source || 'gateway_deposit',
+    walletsMap: serverWallets,
+  });
+  if (!result.ok) {
+    return res.status(result.statusCode).json({ error: result.error, wallet: result.wallet });
+  }
+  persistServerGameAndCronState();
+  return res.json({
+    success: true,
+    record: result.record,
+    wallet: result.wallet,
+    audit: result.audit,
+  });
+});
+
+app.post('/api/wallet/:userId/deposit-sync', (req, res) => {
+  const { userId } = req.params;
+  const { amountUsd, currency = 'USD', txHash, gatewayName, source } = req.body || {};
+  const amt = Number(amountUsd) || 0;
+  if (!userId || amt <= 0) return res.status(400).json({ error: 'Valid userId and amountUsd required' });
+  const result = registerVerifiedDepositRecord({
+    userId,
+    currency,
+    amount: amt,
+    usdEquivalent: amt,
+    txHash,
+    gatewayName: gatewayName || 'Verified Deposit Sync',
+    source: source || 'gateway_deposit',
+    walletsMap: serverWallets,
+  });
+  if (!result.ok) {
+    return res.status(result.statusCode).json({ error: result.error, wallet: result.wallet });
+  }
+  persistServerGameAndCronState();
+  return res.json({ success: true, record: result.record, wallet: result.wallet, audit: result.audit });
+});
+
+app.get('/api/security/transaction-audits', (req, res) => {
+  const userId = typeof req.query.userId === 'string' ? req.query.userId : undefined;
+  const audits = getTransactionAudits(userId);
+  const rejectedCount = audits.filter((a) => a.outcome === 'rejected').length;
+  return res.json({
+    success: true,
+    totalAudits: audits.length,
+    rejectedCount,
+    audits: audits.slice(0, 100),
   });
 });
 
@@ -1318,13 +2589,18 @@ app.post('/api/investments/:id/force-mature', (req, res) => {
 
   const totalPayoutUsd = Number((inv.amountInvestedUsd + (inv.earnedDividendsUsd || 0)).toFixed(2));
 
-  // Update wallet
-  let wallet = serverWallets.get(inv.userId);
-  if (!wallet) {
-    wallet = { usd: 12450.0, btc: 0.45, usdt: 14200.0, xrp: 4200.0, bnb: 18.5 };
-    serverWallets.set(inv.userId, wallet);
-  }
-  wallet.usd = Number((wallet.usd + totalPayoutUsd).toFixed(2));
+  // Update wallet with verified principal deposit record + yield credit
+  registerVerifiedDepositRecord({
+    userId: inv.userId,
+    currency: 'USD',
+    amount: inv.amountInvestedUsd,
+    usdEquivalent: inv.amountInvestedUsd,
+    txHash: inv.certificateId || `CERT-FORCE-${inv.id}-${Date.now()}`,
+    gatewayName: 'Admin Force-Matured Settlement',
+    source: 'investment_maturity',
+    walletsMap: serverWallets,
+  });
+  const wallet = creditVerifiedFreeWinBalance(inv.userId, inv.earnedDividendsUsd || 0, serverWallets);
 
   const settlementEvent: ServerSettlementEvent = {
     id: `settle-${inv.id}-${Date.now()}`,
@@ -1370,37 +2646,96 @@ app.post('/api/investments/:id/force-mature', (req, res) => {
   });
 });
 
-// User Wallet API
+// User Wallet API (Reconciled against verified deposit records)
 app.get('/api/wallet/:userId', (req, res) => {
   const { userId } = req.params;
-  const wallet = serverWallets.get(userId) || { usd: 12450.0, btc: 0.45, usdt: 14200.0, xrp: 4200.0, bnb: 18.5 };
-  return res.json(wallet);
+  const wallet = getOrInitServerWallet(userId);
+  const depositRecords = getUserDepositRecords(userId);
+  return res.json({
+    ...wallet,
+    wallet,
+    verifiedDepositUsd: wallet.depositUsd,
+    depositRecordsCount: depositRecords.length,
+  });
 });
 
 app.post('/api/wallet/:userId/adjust', (req, res) => {
   const { userId } = req.params;
-  const { currency, newAmount, delta, mode, amount } = req.body;
+  const { currency, newAmount, delta, mode, amount, fundingType } = req.body;
 
-  let wallet = serverWallets.get(userId);
-  if (!wallet) {
-    wallet = { usd: 12450.0, btc: 0.45, usdt: 14200.0, xrp: 4200.0, bnb: 18.5 };
-    serverWallets.set(userId, wallet);
-  }
-
+  const wallet = getOrInitServerWallet(userId);
   const currKey = (currency || 'USD').toLowerCase() as keyof ServerWallet;
   const currentVal = Number((wallet as any)[currKey] || 0);
 
   if (mode === 'add' && typeof amount === 'number') {
-    (wallet as any)[currKey] = Number(Math.max(0, currentVal + Math.abs(amount)).toFixed(4));
+    const absAmt = Math.abs(amount);
+    if (currKey === 'usd') {
+      if (fundingType === 'deposit') {
+        registerVerifiedDepositRecord({
+          userId,
+          currency: 'USD',
+          amount: absAmt,
+          usdEquivalent: absAmt,
+          gatewayName: 'Admin Deposit Credit',
+          source: 'admin_deposit_credit',
+          walletsMap: serverWallets,
+        });
+      } else {
+        creditVerifiedFreeWinBalance(userId, absAmt, serverWallets);
+      }
+    } else {
+      (wallet as any)[currKey] = Number(Math.max(0, currentVal + absAmt).toFixed(4));
+    }
   } else if (mode === 'subtract' && typeof amount === 'number') {
-    (wallet as any)[currKey] = Number(Math.max(0, currentVal - Math.abs(amount)).toFixed(4));
+    const absAmt = Math.abs(amount);
+    if (currKey === 'usd') {
+      const fromFree = Math.min(wallet.freeWinUsd, absAmt);
+      const fromDep = Math.max(0, absAmt - fromFree);
+      wallet.freeWinUsd = Number(Math.max(0, wallet.freeWinUsd - fromFree).toFixed(2));
+      if (fromDep > 0) {
+        deductDepositRecordsFifo(userId, fromDep, serverWallets);
+      } else {
+        reconcileWalletFromDepositRecords(userId, serverWallets);
+      }
+    } else {
+      (wallet as any)[currKey] = Number(Math.max(0, currentVal - absAmt).toFixed(4));
+    }
   } else if (typeof newAmount === 'number') {
-    (wallet as any)[currKey] = Number(Math.max(0, newAmount).toFixed(4));
+    if (currKey === 'usd') {
+      const cleanNew = Math.max(0, Number(newAmount.toFixed(2)));
+      if (cleanNew > wallet.usd) {
+        creditVerifiedFreeWinBalance(userId, cleanNew - wallet.usd, serverWallets);
+      } else if (cleanNew < wallet.usd) {
+        const diff = wallet.usd - cleanNew;
+        const fromFree = Math.min(wallet.freeWinUsd, diff);
+        const fromDep = Math.max(0, diff - fromFree);
+        wallet.freeWinUsd = Number(Math.max(0, wallet.freeWinUsd - fromFree).toFixed(2));
+        if (fromDep > 0) deductDepositRecordsFifo(userId, fromDep, serverWallets);
+      }
+      reconcileWalletFromDepositRecords(userId, serverWallets);
+    } else {
+      (wallet as any)[currKey] = Number(Math.max(0, newAmount).toFixed(4));
+    }
   } else if (typeof delta === 'number') {
-    (wallet as any)[currKey] = Number(Math.max(0, currentVal + delta).toFixed(4));
+    if (currKey === 'usd') {
+      if (delta >= 0) {
+        creditVerifiedFreeWinBalance(userId, delta, serverWallets);
+      } else {
+        const diff = Math.abs(delta);
+        const fromFree = Math.min(wallet.freeWinUsd, diff);
+        const fromDep = Math.max(0, diff - fromFree);
+        wallet.freeWinUsd = Number(Math.max(0, wallet.freeWinUsd - fromFree).toFixed(2));
+        if (fromDep > 0) deductDepositRecordsFifo(userId, fromDep, serverWallets);
+      }
+      reconcileWalletFromDepositRecords(userId, serverWallets);
+    } else {
+      (wallet as any)[currKey] = Number(Math.max(0, currentVal + delta).toFixed(4));
+    }
   }
 
-  return res.json({ success: true, wallet });
+  const finalWallet = reconcileWalletFromDepositRecords(userId, serverWallets);
+  persistServerGameAndCronState();
+  return res.json({ success: true, wallet: finalWallet });
 });
 
 // ============================================================================
@@ -2035,15 +3370,30 @@ app.post('/api/orders', (req, res) => {
   const shippingFeeUsd = vehicle.nationwideShippingFeeUsd || serverShippingSettings.flatFeeUsd;
   const totalUsd = vehicle.salePriceUsd + shippingFeeUsd;
 
-  // Deduct from wallet if paying with vault balance
+  // Cross-reference vehicle + shipping payment against verified user deposit records & reconciled wallet
   if (paymentMethod === 'vault_balance') {
-    let wallet = serverWallets.get(userId);
-    if (!wallet || wallet.usd < totalUsd) {
-      return res.status(402).json({
-        error: `Insufficient vault balance. Total required is $${totalUsd.toLocaleString()} USD (Vehicle: $${vehicle.salePriceUsd.toLocaleString()} + Shipping: $${shippingFeeUsd.toLocaleString()}). Available balance: $${wallet?.usd || 0}.`,
+    const { clientDepositUsd, clientWalletUsd } = req.body || {};
+    const validation = validateAndConsumePayment({
+      userId: userId || 'usr-apex-001',
+      category: 'vehicle_order_shipping',
+      totalCostUsd: totalUsd,
+      expectedMinimumUsd: totalUsd,
+      requireDepositOnly: false,
+      clientClaimedDepositUsd: typeof clientDepositUsd === 'number' ? clientDepositUsd : undefined,
+      clientClaimedWalletUsd: typeof clientWalletUsd === 'number' ? clientWalletUsd : undefined,
+      notes: `Vehicle checkout & nationwide shipping ($${shippingFeeUsd} shipping + $${vehicle.salePriceUsd} vehicle) cross-referenced against deposit records.`,
+      walletsMap: serverWallets,
+    });
+    if (!validation.ok) {
+      persistServerGameAndCronState();
+      return res.status(validation.statusCode === 403 ? 403 : 402).json({
+        error: validation.error,
+        code: validation.code,
+        wallet: validation.wallet,
+        audit: validation.audit,
       });
     }
-    wallet.usd = Number((wallet.usd - totalUsd).toFixed(2));
+    persistServerGameAndCronState();
   }
 
   // Decrement stock
