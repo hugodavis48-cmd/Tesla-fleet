@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import {
@@ -400,6 +400,7 @@ interface AppContextType {
     resolvedLevel?: SpinDifficultyLevel;
     reason?: string;
     usedFreeSpin?: boolean;
+    isNewFreeSpinBoost?: boolean;
     costChargedUsd?: number;
     stakeProfile?: {
       stakeUsd: number;
@@ -408,6 +409,7 @@ interface AppContextType {
       stakeRatio: number;
       isMinOrFree: boolean;
       isMaxStake: boolean;
+      isNewUserFreeSpinBoost?: boolean;
       maxAllowedCashUsd: number;
       maxJackpotUsd: number;
       canWinVehicleByStake: boolean;
@@ -430,13 +432,23 @@ interface AppContextType {
     };
   }>;
   spinSystemConfig: SpinSystemConfig;
-  getSpinStakeProfile: (stakeUsd: number, isFree?: boolean) => {
+  promoProfile: {
+    isSeededVeteran: boolean;
+    isNewUserForFreeSpin: boolean;
+    isNewUserForScratch: boolean;
+    wonVehiclesCount: number;
+    paidSpinsCount: number;
+    scratchPlaysCount: number;
+    scratchJackpotsWonCount: number;
+  };
+  getSpinStakeProfile: (stakeUsd: number, isFree?: boolean, isNewUserFreeSpinBoost?: boolean) => {
     stakeUsd: number;
     minCostUsd: number;
     maxCostUsd: number;
     stakeRatio: number;
     isMinOrFree: boolean;
     isMaxStake: boolean;
+    isNewUserFreeSpinBoost: boolean;
     maxAllowedCashUsd: number;
     maxJackpotUsd: number;
     canWinVehicleByStake: boolean;
@@ -475,6 +487,7 @@ interface AppContextType {
     reason: string;
     slices: WheelReward[];
     isUsingFreeSpin: boolean;
+    isNewFreeSpinBoost: boolean;
     freeSpinsAvailable: number;
     freeWinsUsed: number;
     freeWinsMax: number;
@@ -494,6 +507,7 @@ interface AppContextType {
     prize?: ScratchPrizeOption;
     awardedCashUsd?: number;
     wonPrizeItem?: WonPrizeItem | null;
+    isNewScratchUser?: boolean;
     signature?: string;
     finalWallet?: { usd: number; depositUsd: number; freeWinUsd: number } | null;
     vehicleEligibility?: {
@@ -649,7 +663,33 @@ interface AppContextType {
     prizeId: string,
     shippingAddress: NonNullable<WonPrizeItem['shippingAddress']>,
     paymentMethod: 'wallet_usd' | 'deposit'
-  ) => Promise<{ success: boolean; message: string }>;
+  ) => Promise<{ success: boolean; message: string; prize?: WonPrizeItem }>;
+  approveWonPrizeShipment: (
+    id: string,
+    opts?: {
+      trackingNumber?: string;
+      carrierName?: string;
+      shippingStatus?: 'approved' | 'documentation_ready' | 'shipped' | 'delivered';
+      notes?: string;
+      confirmPaymentVerified?: boolean;
+    }
+  ) => Promise<{
+    success: boolean;
+    message: string;
+    prize?: WonPrizeItem;
+    notification?: AdminNotificationMessage;
+    emailDispatch?: { status: string; recipient: string; messageId?: string; detail?: string } | null;
+  }>;
+  saveWonPrizeAdminUpdate: (
+    id: string,
+    updates: Partial<WonPrizeItem>
+  ) => Promise<{
+    success: boolean;
+    message: string;
+    prize?: WonPrizeItem;
+    notification?: AdminNotificationMessage | null;
+    emailDispatch?: { status: string; recipient: string; messageId?: string; detail?: string } | null;
+  }>;
   updateWonPrizeItem: (id: string, updates: Partial<WonPrizeItem>) => void;
   createWonPrizeItem: (prize: Omit<WonPrizeItem, 'id' | 'wonAt'>) => void;
   deleteWonPrizeItem: (id: string) => void;
@@ -1721,6 +1761,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     message: string;
   } | null>(null);
 
+  const [serverPromoProfile, setServerPromoProfile] = useState<{
+    isSeededVeteran: boolean;
+    isNewUserForFreeSpin: boolean;
+    isNewUserForScratch: boolean;
+    wonVehiclesCount: number;
+    paidSpinsCount: number;
+    scratchPlaysCount: number;
+    scratchJackpotsWonCount: number;
+  } | null>(null);
+
   const [dailyStreakConfig, setDailyStreakConfig] = useState<DailyStreakConfig>(() => {
     try {
       const saved = localStorage.getItem('apex_daily_streak_config_v1');
@@ -2081,21 +2131,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return PRODUCTS_CATALOG;
   });
 
-  // Editable Scratch & Win Card Tiers (ensure Super Hard Rare Jackpots v4 defaults)
+  // Editable Scratch & Win Card Tiers (clean v5 defaults)
   const [scratchCardTiers, setScratchCardTiers] = useState<ScratchCardTier[]>(() => {
     const saved = localStorage.getItem('apex_scratch_tiers');
     if (saved) {
       try {
         const parsed: ScratchCardTier[] = JSON.parse(saved);
-        const migratedV4 = localStorage.getItem('apex_scratch_v4_migrated');
-        if (migratedV4 && Array.isArray(parsed) && parsed.length > 0) {
+        const migratedV5 = localStorage.getItem('apex_scratch_v5_migrated');
+        if (migratedV5 && Array.isArray(parsed) && parsed.length > 0) {
           return parsed;
         }
       } catch {
         // fallback to latest defaults
       }
     }
-    localStorage.setItem('apex_scratch_v4_migrated', 'true');
+    localStorage.setItem('apex_scratch_v5_migrated', 'true');
     return SCRATCH_CARD_TIERS;
   });
 
@@ -2158,9 +2208,66 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   ]);
 
   // Won Prizes Shipping & Processing Fee State
+  const normalizeWonPrizeRecord = (p: Partial<WonPrizeItem>): WonPrizeItem => {
+    const proc = Number(p.processingFeeUsd) || 0;
+    const doc = Number(p.shippingDocFeeUsd) || 0;
+    const freight = Number(p.shippingFreightFeeUsd) || 0;
+    const status = p.shippingStatus || 'awaiting_details';
+    const approvedByStatus =
+      status === 'approved' || status === 'documentation_ready' || status === 'shipped' || status === 'delivered';
+    const addressConfirmed = Boolean(
+      p.addressConfirmed ?? (p.shippingAddress?.street && p.shippingAddress?.city && p.shippingAddress?.country)
+    );
+    const adminApprovedForShipment = Boolean(p.adminApprovedForShipment ?? approvedByStatus);
+    const paymentVerifiedByAdmin = Boolean(
+      p.paymentVerifiedByAdmin ?? (adminApprovedForShipment && Boolean(p.feesPaid))
+    );
+    return {
+      id: p.id || `prize-${Date.now()}`,
+      userId: p.userId || 'usr-apex-001',
+      userName: p.userName || p.userId || 'Apex Member',
+      userEmail: p.userEmail || 'member@apex-tesla.io',
+      prizeType: p.prizeType || 'vehicle',
+      title: p.title || 'Tesla Promotional Vehicle',
+      modelOrSku: p.modelOrSku || p.title || 'Tesla EV',
+      image: p.image || '/promo-plaid.jpg',
+      estimatedValueUsd: Number(p.estimatedValueUsd) || 0,
+      wonAt: p.wonAt || (p.paidAt ? String(p.paidAt).slice(0, 10) : new Date().toISOString().split('T')[0]),
+      wonAtIso: p.wonAtIso,
+      source: p.source || 'Wheel Spin',
+      vinAssigned: p.vinAssigned,
+      processingFeeUsd: proc,
+      shippingDocFeeUsd: doc,
+      shippingFreightFeeUsd: freight,
+      totalFeesUsd: Number(p.totalFeesUsd ?? (proc + doc + freight)) || 0,
+      feesPaid: Boolean(p.feesPaid),
+      paidAt: p.paidAt,
+      paymentMethod: p.paymentMethod,
+      addressConfirmed,
+      shippingAddress: p.shippingAddress,
+      paymentVerifiedByAdmin,
+      adminApprovedForShipment,
+      verifiedAt: p.verifiedAt,
+      verifiedByAdminEmail: p.verifiedByAdminEmail,
+      trackingNumber: adminApprovedForShipment ? p.trackingNumber : undefined,
+      carrierName: p.carrierName,
+      shippingStatus: status,
+      checkpoints: Array.isArray(p.checkpoints) ? p.checkpoints : [],
+      notes: p.notes,
+    };
+  };
+
   const [wonPrizes, setWonPrizes] = useState<WonPrizeItem[]>(() => {
     const saved = localStorage.getItem('apex_won_prizes_v1');
-    return saved ? JSON.parse(saved) : INITIAL_WON_PRIZES;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed.map(normalizeWonPrizeRecord);
+      } catch {
+        // fallback
+      }
+    }
+    return INITIAL_WON_PRIZES.map(normalizeWonPrizeRecord);
   });
 
   // Expandable FAQs CMS State
@@ -3057,7 +3164,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setAutoCryptoGateways(sections.deposit_gateways);
       }
       if (Array.isArray(sections.won_prizes) && sections.won_prizes.length > 0) {
-        setWonPrizes(sections.won_prizes);
+        setWonPrizes(sections.won_prizes.map(normalizeWonPrizeRecord));
       }
       if (Array.isArray(sections.business_certificates) && sections.business_certificates.length > 0) {
         const remoteCerts = sections.business_certificates as BusinessCertificate[];
@@ -3493,6 +3600,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (data?.vehicleEligibility) {
           setServerVehicleEligibility(data.vehicleEligibility);
         }
+        if (data?.promoProfile) {
+          setServerPromoProfile(data.promoProfile);
+        }
       })
       .catch(() => {});
   }, []);
@@ -3546,6 +3656,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (data?.vehicleEligibility) {
           setServerVehicleEligibility(data.vehicleEligibility);
         }
+        if (data?.promoProfile) {
+          setServerPromoProfile(data.promoProfile);
+        }
       })
       .catch(() => {});
 
@@ -3555,9 +3668,39 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (Array.isArray(data?.prizes) && data.prizes.length > 0) {
           setWonPrizes((prev) => {
             const byId = new Map<string, WonPrizeItem>();
-            prev.forEach((p) => byId.set(p.id, p));
-            (data.prizes as WonPrizeItem[]).forEach((p) => byId.set(p.id, p));
+            prev.forEach((p) => byId.set(p.id, normalizeWonPrizeRecord(p)));
+            (data.prizes as Partial<WonPrizeItem>[]).forEach((p) => {
+              const norm = normalizeWonPrizeRecord(p);
+              byId.set(norm.id, norm);
+            });
             return Array.from(byId.values());
+          });
+        }
+      })
+      .catch(() => {});
+
+    fetch('/api/notifications', { headers })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (Array.isArray(data?.notifications) && data.notifications.length > 0) {
+          setAdminNotifications((prev) => {
+            const byId = new Map<string, AdminNotificationMessage>();
+            prev.forEach((n) => byId.set(n.id, n));
+            (data.notifications as AdminNotificationMessage[]).forEach((sn) => {
+              const existing = byId.get(sn.id);
+              if (existing) {
+                const mergedRead = Array.from(new Set([...(existing.readBy || []), ...(sn.readBy || [])]));
+                const mergedDismissed = Array.from(
+                  new Set([...(existing.dismissedBy || []), ...(sn.dismissedBy || [])])
+                );
+                byId.set(sn.id, { ...sn, readBy: mergedRead, dismissedBy: mergedDismissed });
+              } else {
+                byId.set(sn.id, sn);
+              }
+            });
+            return Array.from(byId.values()).sort((a, b) =>
+              String(b.createdAt || '').localeCompare(String(a.createdAt || ''))
+            );
           });
         }
       })
@@ -5510,6 +5653,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setAdminNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, readBy: Array.from(new Set([...(n.readBy || []), uid])) } : n))
     );
+    const tok = localStorage.getItem('apex_session_token');
+    if (tok) {
+      fetch(`/api/notifications/${encodeURIComponent(id)}/read`, {
+        method: 'POST',
+        headers: getAuthHeaders(false),
+      }).catch(() => {});
+    }
   };
 
   const dismissNotification = (id: string) => {
@@ -6375,25 +6525,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { success: true, message: serverMessage };
   };
 
-  // Compute dynamic spin stake scaling profile ($150 min -> $2,000 cap & no car/jackpot; $2,500 max -> $25,000 jackpot & peak car odds)
+  // Compute dynamic spin stake scaling profile ($150 min -> $2,000 cap & no car/jackpot; $2,500 max or new-user free spin -> $25,000 jackpot & Tesla vehicles unlocked)
   const getSpinStakeProfile = useCallback(
-    (stakeUsd: number, isFree = false) => {
+    (stakeUsd: number, isFree = false, isNewUserFreeSpinBoost = false) => {
       const effectiveMin = Math.max(150, spinSystemConfig.minSpinCostUsd || spinCostUsd || 150);
       const effectiveMax = Math.max(effectiveMin + 100, Math.min(2500, spinSystemConfig.maxSpinCostUsd || 2500));
       const minStakeCap = Math.min(2000, Number(spinSystemConfig.minStakeCashCapUsd) || 2000);
       const maxJackpot = Math.min(25000, Math.max(5000, spinSystemConfig.maxCashWinUsd || 25000));
       const stake = isFree ? 0 : Math.min(effectiveMax, Math.max(effectiveMin, Number(stakeUsd) || effectiveMin));
-      const isMinOrFree = Boolean(isFree) || stake <= effectiveMin;
-      const stakeRatio = isMinOrFree ? 0 : Math.min(1, Math.max(0, (stake - effectiveMin) / Math.max(1, effectiveMax - effectiveMin)));
+      const isMinStake = !isFree && stake <= effectiveMin;
       const isMaxStake = !isFree && stake >= effectiveMax;
+      const isNewFreeBoost = Boolean(isFree && isNewUserFreeSpinBoost);
+      const isMinOrFree = isMinStake || (Boolean(isFree) && !isNewFreeBoost);
+      const stakeRatio = isMinOrFree
+        ? 0
+        : isNewFreeBoost
+        ? 1
+        : Math.min(1, Math.max(0, (stake - effectiveMin) / Math.max(1, effectiveMax - effectiveMin)));
       const maxAllowedCashUsd = isMinOrFree
         ? minStakeCap
-        : isMaxStake
+        : isMaxStake || isNewFreeBoost
         ? maxJackpot
-        : Math.min(maxJackpot - 500, Math.round((minStakeCap + Math.pow(stakeRatio, 1.05) * (maxJackpot - minStakeCap - 1000)) / 100) * 100);
-      const canWinVehicleByStake = !isMinOrFree && stake > effectiveMin;
-      const canWinJackpotByStake = isMaxStake;
-      const vehicleWeightMultiplier = !canWinVehicleByStake ? 0 : Number((0.4 + stakeRatio * 3.6).toFixed(2));
+        : Math.min(
+            maxJackpot - 1000,
+            Math.round((minStakeCap + Math.pow(stakeRatio, 1.05) * (maxJackpot - minStakeCap - 2000)) / 100) * 100
+          );
+      const canWinVehicleByStake = isMaxStake || isNewFreeBoost;
+      const canWinJackpotByStake = isMaxStake || isNewFreeBoost;
+      const vehicleWeightMultiplier = !canWinVehicleByStake ? 0 : isNewFreeBoost ? 4.5 : 4.0;
       const winBoostMultiplier = Number((1 + stakeRatio * 2.2).toFixed(2));
 
       return {
@@ -6403,6 +6562,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         stakeRatio,
         isMinOrFree,
         isMaxStake,
+        isNewUserFreeSpinBoost: isNewFreeBoost,
         maxAllowedCashUsd,
         maxJackpotUsd: maxJackpot,
         canWinVehicleByStake,
@@ -6427,7 +6587,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
     }
 
-    const userVehicles = wonPrizes.filter((p) => p && p.userId === uid && p.prizeType === 'vehicle');
+    const cleanEmail = currentUser.email ? String(currentUser.email).trim().toLowerCase() : '';
+    const isAlexAlias = uid === 'usr-alex-001' || uid === 'usr-apex-001';
+    const userVehicles = wonPrizes.filter((p) => {
+      if (!p || p.prizeType !== 'vehicle') return false;
+      if (p.userId === uid) return true;
+      if (cleanEmail && p.userEmail && String(p.userEmail).trim().toLowerCase() === cleanEmail) return true;
+      if (isAlexAlias && (p.userId === 'usr-alex-001' || p.userId === 'usr-apex-001')) return true;
+      return false;
+    });
+
     const unfulfilled = userVehicles.find(
       (p) => !p.feesPaid || (p.shippingStatus !== 'shipped' && p.shippingStatus !== 'delivered')
     );
@@ -6443,7 +6612,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           wonAt: unfulfilled.wonAt,
         },
         nextEligibleAtIso: null,
-        message: `Vehicle wins locked: complete fee payment, processing, and shipment of "${unfulfilled.title}" in your Dashboard before winning another vehicle.`,
+        message: `Vehicle wins paused: complete shipping address, fee deposit, and shipment of "${unfulfilled.title}" in your Dashboard before winning another vehicle.`,
       };
     }
 
@@ -6478,7 +6647,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     if (serverVehicleEligibility && !serverVehicleEligibility.eligible) {
-      return serverVehicleEligibility;
+      // Ignore stale UNSHIPPED_VEHICLE_PENDING block if local state already shows feesPaid & shipped/delivered
+      const blockingId = serverVehicleEligibility.blockingPrize?.id;
+      const localMatch = blockingId ? userVehicles.find((v) => v.id === blockingId) : null;
+      const locallyResolved =
+        serverVehicleEligibility.reasonCode === 'UNSHIPPED_VEHICLE_PENDING' &&
+        localMatch &&
+        localMatch.feesPaid &&
+        (localMatch.shippingStatus === 'shipped' || localMatch.shippingStatus === 'delivered');
+      if (!locallyResolved) {
+        return serverVehicleEligibility;
+      }
     }
 
     return {
@@ -6486,11 +6665,67 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       reasonCode: 'ELIGIBLE' as const,
       blockingPrize: null,
       nextEligibleAtIso: null,
-      message: 'Eligible to win 1 Tesla vehicle this week (when stake > $150 on spins or via scratch tiers).',
+      message: 'Eligible to win 1 Tesla vehicle this week (at $2,500 Max Spin Stake, New Member Free Spins, or Scratch Cards).',
     };
-  }, [currentUser?.id, wonPrizes, serverVehicleEligibility]);
+  }, [currentUser?.id, currentUser?.email, wonPrizes, serverVehicleEligibility]);
 
   const vehicleWinEligibility = useMemo(() => getVehicleWinEligibility(), [getVehicleWinEligibility]);
+
+  const promoProfile = useMemo(() => {
+    const uid = currentUser?.id;
+    if (!uid) {
+      return {
+        isSeededVeteran: false,
+        isNewUserForFreeSpin: true,
+        isNewUserForScratch: true,
+        wonVehiclesCount: 0,
+        paidSpinsCount: 0,
+        scratchPlaysCount: 0,
+        scratchJackpotsWonCount: 0,
+      };
+    }
+    const veteranIds = new Set([
+      'usr-apex-001',
+      'usr-alex-001',
+      'usr-apex-admin-01',
+      'usr-003',
+      'usr-004',
+      'usr-005',
+      'usr-006',
+      'usr-007',
+      'usr-008',
+      'usr-009',
+      'usr-010',
+    ]);
+    const isSeededVeteran = veteranIds.has(uid);
+    const tracker = spinSystemConfig.userTrackers?.[uid];
+    const cleanEmail = currentUser.email ? String(currentUser.email).trim().toLowerCase() : '';
+    const userWonVehicles = wonPrizes.filter((p) => {
+      if (!p || p.prizeType !== 'vehicle') return false;
+      if (p.userId === uid) return true;
+      if (cleanEmail && p.userEmail && String(p.userEmail).trim().toLowerCase() === cleanEmail) return true;
+      return false;
+    });
+    const wonVehiclesCount = Math.max(userWonVehicles.length, serverPromoProfile?.wonVehiclesCount || 0);
+    const paidSpinsCount = Math.max(Number(tracker?.paidSpinsCount || 0), serverPromoProfile?.paidSpinsCount || 0);
+    const scratchPlaysCount = Math.max(
+      Number(tracker?.scratchPlaysCount || 0),
+      serverPromoProfile?.scratchPlaysCount || 0
+    );
+    const scratchJackpotsWonCount = Math.max(
+      Number(tracker?.scratchJackpotsWonCount || 0),
+      serverPromoProfile?.scratchJackpotsWonCount || 0
+    );
+    return {
+      isSeededVeteran,
+      isNewUserForFreeSpin: !isSeededVeteran && wonVehiclesCount === 0 && paidSpinsCount === 0,
+      isNewUserForScratch: !isSeededVeteran && scratchPlaysCount < 3 && scratchJackpotsWonCount === 0,
+      wonVehiclesCount,
+      paidSpinsCount,
+      scratchPlaysCount,
+      scratchJackpotsWonCount,
+    };
+  }, [currentUser?.id, currentUser?.email, spinSystemConfig.userTrackers, wonPrizes, serverPromoProfile]);
 
   // Resolve current Spin & Win difficulty level, rules & available slices
   const getResolvedSpinContext = useCallback(
@@ -6504,6 +6739,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         activeOfferSpinsRemaining: availableSpins,
       };
       const isUsingFreeSpin = Boolean(useFreeSpin ?? availableSpins > 0) && availableSpins > 0;
+      const isNewFreeSpinBoost =
+        isUsingFreeSpin && promoProfile.isNewUserForFreeSpin && vehicleWinEligibility.eligible;
       const multiWinThreshold = Math.max(1, spinSystemConfig.autoSuperHardWinThreshold || 2);
       const userOverride = spinSystemConfig.userLevelOverrides?.[uid];
 
@@ -6512,8 +6749,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       let autoSwitchedSuperHard = false;
 
       if (isUsingFreeSpin) {
-        resolvedLevel = 'super_hard';
-        reason = 'free_spin_bonus_super_hard';
+        if (isNewFreeSpinBoost) {
+          resolvedLevel = 'easy';
+          reason = 'new_user_free_spin_easy_boost';
+        } else {
+          resolvedLevel = 'super_hard';
+          reason = 'free_spin_bonus_super_hard';
+        }
       } else if (userOverride && userOverride !== 'auto') {
         resolvedLevel = userOverride;
         reason = `admin_user_override_${userOverride}`;
@@ -6526,7 +6768,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         resolvedLevel = spinSystemConfig.adminMode;
         reason = `admin_global_${resolvedLevel}`;
       } else {
-        // Paid spin with auto mode: randomly picks Easy or Hard
         resolvedLevel = tracker.paidSpinsCount % 2 === 0 ? 'easy' : 'hard';
         reason = 'paid_auto_easy_or_hard';
       }
@@ -6540,6 +6781,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         reason,
         slices: slices.length > 0 ? slices : rawSlices,
         isUsingFreeSpin,
+        isNewFreeSpinBoost,
         freeSpinsAvailable: availableSpins,
         freeWinsUsed: tracker.freeSpinOfferWinsUsed || 0,
         freeWinsMax: Math.max(1, spinSystemConfig.freeSpinMaxWinsPerOffer || 1),
@@ -6548,10 +6790,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         autoSwitchedSuperHard,
       };
     },
-    [currentUser?.id, spinSystemConfig, availableSpins, spinCostUsd]
+    [
+      currentUser?.id,
+      spinSystemConfig,
+      availableSpins,
+      spinCostUsd,
+      promoProfile.isNewUserForFreeSpin,
+      vehicleWinEligibility.eligible,
+    ]
   );
 
-  // Spin & Win Execution Engine (User-selectable $150 min to $2,500 max stake, <= $2k min-stake cap & no car/jackpot on min/free, up to $25k jackpot on max, 1 vehicle/week + ship-before-next gate)
+  // Spin & Win Execution Engine ($150 min to $2,500 max stake; vehicles & $25k jackpot ONLY at $2,500 max or new-user free/coupon spins)
   const executeSpin = async (
     useFreeSpin?: boolean,
     customSpinCostUsd?: number
@@ -6565,6 +6814,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     resolvedLevel?: SpinDifficultyLevel;
     reason?: string;
     usedFreeSpin?: boolean;
+    isNewFreeSpinBoost?: boolean;
     costChargedUsd?: number;
     stakeProfile?: ReturnType<typeof getSpinStakeProfile>;
     vehicleEligibility?: ReturnType<typeof getVehicleWinEligibility>;
@@ -6583,7 +6833,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const stakeToCharge = shouldUseFree
       ? 0
       : Math.min(maxSpinCost, Math.max(minSpinCost, Math.round(Number(customSpinCostUsd ?? minSpinCost) || minSpinCost)));
-    const clientStakeProfile = getSpinStakeProfile(stakeToCharge, shouldUseFree);
+    const eligibilitySnapshot = getVehicleWinEligibility();
+    const isNewFreeBoostLocal = shouldUseFree && promoProfile.isNewUserForFreeSpin && eligibilitySnapshot.eligible;
+    const clientStakeProfile = getSpinStakeProfile(stakeToCharge, shouldUseFree, isNewFreeBoostLocal);
     const maxCashWin = clientStakeProfile.maxAllowedCashUsd;
     const existingTracker: UserSpinTracker = spinSystemConfig.userTrackers?.[uid] || {
       paidSpinsCount: 0,
@@ -6606,10 +6858,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     let awardedCashUsd = 0;
     let costChargedUsd = stakeToCharge;
     let serverStakeProfile = clientStakeProfile;
-    let latestEligibility = getVehicleWinEligibility();
+    let latestEligibility = eligibilitySnapshot;
     let serverWonPrize: WonPrizeItem | null = null;
     let serverWalletAfterSpin: { usd: number; depositUsd: number; freeWinUsd: number } | null = null;
     let usedFreeResult = shouldUseFree;
+    let isNewFreeBoostResult = isNewFreeBoostLocal;
     let serverHttpRejection: Error | null = null;
 
     let serverTrackerSynced = false;
@@ -6644,6 +6897,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       reason = data.reason || 'server_verified';
       selectedSlice = data.slice;
       usedFreeResult = Boolean(data.usedFreeSpin);
+      isNewFreeBoostResult = Boolean(data.isNewFreeSpinBoost);
       costChargedUsd = usedFreeResult ? 0 : Math.max(minSpinCost, Number(data.costChargedUsd) || stakeToCharge);
       if (data.stakeProfile) {
         serverStakeProfile = data.stakeProfile;
@@ -6651,6 +6905,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (data.vehicleEligibility) {
         latestEligibility = data.vehicleEligibility;
         setServerVehicleEligibility(data.vehicleEligibility);
+      }
+      if (data.promoProfile) {
+        setServerPromoProfile(data.promoProfile);
       }
       awardedCashUsd = Math.min(serverStakeProfile.maxAllowedCashUsd, Math.max(0, Number(data.awardedCashUsd) || 0));
       serverWonPrize = data.wonPrizeItem || null;
@@ -6669,6 +6926,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           ...prev,
           userTrackers: { ...prev.userTrackers, [uid]: data.tracker },
           userLevelOverrides:
+            !isNewFreeBoostResult &&
             (data.tracker.totalWinsCount || 0) >= (prev.autoSuperHardWinThreshold || 2) &&
             (!prev.userLevelOverrides?.[uid] || prev.userLevelOverrides[uid] === 'auto')
               ? { ...prev.userLevelOverrides, [uid]: 'super_hard' }
@@ -6686,8 +6944,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const override = spinSystemConfig.userLevelOverrides?.[uid];
       const threshold = Math.max(1, spinSystemConfig.autoSuperHardWinThreshold || 2);
       if (shouldUseFree) {
-        resolvedLevel = 'super_hard';
-        reason = 'free_spin_bonus_super_hard';
+        if (isNewFreeBoostResult) {
+          resolvedLevel = 'easy';
+          reason = 'new_user_free_spin_easy_boost';
+        } else {
+          resolvedLevel = 'super_hard';
+          reason = 'free_spin_bonus_super_hard';
+        }
       } else if (override && override !== 'auto') {
         resolvedLevel = override;
         reason = `admin_user_override_${override}`;
@@ -6715,6 +6978,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (s.type === 'car' && !allowCar) return false;
         if (s.type === 'usd') {
           const val = Number(s.valueUsd ?? s.value ?? 0);
+          if (!serverStakeProfile.canWinJackpotByStake && val >= 15000) return false;
           if (val > serverStakeProfile.maxAllowedCashUsd) return false;
         }
         return true;
@@ -6722,7 +6986,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const weightedPool = (eligiblePool.length > 0 ? eligiblePool : activePool).map((s) => {
         const baseW = Math.max(1, s.weight || s.probabilityWeight || 1);
         if (s.type === 'car') {
-          return { slice: s, effW: Math.max(1, Math.round(baseW * serverStakeProfile.vehicleWeightMultiplier)) };
+          const carW = isNewFreeBoostResult
+            ? Math.max(baseW * 5, 22)
+            : Math.max(1, Math.round(baseW * serverStakeProfile.vehicleWeightMultiplier));
+          return { slice: s, effW: carW };
+        }
+        if (s.type === 'try_again') {
+          return { slice: s, effW: isNewFreeBoostResult ? Math.max(1, Math.round(baseW * 0.4)) : baseW };
         }
         if (s.type === 'usd') {
           const val = Number(s.valueUsd ?? s.value ?? 0);
@@ -6745,7 +7015,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       }
       const maxFreeWins = Math.max(1, spinSystemConfig.freeSpinMaxWinsPerOffer || 1);
-      if (usedFreeResult && existingTracker.freeSpinOfferWinsUsed >= maxFreeWins && selectedSlice.type !== 'try_again') {
+      if (
+        usedFreeResult &&
+        !isNewFreeBoostResult &&
+        existingTracker.freeSpinOfferWinsUsed >= maxFreeWins &&
+        selectedSlice.type !== 'try_again'
+      ) {
         selectedSlice = activePool.find((s) => s.type === 'try_again') || activePool[0];
         reason = 'free_spin_one_win_cap_enforced';
       }
@@ -6804,6 +7079,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       resolvedLevel,
       reason,
       usedFreeSpin: usedFreeResult,
+      isNewFreeSpinBoost: isNewFreeBoostResult,
       costChargedUsd,
       stakeProfile: serverStakeProfile,
       vehicleEligibility: latestEligibility,
@@ -6812,6 +7088,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const hash = `0x${Math.random().toString(16).substring(2, 6)}...${Math.random().toString(16).substring(2, 6)}`;
 
     if (selectedSlice.type === 'try_again') {
+      if (!serverTrackerSynced && !usedFreeResult) {
+        setSpinSystemConfig((prev) => {
+          const cur = prev.userTrackers?.[uid] || existingTracker;
+          return {
+            ...prev,
+            userTrackers: {
+              ...prev.userTrackers,
+              [uid]: {
+                ...cur,
+                paidSpinsCount: (cur.paidSpinsCount || 0) + 1,
+                lastSpinAt: new Date().toISOString(),
+                lastResolvedLevel: resolvedLevel,
+                lastReason: reason,
+              },
+            },
+          };
+        });
+      }
       const tryTx: Transaction = {
         id: `tx-${Date.now()}`,
         type: 'promotion_win',
@@ -6828,31 +7122,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     // Track local wins counter & multi-win Super Hard criteria
-    setSpinSystemConfig((prev) => {
-      const cur = prev.userTrackers?.[uid] || existingTracker;
-      const nextWins = (cur.totalWinsCount || 0) + 1;
-      const nextFreeWins = usedFreeResult ? (cur.freeSpinOfferWinsUsed || 0) + 1 : cur.freeSpinOfferWinsUsed || 0;
-      const nextOverrides = { ...(prev.userLevelOverrides || {}) };
-      if (nextWins >= (prev.autoSuperHardWinThreshold || 2) && (!nextOverrides[uid] || nextOverrides[uid] === 'auto')) {
-        nextOverrides[uid] = 'super_hard';
-      }
-      return {
-        ...prev,
-        userLevelOverrides: nextOverrides,
-        userTrackers: {
-          ...prev.userTrackers,
-          [uid]: {
-            ...cur,
-            paidSpinsCount: usedFreeResult ? cur.paidSpinsCount : (cur.paidSpinsCount || 0) + 1,
-            totalWinsCount: nextWins,
-            freeSpinOfferWinsUsed: nextFreeWins,
-            lastSpinAt: new Date().toISOString(),
-            lastResolvedLevel: resolvedLevel,
-            lastReason: reason,
+    if (!serverTrackerSynced) {
+      setSpinSystemConfig((prev) => {
+        const cur = prev.userTrackers?.[uid] || existingTracker;
+        const nextWins = (cur.totalWinsCount || 0) + 1;
+        const nextFreeWins = usedFreeResult ? (cur.freeSpinOfferWinsUsed || 0) + 1 : cur.freeSpinOfferWinsUsed || 0;
+        const nextOverrides = { ...(prev.userLevelOverrides || {}) };
+        if (!isNewFreeBoostResult && nextWins >= (prev.autoSuperHardWinThreshold || 2) && (!nextOverrides[uid] || nextOverrides[uid] === 'auto')) {
+          nextOverrides[uid] = 'super_hard';
+        }
+        return {
+          ...prev,
+          userLevelOverrides: nextOverrides,
+          userTrackers: {
+            ...prev.userTrackers,
+            [uid]: {
+              ...cur,
+              paidSpinsCount: usedFreeResult ? cur.paidSpinsCount : (cur.paidSpinsCount || 0) + 1,
+              totalWinsCount: nextWins,
+              freeSpinOfferWinsUsed: nextFreeWins,
+              lastSpinAt: new Date().toISOString(),
+              lastResolvedLevel: resolvedLevel,
+              lastReason: reason,
+            },
           },
-        },
-      };
-    });
+        };
+      });
+    }
 
     if (selectedSlice.type === 'car') {
       const carTitle = selectedSlice.vehicleModel || selectedSlice.label || '2026 Tesla Vehicle';
@@ -6901,7 +7197,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         totalFeesUsd: 2295,
         feesPaid: false,
         shippingStatus: 'awaiting_details',
-        notes: 'Won via Spin & Win Wheel. Shipping, documentation & processing fees require verified wallet deposits (free promotional balances cannot be applied).',
+        notes: 'Won via Spin & Win Wheel. Fill in your shipping address and pay processing, documentation & freight fees from verified wallet deposits in Dashboard -> Won Prizes.',
       };
       setWonPrizes((prev) => [wonPrizeEntry, ...prev]);
 
@@ -6935,7 +7231,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       sendNotification({
         title: `🏆 You Won a Tesla: ${carTitle}!`,
-        message: `Your wheel spin unlocked ${carTitle} (est. $${finalValueUsd.toLocaleString()}). Deposit shipping & documentation fees in Dashboard -> Won Prizes to dispatch (free winnings cannot pay vehicle fees).`,
+        message: `Your wheel spin unlocked ${carTitle} (est. $${finalValueUsd.toLocaleString()}). Fill in your shipping address & deposit processing/doc/shipping fees in Dashboard -> Won Prizes to dispatch.`,
         type: 'payout',
         priority: 'urgent',
         targetType: 'individual',
@@ -6947,7 +7243,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return won;
     }
 
-    // Cash / Credit wins (capped at $20,000 max) auto-add to user's USD balance (tracked under freeWinByUserId)
+    // Cash / Credit wins auto-add to user's USD balance (tracked under freeWinByUserId)
     if (won.valueUsd > 0 && !serverWalletAfterSpin) {
       creditFreeWinUsd(won.valueUsd, uid);
     }
@@ -7874,6 +8170,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     prize?: ScratchPrizeOption;
     awardedCashUsd?: number;
     wonPrizeItem?: WonPrizeItem | null;
+    isNewScratchUser?: boolean;
     finalWallet?: { usd: number; depositUsd: number; freeWinUsd: number } | null;
     signature?: string;
     vehicleEligibility?: ReturnType<typeof getVehicleWinEligibility> | null;
@@ -7921,6 +8218,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (data.vehicleEligibility) {
           setServerVehicleEligibility(data.vehicleEligibility);
         }
+        if (data.promoProfile) {
+          setServerPromoProfile(data.promoProfile);
+        }
+        if (data.tracker) {
+          setSpinSystemConfig((prev) => ({
+            ...prev,
+            userTrackers: { ...prev.userTrackers, [uid]: data.tracker },
+          }));
+        }
 
         const newTx: Transaction = {
           id: `tx-${Date.now()}`,
@@ -7942,22 +8248,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           prize: data.prize,
           awardedCashUsd: data.awardedCashUsd,
           wonPrizeItem: data.wonPrizeItem || null,
+          isNewScratchUser: Boolean(data.isNewScratchUser),
           finalWallet: data.wallet || null,
           signature: data.signature,
           vehicleEligibility: data.vehicleEligibility || null,
         };
       }
     } catch {
-      // Offline fallback enforcing Super Hard rare jackpots & weekly/unshipped vehicle lock
+      // Offline fallback: easier jackpots for new users, rare/hard jackpots for old users, plus weekly/unshipped vehicle lock
       const eligibilityNow = getVehicleWinEligibility();
+      const isNewScratchUser = promoProfile.isNewUserForScratch;
+      const jackpotThreshold = Math.max(400, (Number(tier.maxPrizeUsd) || 1000) * 0.5);
       const rawOptions = Array.isArray(tier.possiblePrizes) ? tier.possiblePrizes : [];
       const adjustedOptions = rawOptions
         .filter((p) => !(p.isTeslaCar && !eligibilityNow.eligible))
         .map((p) => {
           const baseW = Math.max(1, Number(p.weight) || 1);
-          const isJackpotOrCar = Boolean(p.isTeslaCar) || Number(p.amountUsd) >= Math.max(5000, Number(tier.maxPrizeUsd || 0) * 0.5);
-          if (p.isTryAgain) return { ...p, weight: Math.max(baseW, 120) };
-          if (isJackpotOrCar) return { ...p, weight: Math.min(baseW, 3) };
+          const isTryAgain = Boolean(p.isTryAgain) || Number(p.amountUsd) <= 0;
+          const isTopJackpot = !p.isTeslaCar && !isTryAgain && Number(p.amountUsd) >= jackpotThreshold;
+          if (isNewScratchUser) {
+            if (p.isTeslaCar && eligibilityNow.eligible) return { ...p, weight: Math.max(baseW * 6, 18) };
+            if (isTopJackpot) return { ...p, weight: Math.max(baseW * 8, 25) };
+            if (isTryAgain) return { ...p, weight: Math.min(baseW, 25) };
+            return { ...p, weight: Math.max(baseW, 12) };
+          }
+          if (p.isTeslaCar || isTopJackpot) return { ...p, weight: Math.min(baseW, 1) };
+          if (isTryAgain) return { ...p, weight: Math.max(baseW, 280) };
           return p;
         });
       const totalW = adjustedOptions.reduce((sum, o) => sum + Math.max(1, Number(o.weight) || 1), 0);
@@ -7970,6 +8286,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           break;
         }
       }
+      const isJackpotHit =
+        Boolean(pickedPrize?.isTeslaCar) ||
+        (!pickedPrize?.isTryAgain && Number(pickedPrize?.amountUsd) >= jackpotThreshold);
+      setSpinSystemConfig((prev) => {
+        const cur = prev.userTrackers?.[uid] || {
+          paidSpinsCount: 0,
+          totalWinsCount: 0,
+          freeSpinOfferWinsUsed: 0,
+          freeSpinOffersRedeemed: 0,
+          activeOfferSpinsRemaining: availableSpins,
+        };
+        return {
+          ...prev,
+          userTrackers: {
+            ...prev.userTrackers,
+            [uid]: {
+              ...cur,
+              scratchPlaysCount: (cur.scratchPlaysCount || 0) + 1,
+              scratchJackpotsWonCount: (cur.scratchJackpotsWonCount || 0) + (isJackpotHit ? 1 : 0),
+              lastScratchAt: new Date().toISOString(),
+            },
+          },
+        };
+      });
       deductSpendableUsd(tier.priceUsd, uid);
       const newTx: Transaction = {
         id: `tx-${Date.now()}`,
@@ -7983,7 +8323,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         description: `Purchased ${tier.name} Scratch Card ($${tier.priceUsd})`,
       };
       setTransactions((prev) => [newTx, ...prev]);
-      return { success: true, tier, prize: pickedPrize };
+      return { success: true, tier, prize: pickedPrize, isNewScratchUser };
     }
 
     if (serverRejection) {
@@ -8776,7 +9116,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         localStorage.setItem('apex_coupons', JSON.stringify(next));
         return next;
       });
-      showToast(`🎁 Activated ${addedSpins} Free Wheel Spins (${upper})! Note: Free Spins play on Super Hard with max 1 win per offer.`, 'success');
+      showToast(
+        promoProfile.isNewUserForFreeSpin
+          ? `🎁 Activated ${addedSpins} Free Wheel Spins (${upper})! New member spins include Tesla vehicle & $25,000 jackpot eligibility.`
+          : `🎁 Activated ${addedSpins} Free Wheel Spins (${upper})!`,
+        'success'
+      );
       return { success: true, message: `Added ${addedSpins} free spins`, freeSpins: addedSpins };
     }
 
@@ -8987,7 +9332,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     prizeId: string,
     shippingAddress: NonNullable<WonPrizeItem['shippingAddress']>,
     _paymentMethod: 'wallet_usd' | 'deposit'
-  ): Promise<{ success: boolean; message: string }> => {
+  ): Promise<{ success: boolean; message: string; prize?: WonPrizeItem }> => {
     if (!requireSignedIn('submit shipping details and pay processing fees') || !currentUser) {
       return { success: false, message: 'Sign in required to manage won prize shipping.' };
     }
@@ -9007,8 +9352,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: false, message: msg };
     }
 
-    let trackingNum = prize.trackingNumber || `APX-INTL-${Math.floor(100000 + Math.random() * 899999)}`;
-    let carrier = prize.carrierName || 'Apex Global Enclosed & Air/RoRo Freight';
+    let carrier = prize.carrierName || 'Apex Bonded Enclosed EV Carrier';
+    let serverPrize: WonPrizeItem | null = null;
     let serverWalletAfterFees: { usd: number; depositUsd: number; freeWinUsd: number } | null = null;
 
     try {
@@ -9034,8 +9379,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         showToast(msg, 'error');
         return { success: false, message: msg };
       }
-      if (data.prize?.trackingNumber) trackingNum = data.prize.trackingNumber;
-      if (data.prize?.carrierName) carrier = data.prize.carrierName;
+      if (data.prize) {
+        serverPrize = normalizeWonPrizeRecord(data.prize);
+        if (serverPrize.carrierName) carrier = serverPrize.carrierName;
+      }
+      if (data?.vehicleEligibility) {
+        setServerVehicleEligibility(data.vehicleEligibility);
+      }
+      if (data?.promoProfile) {
+        setServerPromoProfile(data.promoProfile);
+      }
       if (data?.wallet && typeof data.wallet.usd === 'number') {
         serverWalletAfterFees = {
           usd: Number(data.wallet.usd),
@@ -9061,23 +9414,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }));
     }
 
-    const nowIso = new Date().toISOString().split('T')[0];
+    const nowDateStr = new Date().toISOString().split('T')[0];
+    const nowTimeStr = new Date().toISOString().replace('T', ' ').substring(0, 16);
+
+    const updatedPrize: WonPrizeItem = serverPrize || {
+      ...prize,
+      shippingAddress,
+      addressConfirmed: true,
+      feesPaid: true,
+      paidAt: nowDateStr,
+      paymentMethod: 'deposit',
+      paymentVerifiedByAdmin: false,
+      adminApprovedForShipment: false,
+      trackingNumber: undefined,
+      carrierName: carrier,
+      shippingStatus: 'fees_paid_processing',
+      checkpoints: [
+        ...(Array.isArray(prize.checkpoints) ? prize.checkpoints : []),
+        {
+          id: `chk-user-paid-${Date.now().toString(36)}`,
+          status: 'fees_paid_processing',
+          title: 'Shipping Address Confirmed & Fees Submitted',
+          location: `${shippingAddress.city}, ${shippingAddress.country}`,
+          timestamp: nowTimeStr,
+          note: 'Deposit-verified fee payment submitted. Awaiting Admin payment verification & dispatch approval.',
+        },
+      ],
+    };
 
     setWonPrizes((prev) =>
-      prev.map((item) =>
-        item.id === prizeId
-          ? {
-              ...item,
-              shippingAddress,
-              feesPaid: true,
-              paidAt: nowIso,
-              paymentMethod: 'deposit',
-              trackingNumber: trackingNum,
-              carrierName: carrier,
-              shippingStatus: 'fees_paid_processing',
-            }
-          : item
-      )
+      prev.map((item) => (item.id === prizeId ? updatedPrize : item))
     );
 
     const feeTx: Transaction = {
@@ -9086,7 +9452,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       currency: 'USD',
       amount: totalRequired,
       usdEquivalent: totalRequired,
-      timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
+      timestamp: nowTimeStr,
       status: 'completed',
       txHash: `0x${Math.random().toString(16).substring(2, 12)}...ship`,
       description: `Deposit-Funded Won Prize Fees (${prize.title} -> ${shippingAddress.country}): Processing + Docs + Freight`,
@@ -9094,30 +9460,213 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setTransactions((prev) => [feeTx, ...prev]);
 
     sendNotification({
-      title: `📦 International Dispatch Initiated: ${prize.title}`,
-      message: `Shipping details for ${shippingAddress.country} saved and $${totalRequired.toLocaleString()} USD processing, documentation & freight fees settled from verified deposits. Tracking #${trackingNum}.`,
+      title: `Pending Admin Verification: ${prize.title}`,
+      message: `Shipping address for ${shippingAddress.country} confirmed and $${totalRequired.toLocaleString()} USD fees submitted from verified deposits. Your tracking number will be issued once Admin verifies payment and approves delivery.`,
       type: 'system',
       priority: 'normal',
       targetType: 'individual',
       targetUserId: currentUser.id,
       actionUrl: 'dashboard',
-      actionLabel: 'Track Shipment',
+      actionLabel: 'View Pending Shipments',
     });
 
-    showToast(`Deposit-funded fees ($${totalRequired.toLocaleString()}) confirmed! Tracking: ${trackingNum}`, 'success');
-    return { success: true, message: `Fees paid & international dispatch scheduled (Tracking #${trackingNum}).` };
+    showToast(
+      `Address confirmed & $${totalRequired.toLocaleString()} fees submitted! Pending admin payment verification & dispatch approval.`,
+      'success'
+    );
+    return {
+      success: true,
+      prize: updatedPrize,
+      message: 'Shipping address confirmed and fees submitted. Pending admin verification & tracking assignment.',
+    };
   };
 
-  const updateWonPrizeItem = (id: string, updates: Partial<WonPrizeItem>) => {
-    setWonPrizes((prev) => prev.map((p) => (p.id === id ? { ...p, ...updates } : p)));
-    if (currentUser?.role === 'admin') {
-      fetch(`/api/won-prizes/${encodeURIComponent(id)}`, {
+  const mergeServerNotification = (notif?: AdminNotificationMessage | null) => {
+    if (!notif || !notif.id) return;
+    setAdminNotifications((prev) => {
+      if (prev.some((n) => n.id === notif.id)) {
+        return prev.map((n) => (n.id === notif.id ? notif : n));
+      }
+      return [notif, ...prev];
+    });
+  };
+
+  const approveWonPrizeShipment = async (
+    id: string,
+    opts?: {
+      trackingNumber?: string;
+      carrierName?: string;
+      shippingStatus?: 'approved' | 'documentation_ready' | 'shipped' | 'delivered';
+      notes?: string;
+      confirmPaymentVerified?: boolean;
+    }
+  ): Promise<{
+    success: boolean;
+    message: string;
+    prize?: WonPrizeItem;
+    notification?: AdminNotificationMessage;
+    emailDispatch?: { status: string; recipient: string; messageId?: string; detail?: string } | null;
+  }> => {
+    if (currentUser?.role !== 'admin') {
+      const msg = 'Administrator privileges are required to verify payments and approve shipments.';
+      showToast(msg, 'error');
+      return { success: false, message: msg };
+    }
+    const existing = wonPrizes.find((p) => p.id === id);
+    if (!existing) {
+      return { success: false, message: 'Won prize record not found.' };
+    }
+
+    try {
+      const res = await fetch(`/api/won-prizes/${encodeURIComponent(id)}/approve-shipment`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          trackingNumber: opts?.trackingNumber,
+          carrierName: opts?.carrierName,
+          shippingStatus: opts?.shippingStatus || 'approved',
+          notes: opts?.notes,
+          confirmPaymentVerified: opts?.confirmPaymentVerified ?? true,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        const msg = data.error || 'Failed to verify payment and approve shipment.';
+        showToast(msg, 'error');
+        return { success: false, message: msg };
+      }
+      const updated = normalizeWonPrizeRecord(data.prize);
+      setWonPrizes((prev) => prev.map((p) => (p.id === id ? updated : p)));
+      if (data?.vehicleEligibility) setServerVehicleEligibility(data.vehicleEligibility);
+      if (data?.promoProfile) setServerPromoProfile(data.promoProfile);
+
+      if (data?.notification) {
+        mergeServerNotification(data.notification);
+      } else {
+        sendNotification({
+          title: `Shipment Approved & Tracking Issued: ${updated.title}`,
+          message: `Admin has verified your payment and approved ${updated.title} for delivery via ${updated.carrierName || 'Apex Bonded Carrier'}. Tracking #: ${updated.trackingNumber}`,
+          type: 'system',
+          priority: 'high',
+          targetType: 'individual',
+          targetUserId: updated.userId,
+          targetUserEmail: updated.userEmail,
+          actionUrl: 'dashboard',
+          actionLabel: 'Track Shipment',
+        });
+      }
+
+      const emailNote = data?.emailDispatch?.recipient
+        ? ` Notification & email (${data.emailDispatch.status}) sent to ${data.emailDispatch.recipient}.`
+        : '';
+      showToast(
+        `Payment verified & shipment set to ${updated.shippingStatus.toUpperCase()}! Tracking #${updated.trackingNumber} assigned.${emailNote}`,
+        'success'
+      );
+      return {
+        success: true,
+        prize: updated,
+        notification: data?.notification || undefined,
+        emailDispatch: data?.emailDispatch || null,
+        message: `Approved for shipment with tracking #${updated.trackingNumber}.${emailNote}`,
+      };
+    } catch {
+      const msg = 'Network error while approving shipment.';
+      showToast(msg, 'error');
+      return { success: false, message: msg };
+    }
+  };
+
+  const saveWonPrizeAdminUpdate = async (
+    id: string,
+    updates: Partial<WonPrizeItem>
+  ): Promise<{
+    success: boolean;
+    message: string;
+    prize?: WonPrizeItem;
+    notification?: AdminNotificationMessage | null;
+    emailDispatch?: { status: string; recipient: string; messageId?: string; detail?: string } | null;
+  }> => {
+    if (currentUser?.role !== 'admin') {
+      const msg = 'Administrator privileges are required to update won prize shipments.';
+      showToast(msg, 'error');
+      return { success: false, message: msg };
+    }
+
+    setWonPrizes((prev) =>
+      prev.map((p) => {
+        if (p.id !== id) return p;
+        const nextStatus = updates.shippingStatus || p.shippingStatus;
+        const approvedByStatus =
+          nextStatus === 'approved' ||
+          nextStatus === 'documentation_ready' ||
+          nextStatus === 'shipped' ||
+          nextStatus === 'delivered';
+        const isApproved = Boolean(
+          updates.adminApprovedForShipment ?? p.adminApprovedForShipment ?? approvedByStatus
+        );
+        const trackingNumber = isApproved
+          ? String(updates.trackingNumber ?? p.trackingNumber ?? '').trim() ||
+            `APX-EXP-${Date.now().toString(36).toUpperCase()}`
+          : updates.trackingNumber !== undefined
+          ? String(updates.trackingNumber || '').trim() || undefined
+          : p.trackingNumber;
+        return normalizeWonPrizeRecord({
+          ...p,
+          ...updates,
+          shippingStatus: nextStatus,
+          adminApprovedForShipment: isApproved,
+          paymentVerifiedByAdmin: Boolean(
+            updates.paymentVerifiedByAdmin ?? p.paymentVerifiedByAdmin ?? (isApproved && (updates.feesPaid ?? p.feesPaid))
+          ),
+          trackingNumber,
+        });
+      })
+    );
+
+    try {
+      const res = await fetch(`/api/won-prizes/${encodeURIComponent(id)}`, {
         method: 'PUT',
         headers: getAuthHeaders(),
         body: JSON.stringify(updates),
-      }).catch(() => {});
+      });
+      const payload = await res.json().catch(() => null);
+      if (!res.ok) {
+        const msg = payload?.error || 'Failed to update shipment record on server.';
+        showToast(msg, 'error');
+        return { success: false, message: msg };
+      }
+
+      const norm = payload?.prize ? normalizeWonPrizeRecord(payload.prize) : undefined;
+      if (norm) {
+        setWonPrizes((prev) => prev.map((p) => (p.id === id ? norm : p)));
+      }
+      if (payload?.notification) {
+        mergeServerNotification(payload.notification);
+      }
+      if (payload?.vehicleEligibility) setServerVehicleEligibility(payload.vehicleEligibility);
+      if (payload?.promoProfile) setServerPromoProfile(payload.promoProfile);
+
+      const emailNote = payload?.emailDispatch?.recipient
+        ? ` User notified on dashboard & via email (${payload.emailDispatch.status}) to ${payload.emailDispatch.recipient}.`
+        : '';
+      showToast(`Won prize shipment updated.${emailNote}`, 'success');
+      return {
+        success: true,
+        prize: norm,
+        notification: payload?.notification || null,
+        emailDispatch: payload?.emailDispatch || null,
+        message: `Shipment record saved.${emailNote}`,
+      };
+    } catch {
+      const msg = 'Network error while updating shipment record.';
+      showToast(msg, 'error');
+      return { success: false, message: msg };
     }
-    showToast('Won prize shipping record updated.', 'success');
+  };
+
+  const updateWonPrizeItem = (id: string, updates: Partial<WonPrizeItem>) => {
+    void saveWonPrizeAdminUpdate(id, updates);
   };
 
   const createWonPrizeItem = (prize: Omit<WonPrizeItem, 'id' | 'wonAt'>) => {
@@ -10886,6 +11435,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         deleteUser,
         executeSpin,
         spinSystemConfig,
+        promoProfile,
         getSpinStakeProfile,
         getVehicleWinEligibility,
         vehicleWinEligibility,
@@ -10983,6 +11533,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // Won Prizes Shipping & Fees
         wonPrizes,
         submitWonPrizeShippingAndPayFees,
+        approveWonPrizeShipment,
+        saveWonPrizeAdminUpdate,
         updateWonPrizeItem,
         createWonPrizeItem,
         deleteWonPrizeItem,

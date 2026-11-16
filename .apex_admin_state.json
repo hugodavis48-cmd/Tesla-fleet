@@ -2,14 +2,14 @@
   "seoSettings": {
     "siteTitle": "Apex Tesla Hub - Service, Customization, Rentals & Fleet Yield",
     "metaDescription": "Comprehensive Tesla vehicle hub for certified maintenance, 3M vinyl wraps & custom accessories, exotic fleet rentals, decentralized staking yields, TSLA stocks, and spin & scratch Tesla giveaways.",
-    "canonicalUrl": "https://apex-tesla.io/",
-    "logoUrl": "/logo.jpg",
-    "faviconUrl": "/favicon.jpg",
     "keywords": "Tesla Service, Tesla Wraps, Cybertruck Sales, TSLA Stocks, Tesla Fleet Staking, Spin and Win Tesla, Apex Tesla Hub",
     "ogTitle": "Apex Tesla Hub — Certified Tesla Service, Fleet Yield & Direct EV Sales",
     "ogDescription": "Book Mobile Ranger service, customize with 3M satin wraps, trade TSLA stocks, earn autonomous fleet yields, and win Tesla vehicles.",
     "ogImageUrl": "/logo.jpg",
     "twitterCard": "summary_large_image",
+    "canonicalUrl": "https://apex-tesla.io/",
+    "logoUrl": "/logo.jpg",
+    "faviconUrl": "/favicon.jpg",
     "robotsDirective": "index, follow",
     "schemaOrgEnabled": true,
     "pageMeta": {
@@ -148,7 +148,7 @@
       }
     }
   },
-  "updatedAt": "2026-11-16T00:33:48.248Z",
+  "updatedAt": "2026-11-16T02:41:32.922Z",
   "sitemapEntries": [
     {
       "id": "sm-home",
@@ -457,7 +457,38 @@
     "enableSpins": true,
     "enableScratchCards": true,
     "enableVehicleSales": true,
-    "enableStakingYield": true
+    "enableStakingYield": true,
+    "enableBlogPage": true,
+    "enableServicesPage": true,
+    "enableWrapsPage": true,
+    "enableRentalsPage": true,
+    "enablePromotionsPage": true,
+    "enableCouponsPage": true,
+    "enableShopPage": true,
+    "enableReferralsPage": true,
+    "enableBannersPage": true,
+    "enableSocialPage": true,
+    "enableAboutPage": true,
+    "enableCertificatesPage": true,
+    "enableFaqPage": true,
+    "enableContactPage": true,
+    "enableSitemapRssPages": true,
+    "enableLiveTickerBar": true,
+    "enableShowcaseDeck": true,
+    "enableHomePromotionsSection": true,
+    "enableHomeFaqSection": true,
+    "enableNewsletterSignup": true,
+    "enableAiChatbot": true,
+    "enableCryptoDeposits": true,
+    "teslaStocksEnabled": true,
+    "spotTradingEnabled": true,
+    "fastRoiPlansEnabled": true,
+    "withdrawalsEnabled": true,
+    "requireDepositForWithdrawal": true,
+    "spinWheelEnabled": true,
+    "scratchCardsEnabled": true,
+    "vehicleSalesEnabled": true,
+    "investmentsEnabled": true
   },
   "withdrawal_settings": {
     "enabled": true,
@@ -821,6 +852,28 @@
       "targetTab": "about",
       "location": "footer_legal",
       "order": 8,
+      "isVisible": true
+    },
+    {
+      "id": "menu-blog",
+      "label": "News & Blog",
+      "targetTab": "blog",
+      "location": "navbar",
+      "order": 12,
+      "highlight": true,
+      "badge": "EARN ¢",
+      "isVisible": true,
+      "iconName": "Newspaper",
+      "isSystem": true
+    },
+    {
+      "id": "menu-f-blog",
+      "label": "EV Engineering Blog & News",
+      "targetTab": "blog",
+      "location": "footer_legal",
+      "order": 2,
+      "badge": "EARN ¢",
+      "highlight": true,
       "isVisible": true
     }
   ],
@@ -1273,6 +1326,17 @@
       "title": "About Apex Tesla Hub & Engineering Philosophy",
       "priority": 0.85,
       "changeFreq": "monthly",
+      "isActive": true,
+      "lastMod": "2026-11-15"
+    },
+    {
+      "id": "sm-blog",
+      "path": "blog",
+      "title": "EV News & Engineering Blog",
+      "description": "Technical Tesla diagnostics guides, 3M cleanroom wrap briefings, Robotaxi yield analysis & earn-per-share engagement.",
+      "category": "Editorial",
+      "priority": 0.9,
+      "changeFreq": "daily",
       "isActive": true,
       "lastMod": "2026-11-15"
     }
@@ -2232,7 +2296,7 @@
       "description": "Accelerated AI compute staking backed by Tesla Cortex 50,000 H100 cluster operations and Robotaxi fleet subscription revenue.",
       "badge": "14-Day Accelerated",
       "isActive": true,
-      "totalSubscribedUsd": 320000
+      "totalSubscribedUsd": 322500
     },
     {
       "id": "stock-fast-megapack",
@@ -2266,7 +2330,7 @@
       "description": "Exclusive executive yield allocation tied to high-margin tri-motor Plaid & Cyberbeast flagship deliveries and automated daily compounding.",
       "badge": "Highest APY",
       "isActive": true,
-      "totalSubscribedUsd": 580000
+      "totalSubscribedUsd": 582500
     }
   ],
   "coupons": [
@@ -2503,32 +2567,33 @@
       "maxPrizeUsd": 500,
       "gradient": "from-amber-600 via-yellow-700 to-amber-900",
       "textColor": "text-amber-400",
-      "description": "Entry ticket for lucky owners. Minimum $50 card purchase with high adrenaline scratch experience.",
+      "description": "Entry ticket ($50) with instant $500 jackpot vault payouts and service credits.",
       "possiblePrizes": [
         {
           "amountUsd": 500,
-          "label": "$500 Cash Vault",
-          "weight": 4
+          "label": "$500 Vault Cash Jackpot",
+          "weight": 1
         },
         {
           "amountUsd": 250,
           "label": "$250 Service Voucher",
-          "weight": 8
+          "weight": 4
         },
         {
-          "amountUsd": 125,
-          "label": "$125 Wallet Credits",
-          "weight": 16
+          "amountUsd": 100,
+          "label": "$100 Wallet Credits",
+          "weight": 15
         },
         {
-          "amountUsd": 60,
-          "label": "$60 Apex Token",
-          "weight": 36
+          "amountUsd": 50,
+          "label": "$50 Apex Token",
+          "weight": 80
         },
         {
-          "amountUsd": 25,
-          "label": "$25 Supercharger Pass",
-          "weight": 36
+          "amountUsd": 0,
+          "label": "Try Again ($0)",
+          "weight": 200,
+          "isTryAgain": true
         }
       ]
     },
@@ -2539,32 +2604,38 @@
       "maxPrizeUsd": 2500,
       "gradient": "from-slate-400 via-zinc-200 to-slate-500",
       "textColor": "text-cyan-300",
-      "description": "Popular mid-tier metallic scratch card. Scratch foil to reveal your outcome.",
+      "description": "Mid-tier metallic scratch card ($250) with $2,500 top vault prize potential.",
       "possiblePrizes": [
         {
           "amountUsd": 2500,
-          "label": "$2,500 USDT Instant",
-          "weight": 3
+          "label": "$2,500 Vault Jackpot",
+          "weight": 1
         },
         {
           "amountUsd": 1200,
-          "label": "$1,200 Carbon Aero Kit",
-          "weight": 7
+          "label": "$1,200 Carbon Aero Credit",
+          "weight": 4
         },
         {
           "amountUsd": 650,
           "label": "$650 Full Detail & PPF",
-          "weight": 18
+          "weight": 15
         },
         {
           "amountUsd": 350,
           "label": "$350 Wallet Credit",
-          "weight": 32
+          "weight": 35
         },
         {
           "amountUsd": 150,
           "label": "$150 Supercharge Credits",
-          "weight": 40
+          "weight": 65
+        },
+        {
+          "amountUsd": 0,
+          "label": "Try Again ($0)",
+          "weight": 280,
+          "isTryAgain": true
         }
       ]
     },
@@ -2572,42 +2643,48 @@
       "id": "scratch-tier-gold",
       "name": "Giga Gold Plaid VIP",
       "priceUsd": 1000,
-      "maxPrizeUsd": 54990,
+      "maxPrizeUsd": 15000,
       "gradient": "from-yellow-400 via-amber-300 to-yellow-600",
       "textColor": "text-yellow-300",
-      "description": "High roller gold foil card valued at $1,000 featuring a Grand Prize 2026 Tesla Model 3 Performance.",
+      "description": "High roller gold foil card ($1,000) featuring cash jackpots up to $15,000 USD and a chance to win 1 Tesla Model 3 RWD.",
       "possiblePrizes": [
         {
-          "amountUsd": 54990,
-          "label": "2026 Tesla Model 3 Performance",
-          "weight": 3,
+          "amountUsd": 38990,
+          "label": "2026 Tesla Model 3 Standard RWD (1 Vehicle)",
+          "weight": 1,
           "isTeslaCar": true,
-          "vehicleModel": "Model 3 Performance AWD"
+          "vehicleModel": "2026 Tesla Model 3 Standard Range RWD"
         },
         {
-          "amountUsd": 5000,
-          "label": "$5,000 Plaid Reserve",
+          "amountUsd": 15000,
+          "label": "$15,000 Max Cash Jackpot",
+          "weight": 2
+        },
+        {
+          "amountUsd": 7500,
+          "label": "$7,500 Plaid Reserve",
           "weight": 7
         },
         {
           "amountUsd": 3000,
-          "label": "$3,000 Full Body Wrap",
-          "weight": 14
+          "label": "$3,000 Vault Credit",
+          "weight": 25
         },
         {
           "amountUsd": 1500,
-          "label": "$1,500 Monoblock Rims",
-          "weight": 22
+          "label": "$1,500 Cash Prize",
+          "weight": 75
         },
         {
           "amountUsd": 800,
           "label": "$800 USDT Credit",
-          "weight": 30
+          "weight": 190
         },
         {
-          "amountUsd": 500,
-          "label": "$500 Consolation Credit",
-          "weight": 24
+          "amountUsd": 0,
+          "label": "Try Again ($0)",
+          "weight": 700,
+          "isTryAgain": true
         }
       ]
     },
@@ -2615,44 +2692,62 @@
       "id": "scratch-tier-diamond",
       "name": "Founders Roadster Apex Grand",
       "priceUsd": 8000,
-      "maxPrizeUsd": 250000,
+      "maxPrizeUsd": 50000,
       "gradient": "from-cyan-400 via-blue-500 to-indigo-800",
       "textColor": "text-cyan-200",
-      "description": "Maximum purchasable $8,000 luxury scratch card — scratch to win a Tesla Roadster Founders or Model S Plaid.",
+      "description": "Luxury $8,000 diamond scratch card with jackpots up to $50,000 USD and VIP slots to win 1 Tesla vehicle.",
       "possiblePrizes": [
         {
-          "amountUsd": 250000,
-          "label": "2026 Tesla Roadster Founders",
-          "weight": 3,
+          "amountUsd": 200000,
+          "label": "2026 Tesla Roadster Founders (1 Vehicle)",
+          "weight": 1,
           "isTeslaCar": true,
-          "vehicleModel": "Roadster Founders Edition"
+          "vehicleModel": "2026 Tesla Roadster Founders Edition"
         },
         {
           "amountUsd": 89990,
-          "label": "2026 Tesla Model S Plaid",
-          "weight": 6,
+          "label": "2026 Tesla Model S Plaid (1 Vehicle)",
+          "weight": 2,
           "isTeslaCar": true,
-          "vehicleModel": "Model S Plaid Tri-Motor"
+          "vehicleModel": "2026 Tesla Model S Plaid Tri-Motor"
         },
         {
-          "amountUsd": 8000,
-          "label": "$8,000 Cash Vault Jackpot",
-          "weight": 16
+          "amountUsd": 79990,
+          "label": "2026 Tesla Cybertruck Cyberbeast (1 Vehicle)",
+          "weight": 2,
+          "isTeslaCar": true,
+          "vehicleModel": "2026 Tesla Cybertruck Cyberbeast"
+        },
+        {
+          "amountUsd": 50000,
+          "label": "$50,000 Rare Max Jackpot",
+          "weight": 3
+        },
+        {
+          "amountUsd": 25000,
+          "label": "$25,000 Founders Vault",
+          "weight": 12
+        },
+        {
+          "amountUsd": 12000,
+          "label": "$12,000 Cash Payout",
+          "weight": 45
         },
         {
           "amountUsd": 6000,
-          "label": "$6,000 Stealth PPF Package",
-          "weight": 20
+          "label": "$6,000 Cash Return",
+          "weight": 135
         },
         {
-          "amountUsd": 4000,
-          "label": "$4,000 Carbon Ceramic Brakes",
-          "weight": 25
+          "amountUsd": 3000,
+          "label": "$3,000 Vault Credit",
+          "weight": 200
         },
         {
-          "amountUsd": 2500,
-          "label": "$2,500 Vault Balance",
-          "weight": 30
+          "amountUsd": 0,
+          "label": "Try Again ($0)",
+          "weight": 600,
+          "isTryAgain": true
         }
       ]
     }
@@ -2798,7 +2893,7 @@
       "symbol": "USDT",
       "receivingAddress": "TX9k7LpQwNmRtY81Zv3bC4dE9fG6hJ8kL2",
       "rpcEndpoint": "https://api.trongrid.io/wallet/getnowblock",
-      "webhookSecret": "whsec_trc20_apex_live_89218402",
+      "webhookSecret": "",
       "requiredConfirmations": 1,
       "minDepositUsd": 10,
       "maxDepositUsd": 500000,
@@ -2819,7 +2914,7 @@
       "symbol": "BTC",
       "receivingAddress": "bc1qteslahub9x84k32m2v7p5y0n1c8r7w6s5d4e3a",
       "rpcEndpoint": "https://blockstream.info/api/blocks/tip/height",
-      "webhookSecret": "whsec_btc_apex_native_472199",
+      "webhookSecret": "",
       "requiredConfirmations": 2,
       "minDepositUsd": 50,
       "maxDepositUsd": 1000000,
@@ -2840,7 +2935,7 @@
       "symbol": "USDT",
       "receivingAddress": "0x9E218C4FaB06A4dD23c945b9E52aF3eA48972eBc",
       "rpcEndpoint": "https://eth-mainnet.g.alchemy.com/v2/demo",
-      "webhookSecret": "whsec_erc20_smartvault_199482",
+      "webhookSecret": "",
       "requiredConfirmations": 3,
       "minDepositUsd": 25,
       "maxDepositUsd": 750000,
@@ -2861,7 +2956,7 @@
       "symbol": "ETH",
       "receivingAddress": "0x9E218C4FaB06A4dD23c945b9E52aF3eA48972eBc",
       "rpcEndpoint": "https://cloudflare-eth.com",
-      "webhookSecret": "whsec_eth_native_apex_778192",
+      "webhookSecret": "",
       "requiredConfirmations": 2,
       "minDepositUsd": 50,
       "maxDepositUsd": 1000000,
@@ -2882,7 +2977,7 @@
       "symbol": "BNB",
       "receivingAddress": "0x9E218C4FaB06A4dD23c945b9E52aF3eA48972eBc",
       "rpcEndpoint": "https://bsc-dataseed.binance.org",
-      "webhookSecret": "whsec_bsc_bep20_apex_334912",
+      "webhookSecret": "",
       "requiredConfirmations": 3,
       "minDepositUsd": 20,
       "maxDepositUsd": 300000,
@@ -2903,7 +2998,7 @@
       "symbol": "XRP",
       "receivingAddress": "rApexTeslaLedgerNode7789218491823901",
       "rpcEndpoint": "https://s1.ripple.com:51234",
-      "webhookSecret": "whsec_xrpl_node_apex_998124",
+      "webhookSecret": "",
       "requiredConfirmations": 1,
       "minDepositUsd": 15,
       "maxDepositUsd": 500000,
@@ -2925,7 +3020,7 @@
       "symbol": "METAMASK-WEB3",
       "receivingAddress": "0x9E218C4FaB06A4dD23c945b9E52aF3eA48972eBc",
       "rpcEndpoint": "https://eth-mainnet.g.alchemy.com/v2/demo",
-      "webhookSecret": "whsec_metamask_eip1193_942108",
+      "webhookSecret": "",
       "chainId": "0x1",
       "chainName": "Ethereum Mainnet (EIP-1193 Direct Signer)",
       "supportedTokens": [
@@ -2955,7 +3050,7 @@
       "symbol": "TRUST-WC2",
       "receivingAddress": "0x71C94Bf25aB24041b6F9E1314B15b1285cDFeB7c",
       "rpcEndpoint": "https://bsc-dataseed.binance.org",
-      "webhookSecret": "whsec_trustwc2_apex_618394",
+      "webhookSecret": "",
       "chainId": "0x38",
       "chainName": "BNB Smart Chain & WalletConnect v2 Relay",
       "walletConnectProjectId": "apex-tesla-wc2-9048f3e21b",
@@ -3171,25 +3266,155 @@
   ],
   "won_prizes": [
     {
-      "id": "prize-demo-model3",
-      "userId": "usr-apex-001",
-      "userName": "Alex Vance",
-      "userEmail": "alex.vance@apex-tesla.io",
+      "id": "prize-ship-ok",
+      "userId": "usr-sec-test-1794787098730",
+      "userName": "usr-sec-test-1794787098730",
+      "userEmail": "member@apex-tesla.io",
       "prizeType": "vehicle",
-      "title": "2026 Tesla Model 3 Highland AWD",
-      "modelOrSku": "Model 3 Highland Dual Motor",
+      "title": "2026 Tesla Promotional Vehicle",
+      "modelOrSku": "2026 Tesla Promotional Vehicle",
       "image": "/promo-plaid.jpg",
       "estimatedValueUsd": 42490,
-      "wonAt": "2026-11-11",
+      "wonAt": "2026-11-15",
       "source": "Wheel Spin",
-      "vinAssigned": "5YJ3E1EA8TA992104",
       "processingFeeUsd": 450,
-      "shippingDocFeeUsd": 320,
-      "shippingFreightFeeUsd": 1150,
-      "totalFeesUsd": 1920,
-      "feesPaid": false,
-      "shippingStatus": "awaiting_details",
-      "notes": "Spin Wheel Grand Prize allocation ready for international or domestic shipping details & export documentation clearance."
+      "shippingDocFeeUsd": 350,
+      "shippingFreightFeeUsd": 1200,
+      "totalFeesUsd": 2000,
+      "feesPaid": true,
+      "paidAt": "2026-11-15T23:58:18.985Z",
+      "paymentMethod": "deposit",
+      "addressConfirmed": true,
+      "shippingAddress": {
+        "fullName": "Test",
+        "country": "US",
+        "city": "Austin",
+        "postalCode": "78701",
+        "street": "1 Tesla Rd",
+        "phone": "555-0100",
+        "deliveryMethod": "RoRo"
+      },
+      "paymentVerifiedByAdmin": true,
+      "adminApprovedForShipment": true,
+      "trackingNumber": "APX-EXP-MWIHWCQ1",
+      "carrierName": "Apex Bonded Enclosed EV Carrier",
+      "shippingStatus": "shipped",
+      "checkpoints": []
+    },
+    {
+      "id": "prize-mwij5o1o",
+      "userId": "usr-1794789213143",
+      "userName": "Verify User",
+      "userEmail": "verify.1794789213087@apex-tesla.io",
+      "prizeType": "vehicle",
+      "title": "2026 Tesla Model 3 Standard Range RWD",
+      "modelOrSku": "2026 Tesla Model 3 Standard Range RWD",
+      "image": "/promo-plaid.jpg",
+      "estimatedValueUsd": 38990,
+      "wonAt": "2026-11-16",
+      "source": "Scratch & Win",
+      "processingFeeUsd": 420,
+      "shippingDocFeeUsd": 310,
+      "shippingFreightFeeUsd": 1050,
+      "totalFeesUsd": 1780,
+      "feesPaid": true,
+      "paidAt": "2026-11-16T02:32:51.796Z",
+      "addressConfirmed": false,
+      "paymentVerifiedByAdmin": true,
+      "adminApprovedForShipment": true,
+      "verifiedAt": "2026-11-16T02:32:51.796Z",
+      "verifiedByAdminEmail": "admin.ops@apex-tesla.io",
+      "trackingNumber": "APX-EXP-MWINF3O4",
+      "carrierName": "Apex Bonded Enclosed EV Carrier",
+      "shippingStatus": "documentation_ready",
+      "checkpoints": [
+        {
+          "id": "chk-admin-app-mwinf3o4",
+          "status": "shipped",
+          "title": "Payment Verified & Approved for Delivery",
+          "location": "Apex Logistics & Title Verification Desk",
+          "timestamp": "2026-11-16 02:32",
+          "note": "Verified by admin.ops@apex-tesla.io. Assigned Tracking #: APX-EXP-MWINF3O4 via Apex Bonded Enclosed EV Carrier."
+        }
+      ],
+      "notes": "Payment verified and approved for shipment (APX-EXP-MWINF3O4)."
+    },
+    {
+      "id": "prize-mwij5wy5",
+      "userId": "usr-1794789224694",
+      "userName": "Verify User",
+      "userEmail": "verify.1794789224629@apex-tesla.io",
+      "prizeType": "vehicle",
+      "title": "2026 Tesla Model 3 Standard Range RWD",
+      "modelOrSku": "2026 Tesla Model 3 Standard Range RWD",
+      "image": "/promo-plaid.jpg",
+      "estimatedValueUsd": 38990,
+      "wonAt": "2026-11-16",
+      "source": "Scratch & Win",
+      "processingFeeUsd": 420,
+      "shippingDocFeeUsd": 310,
+      "shippingFreightFeeUsd": 1050,
+      "totalFeesUsd": 1780,
+      "feesPaid": true,
+      "paidAt": "2026-11-16T00:33:44.764Z",
+      "paymentMethod": "deposit",
+      "addressConfirmed": true,
+      "shippingAddress": {
+        "fullName": "Verify User",
+        "street": "1 Tesla Rd",
+        "city": "Austin",
+        "state": "TX",
+        "postalCode": "78725",
+        "country": "US",
+        "phone": "555-0100"
+      },
+      "paymentVerifiedByAdmin": true,
+      "adminApprovedForShipment": true,
+      "trackingNumber": "APX-EXP-MWIJ5WZG",
+      "carrierName": "Apex Bonded Enclosed EV Carrier",
+      "shippingStatus": "shipped",
+      "checkpoints": []
+    },
+    {
+      "id": "prize-spin-mwim02av",
+      "userId": "usr-1794793990495",
+      "userName": "Promo Tester 1794793990398",
+      "userEmail": "promotest_1794793990398@example.com",
+      "prizeType": "vehicle",
+      "title": "2026 Tesla Model 3 Highland AWD",
+      "modelOrSku": "2026 Tesla Model 3 Highland AWD",
+      "image": "/promo-plaid.jpg",
+      "estimatedValueUsd": 42490,
+      "wonAt": "2026-11-16",
+      "wonAtIso": "2026-11-16T01:53:10.567Z",
+      "source": "Wheel Spin",
+      "vinAssigned": "5YJ3E1EA8TA184092",
+      "processingFeeUsd": 450,
+      "shippingDocFeeUsd": 350,
+      "shippingFreightFeeUsd": 1200,
+      "totalFeesUsd": 2000,
+      "feesPaid": true,
+      "paidAt": "2026-11-16T01:53:10.655Z",
+      "paymentMethod": "deposit",
+      "addressConfirmed": true,
+      "shippingAddress": {
+        "fullName": "Promo Tester",
+        "phone": "+1-555-0199",
+        "country": "United States",
+        "street": "1 Tesla Road",
+        "city": "Austin",
+        "state": "TX",
+        "zipCode": "78725"
+      },
+      "paymentVerifiedByAdmin": true,
+      "adminApprovedForShipment": true,
+      "verifiedAt": "2026-11-16T02:31:33.781Z",
+      "verifiedByAdminEmail": "admin.ops@apex-tesla.io",
+      "trackingNumber": "APX-EXP-MWIM02DB",
+      "carrierName": "Apex Bonded Enclosed EV Carrier",
+      "shippingStatus": "documentation_ready",
+      "checkpoints": [],
+      "notes": "Won via Spin & Win Wheel. Fill in your destination shipping address and deposit processing, documentation & freight fees in Dashboard -> Won Prizes to schedule dispatch. Weekly 1-vehicle limit & prior fulfillment policy applies."
     }
   ],
   "business_certificates": [
@@ -3439,7 +3664,9 @@
   },
   "spinSystemConfig": {
     "minSpinCostUsd": 150,
-    "maxCashWinUsd": 20000,
+    "maxSpinCostUsd": 2500,
+    "maxCashWinUsd": 25000,
+    "minStakeCashCapUsd": 2000,
     "adminMode": "auto",
     "autoSuperHardWinThreshold": 2,
     "freeSpinMaxWinsPerOffer": 1,
@@ -3461,10 +3688,10 @@
         },
         {
           "id": "ez-2",
-          "label": "$20,000 Max Cash Jackpot",
-          "text": "$20,000 USD",
-          "valueUsd": 20000,
-          "value": 20000,
+          "label": "$25,000 Max Cash Jackpot",
+          "text": "$25,000 USD",
+          "valueUsd": 25000,
+          "value": 25000,
           "type": "crypto",
           "color": "#16a34a",
           "textColor": "white",
@@ -3848,7 +4075,9 @@
       ]
     },
     "userLevelOverrides": {
-      "usr-qa-verify-1794786512526-multi": "super_hard"
+      "usr-qa-verify-1794786512526-multi": "super_hard",
+      "usr-apex-001": "super_hard",
+      "usr-1794793990495": "super_hard"
     },
     "userTrackers": {
       "usr-qa-verify-1794786512526": {
@@ -3892,17 +4121,37 @@
         "lastReason": "paid_fair_random_easy"
       },
       "usr-apex-001": {
-        "paidSpinsCount": 1,
-        "totalWinsCount": 0,
+        "paidSpinsCount": 9,
+        "totalWinsCount": 6,
         "freeSpinOfferWinsUsed": 0,
         "freeSpinOffersRedeemed": 1,
         "activeOfferSpinsRemaining": 0,
         "redeemedCouponCodes": [
           "FREESPINS5"
         ],
-        "lastReason": "paid_fair_random_hard",
-        "lastSpinAt": "2026-11-16T00:33:33.061Z",
-        "lastResolvedLevel": "hard"
+        "lastReason": "admin_user_override_super_hard",
+        "lastSpinAt": "2026-11-16T01:53:02.698Z",
+        "lastResolvedLevel": "super_hard",
+        "scratchPlaysCount": 1,
+        "scratchJackpotsWonCount": 0,
+        "lastScratchAt": "2026-11-16T01:53:10.679Z"
+      },
+      "usr-1794793990495": {
+        "paidSpinsCount": 3,
+        "totalWinsCount": 6,
+        "freeSpinOfferWinsUsed": 4,
+        "freeSpinOffersRedeemed": 2,
+        "activeOfferSpinsRemaining": 4,
+        "redeemedCouponCodes": [
+          "FREESPINS5"
+        ],
+        "welcomeSpinsGranted": true,
+        "lastReason": "admin_user_override_super_hard",
+        "lastSpinAt": "2026-11-16T01:53:10.600Z",
+        "lastResolvedLevel": "super_hard",
+        "scratchPlaysCount": 1,
+        "scratchJackpotsWonCount": 0,
+        "lastScratchAt": "2026-11-16T01:53:10.673Z"
       }
     }
   },
@@ -3913,7 +4162,7 @@
       "description": "Accrues daily dividends across running fleet & Fast-ROI equity plans and settles matured positions.",
       "enabled": true,
       "intervalMinutes": 1,
-      "lastRunAt": "2026-11-16T00:33:48.243Z",
+      "lastRunAt": "2026-11-16T02:41:25.893Z",
       "runsCount": 188,
       "lastSummary": "Accrued $8.56 ROI; 0 matured."
     },
@@ -3923,9 +4172,9 @@
       "description": "Audits UTC check-in timestamps, resets expired streaks beyond resetAfterHours, and seals milestone claims.",
       "enabled": true,
       "intervalMinutes": 15,
-      "lastRunAt": "2026-11-16T00:26:40.576Z",
-      "runsCount": 45,
-      "lastSummary": "Audited 1 member streak ledger(s); auto-reset 0 lapsed streak(s) exceeding 48h."
+      "lastRunAt": "2026-11-16T02:37:05.852Z",
+      "runsCount": 49,
+      "lastSummary": "Audited 2 member streak ledger(s); auto-reset 0 lapsed streak(s) exceeding 48h."
     },
     {
       "id": "spin_criteria_audit",
@@ -3933,9 +4182,9 @@
       "description": "Automatically switches repeat winners (>= threshold wins) to Super Hard difficulty and audits free-spin win caps.",
       "enabled": true,
       "intervalMinutes": 5,
-      "lastRunAt": "2026-11-16T00:32:10.584Z",
-      "runsCount": 101,
-      "lastSummary": "Audited 4 spin profile(s); switched 0 multi-winner account(s) (>= 2 wins) to Super Hard."
+      "lastRunAt": "2026-11-16T02:37:05.856Z",
+      "runsCount": 107,
+      "lastSummary": "Audited 6 spin profile(s); switched 0 multi-winner account(s) (>= 2 wins) to Super Hard."
     },
     {
       "id": "won_prize_logistics",
@@ -3943,9 +4192,9 @@
       "description": "Advances fee-paid won vehicles from fees_paid_processing to documentation_ready and carrier dispatch.",
       "enabled": true,
       "intervalMinutes": 10,
-      "lastRunAt": "2026-11-16T00:31:40.577Z",
-      "runsCount": 35,
-      "lastSummary": "Verified 1 won-prize vault item(s); prepared export documentation for 0 deposit-cleared vehicle(s)."
+      "lastRunAt": "2026-11-16T02:37:05.861Z",
+      "runsCount": 39,
+      "lastSummary": "Verified 4 won-prize vault item(s); progressed shipping logistics on 0 admin-approved vehicle(s)."
     },
     {
       "id": "tsla_market_sync",
@@ -3953,12 +4202,85 @@
       "description": "Refreshes TSLA quote baselines and triggers active user price alerts when thresholds cross.",
       "enabled": true,
       "intervalMinutes": 5,
-      "lastRunAt": "2026-11-16T00:32:10.587Z",
-      "runsCount": 124,
-      "lastSummary": "Synced live NASDAQ: TSLA telemetry feed ($332.21)."
+      "lastRunAt": "2026-11-16T02:37:05.865Z",
+      "runsCount": 130,
+      "lastSummary": "Synced live NASDAQ: TSLA telemetry feed ($333.72)."
     }
   ],
   "scratchTiers": [
+    {
+      "id": "scratch-tier-bronze",
+      "name": "Cyber Starter Foil",
+      "priceUsd": 50,
+      "maxPrizeUsd": 500,
+      "possiblePrizes": [
+        {
+          "amountUsd": 500,
+          "label": "$500 Rare Cash Jackpot",
+          "weight": 1
+        },
+        {
+          "amountUsd": 250,
+          "label": "$250 Service Voucher",
+          "weight": 4
+        },
+        {
+          "amountUsd": 100,
+          "label": "$100 Wallet Credits",
+          "weight": 15
+        },
+        {
+          "amountUsd": 50,
+          "label": "$50 Apex Token",
+          "weight": 80
+        },
+        {
+          "amountUsd": 0,
+          "label": "Try Again ($0)",
+          "weight": 200,
+          "isTryAgain": true
+        }
+      ]
+    },
+    {
+      "id": "scratch-tier-silver",
+      "name": "Satin Silver Plaid",
+      "priceUsd": 250,
+      "maxPrizeUsd": 2500,
+      "possiblePrizes": [
+        {
+          "amountUsd": 2500,
+          "label": "$2,500 Rare Jackpot",
+          "weight": 1
+        },
+        {
+          "amountUsd": 1200,
+          "label": "$1,200 Carbon Aero Credit",
+          "weight": 4
+        },
+        {
+          "amountUsd": 650,
+          "label": "$650 Full Detail & PPF",
+          "weight": 15
+        },
+        {
+          "amountUsd": 350,
+          "label": "$350 Wallet Credit",
+          "weight": 35
+        },
+        {
+          "amountUsd": 150,
+          "label": "$150 Supercharge Credits",
+          "weight": 65
+        },
+        {
+          "amountUsd": 0,
+          "label": "Try Again ($0)",
+          "weight": 280,
+          "isTryAgain": true
+        }
+      ]
+    },
     {
       "id": "scratch-tier-gold",
       "name": "Giga Gold Plaid VIP",
@@ -3966,36 +4288,41 @@
       "maxPrizeUsd": 15000,
       "possiblePrizes": [
         {
-          "amountUsd": 15000,
-          "label": "$15,000 Max Cash Jackpot",
-          "weight": 4
-        },
-        {
           "amountUsd": 38990,
           "label": "Win 1 Tesla Model 3 RWD",
-          "weight": 2,
+          "weight": 1,
           "isTeslaCar": true,
           "vehicleModel": "2026 Tesla Model 3 Standard Range RWD"
         },
         {
-          "amountUsd": 5000,
-          "label": "$5,000 USDT Vault Credit",
-          "weight": 10
+          "amountUsd": 15000,
+          "label": "$15,000 Rare Max Jackpot",
+          "weight": 2
         },
         {
-          "amountUsd": 2500,
-          "label": "$2,500 Plaid Bonus",
-          "weight": 18
+          "amountUsd": 7500,
+          "label": "$7,500 Plaid Reserve",
+          "weight": 7
         },
         {
-          "amountUsd": 1000,
-          "label": "$1,000 Cash Return",
-          "weight": 28
+          "amountUsd": 3000,
+          "label": "$3,000 Vault Credit",
+          "weight": 25
+        },
+        {
+          "amountUsd": 1500,
+          "label": "$1,500 Cash Prize",
+          "weight": 75
+        },
+        {
+          "amountUsd": 800,
+          "label": "$800 USDT Credit",
+          "weight": 190
         },
         {
           "amountUsd": 0,
           "label": "Try Again ($0)",
-          "weight": 38,
+          "weight": 700,
           "isTryAgain": true
         }
       ]
@@ -4007,50 +4334,55 @@
       "maxPrizeUsd": 50000,
       "possiblePrizes": [
         {
-          "amountUsd": 50000,
-          "label": "$50,000 Max Cash Jackpot",
-          "weight": 5
-        },
-        {
           "amountUsd": 200000,
           "label": "Win 1 Tesla Roadster Founders",
-          "weight": 3,
+          "weight": 1,
           "isTeslaCar": true,
           "vehicleModel": "2026 Tesla Roadster Founders Edition"
         },
         {
-          "amountUsd": 99990,
-          "label": "Win 1 Tesla Cyberbeast AWD",
-          "weight": 4,
-          "isTeslaCar": true,
-          "vehicleModel": "2026 Tesla Cybertruck Cyberbeast AWD"
-        },
-        {
           "amountUsd": 89990,
           "label": "Win 1 Tesla Model S Plaid",
-          "weight": 5,
+          "weight": 2,
           "isTeslaCar": true,
           "vehicleModel": "2026 Tesla Model S Plaid Tri-Motor"
         },
         {
+          "amountUsd": 99990,
+          "label": "Win 1 Tesla Cyberbeast AWD",
+          "weight": 2,
+          "isTeslaCar": true,
+          "vehicleModel": "2026 Tesla Cybertruck Cyberbeast AWD"
+        },
+        {
+          "amountUsd": 50000,
+          "label": "$50,000 Rare Max Jackpot",
+          "weight": 3
+        },
+        {
           "amountUsd": 25000,
-          "label": "$25,000 Apex Gold Payout",
+          "label": "$25,000 Founders Vault",
           "weight": 12
         },
         {
           "amountUsd": 12000,
-          "label": "$12,000 Vault Credit",
-          "weight": 20
+          "label": "$12,000 Cash Payout",
+          "weight": 45
         },
         {
-          "amountUsd": 4000,
-          "label": "$4,000 Rebate Credit",
-          "weight": 26
+          "amountUsd": 6000,
+          "label": "$6,000 Cash Return",
+          "weight": 135
+        },
+        {
+          "amountUsd": 3000,
+          "label": "$3,000 Rebate Credit",
+          "weight": 200
         },
         {
           "amountUsd": 0,
           "label": "Try Again ($0)",
-          "weight": 25,
+          "weight": 600,
           "isTryAgain": true
         }
       ]
@@ -4103,12 +4435,54 @@
     ],
     "usr-apex-001": [
       {
+        "id": "dep-mwinltzo-ed7f4d",
+        "userId": "usr-apex-001",
+        "currency": "USD",
+        "amount": 5000,
+        "usdEquivalent": 5000,
+        "remainingUsd": 5000,
+        "txHash": "CERT-MWINLTZO-TAXI",
+        "gatewayName": "Fleet Maturity Settlement",
+        "source": "investment_maturity",
+        "status": "verified",
+        "createdAt": "2026-11-16T02:38:05.844Z",
+        "signature": "d875323eb7f8ec13dac6e5f09258af15ff09cd9403aac5053c2970427d613d50"
+      },
+      {
+        "id": "dep-mwimun1y-b87b36",
+        "userId": "usr-apex-001",
+        "currency": "USD",
+        "amount": 5000,
+        "usdEquivalent": 5000,
+        "remainingUsd": 80.38,
+        "txHash": "CERT-MWIMUN1X-TAXI",
+        "gatewayName": "Fleet Maturity Settlement",
+        "source": "investment_maturity",
+        "status": "verified",
+        "createdAt": "2026-11-16T02:16:57.142Z",
+        "signature": "890fdbe302e25e475faa5c909cb19756f665953d4bd94bf3990e9a98ffab5958"
+      },
+      {
+        "id": "dep-mwilps3z-adb07f",
+        "userId": "usr-apex-001",
+        "currency": "USD",
+        "amount": 5000,
+        "usdEquivalent": 5000,
+        "remainingUsd": 0,
+        "txHash": "CERT-MWILPS3Z-TAXI",
+        "gatewayName": "Fleet Maturity Settlement",
+        "source": "investment_maturity",
+        "status": "verified",
+        "createdAt": "2026-11-16T01:45:10.800Z",
+        "signature": "1b4c693710699f8be432ebffc7dc9429eccaa45298dbb929bf9b1d1cccf431ab"
+      },
+      {
         "id": "dep-mwij5ny3-d96a88",
         "userId": "usr-apex-001",
         "currency": "USDT",
         "amount": 25000,
         "usdEquivalent": 25000,
-        "remainingUsd": 25000,
+        "remainingUsd": 0,
         "txHash": "0xtestdeposit1",
         "gatewayName": "Apex Verified Gateway",
         "source": "gateway_deposit",
@@ -4122,7 +4496,7 @@
         "currency": "USD",
         "amount": 2500,
         "usdEquivalent": 2500,
-        "remainingUsd": 2500,
+        "remainingUsd": 0,
         "txHash": "CERT-MWIJ2M0G-V-01",
         "gatewayName": "Fleet Maturity Settlement",
         "source": "investment_maturity",
@@ -4136,7 +4510,7 @@
         "currency": "USD",
         "amount": 12450,
         "usdEquivalent": 12450,
-        "remainingUsd": 3678.08,
+        "remainingUsd": 0,
         "txHash": "0xseede7f32144c6c2feef1b032d70e3ef",
         "gatewayName": "Apex Verified Custody Vault",
         "source": "seed_vault",
@@ -4304,9 +4678,491 @@
         "createdAt": "2026-11-16T00:33:44.751Z",
         "signature": "a2d183b4fa7dc0cdd443d6aaf0f48b9a0e7611638c403bd6a4895c7661c534a7"
       }
+    ],
+    "usr-1794793990495": [
+      {
+        "id": "dep-mwim02b4-00ab50",
+        "userId": "usr-1794793990495",
+        "currency": "USD",
+        "amount": 15000,
+        "usdEquivalent": 15000,
+        "remainingUsd": 13000,
+        "txHash": "0xtestdep_1794793990398",
+        "gatewayName": "USDT-Test",
+        "source": "test",
+        "status": "verified",
+        "createdAt": "2026-11-16T01:53:10.577Z",
+        "signature": "5546ff7d7a9bd0c7010be6c9538eeb108d0b617123ca918e742cad0df10ab3a9"
+      }
+    ],
+    "usr-1794795680529": [
+      {
+        "id": "dep-mwin0aat-630b25",
+        "userId": "usr-1794795680529",
+        "currency": "USD",
+        "amount": 1000,
+        "usdEquivalent": 1000,
+        "remainingUsd": 250,
+        "txHash": "0xtestshipverify123456",
+        "gatewayName": "Apex Verified Gateway",
+        "source": "gateway_deposit",
+        "status": "verified",
+        "createdAt": "2026-11-16T02:21:20.549Z",
+        "signature": "a20d8f58bbf0e99b41e8666aca96faeb31a7dcce73d5650d4bb4cd2437312a34"
+      }
+    ],
+    "usr-1794796892771": [
+      {
+        "id": "dep-mwinq9o2-379fb6",
+        "userId": "usr-1794796892771",
+        "currency": "USDT",
+        "amount": 5000,
+        "usdEquivalent": 5000,
+        "remainingUsd": 3000,
+        "txHash": "0xe2e1794796892658",
+        "gatewayName": "Apex Verified Gateway",
+        "source": "gateway_deposit",
+        "status": "verified",
+        "createdAt": "2026-11-16T02:41:32.786Z",
+        "signature": "1d9ca119aa5166766fc2e4051de1d113e34ecae06243305b43e04f2d3ae38996"
+      }
     ]
   },
   "transactionAudits": [
+    {
+      "userId": "usr-1794796892771",
+      "category": "won_vehicle_shipping",
+      "amountUsd": 2000,
+      "depositConsumedUsd": 2000,
+      "freeWinConsumedUsd": 0,
+      "depositRecordIdsUsed": [
+        "dep-mwinq9o2-379fb6"
+      ],
+      "verifiedDepositBeforeUsd": 5000,
+      "verifiedDepositAfterUsd": 3000,
+      "freeWinBeforeUsd": 0,
+      "freeWinAfterUsd": 0,
+      "outcome": "approved",
+      "reason": "Won vehicle shipping/doc/processing fee ($2000) settled strictly from verified deposit records.",
+      "id": "audit-mwinq9q2-3f502a",
+      "createdAt": "2026-11-16T02:41:32.858Z",
+      "signature": "7f26a5949a8cf8378823ae18adaaf25526ad191b1c5a202b696c2f18ac5f325a"
+    },
+    {
+      "userId": "usr-1794796892771",
+      "category": "deposit_record",
+      "amountUsd": 5000,
+      "depositConsumedUsd": 0,
+      "freeWinConsumedUsd": 0,
+      "depositRecordIdsUsed": [
+        "dep-mwinq9o2-379fb6"
+      ],
+      "verifiedDepositBeforeUsd": 5000,
+      "verifiedDepositAfterUsd": 5000,
+      "freeWinBeforeUsd": 0,
+      "freeWinAfterUsd": 0,
+      "outcome": "approved",
+      "reason": "Verified deposit record (gateway_deposit) via Apex Verified Gateway",
+      "id": "audit-mwinq9o2-7de433",
+      "createdAt": "2026-11-16T02:41:32.786Z",
+      "signature": "4ee6169f1adfd65eaa41b956dedb1f5d01536f23fe081d500ff1c2e0ae678806"
+    },
+    {
+      "userId": "usr-apex-001",
+      "category": "deposit_record",
+      "amountUsd": 5000,
+      "depositConsumedUsd": 0,
+      "freeWinConsumedUsd": 0,
+      "depositRecordIdsUsed": [
+        "dep-mwinltzo-ed7f4d"
+      ],
+      "verifiedDepositBeforeUsd": 5080.38,
+      "verifiedDepositAfterUsd": 5080.38,
+      "freeWinBeforeUsd": 0,
+      "freeWinAfterUsd": 0,
+      "outcome": "approved",
+      "reason": "Verified deposit record (investment_maturity) via Fleet Maturity Settlement",
+      "id": "audit-mwinltzo-a50711",
+      "createdAt": "2026-11-16T02:38:05.845Z",
+      "signature": "16e795363123e926a9c273f48668ef4143c5a6a24508bb83185a88b1ee06f2b5"
+    },
+    {
+      "userId": "usr-1794795680529",
+      "category": "won_vehicle_shipping",
+      "amountUsd": 750,
+      "depositConsumedUsd": 750,
+      "freeWinConsumedUsd": 0,
+      "depositRecordIdsUsed": [
+        "dep-mwin0aat-630b25"
+      ],
+      "verifiedDepositBeforeUsd": 1000,
+      "verifiedDepositAfterUsd": 250,
+      "freeWinBeforeUsd": 0,
+      "freeWinAfterUsd": 0,
+      "outcome": "approved",
+      "reason": "Won vehicle shipping/doc/processing fee ($750) settled strictly from verified deposit records.",
+      "id": "audit-mwin0abd-39d4ae",
+      "createdAt": "2026-11-16T02:21:20.569Z",
+      "signature": "fa7a7166d1b3e2fd4aa3f78f6f1773b403fcac2c2f400b91c832d7f5348e09e4"
+    },
+    {
+      "userId": "usr-1794795680529",
+      "category": "deposit_record",
+      "amountUsd": 1000,
+      "depositConsumedUsd": 0,
+      "freeWinConsumedUsd": 0,
+      "depositRecordIdsUsed": [
+        "dep-mwin0aat-630b25"
+      ],
+      "verifiedDepositBeforeUsd": 1000,
+      "verifiedDepositAfterUsd": 1000,
+      "freeWinBeforeUsd": 0,
+      "freeWinAfterUsd": 0,
+      "outcome": "approved",
+      "reason": "Verified deposit record (gateway_deposit) via Apex Verified Gateway",
+      "id": "audit-mwin0aau-5a5927",
+      "createdAt": "2026-11-16T02:21:20.550Z",
+      "signature": "e94d77c96e62e080fbabb9a7d666bac887e2d38dba6082506c440dc28cb3139f"
+    },
+    {
+      "userId": "usr-apex-001",
+      "category": "stock_plan",
+      "amountUsd": 5900,
+      "depositConsumedUsd": 5899.97,
+      "freeWinConsumedUsd": 0.03,
+      "depositRecordIdsUsed": [
+        "dep-mwilps3z-adb07f",
+        "dep-mwimun1y-b87b36"
+      ],
+      "verifiedDepositBeforeUsd": 5980.35,
+      "verifiedDepositAfterUsd": 80.38,
+      "freeWinBeforeUsd": 0.03,
+      "freeWinAfterUsd": 0,
+      "outcome": "approved",
+      "reason": "Invested in Tesla FSD Autonomy Super-Cycle",
+      "id": "audit-mwimz13k-3a9122",
+      "createdAt": "2026-11-16T02:20:21.968Z",
+      "signature": "c03ec2f02dc8ed2cfc508166d43a4846de739b8f0c602e29fa05e14cbd62211c"
+    },
+    {
+      "userId": "usr-apex-001",
+      "category": "stock_trade",
+      "amountUsd": 50000,
+      "depositConsumedUsd": 35197.73,
+      "freeWinConsumedUsd": 14802.27,
+      "depositRecordIdsUsed": [
+        "dep-seed-usr-apex-001",
+        "dep-mwij2m0g-bbbd1b",
+        "dep-mwij5ny3-d96a88",
+        "dep-mwilps3z-adb07f"
+      ],
+      "verifiedDepositBeforeUsd": 41178.08,
+      "verifiedDepositAfterUsd": 5980.35,
+      "freeWinBeforeUsd": 14802.27,
+      "freeWinAfterUsd": 0,
+      "outcome": "approved",
+      "reason": "TSLA Spot Buy (151.869 shares @ $329.23)",
+      "id": "audit-mwimycce-c9a24c",
+      "createdAt": "2026-11-16T02:19:49.886Z",
+      "signature": "a9488f810877a6f2170c23c6d1d4dbd7987aae8f37d8b00e40d8f6f1f5b2456b"
+    },
+    {
+      "userId": "usr-apex-001",
+      "category": "deposit_record",
+      "amountUsd": 5000,
+      "depositConsumedUsd": 0,
+      "freeWinConsumedUsd": 0,
+      "depositRecordIdsUsed": [
+        "dep-mwimun1y-b87b36"
+      ],
+      "verifiedDepositBeforeUsd": 41178.08,
+      "verifiedDepositAfterUsd": 41178.08,
+      "freeWinBeforeUsd": 14726.18,
+      "freeWinAfterUsd": 14726.18,
+      "outcome": "approved",
+      "reason": "Verified deposit record (investment_maturity) via Fleet Maturity Settlement",
+      "id": "audit-mwimun1y-d235dd",
+      "createdAt": "2026-11-16T02:16:57.142Z",
+      "signature": "523e3a59d4ca45df034339280139f8096cc7e6e58e4c6b089e8ba2f0c9112756"
+    },
+    {
+      "userId": "usr-apex-001",
+      "category": "scratch_purchase",
+      "amountUsd": 50,
+      "depositConsumedUsd": 0,
+      "freeWinConsumedUsd": 50,
+      "depositRecordIdsUsed": [],
+      "verifiedDepositBeforeUsd": 36178.08,
+      "verifiedDepositAfterUsd": 36178.08,
+      "freeWinBeforeUsd": 14726.12,
+      "freeWinAfterUsd": 14676.12,
+      "outcome": "approved",
+      "reason": "Scratch Card \"Cyber Starter Foil\" ($50) cross-referenced against deposit records.",
+      "id": "audit-mwim02dz-37f54d",
+      "createdAt": "2026-11-16T01:53:10.679Z",
+      "signature": "c638f26b8beef972675a955c87249556cf75accd67935d47ec05c36e71b6ef38"
+    },
+    {
+      "userId": "usr-1794793990495",
+      "category": "scratch_purchase",
+      "amountUsd": 250,
+      "depositConsumedUsd": 0,
+      "freeWinConsumedUsd": 250,
+      "depositRecordIdsUsed": [],
+      "verifiedDepositBeforeUsd": 13000,
+      "verifiedDepositAfterUsd": 13000,
+      "freeWinBeforeUsd": 22350,
+      "freeWinAfterUsd": 22100,
+      "outcome": "approved",
+      "reason": "Scratch Card \"Satin Silver Plaid\" ($250) cross-referenced against deposit records.",
+      "id": "audit-mwim02dt-867d89",
+      "createdAt": "2026-11-16T01:53:10.673Z",
+      "signature": "1d311b84dc65e7c864ce1d095c678af39f50a5afca34a1fb46e85934dfe0cbe6"
+    },
+    {
+      "userId": "usr-1794793990495",
+      "category": "won_vehicle_shipping",
+      "amountUsd": 2000,
+      "depositConsumedUsd": 2000,
+      "freeWinConsumedUsd": 0,
+      "depositRecordIdsUsed": [
+        "dep-mwim02b4-00ab50"
+      ],
+      "verifiedDepositBeforeUsd": 15000,
+      "verifiedDepositAfterUsd": 13000,
+      "freeWinBeforeUsd": 22350,
+      "freeWinAfterUsd": 22350,
+      "outcome": "approved",
+      "reason": "Won vehicle shipping/doc/processing fee ($2000) settled strictly from verified deposit records.",
+      "id": "audit-mwim02db-d3c94c",
+      "createdAt": "2026-11-16T01:53:10.655Z",
+      "signature": "f8a1a50ec31a0d6e1fb8ddd767d018520dba397de594a3b7d90405d545155595"
+    },
+    {
+      "userId": "usr-1794793990495",
+      "category": "spin_payment",
+      "amountUsd": 2500,
+      "depositConsumedUsd": 0,
+      "freeWinConsumedUsd": 2500,
+      "depositRecordIdsUsed": [],
+      "verifiedDepositBeforeUsd": 15000,
+      "verifiedDepositAfterUsd": 15000,
+      "freeWinBeforeUsd": 24850,
+      "freeWinAfterUsd": 22350,
+      "outcome": "approved",
+      "reason": "Paid Spin Wheel fee ($2500 USD, range $150–$2500) cross-referenced against deposit records.",
+      "id": "audit-mwim02br-410e4b",
+      "createdAt": "2026-11-16T01:53:10.599Z",
+      "signature": "f41f701d1f407f25e7886e8f0418bbe640acfab519b8cca5474e2b8e63db2628"
+    },
+    {
+      "userId": "usr-1794793990495",
+      "category": "spin_payment",
+      "amountUsd": 1000,
+      "depositConsumedUsd": 0,
+      "freeWinConsumedUsd": 1000,
+      "depositRecordIdsUsed": [],
+      "verifiedDepositBeforeUsd": 15000,
+      "verifiedDepositAfterUsd": 15000,
+      "freeWinBeforeUsd": 23750,
+      "freeWinAfterUsd": 22750,
+      "outcome": "approved",
+      "reason": "Paid Spin Wheel fee ($1000 USD, range $150–$2500) cross-referenced against deposit records.",
+      "id": "audit-mwim02bl-a1551c",
+      "createdAt": "2026-11-16T01:53:10.593Z",
+      "signature": "c5fc49c53a9e7e4de813e2580234f95bed78bb5da4d34eb121ec973e9c848075"
+    },
+    {
+      "userId": "usr-1794793990495",
+      "category": "spin_payment",
+      "amountUsd": 150,
+      "depositConsumedUsd": 0,
+      "freeWinConsumedUsd": 150,
+      "depositRecordIdsUsed": [],
+      "verifiedDepositBeforeUsd": 15000,
+      "verifiedDepositAfterUsd": 15000,
+      "freeWinBeforeUsd": 23650,
+      "freeWinAfterUsd": 23500,
+      "outcome": "approved",
+      "reason": "Paid Spin Wheel fee ($150 USD, range $150–$2500) cross-referenced against deposit records.",
+      "id": "audit-mwim02bd-82b20b",
+      "createdAt": "2026-11-16T01:53:10.585Z",
+      "signature": "50140848da10d0be8ae766488c2373bef00930c931fe2514deebde61e6023ea4"
+    },
+    {
+      "userId": "usr-1794793990495",
+      "category": "deposit_record",
+      "amountUsd": 15000,
+      "depositConsumedUsd": 0,
+      "freeWinConsumedUsd": 0,
+      "depositRecordIdsUsed": [
+        "dep-mwim02b4-00ab50"
+      ],
+      "verifiedDepositBeforeUsd": 15000,
+      "verifiedDepositAfterUsd": 15000,
+      "freeWinBeforeUsd": 23650,
+      "freeWinAfterUsd": 23650,
+      "outcome": "approved",
+      "reason": "Verified deposit record (test) via USDT-Test",
+      "id": "audit-mwim02b5-b46011",
+      "createdAt": "2026-11-16T01:53:10.577Z",
+      "signature": "b933516d09956faa586cc9e53c2cc05ea25548c28d71febe2753df744d56c1b1"
+    },
+    {
+      "userId": "usr-apex-001",
+      "category": "spin_payment",
+      "amountUsd": 1900,
+      "depositConsumedUsd": 0,
+      "freeWinConsumedUsd": 1900,
+      "depositRecordIdsUsed": [],
+      "verifiedDepositBeforeUsd": 36178.08,
+      "verifiedDepositAfterUsd": 36178.08,
+      "freeWinBeforeUsd": 16176.12,
+      "freeWinAfterUsd": 14276.12,
+      "outcome": "approved",
+      "reason": "Paid Spin Wheel fee ($1900 USD, range $150–$2500) cross-referenced against deposit records.",
+      "id": "audit-mwilzw8a-964010",
+      "createdAt": "2026-11-16T01:53:02.698Z",
+      "signature": "24661b1370a1e1dfd149aa55fb9f3104096007e44d8acc17ae1beb9244765628"
+    },
+    {
+      "userId": "usr-apex-001",
+      "category": "spin_payment",
+      "amountUsd": 1900,
+      "depositConsumedUsd": 0,
+      "freeWinConsumedUsd": 1900,
+      "depositRecordIdsUsed": [],
+      "verifiedDepositBeforeUsd": 36178.08,
+      "verifiedDepositAfterUsd": 36178.08,
+      "freeWinBeforeUsd": 17626.09,
+      "freeWinAfterUsd": 15726.09,
+      "outcome": "approved",
+      "reason": "Paid Spin Wheel fee ($1900 USD, range $150–$2500) cross-referenced against deposit records.",
+      "id": "audit-mwilzr8t-6101b1",
+      "createdAt": "2026-11-16T01:52:56.237Z",
+      "signature": "e016e9aecbedb8cffc06e484eb9ae356d61af9f09849d5ccef07ab543e9557ac"
+    },
+    {
+      "userId": "usr-apex-001",
+      "category": "spin_payment",
+      "amountUsd": 1900,
+      "depositConsumedUsd": 0,
+      "freeWinConsumedUsd": 1900,
+      "depositRecordIdsUsed": [],
+      "verifiedDepositBeforeUsd": 36178.08,
+      "verifiedDepositAfterUsd": 36178.08,
+      "freeWinBeforeUsd": 19526.09,
+      "freeWinAfterUsd": 17626.09,
+      "outcome": "approved",
+      "reason": "Paid Spin Wheel fee ($1900 USD, range $150–$2500) cross-referenced against deposit records.",
+      "id": "audit-mwilzleu-56612b",
+      "createdAt": "2026-11-16T01:52:48.678Z",
+      "signature": "98a990d5b5fd602700e8bd6d52fac0a67b1ac326e42f5bf7880894c8986f70c0"
+    },
+    {
+      "userId": "usr-apex-001",
+      "category": "spin_payment",
+      "amountUsd": 1900,
+      "depositConsumedUsd": 0,
+      "freeWinConsumedUsd": 1900,
+      "depositRecordIdsUsed": [],
+      "verifiedDepositBeforeUsd": 36178.08,
+      "verifiedDepositAfterUsd": 36178.08,
+      "freeWinBeforeUsd": 20976.09,
+      "freeWinAfterUsd": 19076.09,
+      "outcome": "approved",
+      "reason": "Paid Spin Wheel fee ($1900 USD, range $150–$2500) cross-referenced against deposit records.",
+      "id": "audit-mwilzg3n-bbaca7",
+      "createdAt": "2026-11-16T01:52:41.796Z",
+      "signature": "c317c6e24e3b8fe94588a24bf66bc8f75a63e3f2be61eebd1e65259c519eb765"
+    },
+    {
+      "userId": "usr-apex-001",
+      "category": "spin_payment",
+      "amountUsd": 1900,
+      "depositConsumedUsd": 0,
+      "freeWinConsumedUsd": 1900,
+      "depositRecordIdsUsed": [],
+      "verifiedDepositBeforeUsd": 36178.08,
+      "verifiedDepositAfterUsd": 36178.08,
+      "freeWinBeforeUsd": 15426.09,
+      "freeWinAfterUsd": 13526.09,
+      "outcome": "approved",
+      "reason": "Paid Spin Wheel fee ($1900 USD, range $150–$2500) cross-referenced against deposit records.",
+      "id": "audit-mwilz7me-b18c5e",
+      "createdAt": "2026-11-16T01:52:30.807Z",
+      "signature": "a05bc794f1f3a11ace0dd6fe8d0b5ccd54556c34d9d17b10585161e69014af89"
+    },
+    {
+      "userId": "usr-apex-001",
+      "category": "spin_payment",
+      "amountUsd": 1900,
+      "depositConsumedUsd": 0,
+      "freeWinConsumedUsd": 1900,
+      "depositRecordIdsUsed": [],
+      "verifiedDepositBeforeUsd": 36178.08,
+      "verifiedDepositAfterUsd": 36178.08,
+      "freeWinBeforeUsd": 17326.09,
+      "freeWinAfterUsd": 15426.09,
+      "outcome": "approved",
+      "reason": "Paid Spin Wheel fee ($1900 USD, range $150–$2500) cross-referenced against deposit records.",
+      "id": "audit-mwilz2yf-8844ae",
+      "createdAt": "2026-11-16T01:52:24.759Z",
+      "signature": "5f1cb62e91df34ae7d5409e4c4c058700bf49575dfdca1b27519a70cc245ec0c"
+    },
+    {
+      "userId": "usr-apex-001",
+      "category": "spin_payment",
+      "amountUsd": 1900,
+      "depositConsumedUsd": 0,
+      "freeWinConsumedUsd": 1900,
+      "depositRecordIdsUsed": [],
+      "verifiedDepositBeforeUsd": 36178.08,
+      "verifiedDepositAfterUsd": 36178.08,
+      "freeWinBeforeUsd": 14576.09,
+      "freeWinAfterUsd": 12676.09,
+      "outcome": "approved",
+      "reason": "Paid Spin Wheel fee ($1900 USD, range $150–$2500) cross-referenced against deposit records.",
+      "id": "audit-mwilyyae-3eb3db",
+      "createdAt": "2026-11-16T01:52:18.710Z",
+      "signature": "fa1844180e7b13c24819291a4707f7a6fbeb8eabca1cf23f72c2aeaf74849a06"
+    },
+    {
+      "userId": "usr-apex-001",
+      "category": "spin_payment",
+      "amountUsd": 1900,
+      "depositConsumedUsd": 0,
+      "freeWinConsumedUsd": 1900,
+      "depositRecordIdsUsed": [],
+      "verifiedDepositBeforeUsd": 36178.08,
+      "verifiedDepositAfterUsd": 36178.08,
+      "freeWinBeforeUsd": 2576.09,
+      "freeWinAfterUsd": 676.09,
+      "outcome": "approved",
+      "reason": "Paid Spin Wheel fee ($1900 USD, range $150–$2500) cross-referenced against deposit records.",
+      "id": "audit-mwilyrfv-5871b8",
+      "createdAt": "2026-11-16T01:52:09.835Z",
+      "signature": "6252c1948c60c5325474c415434e3dc050558811325bf12e931ac09b5b324ef0"
+    },
+    {
+      "userId": "usr-apex-001",
+      "category": "deposit_record",
+      "amountUsd": 5000,
+      "depositConsumedUsd": 0,
+      "freeWinConsumedUsd": 0,
+      "depositRecordIdsUsed": [
+        "dep-mwilps3z-adb07f"
+      ],
+      "verifiedDepositBeforeUsd": 36178.08,
+      "verifiedDepositAfterUsd": 36178.08,
+      "freeWinBeforeUsd": 2500,
+      "freeWinAfterUsd": 2500,
+      "outcome": "approved",
+      "reason": "Verified deposit record (investment_maturity) via Fleet Maturity Settlement",
+      "id": "audit-mwilps40-c4f554",
+      "createdAt": "2026-11-16T01:45:10.800Z",
+      "signature": "7c75099839899a774366a1c59bae07e09a2534e0ffa0ab112fb9df2723583ea3"
+    },
     {
       "userId": "usr-1794789224694",
       "category": "won_vehicle_shipping",
@@ -4765,7 +5621,7 @@
   ],
   "serverWalletsFreeWin": {
     "usr-alex-001": 437.78,
-    "usr-apex-001": 2500,
+    "usr-apex-001": 76.09,
     "usr-003": 0,
     "usr-004": 0,
     "usr-005": 0,
@@ -4778,10 +5634,30 @@
     "usr-sec-test-1794787068677": 0,
     "usr-sec-test-1794787098730": 5850,
     "usr-1794789213143": 5000,
-    "usr-1794789224694": 5000.05
+    "usr-1794789224694": 5000.05,
+    "usr-1794793990495": 22450,
+    "usr-1794795680529": 0,
+    "usr-apex-admin-01": 0.08,
+    "usr-1794796892771": 0
   },
   "wonPrizesList": [
     {
+      "prizeType": "vehicle",
+      "title": "2026 Tesla Promotional Vehicle",
+      "userName": "usr-sec-test-1794787098730",
+      "userEmail": "member@apex-tesla.io",
+      "image": "/promo-plaid.jpg",
+      "estimatedValueUsd": 42490,
+      "processingFeeUsd": 450,
+      "shippingDocFeeUsd": 350,
+      "shippingFreightFeeUsd": 1200,
+      "totalFeesUsd": 2000,
+      "wonAt": "2026-11-15",
+      "source": "Wheel Spin",
+      "shippingStatus": "shipped",
+      "addressConfirmed": true,
+      "paymentVerifiedByAdmin": true,
+      "adminApprovedForShipment": true,
       "id": "prize-ship-ok",
       "userId": "usr-sec-test-1794787098730",
       "feesPaid": true,
@@ -4796,43 +5672,50 @@
         "phone": "555-0100",
         "deliveryMethod": "RoRo"
       },
-      "shippingStatus": "documentation_ready",
       "trackingNumber": "APX-EXP-MWIHWCQ1",
       "carrierName": "Apex Bonded Enclosed EV Carrier"
     },
     {
-      "userId": "usr-1794789213143",
+      "prizeType": "vehicle",
+      "title": "2026 Tesla Model 3 Standard Range RWD",
       "userName": "Verify User",
       "userEmail": "verify.1794789213087@apex-tesla.io",
-      "title": "2026 Tesla Model 3 Standard Range RWD",
-      "prizeType": "vehicle",
-      "source": "Scratch & Win",
+      "image": "/promo-plaid.jpg",
       "estimatedValueUsd": 38990,
       "processingFeeUsd": 420,
       "shippingDocFeeUsd": 310,
       "shippingFreightFeeUsd": 1050,
-      "id": "prize-mwij5o1o",
-      "wonAt": "2026-11-16",
       "totalFeesUsd": 1780,
-      "feesPaid": false,
-      "shippingStatus": "awaiting_details"
+      "wonAt": "2026-11-16",
+      "source": "Scratch & Win",
+      "shippingStatus": "awaiting_details",
+      "addressConfirmed": false,
+      "paymentVerifiedByAdmin": false,
+      "adminApprovedForShipment": false,
+      "userId": "usr-1794789213143",
+      "id": "prize-mwij5o1o",
+      "feesPaid": false
     },
     {
-      "userId": "usr-1794789224694",
+      "prizeType": "vehicle",
+      "title": "2026 Tesla Model 3 Standard Range RWD",
       "userName": "Verify User",
       "userEmail": "verify.1794789224629@apex-tesla.io",
-      "title": "2026 Tesla Model 3 Standard Range RWD",
-      "prizeType": "vehicle",
-      "source": "Scratch & Win",
+      "image": "/promo-plaid.jpg",
       "estimatedValueUsd": 38990,
       "processingFeeUsd": 420,
       "shippingDocFeeUsd": 310,
       "shippingFreightFeeUsd": 1050,
-      "id": "prize-mwij5wy5",
-      "wonAt": "2026-11-16",
       "totalFeesUsd": 1780,
+      "wonAt": "2026-11-16",
+      "source": "Scratch & Win",
+      "shippingStatus": "shipped",
+      "addressConfirmed": true,
+      "paymentVerifiedByAdmin": true,
+      "adminApprovedForShipment": true,
+      "userId": "usr-1794789224694",
+      "id": "prize-mwij5wy5",
       "feesPaid": true,
-      "shippingStatus": "fees_paid_processing",
       "paidAt": "2026-11-16T00:33:44.764Z",
       "paymentMethod": "deposit",
       "shippingAddress": {
@@ -4846,6 +5729,1596 @@
       },
       "trackingNumber": "APX-EXP-MWIJ5WZG",
       "carrierName": "Apex Bonded Enclosed EV Carrier"
+    },
+    {
+      "prizeType": "vehicle",
+      "title": "2026 Tesla Model 3 Highland AWD",
+      "userName": "Promo Tester 1794793990398",
+      "userEmail": "promotest_1794793990398@example.com",
+      "image": "/promo-plaid.jpg",
+      "estimatedValueUsd": 42490,
+      "processingFeeUsd": 450,
+      "shippingDocFeeUsd": 350,
+      "shippingFreightFeeUsd": 1200,
+      "totalFeesUsd": 2000,
+      "wonAt": "2026-11-16",
+      "source": "Wheel Spin",
+      "shippingStatus": "shipped",
+      "addressConfirmed": true,
+      "paymentVerifiedByAdmin": true,
+      "adminApprovedForShipment": true,
+      "id": "prize-spin-mwim02av",
+      "userId": "usr-1794793990495",
+      "modelOrSku": "2026 Tesla Model 3 Highland AWD",
+      "wonAtIso": "2026-11-16T01:53:10.567Z",
+      "vinAssigned": "5YJ3E1EA8TA184092",
+      "feesPaid": true,
+      "notes": "Won via Spin & Win Wheel. Fill in your destination shipping address and deposit processing, documentation & freight fees in Dashboard -> Won Prizes to schedule dispatch. Weekly 1-vehicle limit & prior fulfillment policy applies.",
+      "paidAt": "2026-11-16T01:53:10.655Z",
+      "paymentMethod": "deposit",
+      "shippingAddress": {
+        "fullName": "Promo Tester",
+        "phone": "+1-555-0199",
+        "country": "United States",
+        "street": "1 Tesla Road",
+        "city": "Austin",
+        "state": "TX",
+        "zipCode": "78725"
+      },
+      "trackingNumber": "APX-EXP-MWIM02DB",
+      "carrierName": "Apex Bonded Enclosed EV Carrier"
+    }
+  ],
+  "spin_system_config": {
+    "minSpinCostUsd": 150,
+    "maxSpinCostUsd": 2500,
+    "maxCashWinUsd": 25000,
+    "minStakeCashCapUsd": 2000,
+    "adminMode": "auto",
+    "autoSuperHardWinThreshold": 2,
+    "freeSpinMaxWinsPerOffer": 1,
+    "levels": {
+      "easy": [
+        {
+          "id": "ez-1",
+          "label": "Tesla Model 3 Highland",
+          "text": "Model 3 Win",
+          "valueUsd": 42490,
+          "value": 42490,
+          "type": "car",
+          "vehicleModel": "2026 Tesla Model 3 Highland AWD",
+          "color": "#dc2626",
+          "textColor": "white",
+          "weight": 4,
+          "probabilityWeight": 4,
+          "isActive": true
+        },
+        {
+          "id": "ez-2",
+          "label": "$25,000 Max Cash Jackpot",
+          "text": "$25,000 USD",
+          "valueUsd": 25000,
+          "value": 25000,
+          "type": "crypto",
+          "color": "#16a34a",
+          "textColor": "white",
+          "weight": 5,
+          "probabilityWeight": 5,
+          "isActive": true
+        },
+        {
+          "id": "ez-3",
+          "label": "$2,500 USDT Vault",
+          "text": "$2,500 USDT",
+          "valueUsd": 2500,
+          "value": 2500,
+          "type": "crypto",
+          "color": "#2563eb",
+          "textColor": "white",
+          "weight": 16,
+          "probabilityWeight": 16,
+          "isActive": true
+        },
+        {
+          "id": "ez-4",
+          "label": "Tesla Model Y Performance",
+          "text": "Model Y Win",
+          "valueUsd": 52490,
+          "value": 52490,
+          "type": "car",
+          "vehicleModel": "2026 Tesla Model Y Performance",
+          "color": "#ea580c",
+          "textColor": "white",
+          "weight": 4,
+          "probabilityWeight": 4,
+          "isActive": true
+        },
+        {
+          "id": "ez-5",
+          "label": "$10,000 Cash Prize",
+          "text": "$10,000 USD",
+          "valueUsd": 10000,
+          "value": 10000,
+          "type": "credits",
+          "color": "#ca8a04",
+          "textColor": "white",
+          "weight": 9,
+          "probabilityWeight": 9,
+          "isActive": true
+        },
+        {
+          "id": "ez-6",
+          "label": "Try Again",
+          "text": "Try Again",
+          "valueUsd": 0,
+          "value": 0,
+          "type": "try_again",
+          "color": "#1e293b",
+          "textColor": "white",
+          "weight": 14,
+          "probabilityWeight": 14,
+          "isActive": true
+        },
+        {
+          "id": "ez-7",
+          "label": "$5,000 Vault Payout",
+          "text": "$5,000 USD",
+          "valueUsd": 5000,
+          "value": 5000,
+          "type": "crypto",
+          "color": "#0891b2",
+          "textColor": "white",
+          "weight": 12,
+          "probabilityWeight": 12,
+          "isActive": true
+        },
+        {
+          "id": "ez-8",
+          "label": "Tesla Cybertruck AWD",
+          "text": "Cybertruck",
+          "valueUsd": 79990,
+          "value": 79990,
+          "type": "car",
+          "vehicleModel": "2026 Tesla Cybertruck Foundation AWD",
+          "color": "#b91c1c",
+          "textColor": "white",
+          "weight": 3,
+          "probabilityWeight": 3,
+          "isActive": true
+        },
+        {
+          "id": "ez-9",
+          "label": "$1,000 Cash Credit",
+          "text": "$1,000 USD",
+          "valueUsd": 1000,
+          "value": 1000,
+          "type": "credits",
+          "color": "#7c3aed",
+          "textColor": "white",
+          "weight": 17,
+          "probabilityWeight": 17,
+          "isActive": true
+        },
+        {
+          "id": "ez-10",
+          "label": "$500 Wallet Bonus",
+          "text": "$500 USD",
+          "valueUsd": 500,
+          "value": 500,
+          "type": "credits",
+          "color": "#475569",
+          "textColor": "white",
+          "weight": 16,
+          "probabilityWeight": 16,
+          "isActive": true
+        }
+      ],
+      "hard": [
+        {
+          "id": "hd-1",
+          "label": "Tesla Model 3 Highland",
+          "text": "Model 3 Win",
+          "valueUsd": 42490,
+          "value": 42490,
+          "type": "car",
+          "vehicleModel": "2026 Tesla Model 3 Highland AWD",
+          "color": "#dc2626",
+          "textColor": "white",
+          "weight": 2,
+          "probabilityWeight": 2,
+          "isActive": true
+        },
+        {
+          "id": "hd-2",
+          "label": "Try Again",
+          "text": "Try Again",
+          "valueUsd": 0,
+          "value": 0,
+          "type": "try_again",
+          "color": "#1e293b",
+          "textColor": "white",
+          "weight": 18,
+          "probabilityWeight": 18,
+          "isActive": true
+        },
+        {
+          "id": "hd-3",
+          "label": "$15,000 Max Cash Jackpot",
+          "text": "$15,000 USD",
+          "valueUsd": 15000,
+          "value": 15000,
+          "type": "crypto",
+          "color": "#16a34a",
+          "textColor": "white",
+          "weight": 4,
+          "probabilityWeight": 4,
+          "isActive": true
+        },
+        {
+          "id": "hd-4",
+          "label": "$2,500 USDT Vault",
+          "text": "$2,500 USDT",
+          "valueUsd": 2500,
+          "value": 2500,
+          "type": "crypto",
+          "color": "#2563eb",
+          "textColor": "white",
+          "weight": 10,
+          "probabilityWeight": 10,
+          "isActive": true
+        },
+        {
+          "id": "hd-5",
+          "label": "Try Again",
+          "text": "Try Again",
+          "valueUsd": 0,
+          "value": 0,
+          "type": "try_again",
+          "color": "#334155",
+          "textColor": "white",
+          "weight": 17,
+          "probabilityWeight": 17,
+          "isActive": true
+        },
+        {
+          "id": "hd-6",
+          "label": "$7,500 Cash Payout",
+          "text": "$7,500 USD",
+          "valueUsd": 7500,
+          "value": 7500,
+          "type": "credits",
+          "color": "#ca8a04",
+          "textColor": "white",
+          "weight": 6,
+          "probabilityWeight": 6,
+          "isActive": true
+        },
+        {
+          "id": "hd-7",
+          "label": "Tesla Cybertruck AWD",
+          "text": "Cybertruck",
+          "valueUsd": 79990,
+          "value": 79990,
+          "type": "car",
+          "vehicleModel": "2026 Tesla Cybertruck Foundation AWD",
+          "color": "#ea580c",
+          "textColor": "white",
+          "weight": 2,
+          "probabilityWeight": 2,
+          "isActive": true
+        },
+        {
+          "id": "hd-8",
+          "label": "$1,000 Cash Credit",
+          "text": "$1,000 USD",
+          "valueUsd": 1000,
+          "value": 1000,
+          "type": "credits",
+          "color": "#0891b2",
+          "textColor": "white",
+          "weight": 13,
+          "probabilityWeight": 13,
+          "isActive": true
+        },
+        {
+          "id": "hd-9",
+          "label": "Try Again",
+          "text": "Try Again",
+          "valueUsd": 0,
+          "value": 0,
+          "type": "try_again",
+          "color": "#0f172a",
+          "textColor": "white",
+          "weight": 17,
+          "probabilityWeight": 17,
+          "isActive": true
+        },
+        {
+          "id": "hd-10",
+          "label": "$500 Wallet Bonus",
+          "text": "$500 USD",
+          "valueUsd": 500,
+          "value": 500,
+          "type": "credits",
+          "color": "#7c3aed",
+          "textColor": "white",
+          "weight": 11,
+          "probabilityWeight": 11,
+          "isActive": true
+        }
+      ],
+      "super_hard": [
+        {
+          "id": "sh-1",
+          "label": "Tesla Model 3 RWD",
+          "text": "Model 3 Win",
+          "valueUsd": 38990,
+          "value": 38990,
+          "type": "car",
+          "vehicleModel": "2026 Tesla Model 3 Standard Range RWD",
+          "color": "#dc2626",
+          "textColor": "white",
+          "weight": 1,
+          "probabilityWeight": 1,
+          "isActive": true
+        },
+        {
+          "id": "sh-2",
+          "label": "Try Again",
+          "text": "Try Again",
+          "valueUsd": 0,
+          "value": 0,
+          "type": "try_again",
+          "color": "#1e293b",
+          "textColor": "white",
+          "weight": 19,
+          "probabilityWeight": 19,
+          "isActive": true
+        },
+        {
+          "id": "sh-3",
+          "label": "$8,000 Max Cash Jackpot",
+          "text": "$8,000 USD",
+          "valueUsd": 8000,
+          "value": 8000,
+          "type": "crypto",
+          "color": "#16a34a",
+          "textColor": "white",
+          "weight": 3,
+          "probabilityWeight": 3,
+          "isActive": true
+        },
+        {
+          "id": "sh-4",
+          "label": "Try Again",
+          "text": "Try Again",
+          "valueUsd": 0,
+          "value": 0,
+          "type": "try_again",
+          "color": "#334155",
+          "textColor": "white",
+          "weight": 19,
+          "probabilityWeight": 19,
+          "isActive": true
+        },
+        {
+          "id": "sh-5",
+          "label": "$4,000 Cash Payout",
+          "text": "$4,000 USD",
+          "valueUsd": 4000,
+          "value": 4000,
+          "type": "crypto",
+          "color": "#2563eb",
+          "textColor": "white",
+          "weight": 6,
+          "probabilityWeight": 6,
+          "isActive": true
+        },
+        {
+          "id": "sh-6",
+          "label": "Try Again",
+          "text": "Try Again",
+          "valueUsd": 0,
+          "value": 0,
+          "type": "try_again",
+          "color": "#0f172a",
+          "textColor": "white",
+          "weight": 18,
+          "probabilityWeight": 18,
+          "isActive": true
+        },
+        {
+          "id": "sh-7",
+          "label": "$1,500 Wallet Credit",
+          "text": "$1,500 USD",
+          "valueUsd": 1500,
+          "value": 1500,
+          "type": "credits",
+          "color": "#ca8a04",
+          "textColor": "white",
+          "weight": 9,
+          "probabilityWeight": 9,
+          "isActive": true
+        },
+        {
+          "id": "sh-8",
+          "label": "$500 Cash Prize",
+          "text": "$500 USD",
+          "valueUsd": 500,
+          "value": 500,
+          "type": "credits",
+          "color": "#0891b2",
+          "textColor": "white",
+          "weight": 10,
+          "probabilityWeight": 10,
+          "isActive": true
+        },
+        {
+          "id": "sh-9",
+          "label": "Try Again",
+          "text": "Try Again",
+          "valueUsd": 0,
+          "value": 0,
+          "type": "try_again",
+          "color": "#475569",
+          "textColor": "white",
+          "weight": 18,
+          "probabilityWeight": 18,
+          "isActive": true
+        },
+        {
+          "id": "sh-10",
+          "label": "$250 Consolation Cash",
+          "text": "$250 USD",
+          "valueUsd": 250,
+          "value": 250,
+          "type": "credits",
+          "color": "#7c3aed",
+          "textColor": "white",
+          "weight": 12,
+          "probabilityWeight": 12,
+          "isActive": true
+        }
+      ]
+    },
+    "userLevelOverrides": {
+      "usr-qa-verify-1794786512526-multi": "super_hard",
+      "usr-apex-001": "super_hard",
+      "usr-1794793990495": "super_hard"
+    },
+    "userTrackers": {
+      "usr-qa-verify-1794786512526": {
+        "paidSpinsCount": 0,
+        "totalWinsCount": 0,
+        "freeSpinOfferWinsUsed": 0,
+        "freeSpinOffersRedeemed": 1,
+        "activeOfferSpinsRemaining": 2,
+        "lastReason": "free_spin_bonus_super_hard",
+        "lastSpinAt": "2026-11-15T23:48:32.865Z",
+        "lastResolvedLevel": "super_hard"
+      },
+      "usr-qa-verify-1794786512526-paid": {
+        "paidSpinsCount": 1,
+        "totalWinsCount": 1,
+        "freeSpinOfferWinsUsed": 0,
+        "freeSpinOffersRedeemed": 0,
+        "activeOfferSpinsRemaining": 0,
+        "lastSpinAt": "2026-11-15T23:48:33.267Z",
+        "lastResolvedLevel": "easy",
+        "lastReason": "paid_fair_random_easy"
+      },
+      "usr-qa-verify-1794786512526-multi": {
+        "paidSpinsCount": 1,
+        "totalWinsCount": 3,
+        "freeSpinOfferWinsUsed": 0,
+        "freeSpinOffersRedeemed": 0,
+        "activeOfferSpinsRemaining": 0,
+        "lastSpinAt": "2026-11-15T23:48:33.292Z",
+        "lastResolvedLevel": "super_hard",
+        "lastReason": "multi_win_auto_super_hard"
+      },
+      "usr-sec-test-1794787098730": {
+        "paidSpinsCount": 1,
+        "totalWinsCount": 1,
+        "freeSpinOfferWinsUsed": 0,
+        "freeSpinOffersRedeemed": 0,
+        "activeOfferSpinsRemaining": 0,
+        "lastSpinAt": "2026-11-15T23:58:18.977Z",
+        "lastResolvedLevel": "easy",
+        "lastReason": "paid_fair_random_easy"
+      },
+      "usr-apex-001": {
+        "paidSpinsCount": 10,
+        "totalWinsCount": 6,
+        "freeSpinOfferWinsUsed": 0,
+        "freeSpinOffersRedeemed": 1,
+        "activeOfferSpinsRemaining": 0,
+        "redeemedCouponCodes": [
+          "FREESPINS5"
+        ],
+        "lastReason": "admin_user_override_super_hard",
+        "lastSpinAt": "2026-11-16T02:23:08.958Z",
+        "lastResolvedLevel": "super_hard",
+        "scratchPlaysCount": 5,
+        "scratchJackpotsWonCount": 0,
+        "lastScratchAt": "2026-11-16T02:22:33.540Z"
+      },
+      "usr-1794793990495": {
+        "paidSpinsCount": 3,
+        "totalWinsCount": 6,
+        "freeSpinOfferWinsUsed": 4,
+        "freeSpinOffersRedeemed": 2,
+        "activeOfferSpinsRemaining": 4,
+        "redeemedCouponCodes": [
+          "FREESPINS5"
+        ],
+        "welcomeSpinsGranted": true,
+        "lastReason": "admin_user_override_super_hard",
+        "lastSpinAt": "2026-11-16T01:53:10.600Z",
+        "lastResolvedLevel": "super_hard",
+        "scratchPlaysCount": 1,
+        "scratchJackpotsWonCount": 0,
+        "lastScratchAt": "2026-11-16T01:53:10.673Z"
+      }
+    }
+  },
+  "streak_config": {
+    "enabled": true,
+    "graceWindowHours": 36,
+    "resetAfterHours": 48,
+    "autoResetMissedDays": true,
+    "maxStreakMultiplier": 2.5,
+    "dailyRates": [
+      {
+        "day": 1,
+        "label": "Day 1 Ignition",
+        "bonusPoints": 25,
+        "bonusCents": 5
+      },
+      {
+        "day": 2,
+        "label": "Day 2 Supercharge",
+        "bonusPoints": 40,
+        "bonusCents": 8
+      },
+      {
+        "day": 3,
+        "label": "Day 3 Autopilot",
+        "bonusPoints": 60,
+        "bonusCents": 12
+      },
+      {
+        "day": 4,
+        "label": "Day 4 Dual Motor",
+        "bonusPoints": 85,
+        "bonusCents": 18
+      },
+      {
+        "day": 5,
+        "label": "Day 5 Ludicrous",
+        "bonusPoints": 115,
+        "bonusCents": 25
+      },
+      {
+        "day": 6,
+        "label": "Day 6 Plaid Velocity",
+        "bonusPoints": 150,
+        "bonusCents": 35
+      },
+      {
+        "day": 7,
+        "label": "Day 7 Founders Apex",
+        "bonusPoints": 225,
+        "bonusCents": 50
+      }
+    ],
+    "milestoneBonuses": [
+      {
+        "daysRequired": 3,
+        "label": "3-Day Pulse Milestone",
+        "bonusPoints": 100,
+        "bonusCents": 25,
+        "bonusFreeSpins": 0
+      },
+      {
+        "daysRequired": 7,
+        "label": "7-Day Apex Driver Streak",
+        "bonusPoints": 300,
+        "bonusCents": 100,
+        "bonusFreeSpins": 1
+      },
+      {
+        "daysRequired": 14,
+        "label": "14-Day Plaid Veteran",
+        "bonusPoints": 650,
+        "bonusCents": 250,
+        "bonusFreeSpins": 2
+      },
+      {
+        "daysRequired": 30,
+        "label": "30-Day Founders Legend",
+        "bonusPoints": 1500,
+        "bonusCents": 500,
+        "bonusFreeSpins": 3
+      }
+    ]
+  },
+  "cron_jobs_config": [
+    {
+      "id": "roi_accrual",
+      "name": "Fleet Staking & TSLA Fast-ROI Accrual",
+      "description": "Accrues daily dividends across running fleet & Fast-ROI equity plans and settles matured positions.",
+      "enabled": true,
+      "intervalMinutes": 1,
+      "lastRunAt": "2026-11-16T02:39:05.845Z",
+      "runsCount": 190,
+      "lastSummary": "Accrued $6.03 ROI; 0 matured."
+    },
+    {
+      "id": "daily_streak_audit",
+      "name": "Daily Streak Continuity & Reset Audit",
+      "description": "Audits UTC check-in timestamps, resets expired streaks beyond resetAfterHours, and seals milestone claims.",
+      "enabled": true,
+      "intervalMinutes": 15,
+      "lastRunAt": "2026-11-16T02:37:05.852Z",
+      "runsCount": 49,
+      "lastSummary": "Audited 2 member streak ledger(s); auto-reset 0 lapsed streak(s) exceeding 48h."
+    },
+    {
+      "id": "spin_criteria_audit",
+      "name": "Spin & Win Multi-Win Criteria Enforcer",
+      "description": "Automatically switches repeat winners (>= threshold wins) to Super Hard difficulty and audits free-spin win caps.",
+      "enabled": true,
+      "intervalMinutes": 5,
+      "lastRunAt": "2026-11-16T02:37:05.856Z",
+      "runsCount": 107,
+      "lastSummary": "Audited 6 spin profile(s); switched 0 multi-winner account(s) (>= 2 wins) to Super Hard."
+    },
+    {
+      "id": "won_prize_logistics",
+      "name": "Won Vehicle Custody & Logistics Progression",
+      "description": "Advances fee-paid won vehicles from fees_paid_processing to documentation_ready and carrier dispatch.",
+      "enabled": true,
+      "intervalMinutes": 10,
+      "lastRunAt": "2026-11-16T02:37:05.861Z",
+      "runsCount": 39,
+      "lastSummary": "Verified 4 won-prize vault item(s); progressed shipping logistics on 0 admin-approved vehicle(s)."
+    },
+    {
+      "id": "tsla_market_sync",
+      "name": "TSLA Market Telemetry & Price Alert Check",
+      "description": "Refreshes TSLA quote baselines and triggers active user price alerts when thresholds cross.",
+      "enabled": true,
+      "intervalMinutes": 5,
+      "lastRunAt": "2026-11-16T02:37:05.865Z",
+      "runsCount": 130,
+      "lastSummary": "Synced live NASDAQ: TSLA telemetry feed ($333.72)."
+    }
+  ],
+  "blog_posts": [
+    {
+      "id": "blog-800v-cybertruck-diagnostics",
+      "slug": "800v-cybertruck-high-voltage-diagnostics-guide",
+      "title": "Inside 800V Cybertruck Architecture: Non-Destructive Cell Impedance Diagnostics",
+      "subtitle": "How Apex Fremont & Austin bays isolate 4680 structural pack anomalies before thermal drift begins.",
+      "category": "EV Engineering & Diagnostics",
+      "status": "published",
+      "featured": true,
+      "excerpt": "A technical look at 800V dual-subpack isolation testing, pyrofuse health checks, and why 16V/48V auxiliary bus telemetry prevents unexpected bricking.",
+      "content": "## Why 800V High-Voltage Telemetry Matters for 2026 Cybertruck Owners\nModern 4680 structural battery packs deliver extraordinary sustained discharge for Cyberbeast 845 HP launches and heavy-duty towing. However, millimeter-level thermal expansion across laser-welded busbars means proactive non-destructive impedance scanning is critical after your first 15,000 miles.\n\nAt Apex Tesla Hub service bays, master technicians utilize calibrated high-voltage oscilloscopes and CAN-FD telemetry loggers rather than trial-and-error part swaps. Every inspection generates a signed cell-balance certificate stored directly inside your digital garage.\n\n## The 4-Stage Non-Destructive Inspection Protocol\n- **Stage 1 — Static & Loaded Cell Delta Audit**: Measures voltage variance across all brick groups under controlled regenerative braking loads (target delta <= 8mV).\n- **Stage 2 — 48V Steer-by-Wire & Low-Voltage Conductance**: Tests DC-DC converter ripple and auxiliary supercapacitor reserve capacity.\n- **Stage 3 — Heat Pump & Octovalve Loop Calibration**: Verifies dielectric coolant purity and ultrasonic flow rate before winter or track duty.\n- **Stage 4 — Pyrofuses & Contactor Arc Wear**: Reads milli-ohm contact resistance inside main pack contactors to flag wear 6+ months before fault codes appear.\n\n## Mobile Ranger vs. Cleanroom Technology Center Bays\nRoutine HEPA Bioweapon Defense Mode swaps, 16V auxiliary battery upgrades, and tire torque balancing are completed curbside via our 24/7 Mobile Ranger Fleet. Full pack isolation and inverter coolant servicing take place inside our OSHA-certified Fremont and Austin high-voltage bays with instant crypto or USD vault checkout.",
+      "coverImageUrl": "/cert-hv-safety.jpg",
+      "authorName": "Dr. Marcus Vance",
+      "authorRole": "Lead HV Powertrain Engineer",
+      "publishedAt": "2026-11-14",
+      "updatedAt": "2026-11-14",
+      "readTimeMinutes": 5,
+      "seoTitle": "Cybertruck 800V HV Battery Diagnostics Guide | Apex Hub",
+      "metaDescription": "Learn how non-destructive 4680 cell impedance scanning, 48V bus telemetry, and Mobile Ranger service protect your 2026 Cybertruck range and powertrain.",
+      "focusKeywords": "Cybertruck 800V diagnostics, 4680 battery health, Tesla HV service bay, Mobile Tesla Ranger",
+      "canonicalUrl": "https://apex-tesla.io/?tab=blog&post=800v-cybertruck-high-voltage-diagnostics-guide",
+      "schemaType": "TechArticle",
+      "viewsCount": 3420,
+      "sharesCount": 418,
+      "likesCount": 289,
+      "bookmarksCount": 164,
+      "commentsCount": 2
+    },
+    {
+      "id": "blog-class100-ppf-wraps",
+      "slug": "class-100-cleanroom-3m-satin-stealth-ppf-science",
+      "title": "Class-100 Cleanroom Vinyl & Self-Healing PPF: Zero-Bubble Tesla Styling",
+      "subtitle": "Why ambient particle control and deep edge-tucking separate 10-year custom wraps from shop lifting.",
+      "category": "Wraps & Protection",
+      "status": "published",
+      "featured": false,
+      "excerpt": "Discover how positive-pressure HEPA studios, 3M 2080 cast vinyls, and aliphatic urethane PPF shield factory clearcoats from gravel and UV fade.",
+      "content": "## Paint Thickness Reality on High-Speed EVs\nElectric sedans and trucks slice through highway air with minimal engine masking, making front fascias and rocker panels magnets for road grit. Factory clearcoats measure under 2 mils — thin enough that a single track weekend leaves permanent pitting without protective film.\n\n## Inside an ISO Class-100 Cleanroom Bay\nStandard garages trap airborne lint under vinyl adhesive. Our custom wrap studios operate under continuous laminar HEPA airflow with 48% controlled humidity:\n- **Zero-Seam Panel Wrapping**: Ultrasonic sensors, camera housings, and door handles are masked and precision-tucked without blades ever touching factory paint.\n- **Aliphatic TPU Self-Healing Topcoat**: Micro-swirls disappear within 20 minutes under warm sunlight or radiant curing lamps.\n- **Hydrophobic SiO2 Top-Seal**: Locks satin stealth finishes against acid rain, brake dust, and road tar for 60+ months.\n\n## Visualizing Your Spec Before Booking\nInside our Custom Studio tab, members can preview finish palettes (Satin Stealth Black, Liquid Titanium Chrome, Cyber-Cyan) and generate photorealistic wrap concept visualizations before reserving a bay slot with USDT, BTC, or USD vault balance.",
+      "coverImageUrl": "/cert-wrap-cleanroom.jpg",
+      "authorName": "Elena Rostova",
+      "authorRole": "Cleanroom Studio Director",
+      "publishedAt": "2026-11-12",
+      "updatedAt": "2026-11-13",
+      "readTimeMinutes": 4,
+      "seoTitle": "Cleanroom 3M Tesla Vinyl Wraps & Stealth PPF | Apex Hub",
+      "metaDescription": "Explore how ISO Class-100 cleanroom bays install 3M 2080 satin wraps and self-healing ceramic PPF with zero lifting and a 5-year warranty.",
+      "focusKeywords": "Tesla vinyl wrap, Satin Stealth Black PPF, cleanroom car wrap, Cybertruck PPF installation",
+      "canonicalUrl": "https://apex-tesla.io/?tab=blog&post=class-100-cleanroom-3m-satin-stealth-ppf-science",
+      "schemaType": "BlogPosting",
+      "viewsCount": 2890,
+      "sharesCount": 312,
+      "likesCount": 245,
+      "bookmarksCount": 192,
+      "commentsCount": 1
+    },
+    {
+      "id": "blog-robotaxi-v4-staking-yield",
+      "slug": "autonomous-robotaxi-v4-supercharger-staking-economics",
+      "title": "Autonomous Robotaxi & V4 Supercharger Yield Economics Explained",
+      "subtitle": "Audited kilowatt utilization, cold-storage reserve proofs, and how daily fleet dividends settle.",
+      "category": "Fleet & Staking Yield",
+      "status": "published",
+      "featured": true,
+      "excerpt": "A transparent breakdown of revenue streams powering 14.8% to 22.6% APY Robotaxi & Supercharger Megawatt staking pools on Apex Tesla Hub.",
+      "content": "## Where Real EV Infrastructure Yield Comes From\nUnlike unbacked inflationary token farms, Apex Tesla Hub fleet pools generate cashflow from physical mobility demand across high-utilization metropolitan corridors in Austin, Fremont, and Nevada:\n- **Commercial Robotaxi & Cybercab Mileage**: Peak urban ride utilization averages 14.5 active hours per vehicle daily with regenerative energy recovery.\n- **V4 Megawatt Charging Spreads**: Commercial fast-charging corridors capture off-peak Megapack battery storage arbitrage at 250kW–350kW dispense rates.\n- **Short-Term Exotic Track & Executive Rentals**: Cyberbeast and Model S Plaid daily charters maintain 85%+ fleet occupancy across weekends.\n\n## Automated Daily Settlement & Multi-Sig Custody\nParticipant principals and yields are protected by hardware-backed multi-signature custody wallets with published proof-of-reserves. Every 24 hours, automated settlement engines credit USD or USDT directly into member vaults with downloadable settlement certificates.",
+      "coverImageUrl": "/promo-robotaxi.jpg",
+      "authorName": "Priya Nair",
+      "authorRole": "Grid Energy & Treasury Strategist",
+      "publishedAt": "2026-11-11",
+      "updatedAt": "2026-11-12",
+      "readTimeMinutes": 6,
+      "seoTitle": "Robotaxi & V4 Supercharger Fleet Yield Guide | Apex Hub",
+      "metaDescription": "Understand how Robotaxi ride demand and V4 Supercharger Megapack arbitrage generate audited daily staking dividends on Apex Tesla Hub.",
+      "focusKeywords": "Tesla Robotaxi staking, Supercharger V4 yield, EV fleet passive income, Apex Tesla Hub staking",
+      "canonicalUrl": "https://apex-tesla.io/?tab=blog&post=autonomous-robotaxi-v4-supercharger-staking-economics",
+      "schemaType": "NewsArticle",
+      "viewsCount": 4610,
+      "sharesCount": 529,
+      "likesCount": 412,
+      "bookmarksCount": 305,
+      "commentsCount": 1
+    },
+    {
+      "id": "blog-tsla-fast-roi-crypto-settlement",
+      "slug": "tsla-fast-roi-and-multi-chain-crypto-settlement-2026",
+      "title": "TSLA Accelerated Equity Pools & Multi-Chain Crypto Treasury Rails",
+      "subtitle": "Zero-fee TRC-20, BTC, XRP, and BNB funding with institutional speed across global markets.",
+      "category": "TSLA Markets & Crypto",
+      "status": "published",
+      "featured": false,
+      "excerpt": "See how NASDAQ: TSLA spot liquidity pairs with 7-to-30 day Fast-ROI cycles and instant Web3 wallet settlement for global EV investors.",
+      "content": "## Bridging High-Growth EV Equities with Instant Settlement\nTraditional brokerage wires lock investor liquidity behind 3-day T+2 banking bottlenecks. Apex Tesla Hub pairs live NASDAQ: TSLA price telemetry with short-cycle 7, 14, and 30-day accelerated equity allocations.\n\n## Supported Multi-Chain Settlement Rails\n- **USDT (TRC-20 & ERC-20)**: Sub-minute confirmation finality and zero platform deposit fees.\n- **Bitcoin Native & Lightning**: Cold-storage multisig vault reception with automated block indexer verification.\n- **Ripple XRPL & BNB Smart Chain**: Ideal for high-frequency cross-border deposits and mobile WalletConnect v2 pairing.\n\n## Tiered Loyalty Advantages\nMembers scaling through Plaid Member and Founders Club tiers unlock priority withdrawal turnaround, complimentary enclosed vehicle shipping credits, and boosted engagement reward multipliers across the entire portal.",
+      "coverImageUrl": "/img-supercharger-node.jpg",
+      "authorName": "Devon Brooks",
+      "authorRole": "Capital Markets Desk",
+      "publishedAt": "2026-11-09",
+      "updatedAt": "2026-11-10",
+      "readTimeMinutes": 4,
+      "seoTitle": "TSLA Fast ROI & Crypto Settlement Rails | Apex Tesla Hub",
+      "metaDescription": "Learn how TSLA Fast-ROI stock cycles integrate instant USDT, BTC, XRP, and BNB crypto vaults with zero deposit fees.",
+      "focusKeywords": "TSLA Fast ROI, buy TSLA with crypto, USDT Tesla vault, Apex crypto gateway",
+      "canonicalUrl": "https://apex-tesla.io/?tab=blog&post=tsla-fast-roi-and-multi-chain-crypto-settlement-2026",
+      "schemaType": "BlogPosting",
+      "viewsCount": 2150,
+      "sharesCount": 198,
+      "likesCount": 174,
+      "bookmarksCount": 118,
+      "commentsCount": 0
+    },
+    {
+      "id": "blog-cyberbeast-enclosed-logistics",
+      "slug": "cyberbeast-plaid-enclosed-nationwide-delivery-checklist",
+      "title": "2026 Cyberbeast & Model S Plaid Enclosed Delivery: 40-Point Pre-Dispatch QA",
+      "subtitle": "What happens inside our bonded carrier staging bay before your factory EV leaves for your driveway.",
+      "category": "Vehicle Deliveries",
+      "status": "published",
+      "featured": false,
+      "excerpt": "From VIN allocation and torque verification to air-ride enclosed transport and our 7-day money-back escrow guarantee, review our full delivery protocol.",
+      "content": "## Factory-Direct Ordering Without Dealership Markup\nOrdering a 2026 Cybertruck Cyberbeast or Model S Plaid directly through Apex Tesla Hub eliminates regional dealer markups while locking in transparent enclosed freight rates and full escrow safety.\n\n## Our 40-Point Pre-Carrier Staging Checklist\n- **Precision Panel & Seal Alignment**: Laser gap audit across doors, falcon wings, and powered tonneau covers.\n- **90% Pre-Conditioned Delivery SoC**: Vehicles board air-ride enclosed carriers charged and calibrated so you can drive immediately upon unloading.\n- **Full VIN Documentation & 7-Day Trial Protection**: Title packet, export clearance (when international), and 1,000-mile / 7-day refund escrow active from touchdown.\n\n## Real-Time Transporter Tracking\nEvery vehicle order and Spin-and-Win car grand prize includes GPS waypoint checkpoints from bay loading straight to your driveway.",
+      "coverImageUrl": "/promo-cyberbeast.jpg",
+      "authorName": "Carter Wells",
+      "authorRole": "Director of Global EV Logistics",
+      "publishedAt": "2026-11-07",
+      "updatedAt": "2026-11-08",
+      "readTimeMinutes": 5,
+      "seoTitle": "Cyberbeast & Plaid Enclosed Delivery QA | Apex Tesla Hub",
+      "metaDescription": "Review Apex Tesla Hub 40-point enclosed carrier inspection, GPS VIN tracking, and 7-day money-back delivery guarantee for 2026 Tesla orders.",
+      "focusKeywords": "Cyberbeast enclosed delivery, buy Model S Plaid online, Tesla nationwide shipping, Apex logistics",
+      "canonicalUrl": "https://apex-tesla.io/?tab=blog&post=cyberbeast-plaid-enclosed-nationwide-delivery-checklist",
+      "schemaType": "NewsArticle",
+      "viewsCount": 1980,
+      "sharesCount": 176,
+      "likesCount": 162,
+      "bookmarksCount": 98,
+      "commentsCount": 0
+    },
+    {
+      "id": "blog-plaid-track-mode-telemetry",
+      "slug": "model-s-plaid-carbon-ceramic-track-prep-telemetry",
+      "title": "Preparing a 1,020 HP Model S Plaid for Track Day: Carbon Ceramics & Brake Fluid",
+      "subtitle": "Laguna Seca telemetry benchmarks showing how DOT 5.1 fluid and camber tuning eliminate lap-five fade.",
+      "category": "EV Engineering & Diagnostics",
+      "status": "published",
+      "featured": false,
+      "excerpt": "Data-backed insights on tri-motor torque vectoring, forged unsprung wheel weight reduction, and carbon-ceramic thermal limits for high-speed EV driving.",
+      "content": "## Taming 1,020 Horsepower Under Repeated Braking\nWith a 1.99-second 0–60 mph launch and 200 mph top speed capability, stock commuter pads reach thermal saturation rapidly under heavy circuit braking.\n\n## Essential Track Upgrades in Apex Service Bays\n- **High-Temp DOT 5.1 Synthetic Flush**: Raises wet boiling point to keep pedal travel consistent lap after lap.\n- **21\" Monoblock Forged Wheel Swap**: Cuts 26 lbs of rotating unsprung mass, sharpening turn-in response while boosting highway Wh/mi efficiency by 4%.\n- **Custom Negative Camber Alignment**: Maximizes shoulder contact patch during lateral cornering loads above 1.15G.\n\n## Schedule Pre-Track Inspection\nReserve a Bay 1–18 performance slot in our Service tab or explore Track-Spec forged hardware inside the Store.",
+      "coverImageUrl": "/promo-plaid.jpg",
+      "authorName": "Victor Takahashi",
+      "authorRole": "Chief Track Telemetry Specialist",
+      "publishedAt": "2026-11-04",
+      "updatedAt": "2026-11-05",
+      "readTimeMinutes": 4,
+      "seoTitle": "Model S Plaid Track Mode & Ceramic Brake Prep | Apex Hub",
+      "metaDescription": "Prepare your 1,020 HP Model S Plaid for track days with carbon-ceramic brakes, DOT 5.1 fluid flush, and forged wheel weight savings.",
+      "focusKeywords": "Model S Plaid track prep, Tesla carbon ceramic brakes, Tesla forged wheels, Plaid alignment",
+      "canonicalUrl": "https://apex-tesla.io/?tab=blog&post=model-s-plaid-carbon-ceramic-track-prep-telemetry",
+      "schemaType": "TechArticle",
+      "viewsCount": 1740,
+      "sharesCount": 152,
+      "likesCount": 141,
+      "bookmarksCount": 87,
+      "commentsCount": 0
+    }
+  ],
+  "blog_comments": [
+    {
+      "id": "bcm-01",
+      "postId": "blog-800v-cybertruck-diagnostics",
+      "userId": "usr-004",
+      "userName": "Sarah Connor",
+      "userTier": "Plaid Member",
+      "body": "Booked the Bay 2 800V scan on my Cyberbeast at 16,200 miles—caught an early 16V coolant valve calibration issue before a Tahoe trip. Worth every penny.",
+      "createdAt": "2026-11-14 16:40"
+    },
+    {
+      "id": "bcm-02",
+      "postId": "blog-800v-cybertruck-diagnostics",
+      "userId": "usr-006",
+      "userName": "Elena Rostova",
+      "userTier": "Founders Club",
+      "body": "Seeing exact millivolt deltas per brick inside the user dashboard gives genuine peace of mind compared to generic OBD dongles.",
+      "createdAt": "2026-11-15 09:15"
+    },
+    {
+      "id": "bcm-03",
+      "postId": "blog-class100-ppf-wraps",
+      "userId": "usr-apex-001",
+      "userName": "Alex Vance",
+      "userTier": "Plaid Member",
+      "body": "My Satin Stealth Black wrap still looks factory-fresh after 11 months of Highway 101 commuting—zero edge lifting around the door handles.",
+      "createdAt": "2026-11-13 18:22"
+    },
+    {
+      "id": "bcm-04",
+      "postId": "blog-robotaxi-v4-staking-yield",
+      "userId": "usr-010",
+      "userName": "Priya Nair",
+      "userTier": "Founders Club",
+      "body": "Daily automated settlement directly into USD vault makes compounding V4 Supercharger yield cycles completely frictionless.",
+      "createdAt": "2026-11-12 11:05"
+    }
+  ],
+  "engagement_reward_config": {
+    "enabled": true,
+    "readArticleBaseCents": 5,
+    "readMinDwellSeconds": 12,
+    "shareArticleBaseCents": 4,
+    "shareProgressiveStepCents": 2,
+    "maxRewardedSharesPerPostPerDay": 8,
+    "engagementActionBaseCents": 3,
+    "timeOnPlatformCentsPerInterval": 2,
+    "timeOnPlatformIntervalSeconds": 60,
+    "socialSharePlatformCents": 4,
+    "dailyCapUsd": 2.5,
+    "tierMultipliers": {
+      "Standard": 1,
+      "Silver Ambassador": 1.25,
+      "Plaid Member": 1.5,
+      "Founders Club": 2.25
+    },
+    "tierLevels": [
+      {
+        "id": "standard",
+        "name": "Standard (Bronze)",
+        "mappedUserTier": "Standard",
+        "minPoints": 0,
+        "minDepositUsd": 0,
+        "multiplier": 1,
+        "referralRewardUsd": 25
+      },
+      {
+        "id": "silver",
+        "name": "Silver Ambassador",
+        "mappedUserTier": "Silver Ambassador",
+        "minPoints": 250,
+        "minDepositUsd": 500,
+        "multiplier": 1.25,
+        "referralRewardUsd": 75
+      },
+      {
+        "id": "plaid",
+        "name": "Plaid Member (Gold)",
+        "mappedUserTier": "Plaid Member",
+        "minPoints": 1000,
+        "minDepositUsd": 5000,
+        "multiplier": 1.5,
+        "referralRewardUsd": 125
+      },
+      {
+        "id": "founders",
+        "name": "Founders Club (Platinum)",
+        "mappedUserTier": "Founders Club",
+        "minPoints": 3000,
+        "minDepositUsd": 25000,
+        "multiplier": 2.25,
+        "referralRewardUsd": 200
+      }
+    ],
+    "enabledSharePlatforms": [
+      "twitter",
+      "facebook",
+      "linkedin",
+      "threads",
+      "whatsapp",
+      "telegram",
+      "reddit",
+      "pinterest",
+      "instagram",
+      "tiktok",
+      "youtube",
+      "discord",
+      "email",
+      "copy_link"
+    ]
+  },
+  "engagement_rewards": [
+    {
+      "id": "eng-mwinmayb-nd7h",
+      "userId": "usr-apex-admin-01",
+      "userEmail": "admin.ops@apex-tesla.io",
+      "userName": "Admin Operations",
+      "userTier": "Founders Club",
+      "multiplier": 2.25,
+      "actionType": "time_on_platform",
+      "baseCents": 2,
+      "awardedCents": 4.5,
+      "awardedUsd": 0.045,
+      "description": "Active Page Dwell on /home (60s verified)",
+      "status": "credited",
+      "createdAt": "2026-11-16T02:38:27.827Z"
+    },
+    {
+      "id": "eng-mwinkzb4-jnfl",
+      "userId": "usr-apex-admin-01",
+      "userEmail": "admin.ops@apex-tesla.io",
+      "userName": "Admin Operations",
+      "userTier": "Founders Club",
+      "multiplier": 2.25,
+      "actionType": "time_on_platform",
+      "baseCents": 2,
+      "awardedCents": 4.5,
+      "awardedUsd": 0.045,
+      "description": "Active Page Dwell on /referrals (60s verified)",
+      "status": "credited",
+      "createdAt": "2026-11-16T02:37:26.080Z"
+    },
+    {
+      "id": "eng-mwinjor2-qnaf",
+      "userId": "usr-apex-admin-01",
+      "userEmail": "admin.ops@apex-tesla.io",
+      "userName": "Admin Operations",
+      "userTier": "Founders Club",
+      "multiplier": 2.25,
+      "actionType": "time_on_platform",
+      "baseCents": 2,
+      "awardedCents": 4.5,
+      "awardedUsd": 0.045,
+      "description": "Active Page Dwell on /referrals (60s verified)",
+      "status": "credited",
+      "createdAt": "2026-11-16T02:36:25.742Z"
+    },
+    {
+      "id": "eng-mwinidor-8lbd",
+      "userId": "usr-apex-admin-01",
+      "userEmail": "admin.ops@apex-tesla.io",
+      "userName": "Admin Operations",
+      "userTier": "Founders Club",
+      "multiplier": 2.25,
+      "actionType": "time_on_platform",
+      "baseCents": 2,
+      "awardedCents": 4.5,
+      "awardedUsd": 0.045,
+      "description": "Active Page Dwell on /referrals (60s verified)",
+      "status": "credited",
+      "createdAt": "2026-11-16T02:35:24.747Z"
+    },
+    {
+      "id": "eng-mwinh3ah-wveo",
+      "userId": "usr-apex-admin-01",
+      "userEmail": "admin.ops@apex-tesla.io",
+      "userName": "Admin Operations",
+      "userTier": "Founders Club",
+      "multiplier": 2.25,
+      "actionType": "time_on_platform",
+      "baseCents": 2,
+      "awardedCents": 4.5,
+      "awardedUsd": 0.045,
+      "description": "Active Page Dwell on /referrals (60s verified)",
+      "status": "credited",
+      "createdAt": "2026-11-16T02:34:24.617Z"
+    },
+    {
+      "id": "eng-mwinfs47-2d4z",
+      "userId": "usr-apex-admin-01",
+      "userEmail": "admin.ops@apex-tesla.io",
+      "userName": "Admin Operations",
+      "userTier": "Founders Club",
+      "multiplier": 2.25,
+      "actionType": "time_on_platform",
+      "baseCents": 2,
+      "awardedCents": 4.5,
+      "awardedUsd": 0.045,
+      "description": "Active Page Dwell on /admin (60s verified)",
+      "status": "credited",
+      "createdAt": "2026-11-16T02:33:23.479Z"
+    },
+    {
+      "id": "eng-mwinehou-byiw",
+      "userId": "usr-apex-admin-01",
+      "userEmail": "admin.ops@apex-tesla.io",
+      "userName": "Admin Operations",
+      "userTier": "Founders Club",
+      "multiplier": 2.25,
+      "actionType": "time_on_platform",
+      "baseCents": 2,
+      "awardedCents": 4.5,
+      "awardedUsd": 0.045,
+      "description": "Active Page Dwell on /admin (60s verified)",
+      "status": "credited",
+      "createdAt": "2026-11-16T02:32:23.310Z"
+    },
+    {
+      "id": "eng-mwind78y-18h8",
+      "userId": "usr-apex-admin-01",
+      "userEmail": "admin.ops@apex-tesla.io",
+      "userName": "Admin Operations",
+      "userTier": "Founders Club",
+      "multiplier": 2.25,
+      "actionType": "time_on_platform",
+      "baseCents": 2,
+      "awardedCents": 4.5,
+      "awardedUsd": 0.045,
+      "description": "Active Page Dwell on /admin (60s verified)",
+      "status": "credited",
+      "createdAt": "2026-11-16T02:31:23.122Z"
+    },
+    {
+      "id": "eng-mwinbwur-o3s4",
+      "userId": "usr-apex-admin-01",
+      "userEmail": "admin.ops@apex-tesla.io",
+      "userName": "Admin Operations",
+      "userTier": "Founders Club",
+      "multiplier": 2.25,
+      "actionType": "time_on_platform",
+      "baseCents": 2,
+      "awardedCents": 4.5,
+      "awardedUsd": 0.045,
+      "description": "Active Page Dwell on /admin (60s verified)",
+      "status": "credited",
+      "createdAt": "2026-11-16T02:30:22.995Z"
+    },
+    {
+      "id": "eng-mwina98t-mdbk",
+      "userId": "usr-apex-001",
+      "userEmail": "alex.vance@apex-tesla.io",
+      "userName": "Alex Vance",
+      "userTier": "Plaid Member",
+      "multiplier": 1.5,
+      "actionType": "time_on_platform",
+      "baseCents": 2,
+      "awardedCents": 3,
+      "awardedUsd": 0.03,
+      "description": "Active Page Dwell on /stocks (60s verified)",
+      "status": "credited",
+      "createdAt": "2026-11-16T02:29:05.741Z"
+    },
+    {
+      "id": "eng-mwin8yex-f5bj",
+      "userId": "usr-apex-001",
+      "userEmail": "alex.vance@apex-tesla.io",
+      "userName": "Alex Vance",
+      "userTier": "Plaid Member",
+      "multiplier": 1.5,
+      "actionType": "time_on_platform",
+      "baseCents": 2,
+      "awardedCents": 3,
+      "awardedUsd": 0.03,
+      "description": "Active Page Dwell on /stocks (60s verified)",
+      "status": "credited",
+      "createdAt": "2026-11-16T02:28:05.049Z"
+    },
+    {
+      "id": "eng-mwin7o00-mwng",
+      "userId": "usr-apex-001",
+      "userEmail": "alex.vance@apex-tesla.io",
+      "userName": "Alex Vance",
+      "userTier": "Plaid Member",
+      "multiplier": 1.5,
+      "actionType": "time_on_platform",
+      "baseCents": 2,
+      "awardedCents": 3,
+      "awardedUsd": 0.03,
+      "description": "Active Page Dwell on /home (60s verified)",
+      "status": "credited",
+      "createdAt": "2026-11-16T02:27:04.896Z"
+    },
+    {
+      "id": "eng-mwin6d2i-zc8o",
+      "userId": "usr-apex-001",
+      "userEmail": "alex.vance@apex-tesla.io",
+      "userName": "Alex Vance",
+      "userTier": "Plaid Member",
+      "multiplier": 1.5,
+      "actionType": "time_on_platform",
+      "baseCents": 2,
+      "awardedCents": 3,
+      "awardedUsd": 0.03,
+      "description": "Active Page Dwell on /services (60s verified)",
+      "status": "credited",
+      "createdAt": "2026-11-16T02:26:04.074Z"
+    },
+    {
+      "id": "eng-mwin51za-5pvd",
+      "userId": "usr-apex-001",
+      "userEmail": "alex.vance@apex-tesla.io",
+      "userName": "Alex Vance",
+      "userTier": "Plaid Member",
+      "multiplier": 1.5,
+      "actionType": "time_on_platform",
+      "baseCents": 2,
+      "awardedCents": 3,
+      "awardedUsd": 0.03,
+      "description": "Active Page Dwell on /stocks (60s verified)",
+      "status": "credited",
+      "createdAt": "2026-11-16T02:25:03.046Z"
+    },
+    {
+      "id": "eng-mwin3rmj-bu90",
+      "userId": "usr-apex-001",
+      "userEmail": "alex.vance@apex-tesla.io",
+      "userName": "Alex Vance",
+      "userTier": "Plaid Member",
+      "multiplier": 1.5,
+      "actionType": "time_on_platform",
+      "baseCents": 2,
+      "awardedCents": 3,
+      "awardedUsd": 0.03,
+      "description": "Active Page Dwell on /stocks (60s verified)",
+      "status": "credited",
+      "createdAt": "2026-11-16T02:24:02.971Z"
+    },
+    {
+      "id": "eng-mwin2gkb-84h0",
+      "userId": "usr-apex-001",
+      "userEmail": "alex.vance@apex-tesla.io",
+      "userName": "Alex Vance",
+      "userTier": "Plaid Member",
+      "multiplier": 1.5,
+      "actionType": "time_on_platform",
+      "baseCents": 2,
+      "awardedCents": 3,
+      "awardedUsd": 0.03,
+      "description": "Active Page Dwell on /home (60s verified)",
+      "status": "credited",
+      "createdAt": "2026-11-16T02:23:01.979Z"
+    },
+    {
+      "id": "eng-mwimye5i-ez74",
+      "userId": "usr-apex-001",
+      "userEmail": "alex.vance@apex-tesla.io",
+      "userName": "Alex Vance",
+      "userTier": "Plaid Member",
+      "multiplier": 1.5,
+      "actionType": "time_on_platform",
+      "baseCents": 2,
+      "awardedCents": 3,
+      "awardedUsd": 0.03,
+      "description": "Active Page Dwell on /dashboard (60s verified)",
+      "status": "credited",
+      "createdAt": "2026-11-16T02:19:52.230Z"
+    },
+    {
+      "id": "eng-mwimuj7g-cgt3",
+      "userId": "usr-apex-001",
+      "userEmail": "alex.vance@apex-tesla.io",
+      "userName": "Alex Vance",
+      "userTier": "Plaid Member",
+      "multiplier": 1.5,
+      "actionType": "time_on_platform",
+      "baseCents": 2,
+      "awardedCents": 3,
+      "awardedUsd": 0.03,
+      "description": "Active Page Dwell on /dashboard (60s verified)",
+      "status": "credited",
+      "createdAt": "2026-11-16T02:16:52.156Z"
+    },
+    {
+      "id": "eng-mwimt8tm-uyb4",
+      "userId": "usr-apex-001",
+      "userEmail": "alex.vance@apex-tesla.io",
+      "userName": "Alex Vance",
+      "userTier": "Plaid Member",
+      "multiplier": 1.5,
+      "actionType": "time_on_platform",
+      "baseCents": 2,
+      "awardedCents": 3,
+      "awardedUsd": 0.03,
+      "description": "Active Page Dwell on /dashboard (60s verified)",
+      "status": "credited",
+      "createdAt": "2026-11-16T02:15:52.042Z"
+    },
+    {
+      "id": "eng-mwimryat-v6xs",
+      "userId": "usr-apex-001",
+      "userEmail": "alex.vance@apex-tesla.io",
+      "userName": "Alex Vance",
+      "userTier": "Plaid Member",
+      "multiplier": 1.5,
+      "actionType": "time_on_platform",
+      "baseCents": 2,
+      "awardedCents": 3,
+      "awardedUsd": 0.03,
+      "description": "Active Page Dwell on /dashboard (60s verified)",
+      "status": "credited",
+      "createdAt": "2026-11-16T02:14:51.747Z"
+    },
+    {
+      "id": "eng-mwimqn87-8rkn",
+      "userId": "usr-apex-001",
+      "userEmail": "alex.vance@apex-tesla.io",
+      "userName": "Alex Vance",
+      "userTier": "Plaid Member",
+      "multiplier": 1.5,
+      "actionType": "time_on_platform",
+      "baseCents": 2,
+      "awardedCents": 3,
+      "awardedUsd": 0.03,
+      "description": "Active Page Dwell on /dashboard (60s verified)",
+      "status": "credited",
+      "createdAt": "2026-11-16T02:13:50.743Z"
+    },
+    {
+      "id": "eng-mwimpc5q-eocf",
+      "userId": "usr-apex-001",
+      "userEmail": "alex.vance@apex-tesla.io",
+      "userName": "Alex Vance",
+      "userTier": "Plaid Member",
+      "multiplier": 1.5,
+      "actionType": "time_on_platform",
+      "baseCents": 2,
+      "awardedCents": 3,
+      "awardedUsd": 0.03,
+      "description": "Active Page Dwell on /dashboard (60s verified)",
+      "status": "credited",
+      "createdAt": "2026-11-16T02:12:49.742Z"
+    },
+    {
+      "id": "eng-mwimo13b-w6bu",
+      "userId": "usr-apex-001",
+      "userEmail": "alex.vance@apex-tesla.io",
+      "userName": "Alex Vance",
+      "userTier": "Plaid Member",
+      "multiplier": 1.5,
+      "actionType": "time_on_platform",
+      "baseCents": 2,
+      "awardedCents": 3,
+      "awardedUsd": 0.03,
+      "description": "Active Page Dwell on /dashboard (60s verified)",
+      "status": "credited",
+      "createdAt": "2026-11-16T02:11:48.743Z"
+    },
+    {
+      "id": "eng-mwimmpy2-6qoo",
+      "userId": "usr-apex-001",
+      "userEmail": "alex.vance@apex-tesla.io",
+      "userName": "Alex Vance",
+      "userTier": "Plaid Member",
+      "multiplier": 1.5,
+      "actionType": "time_on_platform",
+      "baseCents": 2,
+      "awardedCents": 3,
+      "awardedUsd": 0.03,
+      "description": "Active Page Dwell on /home (60s verified)",
+      "status": "credited",
+      "createdAt": "2026-11-16T02:10:47.642Z"
+    },
+    {
+      "id": "eng-mwimlj2r-xnms",
+      "userId": "usr-apex-001",
+      "userEmail": "alex.vance@apex-tesla.io",
+      "userName": "Alex Vance",
+      "userTier": "Plaid Member",
+      "multiplier": 1,
+      "actionType": "daily_streak",
+      "baseCents": 7,
+      "awardedCents": 7,
+      "awardedUsd": 0.07,
+      "description": "Day 1 Daily Streak Check-In (+35 pts)",
+      "status": "credited",
+      "createdAt": "2026-11-16T02:09:52.083Z"
+    },
+    {
+      "id": "eng-mwimle3z-vsjs",
+      "userId": "usr-apex-001",
+      "userEmail": "alex.vance@apex-tesla.io",
+      "userName": "Alex Vance",
+      "userTier": "Plaid Member",
+      "multiplier": 1.5,
+      "actionType": "time_on_platform",
+      "baseCents": 2,
+      "awardedCents": 3,
+      "awardedUsd": 0.03,
+      "description": "Active Page Dwell on /dashboard (60s verified)",
+      "status": "credited",
+      "createdAt": "2026-11-16T02:09:45.647Z"
+    },
+    {
+      "id": "eng-mwimkbq4-geuj",
+      "userId": "usr-apex-admin-01",
+      "userEmail": "admin.ops@apex-tesla.io",
+      "userName": "Admin Operations",
+      "userTier": "Founders Club",
+      "multiplier": 1,
+      "actionType": "daily_streak",
+      "baseCents": 8.75,
+      "awardedCents": 8.75,
+      "awardedUsd": 0.0875,
+      "description": "Day 1 Daily Streak Check-In (+44 pts)",
+      "status": "credited",
+      "createdAt": "2026-11-16T02:08:55.900Z"
+    },
+    {
+      "id": "eng-mwimak74-ubbq",
+      "userId": "usr-apex-admin-01",
+      "userEmail": "admin.ops@apex-tesla.io",
+      "userName": "Admin Operations",
+      "userTier": "Founders Club",
+      "multiplier": 2.25,
+      "actionType": "time_on_platform",
+      "baseCents": 2,
+      "awardedCents": 4.5,
+      "awardedUsd": 0.045,
+      "description": "Active Page Dwell on /admin (60s verified)",
+      "status": "credited",
+      "createdAt": "2026-11-16T02:01:20.320Z"
+    },
+    {
+      "id": "eng-mwim8maw-t67j",
+      "userId": "usr-apex-001",
+      "userEmail": "alex.vance@apex-tesla.io",
+      "userName": "Alex Vance",
+      "userTier": "Plaid Member",
+      "multiplier": 1.5,
+      "actionType": "time_on_platform",
+      "baseCents": 2,
+      "awardedCents": 3,
+      "awardedUsd": 0.03,
+      "description": "Active Page Dwell on /dashboard (60s verified)",
+      "status": "credited",
+      "createdAt": "2026-11-16T01:59:49.736Z"
+    },
+    {
+      "id": "eng-mwim7byt-n2xl",
+      "userId": "usr-apex-001",
+      "userEmail": "alex.vance@apex-tesla.io",
+      "userName": "Alex Vance",
+      "userTier": "Plaid Member",
+      "multiplier": 1.5,
+      "actionType": "time_on_platform",
+      "baseCents": 2,
+      "awardedCents": 3,
+      "awardedUsd": 0.03,
+      "description": "Active Page Dwell on /dashboard (60s verified)",
+      "status": "credited",
+      "createdAt": "2026-11-16T01:58:49.685Z"
+    },
+    {
+      "id": "eng-mwim61m4-r7en",
+      "userId": "usr-apex-001",
+      "userEmail": "alex.vance@apex-tesla.io",
+      "userName": "Alex Vance",
+      "userTier": "Plaid Member",
+      "multiplier": 1.5,
+      "actionType": "time_on_platform",
+      "baseCents": 2,
+      "awardedCents": 3,
+      "awardedUsd": 0.03,
+      "description": "Active Page Dwell on /dashboard (60s verified)",
+      "status": "credited",
+      "createdAt": "2026-11-16T01:57:49.612Z"
+    },
+    {
+      "id": "eng-mwim4qgo-gzfk",
+      "userId": "usr-apex-001",
+      "userEmail": "alex.vance@apex-tesla.io",
+      "userName": "Alex Vance",
+      "userTier": "Plaid Member",
+      "multiplier": 1.5,
+      "actionType": "time_on_platform",
+      "baseCents": 2,
+      "awardedCents": 3,
+      "awardedUsd": 0.03,
+      "description": "Active Page Dwell on /home (60s verified)",
+      "status": "credited",
+      "createdAt": "2026-11-16T01:56:48.504Z"
+    },
+    {
+      "id": "eng-mwim3g06-88za",
+      "userId": "usr-apex-001",
+      "userEmail": "alex.vance@apex-tesla.io",
+      "userName": "Alex Vance",
+      "userTier": "Plaid Member",
+      "multiplier": 1.5,
+      "actionType": "time_on_platform",
+      "baseCents": 2,
+      "awardedCents": 3,
+      "awardedUsd": 0.03,
+      "description": "Active Page Dwell on /home (60s verified)",
+      "status": "credited",
+      "createdAt": "2026-11-16T01:55:48.294Z"
+    },
+    {
+      "id": "eng-mwim25b0-mau9",
+      "userId": "usr-apex-001",
+      "userEmail": "alex.vance@apex-tesla.io",
+      "userName": "Alex Vance",
+      "userTier": "Plaid Member",
+      "multiplier": 1.5,
+      "actionType": "time_on_platform",
+      "baseCents": 2,
+      "awardedCents": 3,
+      "awardedUsd": 0.03,
+      "description": "Active Page Dwell on /home (60s verified)",
+      "status": "credited",
+      "createdAt": "2026-11-16T01:54:47.772Z"
+    },
+    {
+      "id": "eng-mwilztef-2lmu",
+      "userId": "usr-apex-001",
+      "userEmail": "alex.vance@apex-tesla.io",
+      "userName": "Alex Vance",
+      "userTier": "Plaid Member",
+      "multiplier": 1.5,
+      "actionType": "time_on_platform",
+      "baseCents": 2,
+      "awardedCents": 3,
+      "awardedUsd": 0.03,
+      "description": "Active Page Dwell on /home (60s verified)",
+      "status": "credited",
+      "createdAt": "2026-11-16T01:52:59.031Z"
+    },
+    {
+      "id": "eng-seed-01",
+      "userId": "usr-apex-001",
+      "userEmail": "alex.vance@apex-tesla.io",
+      "userName": "Alex Vance",
+      "userTier": "Plaid Member",
+      "actionType": "read_article",
+      "postId": "blog-800v-cybertruck-diagnostics",
+      "postTitle": "Inside 800V Cybertruck Architecture: Non-Destructive Cell Impedance Diagnostics",
+      "baseCents": 5,
+      "multiplier": 1.5,
+      "awardedCents": 7.5,
+      "awardedUsd": 0.075,
+      "description": "Completed verified article read · Plaid Member (1.5x)",
+      "status": "credited",
+      "createdAt": "2026-11-14 14:20"
+    },
+    {
+      "id": "eng-seed-02",
+      "userId": "usr-apex-001",
+      "userEmail": "alex.vance@apex-tesla.io",
+      "userName": "Alex Vance",
+      "userTier": "Plaid Member",
+      "actionType": "share_article",
+      "postId": "blog-robotaxi-v4-staking-yield",
+      "postTitle": "Autonomous Robotaxi & V4 Supercharger Yield Economics Explained",
+      "platform": "twitter",
+      "baseCents": 4,
+      "multiplier": 1.5,
+      "awardedCents": 6,
+      "awardedUsd": 0.06,
+      "description": "Shared on X (Twitter) · Plaid Member (1.5x)",
+      "status": "credited",
+      "createdAt": "2026-11-14 15:05"
+    },
+    {
+      "id": "eng-seed-03",
+      "userId": "usr-apex-001",
+      "userEmail": "alex.vance@apex-tesla.io",
+      "userName": "Alex Vance",
+      "userTier": "Plaid Member",
+      "actionType": "share_article",
+      "postId": "blog-robotaxi-v4-staking-yield",
+      "postTitle": "Autonomous Robotaxi & V4 Supercharger Yield Economics Explained",
+      "platform": "linkedin",
+      "baseCents": 6,
+      "multiplier": 1.5,
+      "awardedCents": 9,
+      "awardedUsd": 0.09,
+      "description": "Multi-share combo #2 on LinkedIn · Plaid Member (1.5x)",
+      "status": "credited",
+      "createdAt": "2026-11-14 15:07"
+    },
+    {
+      "id": "eng-seed-04",
+      "userId": "usr-006",
+      "userEmail": "elena.r@apex-ev.de",
+      "userName": "Elena Rostova",
+      "userTier": "Founders Club",
+      "actionType": "read_article",
+      "postId": "blog-class100-ppf-wraps",
+      "postTitle": "Class-100 Cleanroom Vinyl & Self-Healing PPF: Zero-Bubble Tesla Styling",
+      "baseCents": 5,
+      "multiplier": 2.25,
+      "awardedCents": 11.25,
+      "awardedUsd": 0.1125,
+      "description": "Completed verified article read · Founders Club (2.25x)",
+      "status": "credited",
+      "createdAt": "2026-11-14 18:12"
+    },
+    {
+      "id": "eng-seed-05",
+      "userId": "usr-010",
+      "userEmail": "priya.nair@austin-grid.io",
+      "userName": "Priya Nair",
+      "userTier": "Founders Club",
+      "actionType": "time_on_platform",
+      "engagementDetail": "Active 60s platform session",
+      "baseCents": 2,
+      "multiplier": 2.25,
+      "awardedCents": 4.5,
+      "awardedUsd": 0.045,
+      "description": "Active time-on-platform reward · Founders Club (2.25x)",
+      "status": "credited",
+      "createdAt": "2026-11-15 08:40"
+    }
+  ],
+  "userNotifications": [
+    {
+      "id": "notif-ship-1794796892910-fb74",
+      "title": "Shipment Status Updated (Shipped / In Transit): 2026 Tesla Model S Plaid",
+      "message": "Your won vehicle shipment is now \"Shipped / In Transit\". Payment Verified & Received. Tracking #: APX-MANUAL-2026-888 via Apex Enclosed Express.",
+      "type": "system",
+      "priority": "high",
+      "targetType": "individual",
+      "targetUserId": "usr-1794796892771",
+      "targetUserEmail": "ship.e2e.1794796892658@apex-tesla.io",
+      "targetUserName": "E2E Shipper",
+      "createdAt": "2026-11-16 02:41",
+      "readBy": [],
+      "dismissedBy": [],
+      "actionUrl": "dashboard",
+      "actionLabel": "Track Shipment",
+      "category": "won_vehicle_shipment"
+    },
+    {
+      "id": "notif-ship-1794796892877-51zi",
+      "title": "Shipment Status Updated (Approved): 2026 Tesla Model S Plaid",
+      "message": "Your won vehicle shipment is now \"Approved\". Payment Verified & Received. Tracking #: APX-MANUAL-2026-777 via Apex Enclosed Express. Note: Payment confirmed by wire audit.",
+      "type": "system",
+      "priority": "high",
+      "targetType": "individual",
+      "targetUserId": "usr-1794796892771",
+      "targetUserEmail": "ship.e2e.1794796892658@apex-tesla.io",
+      "targetUserName": "E2E Shipper",
+      "createdAt": "2026-11-16 02:41",
+      "readBy": [
+        "usr-1794796892771"
+      ],
+      "dismissedBy": [],
+      "actionUrl": "dashboard",
+      "actionLabel": "Track Shipment",
+      "category": "won_vehicle_shipment"
     }
   ]
 }

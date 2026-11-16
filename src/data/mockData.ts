@@ -259,9 +259,9 @@ export const SCRATCH_CARD_TIERS: ScratchCardTier[] = [
     maxPrizeUsd: 500,
     gradient: 'from-amber-600 via-yellow-700 to-amber-900',
     textColor: 'text-amber-400',
-    description: 'Entry ticket ($50) with Super Hard rare $500 jackpot vault odds.',
+    description: 'Entry ticket ($50) with instant $500 jackpot vault payouts and service credits.',
     possiblePrizes: [
-      { amountUsd: 500, label: '$500 Rare Cash Jackpot', weight: 1 },
+      { amountUsd: 500, label: '$500 Vault Cash Jackpot', weight: 1 },
       { amountUsd: 250, label: '$250 Service Voucher', weight: 4 },
       { amountUsd: 100, label: '$100 Wallet Credits', weight: 15 },
       { amountUsd: 50, label: '$50 Apex Token', weight: 80 },
@@ -275,9 +275,9 @@ export const SCRATCH_CARD_TIERS: ScratchCardTier[] = [
     maxPrizeUsd: 2500,
     gradient: 'from-slate-400 via-zinc-200 to-slate-500',
     textColor: 'text-cyan-300',
-    description: 'Mid-tier metallic scratch card ($250) with rare $2,500 top jackpot odds.',
+    description: 'Mid-tier metallic scratch card ($250) with $2,500 top vault prize potential.',
     possiblePrizes: [
-      { amountUsd: 2500, label: '$2,500 Rare Jackpot', weight: 1 },
+      { amountUsd: 2500, label: '$2,500 Vault Jackpot', weight: 1 },
       { amountUsd: 1200, label: '$1,200 Carbon Aero Credit', weight: 4 },
       { amountUsd: 650, label: '$650 Full Detail & PPF', weight: 15 },
       { amountUsd: 350, label: '$350 Wallet Credit', weight: 35 },
@@ -292,10 +292,10 @@ export const SCRATCH_CARD_TIERS: ScratchCardTier[] = [
     maxPrizeUsd: 15000,
     gradient: 'from-yellow-400 via-amber-300 to-yellow-600',
     textColor: 'text-yellow-300',
-    description: 'High roller gold foil card ($1,000) featuring Super Hard rare cash jackpots up to $15,000 USD and an ultra-rare chance to win 1 Tesla Model 3 RWD.',
+    description: 'High roller gold foil card ($1,000) featuring cash jackpots up to $15,000 USD and a chance to win 1 Tesla Model 3 RWD.',
     possiblePrizes: [
       { amountUsd: 38990, label: '2026 Tesla Model 3 Standard RWD (1 Vehicle)', weight: 1, isTeslaCar: true, vehicleModel: '2026 Tesla Model 3 Standard Range RWD' },
-      { amountUsd: 15000, label: '$15,000 Rare Max Jackpot', weight: 2 },
+      { amountUsd: 15000, label: '$15,000 Max Cash Jackpot', weight: 2 },
       { amountUsd: 7500, label: '$7,500 Plaid Reserve', weight: 7 },
       { amountUsd: 3000, label: '$3,000 Vault Credit', weight: 25 },
       { amountUsd: 1500, label: '$1,500 Cash Prize', weight: 75 },
@@ -310,7 +310,7 @@ export const SCRATCH_CARD_TIERS: ScratchCardTier[] = [
     maxPrizeUsd: 50000,
     gradient: 'from-cyan-400 via-blue-500 to-indigo-800',
     textColor: 'text-cyan-200',
-    description: 'Maximum $8,000 luxury scratch card with Super Hard rare jackpots up to $50,000 USD and rare slots to win 1 Tesla vehicle.',
+    description: 'Luxury $8,000 diamond scratch card with jackpots up to $50,000 USD and VIP slots to win 1 Tesla vehicle.',
     possiblePrizes: [
       { amountUsd: 200000, label: '2026 Tesla Roadster Founders (1 Vehicle)', weight: 1, isTeslaCar: true, vehicleModel: '2026 Tesla Roadster Founders Edition' },
       { amountUsd: 89990, label: '2026 Tesla Model S Plaid (1 Vehicle)', weight: 2, isTeslaCar: true, vehicleModel: '2026 Tesla Model S Plaid Tri-Motor' },
@@ -2909,10 +2909,10 @@ export const DEFAULT_SITE_SETTINGS: SiteSettings = {
   heroSubtitle:
     'Certified maintenance & diagnostics, bespoke vinyl color wraps, high-downforce custom accessories, exotic fleet rentals, and decentralized vehicle yield pools with seamless crypto funding.',
   announcementBanner:
-    '⚡ Flash Promotion: Zero deposit fees across BTC, USDT, XRP & BNB • $150 Spin & Win (Up to $20k Cash) + $50,000 Scratch Jackpots Open!',
-  promoBannerTitle: 'SPIN & WIN ($20K MAX) • $50,000 SCRATCH JACKPOTS',
+    '⚡ Flash Promotion: Zero deposit fees across BTC, USDT, XRP & BNB • $150–$2,500 Spin & Win (Up to $25k Cash + Tesla Vehicles) & $50,000 Scratch Jackpots Open!',
+  promoBannerTitle: 'SPIN & WIN ($25K MAX) • $50,000 SCRATCH JACKPOTS',
   promoBannerSubtitle:
-    'Minimum $150 wheel spins with Easy/Hard/Super Hard levels (up to $20,000 cash + Tesla vehicles), plus Founders $50,000 & Giga Gold $15,000 scratch jackpots.',
+    'Spin from $150 to $2,500 per round for up to $25,000 cash & Tesla vehicles, plus welcome/coupon free spins and Founders $50,000 scratch jackpots.',
   spinCostUsd: 150,
   maxScratchPrizeUsd: 50000,
   hourlyBayRateUsd: 185,

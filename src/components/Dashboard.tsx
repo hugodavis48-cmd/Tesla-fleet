@@ -50,6 +50,7 @@ import { UserInvestmentBoard } from './UserInvestmentBoard';
 import { NotificationInbox } from './NotificationInbox';
 import { RoiGrowthChart } from './RoiGrowthChart';
 import { UserWonPrizesTab } from './UserWonPrizesTab';
+import { PendingShipmentsSection } from './PendingShipmentsSection';
 import { LoyaltyHub, getLoyaltyTierSummary } from './LoyaltyHub';
 import { DailyStreakCard } from './DailyStreakCard';
 import { ImageLightbox } from './ImageLightbox';
@@ -60,6 +61,7 @@ interface DashboardProps {
   onOpenWithdraw?: () => void;
   onNavigateToServices: () => void;
   onOpenAuth: () => void;
+  onOpenTracking?: (trackingNumber?: string) => void;
 }
 
 
@@ -103,6 +105,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   onOpenWithdraw,
   onNavigateToServices,
   onOpenAuth,
+  onOpenTracking,
 }) => {
 
   const {
@@ -144,7 +147,34 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
   const [activeTab, setActiveTab] = useState<
     'garage' | 'loyalty' | 'engagement' | 'won_prizes' | 'stocks' | 'services' | 'history' | 'wallet' | 'investments' | 'notifications' | 'kyc' | 'referrals' | 'security'
-  >('garage');
+  >(() => {
+    try {
+      const target = sessionStorage.getItem('apex_dashboard_target_tab');
+      if (target) {
+        sessionStorage.removeItem('apex_dashboard_target_tab');
+        return target as 'won_prizes';
+      }
+    } catch {
+      // ignore storage access issues
+    }
+    return 'garage';
+  });
+
+  React.useEffect(() => {
+    const handler = (e: Event) => {
+      const custom = e as CustomEvent<string>;
+      if (custom?.detail) {
+        setActiveTab(custom.detail as typeof activeTab);
+        try {
+          sessionStorage.removeItem('apex_dashboard_target_tab');
+        } catch {
+          // ignore
+        }
+      }
+    };
+    window.addEventListener('apex:dashboard-tab', handler);
+    return () => window.removeEventListener('apex:dashboard-tab', handler);
+  }, []);
   const [engHistoryFilter, setEngHistoryFilter] = useState<'all' | 'page_dwell' | 'social_share' | EngagementActionType>('all');
 
   const userWonPrizesCount = wonPrizes.filter((p) => {
@@ -742,7 +772,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
           { id: 'garage', label: 'My Digital Garage', count: vehicles.length, icon: Car },
           { id: 'loyalty', label: 'Loyalty & Tiers', icon: Crown, badge: `${loyaltySummary.activeTier.name.toUpperCase()} ${loyaltySummary.activeTier.multiplierLabel}` },
           { id: 'engagement', label: 'Engagement Rewards', icon: Coins, badge: `${engSum.totalCents.toFixed(0)}¢` },
-          { id: 'won_prizes', label: 'Won Prizes & Shipping', count: userWonPrizesCount, icon: Trophy, badge: userWonPrizesCount > 0 ? `${userWonPrizesCount} PRIZES` : undefined },
+          { id: 'won_prizes', label: 'Pending Shipments & Prizes', count: userWonPrizesCount, icon: Trophy, badge: userWonPrizesCount > 0 ? `${userWonPrizesCount} PRIZES` : undefined },
           { id: 'stocks', label: 'TSLA Stocks & Fast ROI', icon: Activity, badge: `$${tslaQuote.price.toFixed(1)}` },
           { id: 'investments', label: 'Fleet Investments & ROI', count: userInvestments.filter(i => !i.userId || i.userId === displayUser.id).length, icon: TrendingUp, badge: 'ROI' },
           { id: 'notifications', label: 'Notifications', count: unreadNotificationsCount > 0 ? unreadNotificationsCount : undefined, icon: BellRing, badge: unreadNotificationsCount > 0 ? `${unreadNotificationsCount} NEW` : undefined },
@@ -797,6 +827,13 @@ export const Dashboard: React.FC<DashboardProps> = ({
           <RoiGrowthChart
             onOpenDeposit={onOpenDeposit}
             onNavigateToStake={onNavigateToServices}
+          />
+
+          {/* Pending Shipments for Won Vehicles */}
+          <PendingShipmentsSection
+            onOpenDeposit={onOpenDeposit}
+            onOpenTracking={onOpenTracking}
+            onManageAllWonPrizes={() => setActiveTab('won_prizes')}
           />
 
           <div className="flex flex-wrap justify-between items-center gap-3">
@@ -2447,7 +2484,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
       {/* Tab: Won Prizes & International Shipping */}
       {activeTab === 'won_prizes' && (
-        <UserWonPrizesTab onOpenDeposit={onOpenDeposit} />
+        <UserWonPrizesTab onOpenDeposit={onOpenDeposit} onOpenTracking={onOpenTracking} />
       )}
 
       {/* Tab: Fleet Investments & ROI Dashboard Board */}

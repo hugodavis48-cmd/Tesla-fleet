@@ -43,6 +43,7 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
     showToast,
     spinCostUsd,
     spinSystemConfig,
+    promoProfile,
     getSpinStakeProfile,
     vehicleWinEligibility,
     getResolvedSpinContext,
@@ -139,7 +140,11 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
   }, [minPaidSpinCost, maxPaidSpinCost]);
 
   const effectivePaidCostUsd = Math.min(maxPaidSpinCost, Math.max(minPaidSpinCost, selectedSpinStake));
-  const stakeProfile = getSpinStakeProfile(effectivePaidCostUsd, resolvedSpinCtx.isUsingFreeSpin);
+  const stakeProfile = getSpinStakeProfile(
+    effectivePaidCostUsd,
+    resolvedSpinCtx.isUsingFreeSpin,
+    resolvedSpinCtx.isNewFreeSpinBoost
+  );
   const canWinVehicleThisSpin = stakeProfile.canWinVehicleByStake && vehicleWinEligibility.eligible;
 
   const wheelSlices = React.useMemo(() => {
@@ -422,10 +427,11 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
                 SPIN TO WIN UP TO $25,000 OR A TESLA
               </h3>
               <p className="text-xs text-zinc-400 leading-relaxed">
-                Adjust your spin stake from <strong className="text-zinc-200">${minPaidSpinCost.toLocaleString()}</strong> to{' '}
-                <strong className="text-amber-400">${maxPaidSpinCost.toLocaleString()} USD</strong>. At minimum stake ($150), payouts cap at{' '}
-                <strong className="text-zinc-200">$2,000</strong> with vehicles locked; raising your stake unlocks Tesla vehicles, boosts high-tier cash odds, and opens the{' '}
-                <strong className="text-emerald-400">$25,000 Max Jackpot</strong> at ${maxPaidSpinCost.toLocaleString()}.
+                Choose your spin stake from <strong className="text-zinc-200">${minPaidSpinCost.toLocaleString()}</strong> up to{' '}
+                <strong className="text-amber-400">${maxPaidSpinCost.toLocaleString()} USD</strong>, or redeem welcome &amp; coupon free spins.{' '}
+                <strong className="text-emerald-400">${maxPaidSpinCost.toLocaleString()} Max Spins</strong> and{' '}
+                <strong className="text-emerald-300">First-Time Free Spins</strong> unlock live Tesla vehicles and the{' '}
+                <strong className="text-emerald-400">$25,000 Grand Jackpot</strong>.
               </p>
 
               {/* Active Level & Eligibility Specs */}
@@ -439,17 +445,16 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
                 >
                   <Car className="w-3 h-3" />
                   {canWinVehicleThisSpin
-                    ? `${wheelSlices.filter((s) => s.type === 'car').length} Car Slice(s) Active (${stakeProfile.vehicleWeightMultiplier}x)`
+                    ? resolvedSpinCtx.isNewFreeSpinBoost
+                      ? `New Member Boost · ${wheelSlices.filter((s) => s.type === 'car').length} Tesla Vehicle Slices Active`
+                      : `${wheelSlices.filter((s) => s.type === 'car').length} Tesla Vehicle Slices Active (${stakeProfile.vehicleWeightMultiplier}x)`
                     : !vehicleWinEligibility.eligible
-                    ? 'Car Locked (1/Wk · Ship Prior First)'
-                    : `Car Locked on $${minPaidSpinCost} Min`}
+                    ? 'Car Limit Reached (1/Wk · Ship Prior First)'
+                    : `Vehicles Unlock at $${maxPaidSpinCost.toLocaleString()} Max Spin`}
                 </span>
-                <span className="inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded bg-zinc-800 border border-zinc-700 text-zinc-300">
-                  {wheelSlices.filter((s) => s.type === 'try_again').length} Try Again Slice(s)
-                </span>
-                {resolvedSpinCtx.autoSwitchedSuperHard && (
-                  <span className="inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded bg-amber-500/15 border border-amber-500/40 text-amber-300">
-                    Multi-Win Super Hard Guard Active
+                {resolvedSpinCtx.isNewFreeSpinBoost && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/40 text-emerald-300">
+                    Welcome VIP Vehicle Eligibility
                   </span>
                 )}
               </div>
@@ -473,9 +478,9 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
                     }`}
                   >
                     {stakeProfile.isMaxStake
-                      ? '$25,000 Max Jackpot Live'
+                      ? '$25,000 Max Jackpot & Tesla Live'
                       : stakeProfile.isMinOrFree
-                      ? 'Minimum Stake ($2k Cash Cap)'
+                      ? `$${minPaidSpinCost} Standard Stake`
                       : `Progressive ${Math.round(stakeProfile.stakeRatio * 100)}% Tier`}
                   </span>
                 </div>
@@ -522,7 +527,7 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
                       ${stakeProfile.maxAllowedCashUsd.toLocaleString()} USD
                     </span>
                     <span className="text-[9px] text-zinc-400 block">
-                      {stakeProfile.canWinJackpotByStake ? 'Top $25k Jackpot Eligible' : 'No Jackpot Below $2,500'}
+                      {stakeProfile.canWinJackpotByStake ? 'Top $25k Jackpot Eligible' : `Max Jackpot unlocks at $${maxPaidSpinCost.toLocaleString()}`}
                     </span>
                   </div>
                   <div className="p-2.5 rounded-xl bg-zinc-950 border border-zinc-800">
@@ -532,7 +537,7 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
                         ? 'LOCKED'
                         : stakeProfile.canWinVehicleByStake
                         ? `${stakeProfile.vehicleWeightMultiplier}x Boosted`
-                        : 'LOCKED'}
+                        : 'MAX STAKE ONLY'}
                     </span>
                     <span className="text-[9px] text-zinc-400 block">
                       {!vehicleWinEligibility.eligible
@@ -541,7 +546,7 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
                           : '1 vehicle / week limit'
                         : stakeProfile.canWinVehicleByStake
                         ? `${stakeProfile.winBoostMultiplier}x High-Win Scaling`
-                        : `Raise > $${minPaidSpinCost} to unlock`}
+                        : `Select $${maxPaidSpinCost.toLocaleString()} Max Spin to unlock`}
                     </span>
                   </div>
                 </div>
@@ -556,9 +561,11 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
                     <Gift className="w-4 h-4" />
                     <span>{availableSpins} Free Bonus Spin(s) Available</span>
                   </span>
-                  <span className="font-mono text-[10px] text-zinc-400 tabular-nums">
-                    Offer Wins: {resolvedSpinCtx.freeWinsUsed}/{resolvedSpinCtx.freeWinsMax} max
-                  </span>
+                  {resolvedSpinCtx.isNewFreeSpinBoost && (
+                    <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-bold">
+                      TESLA VEHICLE ELIGIBLE
+                    </span>
+                  )}
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-[11px]">
                   <button
@@ -570,7 +577,7 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
                         : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-white'
                     }`}
                   >
-                    Use Free Spin (Super Hard)
+                    {resolvedSpinCtx.isNewFreeSpinBoost ? 'Use Free Spin (Tesla Boost)' : 'Use Free Bonus Spin'}
                   </button>
                   <button
                     type="button"
@@ -581,11 +588,13 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
                         : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-white'
                     }`}
                   >
-                    Paid Spin (${effectivePaidCostUsd})
+                    Paid Spin (${effectivePaidCostUsd.toLocaleString()})
                   </button>
                 </div>
                 <p className="text-[10px] text-zinc-400">
-                  Free bonus spins execute on Super Hard and allow max 1 win per free-spin offer. Switch to Paid Spin (${effectivePaidCostUsd}) for fair Easy/Hard odds.
+                  {resolvedSpinCtx.isNewFreeSpinBoost
+                    ? 'New member welcome & coupon free spins unlock boosted Tesla vehicle odds and $25,000 jackpot eligibility — spin to claim and schedule delivery in your Dashboard.'
+                    : `Play your free bonus spin now or switch to Paid Spin ($${effectivePaidCostUsd.toLocaleString()}) with customizable stakes up to $${maxPaidSpinCost.toLocaleString()}.`}
                 </p>
               </div>
             )}
@@ -615,9 +624,11 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
               <div>
                 <span className="text-[11px] text-zinc-400 block font-mono uppercase">
                   {resolvedSpinCtx.isUsingFreeSpin
-                    ? 'Free Bonus Spin Mode ($2k Max · No Car)'
-                    : stakeProfile.isMinOrFree
-                    ? 'Minimum Spin Stake ($2k Max · No Car)'
+                    ? resolvedSpinCtx.isNewFreeSpinBoost
+                      ? 'New Member Free Bonus Spin'
+                      : 'Free Bonus Spin Mode'
+                    : stakeProfile.isMaxStake
+                    ? 'Max Jackpot Spin Stake ($25k + Tesla)'
                     : 'Selected Paid Spin Stake'}
                 </span>
                 <span className="font-heading font-black text-2xl text-amber-400 tabular-nums">
@@ -663,7 +674,7 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
                   </p>
                 </div>
               ) : lastWonPrize.type === 'car' ? (
-                <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-950/80 via-zinc-900 to-amber-950/60 border border-emerald-500/60 space-y-1.5 animate-in zoom-in-95">
+                <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-950/80 via-zinc-900 to-amber-950/60 border border-emerald-500/60 space-y-2.5 animate-in zoom-in-95">
                   <div className="flex items-center gap-2 text-yellow-300 text-xs font-bold uppercase tracking-wider">
                     <Car className="w-4 h-4 text-emerald-400" />
                     <span>TESLA VEHICLE JACKPOT WON!</span>
@@ -672,8 +683,25 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
                     {lastWonPrize.vehicleModel || lastWonPrize.prize}
                   </h4>
                   <p className="text-emerald-300 text-xs font-semibold">
-                    Added to Won Prizes &amp; Shipping in Dashboard (Est. Value ${lastWonPrize.valueUsd.toLocaleString()}). Required shipping &amp; documentation fees must be settled from verified wallet deposits.
+                    Added to Won Prizes &amp; Shipping in Dashboard (Est. Value ${lastWonPrize.valueUsd.toLocaleString()}). Fill in your shipping address and deposit processing, documentation &amp; shipping fees to dispatch.
                   </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      try {
+                        sessionStorage.setItem('apex_dashboard_target_tab', 'won_prizes');
+                      } catch {
+                        // ignore
+                      }
+                      window.dispatchEvent(new CustomEvent('apex:navigate', { detail: 'dashboard' }));
+                      window.dispatchEvent(new CustomEvent('apex:dashboard-tab', { detail: 'won_prizes' }));
+                    }}
+                    className="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer shadow-lg"
+                  >
+                    <Car className="w-4 h-4" />
+                    <span>Enter Shipping Address &amp; Deposit Fees in Dashboard</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               ) : (
                 <div className="p-4 rounded-2xl bg-gradient-to-r from-red-950/60 to-zinc-900 border border-red-500/50 space-y-1 animate-in zoom-in-95">
@@ -705,23 +733,42 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
               ) : resolvedSpinCtx.isUsingFreeSpin ? (
                 <>
                   <Gift className="w-5 h-5 text-yellow-300" />
-                  <span>USE FREE BONUS SPIN (SUPER HARD)</span>
+                  <span>USE FREE BONUS SPIN</span>
                 </>
               ) : (
                 <>
                   <Coins className="w-5 h-5 text-yellow-300" />
-                  <span>SPIN WHEEL (${effectivePaidCostUsd} USD)</span>
+                  <span>SPIN WHEEL (${effectivePaidCostUsd.toLocaleString()} USD)</span>
                 </>
               )}
             </button>
 
-            <div className="flex items-start gap-2 text-[11px] text-zinc-400 bg-zinc-900/60 border border-zinc-800 rounded-xl p-2.5">
-              <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-              <span>
-                {!vehicleWinEligibility.eligible
-                  ? vehicleWinEligibility.message
-                  : '1 Tesla vehicle win limit per week across Spins & Scratch Cards. Winning another vehicle requires paying, processing, and shipping your previously won vehicle in Dashboard.'}
-              </span>
+            <div className="flex items-start justify-between gap-2 text-[11px] text-zinc-400 bg-zinc-900/60 border border-zinc-800 rounded-xl p-2.5">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                <span>
+                  {!vehicleWinEligibility.eligible
+                    ? vehicleWinEligibility.message
+                    : '1 Tesla vehicle win limit per week across Spins & Scratch Cards. Winning another vehicle requires paying, processing, and shipping your previously won vehicle in Dashboard.'}
+                </span>
+              </div>
+              {vehicleWinEligibility.reasonCode === 'UNSHIPPED_VEHICLE_PENDING' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    try {
+                      sessionStorage.setItem('apex_dashboard_target_tab', 'won_prizes');
+                    } catch {
+                      // ignore
+                    }
+                    window.dispatchEvent(new CustomEvent('apex:navigate', { detail: 'dashboard' }));
+                    window.dispatchEvent(new CustomEvent('apex:dashboard-tab', { detail: 'won_prizes' }));
+                  }}
+                  className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-black font-bold text-[10px] shrink-0 cursor-pointer"
+                >
+                  Open Shipping
+                </button>
+              )}
             </div>
 
             <div className="flex items-center justify-center gap-1.5 text-[11px] text-zinc-500">
@@ -736,20 +783,44 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 border-b border-zinc-800 pb-4">
           <div className="space-y-1.5">
-            <div className="inline-flex items-center gap-1.5 text-xs font-mono font-bold text-amber-400 uppercase tracking-wider">
-              <Flame className="w-4 h-4 text-amber-500" />
-              <span>Purchasable Foil Scratch Cards ($50 Min — ${siteSettings.maxScratchPrizeUsd.toLocaleString()} Max) · Super Hard Rare Jackpots</span>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="inline-flex items-center gap-1.5 text-xs font-mono font-bold text-amber-400 uppercase tracking-wider">
+                <Flame className="w-4 h-4 text-amber-500" />
+                <span>Purchasable Foil Scratch Cards ($50 Min — ${siteSettings.maxScratchPrizeUsd.toLocaleString()} Max)</span>
+              </div>
+              {currentUser && promoProfile.isNewUserForScratch && (
+                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-emerald-500/20 border border-emerald-500/40 text-emerald-300">
+                  NEW MEMBER JACKPOT BOOST
+                </span>
+              )}
             </div>
             <h3 className="font-heading font-black text-2xl sm:text-3xl text-white">
               SCRATCH & WIN JACKPOTS
             </h3>
             <p className="text-xs text-zinc-400 max-w-xl">
-              Instant gratification. Slide through tiers and scratch off the metallic foil with your mouse or finger to uncover rare cash vault jackpots and Tesla vehicles (1 vehicle / week limit after prior shipment).
+              Instant gratification. Slide through tiers and scratch off the metallic foil with your mouse or finger to uncover cash vault jackpots and Tesla vehicles (1 vehicle / week limit after prior shipment).
             </p>
             {currentUser && !vehicleWinEligibility.eligible && (
-              <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/35 text-[11px] text-amber-300 font-medium">
+              <div className="inline-flex flex-wrap items-center gap-2 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/35 text-[11px] text-amber-300 font-medium">
                 <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
                 <span>{vehicleWinEligibility.message}</span>
+                {vehicleWinEligibility.reasonCode === 'UNSHIPPED_VEHICLE_PENDING' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      try {
+                        sessionStorage.setItem('apex_dashboard_target_tab', 'won_prizes');
+                      } catch {
+                        // ignore
+                      }
+                      window.dispatchEvent(new CustomEvent('apex:navigate', { detail: 'dashboard' }));
+                      window.dispatchEvent(new CustomEvent('apex:dashboard-tab', { detail: 'won_prizes' }));
+                    }}
+                    className="px-2 py-0.5 rounded bg-amber-500 text-black font-bold text-[10px] cursor-pointer"
+                  >
+                    Go to Dashboard Shipping
+                  </button>
+                )}
               </div>
             )}
           </div>

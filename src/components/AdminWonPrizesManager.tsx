@@ -21,8 +21,17 @@ interface SecurityAuditRow {
 }
 
 export const AdminWonPrizesManager: React.FC = () => {
-  const { wonPrizes, updateWonPrizeItem, createWonPrizeItem, deleteWonPrizeItem, allUsers } = useApp();
+  const {
+    wonPrizes,
+    updateWonPrizeItem,
+    saveWonPrizeAdminUpdate,
+    approveWonPrizeShipment,
+    createWonPrizeItem,
+    deleteWonPrizeItem,
+    allUsers,
+  } = useApp();
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [approvingId, setApprovingId] = useState<string | null>(null);
   const [audits, setAudits] = useState<SecurityAuditRow[]>([]);
   const [loadingAudits, setLoadingAudits] = useState(false);
 
@@ -69,30 +78,61 @@ export const AdminWonPrizesManager: React.FC = () => {
     source: 'Wheel Spin' as 'Wheel Spin' | 'Scratch & Win',
   });
 
+  const [editApproved, setEditApproved] = useState(false);
+
   const handleOpenEdit = (prize: WonPrizeItem) => {
     setEditingId(prize.id);
     setEditTracking(prize.trackingNumber || '');
-    setEditCarrier(prize.carrierName || 'Apex Global Enclosed & Air/RoRo Freight');
+    setEditCarrier(prize.carrierName || 'Apex Bonded Enclosed EV Carrier');
     setEditStatus(prize.shippingStatus);
     setEditProcessingFee(String(prize.processingFeeUsd || 0));
     setEditDocFee(String(prize.shippingDocFeeUsd || 0));
     setEditFreightFee(String(prize.shippingFreightFeeUsd || 0));
+    setEditApproved(
+      Boolean(prize.adminApprovedForShipment) ||
+        prize.shippingStatus === 'approved' ||
+        prize.shippingStatus === 'documentation_ready' ||
+        prize.shippingStatus === 'shipped' ||
+        prize.shippingStatus === 'delivered'
+    );
   };
 
-  const handleSaveEdit = (id: string) => {
+  const handleSaveEdit = async (id: string) => {
     const p = Number(editProcessingFee) || 0;
     const d = Number(editDocFee) || 0;
     const f = Number(editFreightFee) || 0;
-    updateWonPrizeItem(id, {
-      trackingNumber: editTracking,
+    const approvedByStatus =
+      editStatus === 'approved' ||
+      editStatus === 'documentation_ready' ||
+      editStatus === 'shipped' ||
+      editStatus === 'delivered';
+    await saveWonPrizeAdminUpdate(id, {
+      trackingNumber: editTracking.trim() || undefined,
       carrierName: editCarrier,
       shippingStatus: editStatus,
+      adminApprovedForShipment: editApproved || approvedByStatus,
+      paymentVerifiedByAdmin: editApproved,
+      feesPaid: editApproved ? true : undefined,
       processingFeeUsd: p,
       shippingDocFeeUsd: d,
       shippingFreightFeeUsd: f,
       totalFeesUsd: Number((p + d + f).toFixed(2)),
     });
     setEditingId(null);
+  };
+
+  const handleApproveShipment = async (prize: WonPrizeItem) => {
+    setApprovingId(prize.id);
+    try {
+      await approveWonPrizeShipment(prize.id, {
+        trackingNumber: prize.trackingNumber || undefined,
+        carrierName: prize.carrierName || 'Apex Bonded Enclosed EV Carrier',
+        shippingStatus: 'approved',
+        confirmPaymentVerified: true,
+      });
+    } finally {
+      setApprovingId(null);
+    }
   };
 
   const handleGrantPrize = (e: React.FormEvent) => {
@@ -228,19 +268,36 @@ export const AdminWonPrizesManager: React.FC = () => {
       <div className="space-y-4">
         {wonPrizes.map((prize) => {
           const isEditing = editingId === prize.id;
-          const totalFees = (prize.processingFeeUsd || 0) + (prize.shippingDocFeeUsd || 0) + (prize.shippingFreightFeeUsd || 0);
+          const totalFees =
+            (Number(prize.processingFeeUsd) || 0) +
+            (Number(prize.shippingDocFeeUsd) || 0) +
+            (Number(prize.shippingFreightFeeUsd) || 0);
+          const safeTitle = prize.title || 'Tesla Promotional Prize';
+          const safeUserName = prize.userName || prize.userId || 'Apex Member';
+          const safeUserEmail = prize.userEmail || 'N/A';
+          const safeEstimatedValue = Number(prize.estimatedValueUsd || 0);
+          const safeShippingStatus = (prize.shippingStatus || 'awaiting_details').replace(/_/g, ' ');
+          const safeImage = prize.image || '/promo-plaid.jpg';
+          const isApproved =
+            Boolean(prize.adminApprovedForShipment) ||
+            prize.shippingStatus === 'approved' ||
+            prize.shippingStatus === 'documentation_ready' ||
+            prize.shippingStatus === 'shipped' ||
+            prize.shippingStatus === 'delivered';
+          const hasAddress = Boolean(prize.addressConfirmed ?? prize.shippingAddress?.street);
+
           return (
             <div key={prize.id} className="p-5 rounded-3xl bg-zinc-950 border border-zinc-800 space-y-4">
               <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                 <div className="flex items-center gap-4">
                   <img
-                    src={prize.image}
-                    alt={prize.title}
+                    src={safeImage}
+                    alt={safeTitle}
                     className="w-20 h-14 rounded-xl object-cover border border-zinc-800 shrink-0"
                   />
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-heading font-bold text-base text-white">{prize.title}</span>
+                      <span className="font-heading font-bold text-base text-white">{safeTitle}</span>
                       <span
                         className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold border ${
                           prize.feesPaid
@@ -250,18 +307,36 @@ export const AdminWonPrizesManager: React.FC = () => {
                       >
                         {prize.feesPaid ? 'FEES PAID' : 'FEES UNPAID'}
                       </span>
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold border ${
+                          isApproved
+                            ? 'bg-cyan-500/20 border-cyan-500/40 text-cyan-300'
+                            : prize.feesPaid
+                            ? 'bg-amber-500/20 border-amber-500/40 text-amber-300'
+                            : 'bg-zinc-900 border-zinc-700 text-zinc-400'
+                        }`}
+                      >
+                        {isApproved
+                          ? `VERIFIED & TRACKABLE (${prize.trackingNumber || 'TRACKING SET'})`
+                          : prize.feesPaid
+                          ? 'PENDING ADMIN VERIFICATION'
+                          : hasAddress
+                          ? 'ADDRESS SAVED'
+                          : 'NO ADDRESS'}
+                      </span>
                       <span className="px-2 py-0.5 rounded bg-zinc-900 border border-zinc-700 text-[10px] font-mono text-zinc-300 uppercase">
-                        {prize.shippingStatus.replace(/_/g, ' ')}
+                        {safeShippingStatus}
                       </span>
                     </div>
                     <p className="text-zinc-400 font-mono text-[11px] mt-0.5">
-                      Winner: <strong className="text-white">{prize.userName}</strong> ({prize.userEmail}) • Value: ${prize.estimatedValueUsd.toLocaleString()}
+                      Winner: <strong className="text-white">{safeUserName}</strong> ({safeUserEmail}) • Value: ${safeEstimatedValue.toLocaleString()}
                     </p>
                     {prize.shippingAddress && (
                       <p className="text-cyan-400 text-[11px] mt-1 flex items-center gap-1">
                         <Globe className="w-3.5 h-3.5 shrink-0" />
                         <span>
-                          Destination: {prize.shippingAddress.city}, {prize.shippingAddress.country} ({prize.shippingAddress.deliveryMethod})
+                          Destination: {prize.shippingAddress.street ? `${prize.shippingAddress.street}, ` : ''}
+                          {prize.shippingAddress.city || 'N/A'}, {prize.shippingAddress.country || 'N/A'} ({prize.shippingAddress.deliveryMethod || 'Standard Freight'})
                         </span>
                       </p>
                     )}
@@ -273,6 +348,21 @@ export const AdminWonPrizesManager: React.FC = () => {
                     <span className="text-[10px] text-zinc-500 block">Required Fees (Deposit-Only)</span>
                     <span className="font-bold text-white tabular-nums">${totalFees.toLocaleString()} USD</span>
                   </div>
+                  {!isApproved && (
+                    <button
+                      type="button"
+                      disabled={approvingId === prize.id}
+                      onClick={() => void handleApproveShipment(prize)}
+                      className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold cursor-pointer flex items-center gap-1.5"
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5" />
+                      <span>
+                        {approvingId === prize.id
+                          ? 'Approving...'
+                          : 'Verify Payment & Approve Shipment'}
+                      </span>
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => updateWonPrizeItem(prize.id, { feesPaid: !prize.feesPaid })}
@@ -322,6 +412,7 @@ export const AdminWonPrizesManager: React.FC = () => {
                     >
                       <option value="awaiting_details">Awaiting Shipping Details</option>
                       <option value="fees_paid_processing">Fees Paid &amp; Processing</option>
+                      <option value="approved">Approved</option>
                       <option value="documentation_ready">Export Documentation Ready</option>
                       <option value="shipped">Shipped / In Transit</option>
                       <option value="delivered">Delivered to Winner</option>
@@ -329,13 +420,23 @@ export const AdminWonPrizesManager: React.FC = () => {
                   </div>
                   <div>
                     <label className="text-[10px] font-mono text-zinc-400 uppercase block mb-1">Tracking Number</label>
-                    <input
-                      type="text"
-                      value={editTracking}
-                      onChange={(e) => setEditTracking(e.target.value)}
-                      placeholder="APX-INTL-889241"
-                      className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-xl text-white font-mono"
-                    />
+                    <div className="flex gap-1.5">
+                      <input
+                        type="text"
+                        value={editTracking}
+                        onChange={(e) => setEditTracking(e.target.value)}
+                        placeholder="APX-EXP-..."
+                        className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-xl text-white font-mono"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setEditTracking(`APX-EXP-${Date.now().toString(36).toUpperCase()}`)}
+                        className="px-2.5 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-cyan-300 font-mono text-[10px] font-bold shrink-0 cursor-pointer"
+                        title="Generate Tracking #"
+                      >
+                        Gen #
+                      </button>
+                    </div>
                   </div>
                   <div>
                     <label className="text-[10px] font-mono text-zinc-400 uppercase block mb-1">Assigned Carrier</label>
@@ -373,7 +474,16 @@ export const AdminWonPrizesManager: React.FC = () => {
                       className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-xl text-white font-mono"
                     />
                   </div>
-                  <div className="sm:col-span-2 lg:col-span-3 flex justify-end gap-2 pt-1">
+                  <div className="sm:col-span-2 lg:col-span-3 flex flex-wrap items-center justify-between gap-3 pt-1">
+                    <label className="inline-flex items-center gap-2 text-xs text-zinc-200 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editApproved}
+                        onChange={(e) => setEditApproved(e.target.checked)}
+                        className="rounded border-zinc-700 bg-zinc-950 text-emerald-500"
+                      />
+                      <span>Payment Verified &amp; Approved for Delivery/Tracking</span>
+                    </label>
                     <button
                       type="button"
                       onClick={() => handleSaveEdit(prize.id)}
@@ -444,18 +554,18 @@ export const AdminWonPrizesManager: React.FC = () => {
                         </span>
                       )}
                     </td>
-                    <td className="py-2.5 pr-3 font-mono text-zinc-200">{row.userId}</td>
-                    <td className="py-2.5 pr-3 font-mono text-amber-300 uppercase">{row.category.replace(/_/g, ' ')}</td>
-                    <td className="py-2.5 pr-3 font-mono text-white font-bold tabular-nums">${row.amountUsd.toLocaleString()}</td>
+                    <td className="py-2.5 pr-3 font-mono text-zinc-200">{row.userId || 'N/A'}</td>
+                    <td className="py-2.5 pr-3 font-mono text-amber-300 uppercase">{(row.category || 'transaction').replace(/_/g, ' ')}</td>
+                    <td className="py-2.5 pr-3 font-mono text-white font-bold tabular-nums">${Number(row.amountUsd || 0).toLocaleString()}</td>
                     <td className="py-2.5 pr-3 font-mono text-emerald-300 tabular-nums">
-                      ${row.depositConsumedUsd.toLocaleString()} <span className="text-zinc-500">({row.freeWinConsumedUsd > 0 ? `+$${row.freeWinConsumedUsd} fw` : 'dep-only'})</span>
+                      ${Number(row.depositConsumedUsd || 0).toLocaleString()} <span className="text-zinc-500">({Number(row.freeWinConsumedUsd || 0) > 0 ? `+$${Number(row.freeWinConsumedUsd || 0).toLocaleString()} fw` : 'dep-only'})</span>
                     </td>
                     <td className="py-2.5 pr-3 font-mono text-zinc-400 max-w-[160px] truncate" title={(row.depositRecordIdsUsed || []).join(', ')}>
                       {(row.depositRecordIdsUsed || []).length > 0 ? row.depositRecordIdsUsed.join(', ') : '—'}
                     </td>
                     <td className="py-2.5 text-zinc-300">
-                      <div>{row.reason}</div>
-                      <div className="text-[10px] font-mono text-zinc-500">sig: {row.signature.slice(0, 14)}…</div>
+                      <div>{row.reason || 'Verified'}</div>
+                      <div className="text-[10px] font-mono text-zinc-500">sig: {(row.signature || '').slice(0, 14)}…</div>
                     </td>
                   </tr>
                 ))}

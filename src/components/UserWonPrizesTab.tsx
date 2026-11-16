@@ -14,11 +14,17 @@ import {
   Package,
   MapPin,
   Maximize2,
+  Clock,
+  Copy,
+  Check,
 } from 'lucide-react';
 import { ImageLightbox } from './ImageLightbox';
+import { ShipmentProgressBar } from './ShipmentProgressBar';
+import { isWonPrizeAdminVerified } from '../lib/wonShipmentTracking';
 
 interface UserWonPrizesTabProps {
   onOpenDeposit: () => void;
+  onOpenTracking?: (trackingNumber?: string) => void;
 }
 
 const COUNTRY_OPTIONS = [
@@ -45,7 +51,7 @@ const DELIVERY_METHODS = [
   { id: 'delivery_hub_pickup', label: 'Apex Regional Delivery Center Pickup' },
 ];
 
-export const UserWonPrizesTab: React.FC<UserWonPrizesTabProps> = ({ onOpenDeposit }) => {
+export const UserWonPrizesTab: React.FC<UserWonPrizesTabProps> = ({ onOpenDeposit, onOpenTracking }) => {
   const {
     currentUser,
     wonPrizes,
@@ -72,6 +78,7 @@ export const UserWonPrizesTab: React.FC<UserWonPrizesTabProps> = ({ onOpenDeposi
     Record<string, NonNullable<WonPrizeItem['shippingAddress']>>
   >({});
   const [submittingId, setSubmittingId] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const getForm = (prize: WonPrizeItem): NonNullable<WonPrizeItem['shippingAddress']> => {
     if (formsByPrize[prize.id]) return formsByPrize[prize.id];
@@ -135,38 +142,13 @@ export const UserWonPrizesTab: React.FC<UserWonPrizesTabProps> = ({ onOpenDeposi
     }
   };
 
-  const renderStatusSteps = (status: WonPrizeItem['shippingStatus']) => {
-    const steps: { id: WonPrizeItem['shippingStatus']; label: string }[] = [
-      { id: 'awaiting_details', label: 'Awaiting Shipping' },
-      { id: 'fees_paid_processing', label: 'Fees Paid' },
-      { id: 'documentation_ready', label: 'Docs Cleared' },
-      { id: 'shipped', label: 'In Transit' },
-      { id: 'delivered', label: 'Delivered' },
-    ];
-    const activeIdx = Math.max(0, steps.findIndex((s) => s.id === status));
-    return (
-      <div className="grid grid-cols-5 gap-1.5 pt-2">
-        {steps.map((s, idx) => {
-          const done = idx <= activeIdx;
-          return (
-            <div key={s.id} className="text-center space-y-1">
-              <div
-                className={`h-1.5 rounded-full transition-all ${
-                  done ? 'bg-emerald-500' : 'bg-zinc-800'
-                }`}
-              />
-              <span
-                className={`block text-[9px] font-mono leading-tight ${
-                  done ? 'text-emerald-400 font-bold' : 'text-zinc-500'
-                }`}
-              >
-                {s.label}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-    );
+  const isPrizeApproved = (prize: WonPrizeItem) => isWonPrizeAdminVerified(prize);
+
+  const handleCopyTracking = (id: string, trackNum: string) => {
+    navigator.clipboard?.writeText(trackNum).catch(() => {});
+    setCopiedId(id);
+    showToast(`Copied tracking number ${trackNum}`, 'success');
+    setTimeout(() => setCopiedId(null), 2000);
   };
 
   return (
@@ -238,8 +220,8 @@ export const UserWonPrizesTab: React.FC<UserWonPrizesTabProps> = ({ onOpenDeposi
                     <div className="space-y-4">
                       <div className="relative aspect-[16/10] rounded-2xl overflow-hidden bg-black border border-zinc-800 group">
                         <img
-                          src={prize.image}
-                          alt={prize.title}
+                          src={prize.image || '/promo-plaid.jpg'}
+                          alt={prize.title || 'Tesla Won Prize'}
                           onClick={() => setLightboxIndex(myPrizes.findIndex((item) => item.id === prize.id))}
                           className="w-full h-full object-cover cursor-zoom-in group-hover:scale-105 transition duration-500"
                         />
@@ -264,7 +246,7 @@ export const UserWonPrizesTab: React.FC<UserWonPrizesTabProps> = ({ onOpenDeposi
                           onClick={() => setLightboxIndex(myPrizes.findIndex((item) => item.id === prize.id))}
                           className="absolute bottom-3 right-3 p-2 rounded-xl bg-black/75 hover:bg-red-600 border border-zinc-700 hover:border-red-500 text-white backdrop-blur-md opacity-90 sm:opacity-0 sm:group-hover:opacity-100 transition cursor-pointer"
                           title="Inspect prize photo"
-                          aria-label={`Inspect ${prize.title} photo`}
+                          aria-label={`Inspect ${prize.title || 'prize'} photo`}
                         >
                           <Maximize2 className="w-3.5 h-3.5" />
                         </button>
@@ -272,10 +254,10 @@ export const UserWonPrizesTab: React.FC<UserWonPrizesTabProps> = ({ onOpenDeposi
 
                       <div>
                         <div className="flex items-center justify-between text-[11px] font-mono text-zinc-400">
-                          <span>Won via {prize.source}</span>
-                          <span>{prize.wonAt}</span>
+                          <span>Won via {prize.source || 'Wheel Spin'}</span>
+                          <span>{prize.wonAt || ''}</span>
                         </div>
-                        <h4 className="font-heading font-black text-xl text-white mt-1">{prize.title}</h4>
+                        <h4 className="font-heading font-black text-xl text-white mt-1">{prize.title || 'Tesla Won Prize'}</h4>
                         <p className="text-xs text-zinc-400 font-mono mt-0.5">
                           {prize.vinAssigned ? `Allocated VIN: ${prize.vinAssigned}` : `SKU: ${prize.modelOrSku || prize.id}`}
                         </p>
@@ -284,7 +266,7 @@ export const UserWonPrizesTab: React.FC<UserWonPrizesTabProps> = ({ onOpenDeposi
                       <div className="p-3.5 rounded-2xl bg-zinc-950 border border-zinc-800 flex items-center justify-between">
                         <span className="text-xs text-zinc-400">Estimated Prize Value</span>
                         <span className="font-heading font-black text-lg text-emerald-400 tabular-nums">
-                          {formatCurrency(prize.estimatedValueUsd, { includeCode: true })}
+                          {formatCurrency(Number(prize.estimatedValueUsd || 0), { includeCode: true })}
                         </span>
                       </div>
 
@@ -296,15 +278,15 @@ export const UserWonPrizesTab: React.FC<UserWonPrizesTabProps> = ({ onOpenDeposi
                         </div>
                         <div className="flex justify-between text-zinc-400">
                           <span>Title / Prize Processing Fee:</span>
-                          <span className="text-white tabular-nums">{formatCurrency(prize.processingFeeUsd)}</span>
+                          <span className="text-white tabular-nums">{formatCurrency(Number(prize.processingFeeUsd || 0))}</span>
                         </div>
                         <div className="flex justify-between text-zinc-400">
                           <span>Shipping Documentation &amp; Customs:</span>
-                          <span className="text-white tabular-nums">{formatCurrency(prize.shippingDocFeeUsd)}</span>
+                          <span className="text-white tabular-nums">{formatCurrency(Number(prize.shippingDocFeeUsd || 0))}</span>
                         </div>
                         <div className="flex justify-between text-zinc-400">
                           <span>International Carrier Freight:</span>
-                          <span className="text-white tabular-nums">{formatCurrency(prize.shippingFreightFeeUsd)}</span>
+                          <span className="text-white tabular-nums">{formatCurrency(Number(prize.shippingFreightFeeUsd || 0))}</span>
                         </div>
                         <div className="flex justify-between items-center border-t border-zinc-800 pt-2 text-sm font-bold">
                           <span className="text-zinc-200">Total Required Fees:</span>
@@ -320,36 +302,82 @@ export const UserWonPrizesTab: React.FC<UserWonPrizesTabProps> = ({ onOpenDeposi
                       </div>
                     </div>
 
-                    {renderStatusSteps(prize.shippingStatus)}
+                    <ShipmentProgressBar
+                      prize={prize}
+                      compact
+                      onOpenTrackingMap={(trackNum) => onOpenTracking?.(trackNum)}
+                    />
                   </div>
 
                   {/* Right Shipping Form or Paid Tracking Column */}
                   <div className="lg:col-span-7 p-6 flex flex-col justify-between space-y-5">
                     {prize.feesPaid ? (
                       <div className="space-y-5">
-                        <div className="p-5 rounded-2xl bg-emerald-950/25 border border-emerald-500/35 flex items-start gap-3">
-                          <CheckCircle2 className="w-6 h-6 text-emerald-400 shrink-0 mt-0.5" />
-                          <div className="space-y-1">
-                            <h5 className="font-heading font-bold text-base text-white">
-                              Processing &amp; Shipping Documentation Paid ({prize.paidAt})
-                            </h5>
-                            <p className="text-xs text-zinc-300 leading-relaxed">
-                              Your destination shipping dossier has been verified by Apex Logistics Desk. Tracking updates are live below.
-                            </p>
+                        {isPrizeApproved(prize) ? (
+                          <div className="p-5 rounded-2xl bg-emerald-950/25 border border-emerald-500/35 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                            <div className="flex items-start gap-3">
+                              <CheckCircle2 className="w-6 h-6 text-emerald-400 shrink-0 mt-0.5" />
+                              <div className="space-y-1">
+                                <h5 className="font-heading font-bold text-base text-white">
+                                  Payment Verified &amp; Approved for Shipment
+                                </h5>
+                                <p className="text-xs text-zinc-300 leading-relaxed">
+                                  Admin has verified your required deposit settlement and approved delivery. Use your assigned tracking number below for live transit telemetry.
+                                </p>
+                              </div>
+                            </div>
+                            {prize.trackingNumber && onOpenTracking && (
+                              <button
+                                type="button"
+                                onClick={() => onOpenTracking(prize.trackingNumber)}
+                                className="px-4 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs flex items-center gap-1.5 shrink-0 cursor-pointer transition"
+                              >
+                                <Truck className="w-4 h-4" />
+                                <span>Track Shipment</span>
+                              </button>
+                            )}
                           </div>
-                        </div>
+                        ) : (
+                          <div className="p-5 rounded-2xl bg-cyan-950/25 border border-cyan-500/35 flex items-start gap-3">
+                            <Clock className="w-6 h-6 text-cyan-400 shrink-0 mt-0.5" />
+                            <div className="space-y-1">
+                              <h5 className="font-heading font-bold text-base text-white">
+                                Payment Submitted ({prize.paidAt ? String(prize.paidAt).slice(0, 10) : 'Today'}) — Pending Admin Verification
+                              </h5>
+                              <p className="text-xs text-zinc-300 leading-relaxed">
+                                Your destination shipping address and deposit-funded fee payment have been received. Your official tracking number will be assigned and unlocked here as soon as Admin confirms and approves your shipment for dispatch.
+                              </p>
+                            </div>
+                          </div>
+                        )}
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-mono">
-                          <div className="p-3.5 rounded-2xl bg-zinc-900 border border-zinc-800">
-                            <span className="text-[10px] text-zinc-500 block uppercase">Tracking Number</span>
-                            <span className="text-emerald-400 font-bold">{prize.trackingNumber || 'Allocating...'}</span>
+                          <div className="p-3.5 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-between gap-2">
+                            <div>
+                              <span className="text-[10px] text-zinc-500 block uppercase">Tracking Number</span>
+                              {isPrizeApproved(prize) && prize.trackingNumber ? (
+                                <span className="text-emerald-400 font-bold">{prize.trackingNumber}</span>
+                              ) : (
+                                <span className="text-cyan-300 font-semibold">Pending Admin Approval</span>
+                              )}
+                            </div>
+                            {isPrizeApproved(prize) && prize.trackingNumber && (
+                              <button
+                                type="button"
+                                onClick={() => handleCopyTracking(prize.id, prize.trackingNumber!)}
+                                className="p-1.5 rounded-lg bg-zinc-950 hover:bg-zinc-800 border border-zinc-700 text-zinc-300 cursor-pointer"
+                                title="Copy tracking number"
+                              >
+                                {copiedId === prize.id ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                              </button>
+                            )}
                           </div>
                           <div className="p-3.5 rounded-2xl bg-zinc-900 border border-zinc-800">
                             <span className="text-[10px] text-zinc-500 block uppercase">Assigned Carrier</span>
-                            <span className="text-white font-bold">{prize.carrierName || 'Apex Global Freight'}</span>
+                            <span className="text-white font-bold">{prize.carrierName || 'Apex Bonded Enclosed EV Carrier'}</span>
                           </div>
                           <div className="p-3.5 rounded-2xl bg-zinc-900 border border-zinc-800 sm:col-span-2">
-                            <span className="text-[10px] text-zinc-500 block uppercase">Destination Address</span>
+                            <span className="text-[10px] text-zinc-500 block uppercase">Confirmed Destination Address</span>
                             <span className="text-zinc-200">
                               {prize.shippingAddress?.fullName} • {prize.shippingAddress?.street}
                               {prize.shippingAddress?.apartmentOrSuite ? `, ${prize.shippingAddress.apartmentOrSuite}` : ''},{' '}
@@ -541,9 +569,9 @@ export const UserWonPrizesTab: React.FC<UserWonPrizesTabProps> = ({ onOpenDeposi
         onClose={() => setLightboxIndex(null)}
         initialIndex={lightboxIndex ?? 0}
         images={myPrizes.map((p) => ({
-          url: p.image,
-          title: p.title,
-          subtitle: `Won via ${p.source} • Estimated Value ${formatCurrency(p.estimatedValueUsd, { includeCode: true })}`,
+          url: p.image || '/promo-plaid.jpg',
+          title: p.title || 'Tesla Won Prize',
+          subtitle: `Won via ${p.source || 'Wheel Spin'} • Estimated Value ${formatCurrency(Number(p.estimatedValueUsd || 0), { includeCode: true })}`,
           badge: p.prizeType === 'vehicle' ? 'Vehicle Prize' : 'Hardware Prize',
         }))}
       />

@@ -4237,10 +4237,10 @@ export const AdminDashboard: React.FC = () => {
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-800 pb-4">
                   <div>
                     <h4 className="font-heading font-bold text-base text-white">
-                      Scratch &amp; Win Promotional Tiers ({scratchCardTiers.length}) · Super Hard Jackpots
+                      Scratch &amp; Win Promotional Tiers ({scratchCardTiers.length}) · Adaptive New vs. Veteran Odds
                     </h4>
                     <p className="text-xs text-zinc-400">
-                      Rare/Super Hard jackpot &amp; Tesla vehicle weights enforced server-side. Users may win max 1 vehicle per week after prior fulfillment.
+                      New users enjoy boosted jackpot &amp; Tesla vehicle odds on early cards, while returning users face rare jackpots. Weekly 1-vehicle limit + prior fulfillment enforced server-side.
                     </p>
                   </div>
                   <button
@@ -6993,7 +6993,7 @@ export const AdminDashboard: React.FC = () => {
                   Multi-Level Spin Engine ($150–$2,500 Stake) &amp; Difficulty Overrides CMS
                 </h3>
                 <p className="text-xs text-zinc-400 mt-1">
-                  Configure progressive stakes ($150 min w/ $2,000 cap &amp; vehicles locked up to $2,500 max w/ $25,000 jackpot &amp; peak vehicle odds), weekly 1-vehicle limit + prior ship enforcement, and Super Hard auto-switch criteria.
+                  Configure progressive stakes ($150 min w/ $2,000 cap &amp; no jackpot/vehicle; $2,500 max unlocks $25,000 jackpot &amp; Tesla vehicles), first-time free/coupon spin Easy vehicle boost, weekly 1-vehicle limit + prior ship enforcement, and Super Hard auto-switch criteria.
                 </p>
               </div>
               <div className="flex items-center gap-2 shrink-0">
@@ -7011,10 +7011,10 @@ export const AdminDashboard: React.FC = () => {
                   onChange={(e) => setLocalSpinAdminMode(e.target.value as SpinAdminMode)}
                   className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-white font-mono"
                 >
-                  <option value="auto">Auto (Free-&gt;Super Hard | Paid-&gt;Fair Easy/Hard)</option>
-                  <option value="easy">Force Easy (1 Try Again, 3 Cars)</option>
-                  <option value="hard">Force Hard (3 Try Again, 2 Cars)</option>
-                  <option value="super_hard">Force Super Hard (4 Try Again, 1 Car)</option>
+                  <option value="auto">Auto (New Free-&gt;Easy | Returning Free-&gt;Super Hard | Paid-&gt;Fair Easy/Hard)</option>
+                  <option value="easy">Force Easy (3 Cars, High Payouts)</option>
+                  <option value="hard">Force Hard (2 Cars, Balanced Odds)</option>
+                  <option value="super_hard">Force Super Hard (1 Car, Strict Guard)</option>
                 </select>
               </div>
               <div>
@@ -7088,7 +7088,7 @@ export const AdminDashboard: React.FC = () => {
 
             <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
               <p className="text-[11px] text-zinc-400">
-                At minimum stake (${localSpinCost}), payouts cap at ${localMinStakeCap.toLocaleString()} with no vehicle/jackpot. Raising stake to ${localMaxSpinCost.toLocaleString()} unlocks Tesla cars (1/wk after prior shipment) &amp; up to ${localMaxCashWin.toLocaleString()} jackpot.
+                Standard ${localSpinCost} spin caps payouts at ${localMinStakeCap.toLocaleString()} without vehicles/jackpot. Max stake (${localMaxSpinCost.toLocaleString()}) and first-time user free/coupon spins unlock Tesla vehicles (1/wk after prior shipment) &amp; up to ${localMaxCashWin.toLocaleString()} jackpot.
               </p>
               <button
                 type="button"
@@ -7123,7 +7123,7 @@ export const AdminDashboard: React.FC = () => {
                   <span>Difficulty Wheel Slices ({levelSlices.length} Slices on {activeSpinLevelTab.replace('_', ' ').toUpperCase()})</span>
                 </h4>
                 <p className="text-xs text-zinc-400">
-                  Easy: 1 Try Again + 3 Cars (up to $25k on max stake) · Hard: 3 Try Again + 2 Cars (up to $15k) · Super Hard: 4 Try Again + 1 Car (up to $8k).
+                  Easy: 3 Cars (up to $25k on max stake / first-time free spins) · Hard: 2 Cars (up to $15k) · Super Hard: 1 Car (up to $8k).
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">

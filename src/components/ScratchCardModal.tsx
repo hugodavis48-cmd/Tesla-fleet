@@ -376,6 +376,24 @@ export const ScratchCardModal: React.FC<ScratchCardModalProps> = ({
                 <Sparkles className="w-3.5 h-3.5 text-yellow-400" />
                 <span>Quick Reveal</span>
               </button>
+            ) : isCarWin ? (
+              <button
+                type="button"
+                onClick={() => {
+                  try {
+                    sessionStorage.setItem('apex_dashboard_target_tab', 'won_prizes');
+                  } catch {
+                    // ignore
+                  }
+                  window.dispatchEvent(new CustomEvent('apex:navigate', { detail: 'dashboard' }));
+                  window.dispatchEvent(new CustomEvent('apex:dashboard-tab', { detail: 'won_prizes' }));
+                  onClose();
+                }}
+                className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 transition shrink-0 cursor-pointer shadow-lg"
+              >
+                <Car className="w-3.5 h-3.5" />
+                <span>Schedule Shipping &amp; Fees</span>
+              </button>
             ) : (
               <button
                 onClick={handleCloseModal}

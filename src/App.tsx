@@ -97,6 +97,7 @@ const MainAppContent: React.FC = () => {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isCartModalOpen, setIsCartModalOpen] = useState(false);
   const [isOrderTrackingOpen, setIsOrderTrackingOpen] = useState(false);
+  const [trackingInitialQuery, setTrackingInitialQuery] = useState('');
   const [chatbotPrompt, setChatbotPrompt] = useState<string | null>(null);
 
   React.useEffect(() => {
@@ -476,6 +477,10 @@ const MainAppContent: React.FC = () => {
             onOpenWithdraw={() => setIsWithdrawModalOpen(true)}
             onNavigateToServices={() => setActiveTab('services')}
             onOpenAuth={() => setIsAuthModalOpen(true)}
+            onOpenTracking={(trackNo) => {
+              setTrackingInitialQuery(trackNo || '');
+              setIsOrderTrackingOpen(true);
+            }}
           />
         )}
 
@@ -589,7 +594,11 @@ const MainAppContent: React.FC = () => {
 
       <OrderTrackingModal
         isOpen={isOrderTrackingOpen}
-        onClose={() => setIsOrderTrackingOpen(false)}
+        initialTrackingQuery={trackingInitialQuery}
+        onClose={() => {
+          setIsOrderTrackingOpen(false);
+          setTrackingInitialQuery('');
+        }}
       />
 
       <WinActivationPolicyModal onOpenDeposit={openDepositModalGated} />

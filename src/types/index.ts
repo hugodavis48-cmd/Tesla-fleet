@@ -977,7 +977,12 @@ export interface WonPrizeItem {
   feesPaid: boolean;
   paidAt?: string;
   paymentMethod?: 'wallet_usd' | 'deposit';
-  shippingStatus: 'awaiting_details' | 'fees_paid_processing' | 'documentation_ready' | 'shipped' | 'delivered';
+  addressConfirmed?: boolean;
+  paymentVerifiedByAdmin?: boolean;
+  adminApprovedForShipment?: boolean;
+  verifiedAt?: string;
+  verifiedByAdminEmail?: string;
+  shippingStatus: 'awaiting_details' | 'fees_paid_processing' | 'approved' | 'documentation_ready' | 'shipped' | 'delivered';
   shippingAddress?: {
     fullName: string;
     country: string;
@@ -992,6 +997,7 @@ export interface WonPrizeItem {
   };
   trackingNumber?: string;
   carrierName?: string;
+  checkpoints?: OrderCheckpoint[];
   notes?: string;
 }
 
@@ -1308,6 +1314,10 @@ export interface UserSpinTracker {
   freeSpinOffersRedeemed: number;
   activeOfferSpinsRemaining?: number;
   redeemedCouponCodes?: string[];
+  welcomeSpinsGranted?: boolean;
+  scratchPlaysCount?: number;
+  scratchJackpotsWonCount?: number;
+  lastScratchAt?: string;
   lastSpinAt?: string;
   lastResolvedLevel?: SpinDifficultyLevel;
   lastReason?: string;

@@ -21,7 +21,8 @@ export interface EmailDispatchLog {
     | 'deposit_confirmation'
     | 'maturity_settlement'
     | 'test_dispatch'
-    | 'newsletter_bulk';
+    | 'newsletter_bulk'
+    | 'won_vehicle_shipment_update';
   recipient: string;
   subject: string;
   amountUsd: number;
@@ -435,6 +436,78 @@ export async function sendBulkNewsletterEmail(params: {
     html,
     certificateId: `CAMP-${Date.now().toString().slice(-6)}`,
     smtpOverride: params.smtpOverride,
+  });
+}
+
+export async function sendWonVehicleShipmentNotificationEmail(params: {
+  recipientEmail: string;
+  recipientName?: string;
+  prizeId: string;
+  vehicleTitle: string;
+  vinAssigned?: string;
+  trackingNumber?: string;
+  carrierName?: string;
+  shippingStatus: string;
+  statusLabel: string;
+  paymentVerified: boolean;
+  adminEmail?: string;
+  note?: string;
+}) {
+  const safeName = params.recipientName || 'Apex Tesla Member';
+  const trackText = params.trackingNumber || 'Pending Assignment';
+  const carrierText = params.carrierName || 'Apex Bonded Enclosed EV Carrier';
+  const subject = `Won Vehicle Shipment Update (${params.statusLabel}): ${params.vehicleTitle}`;
+
+  const text = [
+    `Hello ${safeName},`,
+    '',
+    `An administrator has updated the shipment status for your won Tesla prize: ${params.vehicleTitle}.`,
+    `Shipment Status: ${params.statusLabel}`,
+    `Payment Verification: ${params.paymentVerified ? 'Verified & Received' : 'Pending Verification'}`,
+    `Tracking Number: ${trackText}`,
+    `Assigned Carrier: ${carrierText}`,
+    params.vinAssigned ? `Allocated VIN: ${params.vinAssigned}` : '',
+    params.note ? `Logistics Note: ${params.note}` : '',
+    '',
+    'Sign in to your Member Dashboard -> Pending Shipments to inspect live status and track your delivery.',
+    '',
+    'Apex Tesla Hub Logistics & Title Desk',
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #09090b; color: #f4f4f5; padding: 28px; border-radius: 16px; border: 1px solid #10b981;">
+      <div style="border-bottom: 1px solid #27272a; padding-bottom: 14px; margin-bottom: 18px;">
+        <span style="color: #10b981; font-weight: bold; font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase;">Apex Tesla Hub • Won Vehicle Logistics</span>
+        <h2 style="margin: 6px 0 0; color: #ffffff; font-size: 20px;">Shipment Status: ${params.statusLabel}</h2>
+      </div>
+      <p style="font-size: 14px; color: #d4d4d8; line-height: 1.6;">
+        Hello ${safeName}, your won vehicle record <strong>${params.vehicleTitle}</strong> has been updated by our logistics desk.
+      </p>
+      <div style="background: #18181b; border: 1px solid #27272a; border-radius: 12px; padding: 14px; margin: 16px 0; font-family: monospace; font-size: 12px; line-height: 1.7;">
+        <div>Status: <strong style="color: #10b981;">${params.statusLabel}</strong></div>
+        <div>Payment Verification: <strong style="color: ${params.paymentVerified ? '#10b981' : '#f59e0b'};">${params.paymentVerified ? 'Verified & Received' : 'Pending Verification'}</strong></div>
+        <div>Tracking Number: <strong style="color: #38bdf8;">${trackText}</strong></div>
+        <div>Carrier: <strong>${carrierText}</strong></div>
+        ${params.vinAssigned ? `<div>Allocated VIN: <strong>${params.vinAssigned}</strong></div>` : ''}
+        ${params.note ? `<div>Note: <span>${params.note}</span></div>` : ''}
+      </div>
+      <p style="font-size: 12px; color: #a1a1aa;">
+        Open your Member Dashboard under <strong>Pending Shipments</strong> to review confirmation details and track live transit.
+      </p>
+      <p style="font-size: 11px; color: #71717a;">Automated logistics alert dispatched via Apex Tesla Hub SMTP Notification Utility.</p>
+    </div>
+  `;
+
+  return sendSmtpNotification({
+    type: 'won_vehicle_shipment_update',
+    to: params.recipientEmail,
+    subject,
+    text,
+    html,
+    investmentId: params.prizeId,
+    certificateId: params.trackingNumber || params.prizeId,
   });
 }
 
