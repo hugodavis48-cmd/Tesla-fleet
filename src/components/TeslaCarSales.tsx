@@ -1028,7 +1028,9 @@ export const TeslaCarSales: React.FC<TeslaCarSalesProps> = ({
                           <span className="text-xs font-bold text-white">Vault Balance</span>
                           {paymentMethod === 'vault_balance' && <Check className="w-3.5 h-3.5 text-red-500" />}
                         </div>
-                        <span className="text-[11px] text-zinc-400">Available: ${balances.usd.toFixed(2)} USD</span>
+                        <span className="text-[11px] text-zinc-400">
+                          {currentUser ? `Available: $${balances.usd.toFixed(2)} USD` : 'Sign in required'}
+                        </span>
                       </button>
 
                       <button
@@ -1180,7 +1182,7 @@ export const TeslaCarSales: React.FC<TeslaCarSalesProps> = ({
                           </span>
                         </div>
 
-                        {paymentMethod === 'vault_balance' && !hasSufficient && (
+                        {paymentMethod === 'vault_balance' && currentUser && !hasSufficient && (
                           <div className="pt-2 text-xs text-amber-400 flex items-center justify-between">
                             <span className="flex items-center gap-1 tabular-nums">
                               <AlertCircle className="w-3.5 h-3.5 shrink-0" />
@@ -1195,6 +1197,25 @@ export const TeslaCarSales: React.FC<TeslaCarSalesProps> = ({
                               className="underline text-white font-semibold hover:text-amber-300"
                             >
                               Deposit Funds Now
+                            </button>
+                          </div>
+                        )}
+                        {paymentMethod === 'vault_balance' && !currentUser && (
+                          <div className="pt-2 text-xs text-amber-400 flex items-center justify-between">
+                            <span>Sign in to view wallet balance &amp; pay from vault.</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setOrderingCar(null);
+                                if (onOpenAuth) {
+                                  onOpenAuth();
+                                } else {
+                                  window.dispatchEvent(new CustomEvent('apex:require-auth', { detail: 'view your wallet and purchase a vehicle' }));
+                                }
+                              }}
+                              className="underline text-white font-semibold hover:text-amber-300 cursor-pointer"
+                            >
+                              Sign In
                             </button>
                           </div>
                         )}

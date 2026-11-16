@@ -419,21 +419,34 @@ export const ServiceScheduler: React.FC<ServiceSchedulerProps> = ({
             </div>
 
             {/* Wallet Balance check */}
-            <div className="p-3 rounded-xl bg-black/60 border border-zinc-800 text-xs flex items-center justify-between">
-              <div>
-                <span className="text-zinc-400 block text-[10px]">Your Vault Balance</span>
-                <span className="font-mono font-bold text-emerald-400">${balances.usd.toFixed(2)}</span>
+            {currentUser ? (
+              <div className="p-3 rounded-xl bg-black/60 border border-zinc-800 text-xs flex items-center justify-between">
+                <div>
+                  <span className="text-zinc-400 block text-[10px]">Your Vault Balance</span>
+                  <span className="font-mono font-bold text-emerald-400">${balances.usd.toFixed(2)}</span>
+                </div>
+                {balances.usd < selectedService.price && (
+                  <button
+                    type="button"
+                    onClick={onOpenDeposit}
+                    className="px-2.5 py-1 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold text-[11px]"
+                  >
+                    + Deposit Crypto
+                  </button>
+                )}
               </div>
-              {balances.usd < selectedService.price && (
+            ) : (
+              <div className="p-3 rounded-xl bg-black/60 border border-zinc-800 text-xs flex items-center justify-between">
+                <span className="text-zinc-400 text-[11px]">Sign in to check wallet balance &amp; book service</span>
                 <button
                   type="button"
-                  onClick={onOpenDeposit}
-                  className="px-2.5 py-1 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold text-[11px]"
+                  onClick={() => window.dispatchEvent(new CustomEvent('apex:require-auth', { detail: 'book Tesla service' }))}
+                  className="px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-amber-300 font-bold text-[11px] cursor-pointer"
                 >
-                  + Deposit Crypto
+                  Sign In
                 </button>
-              )}
-            </div>
+              </div>
+            )}
 
             {/* Booking Confirmation CTA */}
             <button

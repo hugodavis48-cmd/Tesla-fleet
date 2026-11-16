@@ -38,7 +38,10 @@ export const AdminVisitorAnalytics: React.FC = () => {
   const fetchAnalytics = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await fetch('/api/analytics/visitors');
+      const tok = typeof window !== 'undefined' ? localStorage.getItem('apex_session_token') : null;
+      const res = await fetch('/api/analytics/visitors', {
+        headers: tok ? { Authorization: `Bearer ${tok}` } : {},
+      });
       if (res.ok) {
         const data = await res.json();
         setLogs(Array.isArray(data.logs) ? data.logs : []);
@@ -62,7 +65,11 @@ export const AdminVisitorAnalytics: React.FC = () => {
       return;
     }
     try {
-      const res = await fetch('/api/analytics/visitors', { method: 'DELETE' });
+      const tok = typeof window !== 'undefined' ? localStorage.getItem('apex_session_token') : null;
+      const res = await fetch('/api/analytics/visitors', {
+        method: 'DELETE',
+        headers: tok ? { Authorization: `Bearer ${tok}` } : {},
+      });
       if (res.ok) {
         setLogs([]);
         setSummary({

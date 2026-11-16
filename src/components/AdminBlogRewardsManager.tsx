@@ -326,9 +326,13 @@ export const AdminBlogRewardsManager: React.FC<AdminBlogRewardsManagerProps> = (
       reader.onload = async () => {
         const dataUrl = reader.result as string;
         try {
+          const tok = typeof window !== 'undefined' ? localStorage.getItem('apex_session_token') : null;
           const res = await fetch('/api/media/upload', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              ...(tok ? { Authorization: `Bearer ${tok}` } : {}),
+            },
             body: JSON.stringify({ fileName: file.name, dataUrl }),
           });
           if (res.ok) {

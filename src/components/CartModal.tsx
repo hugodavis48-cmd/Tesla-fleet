@@ -268,33 +268,49 @@ export const CartModal: React.FC<CartModalProps> = ({ isOpen, onClose, onOpenDep
               </div>
             </div>
 
-            <div className="flex justify-between items-center text-xs p-2.5 rounded-xl bg-zinc-950 border border-zinc-800">
-              <span className="text-zinc-400">Spendable Vault Balance:</span>
-              <span className={`font-semibold tabular-nums ${hasSufficientBalance ? 'text-emerald-400' : 'text-amber-400'}`}>
-                {formatCurrency(balances.usd, { includeCode: true })}
-              </span>
-            </div>
+            {currentUser ? (
+              <>
+                <div className="flex justify-between items-center text-xs p-2.5 rounded-xl bg-zinc-950 border border-zinc-800">
+                  <span className="text-zinc-400">Spendable Vault Balance:</span>
+                  <span className={`font-semibold tabular-nums ${hasSufficientBalance ? 'text-emerald-400' : 'text-amber-400'}`}>
+                    {formatCurrency(balances.usd, { includeCode: true })}
+                  </span>
+                </div>
 
-            {!hasSufficientBalance ? (
-              <div className="space-y-2">
-                <button
-                  onClick={() => {
-                    onClose();
-                    onOpenDeposit();
-                  }}
-                  className="w-full py-3 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer"
-                >
-                  <span>Deposit Funds via Crypto (USDT, BTC, XRP, BNB)</span>
-                  <ArrowRight className="w-4 h-4" />
-                </button>
-                <p className="text-[11px] text-zinc-500 text-center">Short by ${(finalTotalUsd - balances.usd).toFixed(2)} USD</p>
-              </div>
+                {!hasSufficientBalance ? (
+                  <div className="space-y-2">
+                    <button
+                      onClick={() => {
+                        onClose();
+                        onOpenDeposit();
+                      }}
+                      className="w-full py-3 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer"
+                    >
+                      <span>Deposit Funds via Crypto (USDT, BTC, XRP, BNB)</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                    <p className="text-[11px] text-zinc-500 text-center">Short by ${(finalTotalUsd - balances.usd).toFixed(2)} USD</p>
+                  </div>
+                ) : (
+                  <button
+                    onClick={handleCheckout}
+                    className="w-full py-3 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 text-white font-heading font-bold text-sm shadow-lg shadow-red-900/40 flex items-center justify-center gap-2 transition cursor-pointer"
+                  >
+                    <span>Instant Checkout & Download PDF Invoice</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                )}
+              </>
             ) : (
               <button
-                onClick={handleCheckout}
-                className="w-full py-3 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 text-white font-heading font-bold text-sm shadow-lg shadow-red-900/40 flex items-center justify-center gap-2 transition cursor-pointer"
+                type="button"
+                onClick={() => {
+                  onClose();
+                  window.dispatchEvent(new CustomEvent('apex:require-auth', { detail: 'view your wallet and complete checkout' }));
+                }}
+                className="w-full py-3 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-amber-300 font-heading font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer"
               >
-                <span>Instant Checkout & Download PDF Invoice</span>
+                <span>Sign In to View Wallet &amp; Checkout</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
             )}

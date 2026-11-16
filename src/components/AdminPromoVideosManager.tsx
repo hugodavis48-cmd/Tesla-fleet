@@ -27,9 +27,13 @@ export const AdminPromoVideosManager: React.FC = () => {
     if (!aiTopic.trim()) return;
     setIsGeneratingAi(true);
     try {
+      const tok = typeof window !== 'undefined' ? localStorage.getItem('apex_session_token') : null;
       const res = await fetch('/api/gemini/generate-promo-video', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(tok ? { Authorization: `Bearer ${tok}` } : {}),
+        },
         body: JSON.stringify({
           topic: aiTopic,
           targetTab: aiTargetTab,
@@ -63,9 +67,13 @@ export const AdminPromoVideosManager: React.FC = () => {
     const reader = new FileReader();
     reader.onload = async () => {
       try {
+        const tok = typeof window !== 'undefined' ? localStorage.getItem('apex_session_token') : null;
         const res = await fetch('/api/media/upload', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            ...(tok ? { Authorization: `Bearer ${tok}` } : {}),
+          },
           body: JSON.stringify({
             filename: `${kind}-${file.name}`,
             dataUrl: reader.result,

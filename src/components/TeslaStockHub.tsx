@@ -471,9 +471,19 @@ export const TeslaStockHub: React.FC<TeslaStockHubProps> = ({ onOpenDeposit, onN
                   <label className="font-semibold text-zinc-300 uppercase tracking-wider">
                     Investment Amount (USD)
                   </label>
-                  <span className="text-zinc-400">
-                    Vault Balance: <strong className="text-emerald-400 font-mono">${balances.usd.toFixed(2)}</strong>
-                  </span>
+                  {currentUser ? (
+                    <span className="text-zinc-400">
+                      Vault Balance: <strong className="text-emerald-400 font-mono">${balances.usd.toFixed(2)}</strong>
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => window.dispatchEvent(new CustomEvent('apex:require-auth', { detail: 'view your wallet and buy TSLA stock' }))}
+                      className="text-amber-400 hover:text-amber-300 underline font-semibold cursor-pointer"
+                    >
+                      Sign in to view balance
+                    </button>
+                  )}
                 </div>
 
                 <div className="relative">

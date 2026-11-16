@@ -390,7 +390,7 @@ interface AppContextType {
   createScratchCardTier: (tier: Omit<ScratchCardTier, 'id'>) => void;
   updateScratchCardTier: (id: string, updates: Partial<ScratchCardTier>) => void;
   deleteScratchCardTier: (id: string) => void;
-  executeSpin: (useFreeSpin?: boolean) => Promise<{
+  executeSpin: (useFreeSpin?: boolean, customSpinCostUsd?: number) => Promise<{
     prize: string;
     valueUsd: number;
     type: string;
@@ -400,8 +400,76 @@ interface AppContextType {
     resolvedLevel?: SpinDifficultyLevel;
     reason?: string;
     usedFreeSpin?: boolean;
+    costChargedUsd?: number;
+    stakeProfile?: {
+      stakeUsd: number;
+      minCostUsd: number;
+      maxCostUsd: number;
+      stakeRatio: number;
+      isMinOrFree: boolean;
+      isMaxStake: boolean;
+      maxAllowedCashUsd: number;
+      maxJackpotUsd: number;
+      canWinVehicleByStake: boolean;
+      canWinJackpotByStake: boolean;
+      vehicleWeightMultiplier: number;
+      winBoostMultiplier: number;
+    };
+    vehicleEligibility?: {
+      eligible: boolean;
+      reasonCode: 'ELIGIBLE' | 'UNSHIPPED_VEHICLE_PENDING' | 'WEEKLY_VEHICLE_LIMIT_REACHED';
+      blockingPrize: {
+        id: string;
+        title: string;
+        feesPaid: boolean;
+        shippingStatus: string;
+        wonAt?: string;
+      } | null;
+      nextEligibleAtIso: string | null;
+      message: string;
+    };
   }>;
   spinSystemConfig: SpinSystemConfig;
+  getSpinStakeProfile: (stakeUsd: number, isFree?: boolean) => {
+    stakeUsd: number;
+    minCostUsd: number;
+    maxCostUsd: number;
+    stakeRatio: number;
+    isMinOrFree: boolean;
+    isMaxStake: boolean;
+    maxAllowedCashUsd: number;
+    maxJackpotUsd: number;
+    canWinVehicleByStake: boolean;
+    canWinJackpotByStake: boolean;
+    vehicleWeightMultiplier: number;
+    winBoostMultiplier: number;
+  };
+  getVehicleWinEligibility: () => {
+    eligible: boolean;
+    reasonCode: 'ELIGIBLE' | 'UNSHIPPED_VEHICLE_PENDING' | 'WEEKLY_VEHICLE_LIMIT_REACHED';
+    blockingPrize: {
+      id: string;
+      title: string;
+      feesPaid: boolean;
+      shippingStatus: string;
+      wonAt?: string;
+    } | null;
+    nextEligibleAtIso: string | null;
+    message: string;
+  };
+  vehicleWinEligibility: {
+    eligible: boolean;
+    reasonCode: 'ELIGIBLE' | 'UNSHIPPED_VEHICLE_PENDING' | 'WEEKLY_VEHICLE_LIMIT_REACHED';
+    blockingPrize: {
+      id: string;
+      title: string;
+      feesPaid: boolean;
+      shippingStatus: string;
+      wonAt?: string;
+    } | null;
+    nextEligibleAtIso: string | null;
+    message: string;
+  };
   getResolvedSpinContext: (useFreeSpin?: boolean) => {
     resolvedLevel: SpinDifficultyLevel;
     reason: string;
@@ -427,6 +495,20 @@ interface AppContextType {
     awardedCashUsd?: number;
     wonPrizeItem?: WonPrizeItem | null;
     signature?: string;
+    finalWallet?: { usd: number; depositUsd: number; freeWinUsd: number } | null;
+    vehicleEligibility?: {
+      eligible: boolean;
+      reasonCode: 'ELIGIBLE' | 'UNSHIPPED_VEHICLE_PENDING' | 'WEEKLY_VEHICLE_LIMIT_REACHED';
+      blockingPrize: {
+        id: string;
+        title: string;
+        feesPaid: boolean;
+        shippingStatus: string;
+        wonAt?: string;
+      } | null;
+      nextEligibleAtIso: string | null;
+      message: string;
+    } | null;
     error?: string;
   }>;
   awardScratchPrize: (
@@ -441,6 +523,7 @@ interface AppContextType {
       serverWonPrize?: WonPrizeItem | null;
       ticketId?: string;
       signature?: string;
+      finalWallet?: { usd: number; depositUsd: number; freeWinUsd: number } | null;
     }
   ) => void;
   rentVehicle: (vehicle: RentalVehicle, days: number, startDate: string) => boolean;
@@ -1525,7 +1608,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // fallback
     }
     return {
-      'usr-alex-001': DEFAULT_BALANCES.usd,
       'usr-apex-001': DEFAULT_BALANCES.usd,
     };
   });
@@ -1541,8 +1623,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const [balances, setBalances] = useState<WalletBalances>(() => {
+    const hasSession = Boolean(localStorage.getItem('apex_user') && localStorage.getItem('apex_session_token'));
+    if (!hasSession) {
+      return { usd: 0, btc: 0, usdt: 0, xrp: 0, bnb: 0 };
+    }
     const saved = localStorage.getItem('apex_balances');
-    return saved ? JSON.parse(saved) : DEFAULT_BALANCES;
+    return saved ? JSON.parse(saved) : { usd: 0, btc: 0, usdt: 0, xrp: 0, bnb: 0 };
   });
 
   const [vehicles, setVehicles] = useState<TeslaVehicle[]>(() => {
@@ -1567,6 +1653,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [lastCheckoutTransaction, setLastCheckoutTransaction] = useState<Transaction | null>(null);
 
   const [availableSpins, setAvailableSpins] = useState<number>(() => {
+    const hasSession = Boolean(localStorage.getItem('apex_user') && localStorage.getItem('apex_session_token'));
+    if (!hasSession) return 0;
     const saved = localStorage.getItem('apex_available_spins_v1');
     const parsed = saved ? Number(saved) : 0;
     return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
@@ -1576,31 +1664,62 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return Math.max(150, saved ? Number(saved) || 150 : 150);
   });
 
+  const normalizeSpinSystemConfig = (parsed: Partial<SpinSystemConfig>): SpinSystemConfig => {
+    const rawMaxCash = Number(parsed.maxCashWinUsd);
+    const upgradedMaxCash =
+      !Number.isFinite(rawMaxCash) || rawMaxCash === 20000
+        ? 25000
+        : Math.min(25000, Math.max(1000, rawMaxCash));
+    const rawEasy = parsed.levels?.easy || DEFAULT_SPIN_LEVEL_REWARDS.easy;
+    const upgradedEasy = rawEasy.map((s) =>
+      s.id === 'ez-2' && Number(s.valueUsd ?? s.value ?? 0) === 20000
+        ? { ...s, label: '$25,000 Max Jackpot', text: '$25,000', valueUsd: 25000, value: 25000 }
+        : s
+    );
+    return {
+      ...DEFAULT_SPIN_SYSTEM_CONFIG,
+      ...parsed,
+      minSpinCostUsd: Math.max(150, Number(parsed.minSpinCostUsd) || 150),
+      maxSpinCostUsd: Math.max(250, Math.min(2500, Number(parsed.maxSpinCostUsd) || 2500)),
+      minStakeCashCapUsd: Math.min(2000, Math.max(500, Number(parsed.minStakeCashCapUsd) || 2000)),
+      maxCashWinUsd: upgradedMaxCash,
+      autoSuperHardWinThreshold: Math.max(1, Number(parsed.autoSuperHardWinThreshold) || 2),
+      freeSpinMaxWinsPerOffer: Math.max(1, Number(parsed.freeSpinMaxWinsPerOffer) || 1),
+      levels: {
+        ...DEFAULT_SPIN_LEVEL_REWARDS,
+        ...(parsed.levels || {}),
+        easy: upgradedEasy,
+      },
+      userLevelOverrides: parsed.userLevelOverrides || {},
+      userTrackers: parsed.userTrackers || {},
+    };
+  };
+
   const [spinSystemConfig, setSpinSystemConfig] = useState<SpinSystemConfig>(() => {
     try {
       const saved = localStorage.getItem('apex_spin_system_config_v1');
       if (saved) {
-        const parsed = JSON.parse(saved) as Partial<SpinSystemConfig>;
-        return {
-          ...DEFAULT_SPIN_SYSTEM_CONFIG,
-          ...parsed,
-          minSpinCostUsd: Math.max(150, Number(parsed.minSpinCostUsd) || 150),
-          maxCashWinUsd: Math.min(20000, Math.max(1000, Number(parsed.maxCashWinUsd) || 20000)),
-          autoSuperHardWinThreshold: Math.max(1, Number(parsed.autoSuperHardWinThreshold) || 2),
-          freeSpinMaxWinsPerOffer: Math.max(1, Number(parsed.freeSpinMaxWinsPerOffer) || 1),
-          levels: {
-            ...DEFAULT_SPIN_LEVEL_REWARDS,
-            ...(parsed.levels || {}),
-          },
-          userLevelOverrides: parsed.userLevelOverrides || {},
-          userTrackers: parsed.userTrackers || {},
-        };
+        return normalizeSpinSystemConfig(JSON.parse(saved) as Partial<SpinSystemConfig>);
       }
     } catch {
       // fallback
     }
     return DEFAULT_SPIN_SYSTEM_CONFIG;
   });
+
+  const [serverVehicleEligibility, setServerVehicleEligibility] = useState<{
+    eligible: boolean;
+    reasonCode: 'ELIGIBLE' | 'UNSHIPPED_VEHICLE_PENDING' | 'WEEKLY_VEHICLE_LIMIT_REACHED';
+    blockingPrize: {
+      id: string;
+      title: string;
+      feesPaid: boolean;
+      shippingStatus: string;
+      wonAt?: string;
+    } | null;
+    nextEligibleAtIso: string | null;
+    message: string;
+  } | null>(null);
 
   const [dailyStreakConfig, setDailyStreakConfig] = useState<DailyStreakConfig>(() => {
     try {
@@ -1962,21 +2081,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return PRODUCTS_CATALOG;
   });
 
-  // Editable Scratch & Win Card Tiers (ensure updated Founders $50k & Giga Gold $15k defaults)
+  // Editable Scratch & Win Card Tiers (ensure Super Hard Rare Jackpots v4 defaults)
   const [scratchCardTiers, setScratchCardTiers] = useState<ScratchCardTier[]>(() => {
     const saved = localStorage.getItem('apex_scratch_tiers');
     if (saved) {
       try {
         const parsed: ScratchCardTier[] = JSON.parse(saved);
-        const migrated = localStorage.getItem('apex_scratch_v3_migrated');
-        if (migrated && Array.isArray(parsed) && parsed.length > 0) {
+        const migratedV4 = localStorage.getItem('apex_scratch_v4_migrated');
+        if (migratedV4 && Array.isArray(parsed) && parsed.length > 0) {
           return parsed;
         }
       } catch {
         // fallback to latest defaults
       }
     }
-    localStorage.setItem('apex_scratch_v3_migrated', 'true');
+    localStorage.setItem('apex_scratch_v4_migrated', 'true');
     return SCRATCH_CARD_TIERS;
   });
 
@@ -2341,12 +2460,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   useEffect(() => {
     localStorage.setItem('apex_smtp', JSON.stringify(smtpConfig));
-    fetch('/api/mailer/config', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ smtpConfig }),
-    }).catch(() => {});
-  }, [smtpConfig]);
+    const tok = localStorage.getItem('apex_session_token');
+    if (currentUser?.role === 'admin' && tok) {
+      fetch('/api/mailer/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tok}` },
+        body: JSON.stringify({ smtpConfig }),
+      }).catch(() => {});
+    }
+  }, [smtpConfig, currentUser?.role]);
 
   useEffect(() => {
     localStorage.setItem('apex_site_settings', JSON.stringify(siteSettings));
@@ -2361,8 +2483,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [emailCampaigns]);
 
   useEffect(() => {
-    localStorage.setItem('apex_balances', JSON.stringify(balances));
-  }, [balances]);
+    if (currentUser?.id) {
+      localStorage.setItem('apex_balances', JSON.stringify(balances));
+    } else {
+      localStorage.removeItem('apex_balances');
+    }
+  }, [balances, currentUser?.id]);
 
   useEffect(() => {
     localStorage.setItem('apex_vehicles', JSON.stringify(vehicles));
@@ -2512,8 +2638,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [freeWinByUserId]);
 
   useEffect(() => {
-    localStorage.setItem('apex_available_spins_v1', String(availableSpins));
-  }, [availableSpins]);
+    if (currentUser?.id) {
+      localStorage.setItem('apex_available_spins_v1', String(availableSpins));
+    } else {
+      localStorage.removeItem('apex_available_spins_v1');
+    }
+  }, [availableSpins, currentUser?.id]);
 
   useEffect(() => {
     localStorage.setItem('apex_spin_system_config_v1', JSON.stringify(spinSystemConfig));
@@ -2547,6 +2677,59 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const freeWinBalanceUsd = currentUser
     ? Number(Math.min(balances.usd, Math.max(0, freeWinByUserId[currentUser.id] || 0)).toFixed(2))
     : 0;
+
+  const getAuthHeaders = useCallback((includeJson = true): Record<string, string> => {
+    const tok = localStorage.getItem('apex_session_token');
+    return {
+      ...(includeJson ? { 'Content-Type': 'application/json' } : {}),
+      ...(tok ? { Authorization: `Bearer ${tok}` } : {}),
+    };
+  }, []);
+
+  const applyServerWallet = useCallback(
+    (w: any, targetUid?: string, holdbackCashUsd: number = 0) => {
+      if (!w || typeof w.usd !== 'number') return;
+      const uid = targetUid || currentUser?.id;
+      const visibleUsd = Number(Math.max(0, Number(w.usd) - Math.max(0, holdbackCashUsd)).toFixed(2));
+      const freeWinAdjusted = Number(
+        Math.max(0, Number(w.freeWinUsd || 0) - Math.max(0, holdbackCashUsd)).toFixed(2)
+      );
+
+      if (!uid || uid === currentUser?.id) {
+        setBalances((prev) => ({
+          ...prev,
+          usd: visibleUsd,
+          btc: typeof w.btc === 'number' ? w.btc : prev.btc,
+          usdt: typeof w.usdt === 'number' ? w.usdt : prev.usdt,
+          xrp: typeof w.xrp === 'number' ? w.xrp : prev.xrp,
+          bnb: typeof w.bnb === 'number' ? w.bnb : prev.bnb,
+        }));
+      }
+      if (uid) {
+        setUserBalancesById((prev) => {
+          const existing = prev[uid] || { usd: 0, btc: 0, usdt: 0, xrp: 0, bnb: 0 };
+          return {
+            ...prev,
+            [uid]: {
+              ...existing,
+              usd: visibleUsd,
+              btc: typeof w.btc === 'number' ? w.btc : existing.btc,
+              usdt: typeof w.usdt === 'number' ? w.usdt : existing.usdt,
+              xrp: typeof w.xrp === 'number' ? w.xrp : existing.xrp,
+              bnb: typeof w.bnb === 'number' ? w.bnb : existing.bnb,
+            },
+          };
+        });
+        if (typeof w.depositUsd === 'number') {
+          setActiveDepositByUserId((prev) => ({ ...prev, [uid]: Number(w.depositUsd) }));
+        }
+        if (typeof w.freeWinUsd === 'number') {
+          setFreeWinByUserId((prev) => ({ ...prev, [uid]: freeWinAdjusted }));
+        }
+      }
+    },
+    [currentUser?.id]
+  );
 
   const deductSpendableUsd = useCallback(
     (amountUsd: number, targetUserId?: string) => {
@@ -2761,12 +2944,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [businessCertificates]);
 
   useEffect(() => {
-    fetch('/api/seo/sync', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ seoSettings, sitemapEntries, rssFeedItems }),
-    }).catch(() => {});
-  }, [seoSettings, sitemapEntries, rssFeedItems]);
+    const tok = localStorage.getItem('apex_session_token');
+    if (currentUser?.role === 'admin' && tok) {
+      fetch('/api/seo/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tok}` },
+        body: JSON.stringify({ seoSettings, sitemapEntries, rssFeedItems }),
+      }).catch(() => {});
+    }
+  }, [seoSettings, sitemapEntries, rssFeedItems, currentUser?.role]);
 
   // Monitor Firebase Auth state & hydrate remote Firestore + server state on boot
   useEffect(() => {
@@ -2847,7 +3033,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setWheelRewards(sections.wheel_rewards);
       }
       if (Array.isArray(sections.scratch_tiers) && sections.scratch_tiers.length > 0) {
-        setScratchCardTiers(sections.scratch_tiers);
+        const incoming = sections.scratch_tiers as ScratchCardTier[];
+        const hasTryAgainRarity = incoming.some((t) =>
+          t.possiblePrizes?.some((p) => p.isTryAgain && Number(p.weight) >= 100)
+        );
+        setScratchCardTiers(hasTryAgainRarity ? incoming : SCRATCH_CARD_TIERS);
       }
       if (Array.isArray(sections.manual_deposits) && sections.manual_deposits.length > 0) {
         setManualDepositMethods(sections.manual_deposits);
@@ -2938,7 +3128,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const hydrateAll = async () => {
       try {
         // 1. Hydrate from local Express backend state mirror
-        const res = await fetch('/api/admin/state');
+        const res = await fetch('/api/admin/state', { headers: getAuthHeaders(false) });
         if (res.ok) {
           const data = await res.json();
           const st = data?.state || {};
@@ -3246,20 +3436,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       })
       .catch((e) => console.warn('Failed to fetch refund policy:', e));
 
-    // Sync client investments up to server cron service on boot, then pull authoritative cron status
+    // Sync client investments up to server cron service when authenticated, then pull authoritative cron status
     const syncPayload = userInvestments.map((inv) => ({
       ...inv,
-      userId: inv.userId || currentUser?.id || 'usr-alex-001',
+      userId: inv.userId || currentUser?.id || 'usr-apex-001',
       userEmail: currentUser?.email || 'alex.vance@apex-tesla.io',
       userName: currentUser?.name || 'Alex Vance',
     }));
 
-    fetch('/api/investments/sync', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ investments: syncPayload }),
-    })
-      .catch(() => {})
+    const tok = localStorage.getItem('apex_session_token');
+    const syncPromise = tok
+      ? fetch('/api/investments/sync', {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({ investments: syncPayload }),
+        }).catch(() => {})
+      : Promise.resolve();
+
+    syncPromise
       .finally(() => {
         fetch('/api/cron/status')
           .then((res) => (res.ok ? res.json() : null))
@@ -3276,7 +3470,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           .catch((e) => console.warn('Failed to fetch cron status:', e));
       });
 
-    fetch('/api/streak/config')
+    fetch('/api/streak/config', { headers: getAuthHeaders(false) })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (data?.config) setDailyStreakConfig((prev) => ({ ...prev, ...data.config }));
@@ -3284,26 +3478,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       })
       .catch(() => {});
 
-    fetch('/api/promotions/spin-config')
+    fetch('/api/promotions/spin-config', { headers: getAuthHeaders(false) })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (data?.config) {
-          setSpinSystemConfig((prev) => ({
-            ...prev,
-            ...data.config,
-            minSpinCostUsd: Math.max(150, Number(data.config.minSpinCostUsd) || 150),
-            maxCashWinUsd: Math.min(20000, Number(data.config.maxCashWinUsd) || 20000),
-            levels: { ...prev.levels, ...(data.config.levels || {}) },
-          }));
+          setSpinSystemConfig((prev) =>
+            normalizeSpinSystemConfig({
+              ...prev,
+              ...data.config,
+              levels: { ...prev.levels, ...(data.config.levels || {}) },
+            })
+          );
+        }
+        if (data?.vehicleEligibility) {
+          setServerVehicleEligibility(data.vehicleEligibility);
         }
       })
       .catch(() => {});
   }, []);
 
-  // Hydrate authenticated user's Daily Streak state & authoritative Deposit/Wallet Ledger when logged in
+  // Hydrate authenticated user's Daily Streak state, Spin Tracker, Won Prizes & Authoritative Wallet Ledger when logged in
   useEffect(() => {
-    if (!currentUser?.id) return;
-    fetch(`/api/streak/state/${encodeURIComponent(currentUser.id)}`)
+    const tok = localStorage.getItem('apex_session_token');
+    if (!currentUser?.id || !tok) return;
+    const headers = getAuthHeaders(false);
+
+    fetch(`/api/streak/state/${encodeURIComponent(currentUser.id)}`, { headers })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (data?.state) {
@@ -3315,29 +3515,63 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       })
       .catch(() => {});
 
-    fetch(`/api/wallet/${encodeURIComponent(currentUser.id)}`)
+    fetch(`/api/wallet/${encodeURIComponent(currentUser.id)}`, { headers })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (data?.wallet && typeof data.wallet.usd === 'number') {
-          const w = data.wallet;
-          setBalances((prev) => ({
-            ...prev,
-            usd: Number(w.usd),
-            btc: typeof w.btc === 'number' ? w.btc : prev.btc,
-            usdt: typeof w.usdt === 'number' ? w.usdt : prev.usdt,
-            xrp: typeof w.xrp === 'number' ? w.xrp : prev.xrp,
-            bnb: typeof w.bnb === 'number' ? w.bnb : prev.bnb,
-          }));
-          if (typeof w.depositUsd === 'number') {
-            setActiveDepositByUserId((prev) => ({ ...prev, [currentUser.id]: Number(w.depositUsd) }));
-          }
-          if (typeof w.freeWinUsd === 'number') {
-            setFreeWinByUserId((prev) => ({ ...prev, [currentUser.id]: Number(w.freeWinUsd) }));
-          }
+          applyServerWallet(data.wallet, currentUser.id);
+        }
+        if (typeof data?.activeOfferSpinsRemaining === 'number') {
+          setAvailableSpins(Math.max(0, Number(data.activeOfferSpinsRemaining)));
         }
       })
       .catch(() => {});
-  }, [currentUser?.id]);
+
+    fetch('/api/promotions/spin-config', { headers })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.config) {
+          setSpinSystemConfig((prev) =>
+            normalizeSpinSystemConfig({
+              ...prev,
+              ...data.config,
+              levels: { ...prev.levels, ...(data.config.levels || {}) },
+            })
+          );
+          const userRem = data.config.userTrackers?.[currentUser.id]?.activeOfferSpinsRemaining;
+          if (typeof userRem === 'number') {
+            setAvailableSpins(Math.max(0, userRem));
+          }
+        }
+        if (data?.vehicleEligibility) {
+          setServerVehicleEligibility(data.vehicleEligibility);
+        }
+      })
+      .catch(() => {});
+
+    fetch('/api/won-prizes', { headers })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (Array.isArray(data?.prizes) && data.prizes.length > 0) {
+          setWonPrizes((prev) => {
+            const byId = new Map<string, WonPrizeItem>();
+            prev.forEach((p) => byId.set(p.id, p));
+            (data.prizes as WonPrizeItem[]).forEach((p) => byId.set(p.id, p));
+            return Array.from(byId.values());
+          });
+        }
+      })
+      .catch(() => {});
+
+    if (currentUser.role === 'admin') {
+      fetch('/api/streak/config', { headers })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (data?.allStates) setUserStreakStatesById((prev) => ({ ...prev, ...data.allStates }));
+        })
+        .catch(() => {});
+    }
+  }, [currentUser?.id, currentUser?.role, getAuthHeaders, applyServerWallet]);
 
   // Periodic simulated live community win & ROI ledger drops every 10s (Spin, Scratch, Staking ROI & TSLA Stock ROI)
   useEffect(() => {
@@ -3428,8 +3662,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (res.status === 401) {
           localStorage.removeItem('apex_session_token');
           localStorage.removeItem('apex_user');
+          localStorage.removeItem('apex_balances');
+          localStorage.removeItem('apex_available_spins_v1');
           setSessionToken(null);
           setCurrentUser(null);
+          setBalances({ usd: 0, btc: 0, usdt: 0, xrp: 0, bnb: 0 });
+          setAvailableSpins(0);
           throw new Error('Session invalid');
         }
         if (!res.ok) throw new Error('Session check failed');
@@ -3808,16 +4046,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       if (welcomeCredit > 0) {
         creditFreeWinUsd(welcomeCredit, data.user.id);
-        fetch(`/api/wallet/${encodeURIComponent(data.user.id)}/adjust`, {
+        fetch(`/api/wallet/${encodeURIComponent(data.user.id)}/credit`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.token}` },
           body: JSON.stringify({
-            currency: 'USD',
-            mode: 'add',
-            amount: welcomeCredit,
+            amountUsd: welcomeCredit,
             fundingType: 'free_win',
+            reason: `Welcome referral bonus (${cleanRef})`,
           }),
-        }).catch(() => {});
+        })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((d) => {
+            if (d?.wallet) applyServerWallet(d.wallet, data.user.id);
+          })
+          .catch(() => {});
         const newTx: Transaction = {
           id: `tx-ref-welcome-${Date.now()}`,
           type: 'referral_credit',
@@ -3836,6 +4078,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
 
       setAvailableSpins(initialSpins);
+      fetch('/api/promotions/claim-welcome-spins', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.token}` },
+        body: JSON.stringify({ isReferred }),
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((spData) => {
+          if (spData?.tracker) {
+            setAvailableSpins(Number(spData.tracker.activeOfferSpinsRemaining) || initialSpins);
+          }
+        })
+        .catch(() => {});
       return true;
     } catch {
       // Local fallback
@@ -3966,16 +4220,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (data.isNewUser) {
         if (welcomeCredit > 0) {
           creditFreeWinUsd(welcomeCredit, data.user.id);
-          fetch(`/api/wallet/${encodeURIComponent(data.user.id)}/adjust`, {
+          fetch(`/api/wallet/${encodeURIComponent(data.user.id)}/credit`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.token}` },
             body: JSON.stringify({
-              currency: 'USD',
-              mode: 'add',
-              amount: welcomeCredit,
+              amountUsd: welcomeCredit,
               fundingType: 'free_win',
+              reason: `Google referral bonus (${cleanRef})`,
             }),
-          }).catch(() => {});
+          })
+            .then((r) => (r.ok ? r.json() : null))
+            .then((d) => {
+              if (d?.wallet) applyServerWallet(d.wallet, data.user.id);
+            })
+            .catch(() => {});
           const newTx: Transaction = {
             id: `tx-ggl-welcome-${Date.now()}`,
             type: 'referral_credit',
@@ -3999,6 +4257,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           );
         }
         setAvailableSpins(initialSpins);
+        fetch('/api/promotions/claim-welcome-spins', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.token}` },
+          body: JSON.stringify({ isReferred }),
+        })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((spData) => {
+            if (spData?.tracker) {
+              setAvailableSpins(Number(spData.tracker.activeOfferSpinsRemaining) || initialSpins);
+            }
+          })
+          .catch(() => {});
       } else {
         showToast(data.message || `Signed in with Google as ${data.user.name}!`, 'success');
       }
@@ -4153,8 +4423,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     await signOut(auth).catch(() => {});
     localStorage.removeItem('apex_session_token');
     localStorage.removeItem('apex_user');
+    localStorage.removeItem('apex_balances');
+    localStorage.removeItem('apex_available_spins_v1');
     setSessionToken(null);
     setCurrentUser(null);
+    setBalances({ usd: 0, btc: 0, usdt: 0, xrp: 0, bnb: 0 });
+    setAvailableSpins(0);
     showToast('Logged out of Apex Tesla Hub.', 'info');
   };
 
@@ -4205,11 +4479,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       bonusSpinsEarned: bonusSpins,
     };
 
-    // Credit USD wallet balance
-    setBalances((prev) => ({
-      ...prev,
-      usd: prev.usd + bonusCredits,
-    }));
+    // Credit USD wallet balance & sync server ledger
+    creditFreeWinUsd(bonusCredits, currentUser?.id);
+    if (currentUser?.id) {
+      fetch(`/api/wallet/${encodeURIComponent(currentUser.id)}/credit`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          amountUsd: bonusCredits,
+          fundingType: 'free_win',
+          reason: `Referral reward (${selectedName})`,
+        }),
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (d?.wallet) applyServerWallet(d.wallet, currentUser.id);
+        })
+        .catch(() => {});
+    }
 
     // Add extra promotional spins
     setAvailableSpins((prev) => prev + bonusSpins);
@@ -4337,7 +4624,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
         const res = await fetch('/api/deposits/record', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getAuthHeaders(),
           body: JSON.stringify({
             userId: currentUser.id,
             currency,
@@ -4433,7 +4720,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // Dispatch .env SMTP email notification for completed deposit
       fetch('/api/notifications/deposit', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           email: currentUser.email,
           name: currentUser.name,
@@ -4520,11 +4807,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
     setTransactions((prev) => [newTx, ...prev]);
 
-    // Deduct from USD wallet
-    setBalances((prev) => ({
-      ...prev,
-      usd: Math.max(0, prev.usd - bookingData.totalCostUsd),
-    }));
+    // Deduct from USD wallet & sync authoritative server wallet
+    const currentUsdSnap = balances.usd;
+    const currentDepSnap = activeDepositBalanceUsd;
+    deductSpendableUsd(bookingData.totalCostUsd, currentUser?.id);
+    if (currentUser?.id && bookingData.totalCostUsd > 0) {
+      fetch(`/api/wallet/${encodeURIComponent(currentUser.id)}/consume`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          amountUsd: bookingData.totalCostUsd,
+          category: 'service_payment',
+          notes: `${bookingData.serviceType} (${bookingData.vehicleName})`,
+          clientWalletUsd: currentUsdSnap,
+          clientDepositUsd: currentDepSnap,
+        }),
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (d?.wallet) applyServerWallet(d.wallet, currentUser.id);
+        })
+        .catch(() => {});
+    }
 
     showToast(`Service appointment booked for ${bookingData.vehicleName} on ${bookingData.scheduledDate}! PDF invoice generated.`);
     return newBooking;
@@ -4540,8 +4844,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const pool = investmentPools.find((p) => p.id === poolId) || INVESTMENT_POOLS.find((p) => p.id === poolId);
     if (!pool) return false;
 
-    // Deduct balance
-    setBalances((prev) => ({ ...prev, usd: prev.usd - amountUsd }));
+    // Deduct balance & sync server wallet
+    const currentUsdSnap = balances.usd;
+    const currentDepSnap = activeDepositBalanceUsd;
+    deductSpendableUsd(amountUsd, currentUser?.id);
+    if (currentUser?.id && amountUsd > 0) {
+      fetch(`/api/wallet/${encodeURIComponent(currentUser.id)}/consume`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          amountUsd,
+          category: 'staking_payment',
+          notes: `Staked in ${pool.title}`,
+          clientWalletUsd: currentUsdSnap,
+          clientDepositUsd: currentDepSnap,
+        }),
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (d?.wallet) applyServerWallet(d.wallet, currentUser.id);
+        })
+        .catch(() => {});
+    }
 
     const durationDays = pool.lockPeriodDays || 30;
     const now = new Date();
@@ -4577,14 +4901,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Sync newly created stake to server.ts automated ROI cron store
     fetch('/api/investments/sync', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(),
       body: JSON.stringify({
         investments: [
           {
             ...newInvestment,
-            userId: currentUser?.id || 'usr-alex-001',
-            userEmail: currentUser?.email || 'alex.vance@apex-tesla.io',
-            userName: currentUser?.name || 'Alex Vance',
+            userId: currentUser?.id || 'usr-apex-001',
+            userEmail: currentUser?.email || 'member@apex-tesla.io',
+            userName: currentUser?.name || 'Apex Member',
           },
         ],
       }),
@@ -4617,10 +4941,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     const amount = inv.earnedDividendsUsd;
-    setBalances((prev) => ({ ...prev, usd: prev.usd + amount }));
+    creditFreeWinUsd(amount, currentUser?.id);
     setUserInvestments((prev) =>
       prev.map((i) => (i.id === investmentId ? { ...i, earnedDividendsUsd: 0 } : i))
     );
+
+    fetch(`/api/investments/${encodeURIComponent(investmentId)}/claim`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d?.wallet) applyServerWallet(d.wallet, currentUser?.id);
+      })
+      .catch(() => {});
 
     const newTx: Transaction = {
       id: `tx-${Date.now()}`,
@@ -4670,8 +5004,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const totalReturn = inv.amountInvestedUsd + (inv.earnedDividendsUsd || 0);
 
-    // Credit user balances
-    setBalances((prev) => ({ ...prev, usd: prev.usd + totalReturn }));
+    // Credit user balances (principal to deposit, earned ROI to free win)
+    const targetUserId = inv.userId;
+    if (!targetUserId || targetUserId === currentUser?.id) {
+      setBalances((prev) => ({ ...prev, usd: Number((prev.usd + totalReturn).toFixed(2)) }));
+    } else {
+      setUserBalancesById((prev) => {
+        const existing = prev[targetUserId] || { usd: 0, btc: 0, usdt: 0, xrp: 0, bnb: 0 };
+        return {
+          ...prev,
+          [targetUserId]: { ...existing, usd: Number((existing.usd + totalReturn).toFixed(2)) },
+        };
+      });
+    }
+    if (targetUserId) {
+      setActiveDepositByUserId((prev) => ({
+        ...prev,
+        [targetUserId]: Number(((prev[targetUserId] || 0) + inv.amountInvestedUsd).toFixed(2)),
+      }));
+      if ((inv.earnedDividendsUsd || 0) > 0) {
+        setFreeWinByUserId((prev) => ({
+          ...prev,
+          [targetUserId]: Number(((prev[targetUserId] || 0) + (inv.earnedDividendsUsd || 0)).toFixed(2)),
+        }));
+      }
+    }
 
     const completionDate = new Date().toISOString().substring(0, 10);
     const certificateId = `APEX-CERT-${completionDate.replace(/-/g, '')}-${inv.id.substring(4, 8).toUpperCase()}`;
@@ -4737,10 +5094,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ...prev.slice(0, 23),
     ]);
     // Also dispatch maturity email & mark settled on server.ts
-    fetch(`/api/investments/${investmentId}/force-mature`, { method: 'POST' })
+    fetch(`/api/investments/${encodeURIComponent(investmentId)}/force-mature`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+    })
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (d?.dispatchedEmails) setDispatchedCronEmails(d.dispatchedEmails);
+        if (d?.wallet) applyServerWallet(d.wallet, inv.userId);
       })
       .catch(() => {});
     return true;
@@ -4755,7 +5116,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const updated = { ...i, status: nextStatus as any };
           fetch('/api/investments/sync', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getAuthHeaders(),
             body: JSON.stringify({ investments: [updated] }),
           }).catch(() => {});
           return updated;
@@ -4771,9 +5132,58 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // Early withdrawal penalty 5%
     const penalty = inv.amountInvestedUsd * 0.05;
-    const refund = inv.amountInvestedUsd - penalty + inv.earnedDividendsUsd;
+    const principalRefund = Number(Math.max(0, inv.amountInvestedUsd - penalty).toFixed(2));
+    const dividendsRefund = Number(Math.max(0, inv.earnedDividendsUsd || 0).toFixed(2));
+    const refund = Number((principalRefund + dividendsRefund).toFixed(2));
 
-    setBalances((prev) => ({ ...prev, usd: prev.usd + refund }));
+    setBalances((prev) => ({ ...prev, usd: Number((prev.usd + refund).toFixed(2)) }));
+    const targetUid = inv.userId || currentUser?.id;
+    if (targetUid) {
+      if (principalRefund > 0) {
+        setActiveDepositByUserId((prev) => ({
+          ...prev,
+          [targetUid]: Number(((prev[targetUid] || 0) + principalRefund).toFixed(2)),
+        }));
+      }
+      if (dividendsRefund > 0) {
+        setFreeWinByUserId((prev) => ({
+          ...prev,
+          [targetUid]: Number(((prev[targetUid] || 0) + dividendsRefund).toFixed(2)),
+        }));
+      }
+      if (principalRefund > 0) {
+        fetch(`/api/wallet/${encodeURIComponent(targetUid)}/credit`, {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({
+            amountUsd: principalRefund,
+            fundingType: 'deposit',
+            reason: `Early Unstake Principal (${inv.poolTitle})`,
+          }),
+        })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((d) => {
+            if (d?.wallet) applyServerWallet(d.wallet, targetUid);
+          })
+          .catch(() => {});
+      }
+      if (dividendsRefund > 0) {
+        fetch(`/api/wallet/${encodeURIComponent(targetUid)}/credit`, {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({
+            amountUsd: dividendsRefund,
+            fundingType: 'free_win',
+            reason: `Early Unstake Accrued ROI (${inv.poolTitle})`,
+          }),
+        })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((d) => {
+            if (d?.wallet) applyServerWallet(d.wallet, targetUid);
+          })
+          .catch(() => {});
+      }
+    }
 
     setUserInvestments((prev) =>
       prev.map((i) =>
@@ -4858,23 +5268,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       );
     }
 
-    if (Array.isArray(snapshot.settlementEvents) && snapshot.settlementEvents.length > 0) {
+    const activeUid = currentUser?.id;
+    if (activeUid && Array.isArray(snapshot.settlementEvents) && snapshot.settlementEvents.length > 0) {
       const appliedRaw = localStorage.getItem('apex_applied_settlements');
       const appliedIds: string[] = appliedRaw ? JSON.parse(appliedRaw) : [];
       const appliedSet = new Set<string>(appliedIds);
-      const activeUid = currentUser?.id || 'usr-alex-001';
       let creditedAny = false;
 
       snapshot.settlementEvents.forEach((ev) => {
         if (appliedSet.has(ev.id)) return;
-        const belongsToSession =
-          ev.userId === activeUid || ev.userId === 'usr-alex-001' || ev.userId === 'usr-apex-001';
+        const belongsToSession = ev.userId === activeUid;
         if (!belongsToSession) return;
 
         appliedSet.add(ev.id);
         creditedAny = true;
-
-        setBalances((b) => ({ ...b, usd: Number((b.usd + ev.totalPayoutUsd).toFixed(2)) }));
 
         const settleTx: Transaction = {
           id: `tx-cron-${ev.investmentId}-${Date.now()}`,
@@ -4903,6 +5310,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       if (creditedAny) {
         localStorage.setItem('apex_applied_settlements', JSON.stringify(Array.from(appliedSet).slice(-100)));
+        fetch(`/api/wallet/${encodeURIComponent(activeUid)}`, { headers: getAuthHeaders(false) })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((d) => {
+            if (d?.wallet) applyServerWallet(d.wallet, activeUid);
+          })
+          .catch(() => {});
       }
     }
   };
@@ -4912,7 +5325,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const res = await fetch('/api/cron/toggle', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify(typeof active === 'boolean' ? { active } : {}),
       });
       const data = await res.json();
@@ -4935,18 +5348,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // Ensure server has latest client investments before executing cycle
       await fetch('/api/investments/sync', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           investments: userInvestments.map((inv) => ({
             ...inv,
-            userId: inv.userId || currentUser?.id || 'usr-alex-001',
-            userEmail: currentUser?.email || 'alex.vance@apex-tesla.io',
-            userName: currentUser?.name || 'Alex Vance',
+            userId: inv.userId || currentUser?.id || 'usr-apex-001',
+            userEmail: currentUser?.email || 'member@apex-tesla.io',
+            userName: currentUser?.name || 'Apex Member',
           })),
         }),
       });
 
-      const res = await fetch('/api/cron/trigger', { method: 'POST' });
+      const res = await fetch('/api/cron/trigger', {
+        method: 'POST',
+        headers: getAuthHeaders(false),
+      });
       if (res.ok) {
         const data = await res.json();
         applyServerCronSnapshot(data);
@@ -5035,7 +5451,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       await fetch('/api/cron/config', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ jobs }),
       });
     } catch {
@@ -5046,7 +5462,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const runCronJobById = async (jobId: CronJobId): Promise<{ success: boolean; summary: string }> => {
     try {
-      const res = await fetch(`/api/cron/jobs/${encodeURIComponent(jobId)}/run`, { method: 'POST' });
+      const res = await fetch(`/api/cron/jobs/${encodeURIComponent(jobId)}/run`, {
+        method: 'POST',
+        headers: getAuthHeaders(false),
+      });
       const data = await res.json();
       if (res.ok && data.success) {
         if (Array.isArray(data.jobs)) setCronJobsConfig(data.jobs);
@@ -5310,7 +5729,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const syncScratchTiersToServer = (nextTiers: ScratchCardTier[]) => {
     fetch('/api/promotions/scratch-config', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(),
       body: JSON.stringify({ tiers: nextTiers }),
     }).catch(() => {});
   };
@@ -5598,7 +6017,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     fetch(`/api/wallet/${encodeURIComponent(userId)}/adjust`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(),
       body: JSON.stringify({
         currency,
         mode,
@@ -5607,7 +6026,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         delta: Number((nextVal - prevVal).toFixed(6)),
         fundingType,
       }),
-    }).catch(() => {});
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d?.wallet) applyServerWallet(d.wallet, userId);
+      })
+      .catch(() => {});
 
     const actionWord = mode === 'add' ? `Added +${cleanInput}` : mode === 'subtract' ? `Subtracted -${cleanInput}` : `Set to ${nextVal}`;
     showToast(`${actionWord} ${currency} (New balance: ${nextVal} ${currency}) for user #${userId}.`, 'success');
@@ -5636,7 +6060,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const res = await fetch('/api/mailer/test', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ smtpConfig, testEmail: recipientEmail, simulateScenario }),
       });
       const data = await res.json();
@@ -5808,7 +6232,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       await fetch(`/api/newsletter/subscribers/${encodeURIComponent(id)}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify(updates),
       });
     } catch {
@@ -5825,6 +6249,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       await fetch(`/api/newsletter/subscribers/${encodeURIComponent(id)}`, {
         method: 'DELETE',
+        headers: getAuthHeaders(false),
       });
     } catch {
       // ignore network error
@@ -5835,7 +6260,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const refreshNewsletterSubscribers = async () => {
     const [serverRes, fbList] = await Promise.all([
-      fetch('/api/newsletter/subscribers')
+      fetch('/api/newsletter/subscribers', { headers: getAuthHeaders(false) })
         .then((r) => (r.ok ? r.json() : { subscribers: [] }))
         .catch(() => ({ subscribers: [] })),
       loadNewsletterSubscribersFromFirestore(),
@@ -5912,7 +6337,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const res = await fetch('/api/mailer/send-campaign', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           campaignTitle: campaignData.title,
           subject: campaignData.subject,
@@ -5949,6 +6374,123 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
     return { success: true, message: serverMessage };
   };
+
+  // Compute dynamic spin stake scaling profile ($150 min -> $2,000 cap & no car/jackpot; $2,500 max -> $25,000 jackpot & peak car odds)
+  const getSpinStakeProfile = useCallback(
+    (stakeUsd: number, isFree = false) => {
+      const effectiveMin = Math.max(150, spinSystemConfig.minSpinCostUsd || spinCostUsd || 150);
+      const effectiveMax = Math.max(effectiveMin + 100, Math.min(2500, spinSystemConfig.maxSpinCostUsd || 2500));
+      const minStakeCap = Math.min(2000, Number(spinSystemConfig.minStakeCashCapUsd) || 2000);
+      const maxJackpot = Math.min(25000, Math.max(5000, spinSystemConfig.maxCashWinUsd || 25000));
+      const stake = isFree ? 0 : Math.min(effectiveMax, Math.max(effectiveMin, Number(stakeUsd) || effectiveMin));
+      const isMinOrFree = Boolean(isFree) || stake <= effectiveMin;
+      const stakeRatio = isMinOrFree ? 0 : Math.min(1, Math.max(0, (stake - effectiveMin) / Math.max(1, effectiveMax - effectiveMin)));
+      const isMaxStake = !isFree && stake >= effectiveMax;
+      const maxAllowedCashUsd = isMinOrFree
+        ? minStakeCap
+        : isMaxStake
+        ? maxJackpot
+        : Math.min(maxJackpot - 500, Math.round((minStakeCap + Math.pow(stakeRatio, 1.05) * (maxJackpot - minStakeCap - 1000)) / 100) * 100);
+      const canWinVehicleByStake = !isMinOrFree && stake > effectiveMin;
+      const canWinJackpotByStake = isMaxStake;
+      const vehicleWeightMultiplier = !canWinVehicleByStake ? 0 : Number((0.4 + stakeRatio * 3.6).toFixed(2));
+      const winBoostMultiplier = Number((1 + stakeRatio * 2.2).toFixed(2));
+
+      return {
+        stakeUsd: stake,
+        minCostUsd: effectiveMin,
+        maxCostUsd: effectiveMax,
+        stakeRatio,
+        isMinOrFree,
+        isMaxStake,
+        maxAllowedCashUsd,
+        maxJackpotUsd: maxJackpot,
+        canWinVehicleByStake,
+        canWinJackpotByStake,
+        vehicleWeightMultiplier,
+        winBoostMultiplier,
+      };
+    },
+    [spinSystemConfig, spinCostUsd]
+  );
+
+  // Enforce Weekly 1-Vehicle Limit & Prior Won-Vehicle Pay/Process/Ship Requirement
+  const getVehicleWinEligibility = useCallback(() => {
+    const uid = currentUser?.id;
+    if (!uid) {
+      return {
+        eligible: true,
+        reasonCode: 'ELIGIBLE' as const,
+        blockingPrize: null,
+        nextEligibleAtIso: null,
+        message: 'Sign in to view Tesla vehicle win eligibility (max 1 vehicle per week after prior fulfillment).',
+      };
+    }
+
+    const userVehicles = wonPrizes.filter((p) => p && p.userId === uid && p.prizeType === 'vehicle');
+    const unfulfilled = userVehicles.find(
+      (p) => !p.feesPaid || (p.shippingStatus !== 'shipped' && p.shippingStatus !== 'delivered')
+    );
+    if (unfulfilled) {
+      return {
+        eligible: false,
+        reasonCode: 'UNSHIPPED_VEHICLE_PENDING' as const,
+        blockingPrize: {
+          id: unfulfilled.id,
+          title: unfulfilled.title,
+          feesPaid: Boolean(unfulfilled.feesPaid),
+          shippingStatus: unfulfilled.shippingStatus,
+          wonAt: unfulfilled.wonAt,
+        },
+        nextEligibleAtIso: null,
+        message: `Vehicle wins locked: complete fee payment, processing, and shipment of "${unfulfilled.title}" in your Dashboard before winning another vehicle.`,
+      };
+    }
+
+    const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+    let latestWonMs = 0;
+    let latestVehicle: WonPrizeItem | null = null;
+    for (const v of userVehicles) {
+      const rawTs = v.wonAtIso || (v.wonAt ? `${v.wonAt}T00:00:00.000Z` : '');
+      const ts = rawTs ? new Date(rawTs).getTime() : 0;
+      if (Number.isFinite(ts) && ts > latestWonMs) {
+        latestWonMs = ts;
+        latestVehicle = v;
+      }
+    }
+    if (latestWonMs > 0 && Date.now() - latestWonMs < ONE_WEEK_MS) {
+      const nextIso = new Date(latestWonMs + ONE_WEEK_MS).toISOString();
+      return {
+        eligible: false,
+        reasonCode: 'WEEKLY_VEHICLE_LIMIT_REACHED' as const,
+        blockingPrize: latestVehicle
+          ? {
+              id: latestVehicle.id,
+              title: latestVehicle.title,
+              feesPaid: Boolean(latestVehicle.feesPaid),
+              shippingStatus: latestVehicle.shippingStatus,
+              wonAt: latestVehicle.wonAt,
+            }
+          : null,
+        nextEligibleAtIso: nextIso,
+        message: `Weekly vehicle limit reached (1 Tesla vehicle per 7 days across Spins & Scratch Cards). Next vehicle eligibility unlocks ${nextIso.slice(0, 10)}.`,
+      };
+    }
+
+    if (serverVehicleEligibility && !serverVehicleEligibility.eligible) {
+      return serverVehicleEligibility;
+    }
+
+    return {
+      eligible: true,
+      reasonCode: 'ELIGIBLE' as const,
+      blockingPrize: null,
+      nextEligibleAtIso: null,
+      message: 'Eligible to win 1 Tesla vehicle this week (when stake > $150 on spins or via scratch tiers).',
+    };
+  }, [currentUser?.id, wonPrizes, serverVehicleEligibility]);
+
+  const vehicleWinEligibility = useMemo(() => getVehicleWinEligibility(), [getVehicleWinEligibility]);
 
   // Resolve current Spin & Win difficulty level, rules & available slices
   const getResolvedSpinContext = useCallback(
@@ -6009,9 +6551,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     [currentUser?.id, spinSystemConfig, availableSpins, spinCostUsd]
   );
 
-  // Spin & Win Execution Engine (Server-authoritative with $150 min paid cost, <= $20k cash cap, auto-credit, free-spin Super Hard + 1-win cap, multi-win auto Super Hard)
+  // Spin & Win Execution Engine (User-selectable $150 min to $2,500 max stake, <= $2k min-stake cap & no car/jackpot on min/free, up to $25k jackpot on max, 1 vehicle/week + ship-before-next gate)
   const executeSpin = async (
-    useFreeSpin?: boolean
+    useFreeSpin?: boolean,
+    customSpinCostUsd?: number
   ): Promise<{
     prize: string;
     valueUsd: number;
@@ -6022,6 +6565,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     resolvedLevel?: SpinDifficultyLevel;
     reason?: string;
     usedFreeSpin?: boolean;
+    costChargedUsd?: number;
+    stakeProfile?: ReturnType<typeof getSpinStakeProfile>;
+    vehicleEligibility?: ReturnType<typeof getVehicleWinEligibility>;
   }> => {
     if (!requireSignedIn('spin the promotional wheel') || !currentUser) {
       throw new Error('Please sign in or register to spin the promotional wheel.');
@@ -6032,8 +6578,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const uid = currentUser.id;
     const minSpinCost = Math.max(150, spinCostUsd || 150, spinSystemConfig.minSpinCostUsd || 150);
+    const maxSpinCost = Math.max(minSpinCost + 100, Math.min(2500, spinSystemConfig.maxSpinCostUsd || 2500));
     const shouldUseFree = Boolean(useFreeSpin ?? availableSpins > 0) && availableSpins > 0;
-    const maxCashWin = Math.min(20000, spinSystemConfig.maxCashWinUsd || 20000);
+    const stakeToCharge = shouldUseFree
+      ? 0
+      : Math.min(maxSpinCost, Math.max(minSpinCost, Math.round(Number(customSpinCostUsd ?? minSpinCost) || minSpinCost)));
+    const clientStakeProfile = getSpinStakeProfile(stakeToCharge, shouldUseFree);
+    const maxCashWin = clientStakeProfile.maxAllowedCashUsd;
     const existingTracker: UserSpinTracker = spinSystemConfig.userTrackers?.[uid] || {
       paidSpinsCount: 0,
       totalWinsCount: 0,
@@ -6042,9 +6593,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       activeOfferSpinsRemaining: availableSpins,
     };
 
-    if (!shouldUseFree && balances.usd < minSpinCost) {
+    if (!shouldUseFree && balances.usd < stakeToCharge) {
       throw new Error(
-        `Paid spin requires $${minSpinCost} USD minimum. Insufficient wallet balance ($${balances.usd.toFixed(2)}). Please deposit funds.`
+        `Selected spin stake requires $${stakeToCharge.toLocaleString()} USD. Insufficient wallet balance ($${balances.usd.toFixed(2)}). Please lower stake or deposit funds.`
       );
     }
 
@@ -6053,22 +6604,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     let selectedSlice: WheelReward | null = null;
     let sliceIndex = 0;
     let awardedCashUsd = 0;
+    let costChargedUsd = stakeToCharge;
+    let serverStakeProfile = clientStakeProfile;
+    let latestEligibility = getVehicleWinEligibility();
     let serverWonPrize: WonPrizeItem | null = null;
     let serverWalletAfterSpin: { usd: number; depositUsd: number; freeWinUsd: number } | null = null;
     let usedFreeResult = shouldUseFree;
     let serverHttpRejection: Error | null = null;
 
+    let serverTrackerSynced = false;
+
     try {
       const res = await fetch('/api/promotions/spin', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           userId: uid,
           userName: currentUser.name,
           userEmail: currentUser.email,
           useFreeSpin: shouldUseFree,
           availableFreeSpins: availableSpins,
-          spinCostUsd: minSpinCost,
+          spinCostUsd: stakeToCharge,
           clientWalletUsd: balances.usd,
           clientDepositUsd: activeDepositBalanceUsd,
           clientFreeWinUsd: freeWinBalanceUsd,
@@ -6079,9 +6635,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const data = await res.json();
       if (!res.ok) {
         if (data?.wallet && typeof data.wallet.usd === 'number') {
-          setBalances((prev) => ({ ...prev, usd: Number(data.wallet.usd) }));
-          setActiveDepositByUserId((prev) => ({ ...prev, [uid]: Number(data.wallet.depositUsd || 0) }));
-          setFreeWinByUserId((prev) => ({ ...prev, [uid]: Number(data.wallet.freeWinUsd || 0) }));
+          applyServerWallet(data.wallet, uid);
         }
         serverHttpRejection = new Error(data.error || 'Spin execution rejected by server security check.');
         throw serverHttpRejection;
@@ -6090,7 +6644,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       reason = data.reason || 'server_verified';
       selectedSlice = data.slice;
       usedFreeResult = Boolean(data.usedFreeSpin);
-      awardedCashUsd = Math.min(maxCashWin, Math.max(0, Number(data.awardedCashUsd) || 0));
+      costChargedUsd = usedFreeResult ? 0 : Math.max(minSpinCost, Number(data.costChargedUsd) || stakeToCharge);
+      if (data.stakeProfile) {
+        serverStakeProfile = data.stakeProfile;
+      }
+      if (data.vehicleEligibility) {
+        latestEligibility = data.vehicleEligibility;
+        setServerVehicleEligibility(data.vehicleEligibility);
+      }
+      awardedCashUsd = Math.min(serverStakeProfile.maxAllowedCashUsd, Math.max(0, Number(data.awardedCashUsd) || 0));
       serverWonPrize = data.wonPrizeItem || null;
       if (data.wallet && typeof data.wallet.usd === 'number') {
         serverWalletAfterSpin = {
@@ -6101,6 +6663,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
 
       if (data.tracker) {
+        serverTrackerSynced = true;
+        setAvailableSpins(Math.max(0, Number(data.tracker.activeOfferSpinsRemaining) || 0));
         setSpinSystemConfig((prev) => ({
           ...prev,
           userTrackers: { ...prev.userTrackers, [uid]: data.tracker },
@@ -6112,7 +6676,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }));
       }
     } catch (err) {
-      // Never mask server security / anti-manipulation / fee-validation / balance rejections with local fallback
       if (serverHttpRejection) {
         throw serverHttpRejection;
       }
@@ -6146,13 +6709,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const activePool = levelPool.length > 0 ? levelPool : DEFAULT_SPIN_LEVEL_REWARDS[resolvedLevel];
 
     if (!selectedSlice) {
-      const totalWeight = activePool.reduce((acc, s) => acc + Math.max(1, s.weight || s.probabilityWeight || 1), 0);
+      const eligibilityNow = getVehicleWinEligibility();
+      const allowCar = serverStakeProfile.canWinVehicleByStake && eligibilityNow.eligible;
+      const eligiblePool = activePool.filter((s) => {
+        if (s.type === 'car' && !allowCar) return false;
+        if (s.type === 'usd') {
+          const val = Number(s.valueUsd ?? s.value ?? 0);
+          if (val > serverStakeProfile.maxAllowedCashUsd) return false;
+        }
+        return true;
+      });
+      const weightedPool = (eligiblePool.length > 0 ? eligiblePool : activePool).map((s) => {
+        const baseW = Math.max(1, s.weight || s.probabilityWeight || 1);
+        if (s.type === 'car') {
+          return { slice: s, effW: Math.max(1, Math.round(baseW * serverStakeProfile.vehicleWeightMultiplier)) };
+        }
+        if (s.type === 'usd') {
+          const val = Number(s.valueUsd ?? s.value ?? 0);
+          const scaleFactor =
+            serverStakeProfile.stakeRatio > 0 && val >= 2000
+              ? Math.max(1, serverStakeProfile.winBoostMultiplier * 0.9)
+              : 1;
+          return { slice: s, effW: Math.max(1, Math.round(baseW * scaleFactor)) };
+        }
+        return { slice: s, effW: baseW };
+      });
+      const totalWeight = weightedPool.reduce((acc, item) => acc + item.effW, 0);
       let roll = Math.random() * totalWeight;
-      selectedSlice = activePool[0];
-      for (const s of activePool) {
-        roll -= Math.max(1, s.weight || s.probabilityWeight || 1);
+      selectedSlice = weightedPool[0].slice;
+      for (const item of weightedPool) {
+        roll -= item.effW;
         if (roll <= 0) {
-          selectedSlice = s;
+          selectedSlice = item.slice;
           break;
         }
       }
@@ -6170,37 +6758,41 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // Deduct paid fee OR consume 1 free bonus spin
     if (usedFreeResult) {
-      setAvailableSpins((prev) => Math.max(0, prev - 1));
+      if (!serverTrackerSynced) {
+        setAvailableSpins((prev) => Math.max(0, prev - 1));
+      }
     } else {
       if (!serverWalletAfterSpin) {
-        deductSpendableUsd(minSpinCost, uid);
+        deductSpendableUsd(costChargedUsd, uid);
       }
       const costTx: Transaction = {
         id: `tx-spin-fee-${Date.now()}`,
         type: 'service_payment',
         currency: 'USD',
-        amount: minSpinCost,
-        usdEquivalent: minSpinCost,
+        amount: costChargedUsd,
+        usdEquivalent: costChargedUsd,
         timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
         status: 'completed',
         txHash: `0x${Math.random().toString(16).substring(2, 10)}...spin`,
-        description: `Wheel Spin Execution [${resolvedLevel.toUpperCase().replace('_', ' ')}] ($${minSpinCost} Paid)`,
+        description: `Wheel Spin Execution [${resolvedLevel.toUpperCase().replace('_', ' ')}] ($${costChargedUsd.toLocaleString()} Stake)`,
       };
       setTransactions((prev) => [costTx, ...prev]);
     }
 
     if (serverWalletAfterSpin) {
-      setBalances((prev) => ({ ...prev, usd: serverWalletAfterSpin!.usd }));
-      setActiveDepositByUserId((prev) => ({ ...prev, [uid]: serverWalletAfterSpin!.depositUsd }));
-      setFreeWinByUserId((prev) => ({ ...prev, [uid]: serverWalletAfterSpin!.freeWinUsd }));
+      applyServerWallet(serverWalletAfterSpin, uid);
     }
 
     const rawSliceVal =
       selectedSlice.type === 'try_again' ? 0 : Number(selectedSlice.valueUsd ?? selectedSlice.value ?? 0);
+    const scaledOfflineVal =
+      selectedSlice.type === 'usd' && serverStakeProfile.stakeRatio > 0
+        ? Math.min(serverStakeProfile.maxAllowedCashUsd, Math.round((rawSliceVal * (1 + serverStakeProfile.stakeRatio * 0.25)) / 25) * 25)
+        : Math.min(maxCashWin, rawSliceVal);
     const finalValueUsd =
       selectedSlice.type === 'car'
         ? rawSliceVal
-        : Math.min(maxCashWin, awardedCashUsd > 0 ? awardedCashUsd : rawSliceVal);
+        : Math.min(serverStakeProfile.maxAllowedCashUsd, awardedCashUsd > 0 ? awardedCashUsd : scaledOfflineVal);
 
     const won = {
       prize: selectedSlice.label,
@@ -6212,6 +6804,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       resolvedLevel,
       reason,
       usedFreeSpin: usedFreeResult,
+      costChargedUsd,
+      stakeProfile: serverStakeProfile,
+      vehicleEligibility: latestEligibility,
     };
 
     const hash = `0x${Math.random().toString(16).substring(2, 6)}...${Math.random().toString(16).substring(2, 6)}`;
@@ -6299,6 +6894,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         vinAssigned: vin,
         image: wonVehicle.image,
         wonAt: new Date().toISOString().split('T')[0],
+        wonAtIso: new Date().toISOString(),
         processingFeeUsd: 495,
         shippingDocFeeUsd: 350,
         shippingFreightFeeUsd: 1450,
@@ -6443,8 +7039,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const currentPrice = tslaQuote.price;
     const sharesBought = Number((usdAmount / currentPrice).toFixed(4));
 
-    // Deduct vault balance
-    setBalances((prev) => ({ ...prev, usd: prev.usd - usdAmount }));
+    // Deduct vault balance & sync server wallet
+    const currentUsdSnap = balances.usd;
+    const currentDepSnap = activeDepositBalanceUsd;
+    deductSpendableUsd(usdAmount, currentUser?.id);
+    if (currentUser?.id && usdAmount > 0) {
+      fetch(`/api/wallet/${encodeURIComponent(currentUser.id)}/consume`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          amountUsd: usdAmount,
+          category: 'stock_trade',
+          notes: `TSLA Spot Buy (${sharesBought.toFixed(3)} shares @ $${currentPrice.toFixed(2)})`,
+          clientWalletUsd: currentUsdSnap,
+          clientDepositUsd: currentDepSnap,
+        }),
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (d?.wallet) applyServerWallet(d.wallet, currentUser.id);
+        })
+        .catch(() => {});
+    }
 
     // Record spot holding
     setUserSpotHolding((prev) => {
@@ -6493,7 +7109,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     const proceeds = Number((sharesToSell * tslaQuote.price).toFixed(2));
-    setBalances((prev) => ({ ...prev, usd: prev.usd + proceeds }));
+    creditFreeWinUsd(proceeds, currentUser?.id);
+    if (currentUser?.id && proceeds > 0) {
+      fetch(`/api/wallet/${encodeURIComponent(currentUser.id)}/credit`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          amountUsd: proceeds,
+          fundingType: 'free_win',
+          reason: `TSLA Spot Sale (${sharesToSell.toFixed(3)} shares @ $${tslaQuote.price.toFixed(2)})`,
+        }),
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (d?.wallet) applyServerWallet(d.wallet, currentUser.id);
+        })
+        .catch(() => {});
+    }
 
     setUserSpotHolding((prev) => {
       const remainingShares = Math.max(0, Number((prev.shares - sharesToSell).toFixed(4)));
@@ -6568,7 +7200,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return false;
     }
 
-    setBalances((prev) => ({ ...prev, usd: prev.usd - amountUsd }));
+    const currentUsdSnap = balances.usd;
+    const currentDepSnap = activeDepositBalanceUsd;
+    deductSpendableUsd(amountUsd, currentUser?.id);
+    if (currentUser?.id && amountUsd > 0) {
+      fetch(`/api/wallet/${encodeURIComponent(currentUser.id)}/consume`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          amountUsd,
+          category: 'stock_plan',
+          notes: `Invested in ${plan.title}`,
+          clientWalletUsd: currentUsdSnap,
+          clientDepositUsd: currentDepSnap,
+        }),
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (d?.wallet) applyServerWallet(d.wallet, currentUser.id);
+        })
+        .catch(() => {});
+    }
 
     const dailyRoiUsd = (amountUsd * (plan.apy / 100)) / 365;
     const totalExpectedRoiUsd = dailyRoiUsd * plan.durationDays;
@@ -6599,14 +7251,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Sync new Fast ROI plan stake to server.ts automated ROI cron store
     fetch('/api/investments/sync', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(),
       body: JSON.stringify({
         investments: [
           {
             ...newInv,
-            userId: currentUser?.id || 'usr-alex-001',
-            userEmail: currentUser?.email || 'alex.vance@apex-tesla.io',
-            userName: currentUser?.name || 'Alex Vance',
+            userId: currentUser?.id || 'usr-apex-001',
+            userEmail: currentUser?.email || 'member@apex-tesla.io',
+            userName: currentUser?.name || 'Apex Member',
           },
         ],
       }),
@@ -6748,8 +7400,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const feeUsd = Number(((amountUsd * withdrawalSettings.feePercent) / 100).toFixed(2));
     const netAmountUsd = Number((amountUsd - feeUsd).toFixed(2));
 
-    // Deduct from balance
-    setBalances((prev) => ({ ...prev, usd: prev.usd - amountUsd }));
+    // Deduct from balance & sync server wallet
+    const currentUsdSnap = balances.usd;
+    const currentDepSnap = activeDepositBalanceUsd;
+    deductSpendableUsd(amountUsd, currentUser?.id);
+    if (currentUser?.id && amountUsd > 0) {
+      fetch(`/api/wallet/${encodeURIComponent(currentUser.id)}/consume`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          amountUsd,
+          category: 'withdrawal_request',
+          notes: `Withdrawal Request via ${currency}`,
+          clientWalletUsd: currentUsdSnap,
+          clientDepositUsd: currentDepSnap,
+        }),
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (d?.wallet) applyServerWallet(d.wallet, currentUser.id);
+        })
+        .catch(() => {});
+    }
 
     const reqId = `wdr-${Date.now()}`;
     const newReq: WithdrawalRequest = {
@@ -6813,8 +7485,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
 
     if (status === 'rejected') {
-      // Refund user balance
-      setBalances((prev) => ({ ...prev, usd: prev.usd + targetReq.amountUsd }));
+      // Refund user balance & reconcile server wallet
+      if (targetReq.userId === currentUser?.id) {
+        setBalances((prev) => ({ ...prev, usd: Number((prev.usd + targetReq.amountUsd).toFixed(2)) }));
+      } else {
+        setUserBalancesById((prev) => {
+          const existing = prev[targetReq.userId] || { usd: 0, btc: 0, usdt: 0, xrp: 0, bnb: 0 };
+          return {
+            ...prev,
+            [targetReq.userId]: { ...existing, usd: Number((existing.usd + targetReq.amountUsd).toFixed(2)) },
+          };
+        });
+      }
+      setActiveDepositByUserId((prev) => ({
+        ...prev,
+        [targetReq.userId]: Number(((prev[targetReq.userId] || 0) + targetReq.amountUsd).toFixed(2)),
+      }));
+      fetch(`/api/wallet/${encodeURIComponent(targetReq.userId)}/credit`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          amountUsd: targetReq.amountUsd,
+          fundingType: 'deposit',
+          reason: `Refund rejected withdrawal #${id}`,
+        }),
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (d?.wallet) applyServerWallet(d.wallet, targetReq.userId);
+        })
+        .catch(() => {});
       showToast(`Withdrawal #${id} rejected. $${targetReq.amountUsd} refunded to user vault.`, 'info');
     } else {
       showToast(`Withdrawal #${id} approved and dispatched!`, 'success');
@@ -6828,7 +7528,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const syncSpinConfigToServer = (cfg: SpinSystemConfig) => {
     fetch('/api/promotions/spin-config', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(),
       body: JSON.stringify({ config: cfg }),
     }).catch(() => {});
   };
@@ -6850,14 +7550,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         typeof updates.minSpinCostUsd === 'number'
           ? Math.max(150, updates.minSpinCostUsd)
           : prev.minSpinCostUsd;
+      const nextMaxSpinCost =
+        typeof updates.maxSpinCostUsd === 'number'
+          ? Math.max(nextCost + 100, Math.min(2500, updates.maxSpinCostUsd))
+          : prev.maxSpinCostUsd || 2500;
+      const nextMinStakeCap =
+        typeof updates.minStakeCashCapUsd === 'number'
+          ? Math.min(2000, Math.max(500, updates.minStakeCashCapUsd))
+          : prev.minStakeCashCapUsd || 2000;
       const nextMaxCash =
         typeof updates.maxCashWinUsd === 'number'
-          ? Math.min(20000, Math.max(500, updates.maxCashWinUsd))
+          ? Math.min(25000, Math.max(500, updates.maxCashWinUsd))
           : prev.maxCashWinUsd;
       const next: SpinSystemConfig = {
         ...prev,
         ...updates,
         minSpinCostUsd: nextCost,
+        maxSpinCostUsd: nextMaxSpinCost,
+        minStakeCashCapUsd: nextMinStakeCap,
         maxCashWinUsd: nextMaxCash,
       };
       if (typeof updates.minSpinCostUsd === 'number') {
@@ -6866,7 +7576,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       syncSpinConfigToServer(next);
       return next;
     });
-    showToast('Spin & Win difficulty rules & thresholds saved.', 'success');
+    showToast('Spin & Win difficulty rules & stake caps saved.', 'success');
   };
 
   const updateWheelSliceForLevel = (
@@ -6878,7 +7588,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const levelList = prev.levels[level] || [];
       const updatedList = levelList.map((r) => {
         if (r.id !== sliceId) return r;
-        const maxWinCap = level === 'easy' ? 20000 : level === 'hard' ? 15000 : 8000;
+        const maxWinCap = level === 'easy' ? 25000 : level === 'hard' ? 15000 : 8000;
         const rawVal = updates.valueUsd ?? updates.value ?? r.valueUsd ?? r.value ?? 0;
         const mergedVal =
           (updates.type || r.type) === 'car'
@@ -6907,7 +7617,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addWheelSliceForLevel = (level: SpinDifficultyLevel, reward: Omit<WheelReward, 'id'>) => {
-    const maxWinCap = level === 'easy' ? 20000 : level === 'hard' ? 15000 : 8000;
+    const maxWinCap = level === 'easy' ? 25000 : level === 'hard' ? 15000 : 8000;
     const rawVal = reward.valueUsd ?? reward.value ?? 0;
     const val = reward.type === 'car' ? rawVal : reward.type === 'try_again' ? 0 : Math.min(maxWinCap, Math.max(0, rawVal));
     const wt = reward.weight ?? reward.probabilityWeight ?? 10;
@@ -7024,7 +7734,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem('apex_feature_toggles', JSON.stringify(nextToggles));
     fetch('/api/admin/state', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(),
       body: JSON.stringify({
         sections: {
           feature_toggles: nextToggles,
@@ -7069,7 +7779,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem('apex_auto_crypto_gateways', JSON.stringify(nextGateways));
     fetch('/api/admin/state', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(),
       body: JSON.stringify({
         sections: {
           auto_gateways: nextGateways,
@@ -7164,7 +7874,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     prize?: ScratchPrizeOption;
     awardedCashUsd?: number;
     wonPrizeItem?: WonPrizeItem | null;
+    finalWallet?: { usd: number; depositUsd: number; freeWinUsd: number } | null;
     signature?: string;
+    vehicleEligibility?: ReturnType<typeof getVehicleWinEligibility> | null;
     error?: string;
   }> => {
     if (!requireSignedIn('purchase scratch cards') || !currentUser) {
@@ -7182,7 +7894,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const res = await fetch('/api/promotions/scratch', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           userId: uid,
           userName: currentUser.name,
@@ -7196,18 +7908,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const data = await res.json();
       if (!res.ok) {
         if (data?.wallet && typeof data.wallet.usd === 'number') {
-          setBalances((prev) => ({ ...prev, usd: Number(data.wallet.usd) }));
-          setActiveDepositByUserId((prev) => ({ ...prev, [uid]: Number(data.wallet.depositUsd || 0) }));
-          setFreeWinByUserId((prev) => ({ ...prev, [uid]: Number(data.wallet.freeWinUsd || 0) }));
+          applyServerWallet(data.wallet, uid);
         }
         serverRejection = data.error || 'Scratch card purchase rejected by server deposit validation.';
       } else {
         if (data.wallet && typeof data.wallet.usd === 'number') {
-          setBalances((prev) => ({ ...prev, usd: Number(data.wallet.usd) }));
-          setActiveDepositByUserId((prev) => ({ ...prev, [uid]: Number(data.wallet.depositUsd || 0) }));
-          setFreeWinByUserId((prev) => ({ ...prev, [uid]: Number(data.wallet.freeWinUsd || 0) }));
+          // Hold back any cash prize until foil scratch reveal completes
+          applyServerWallet(data.wallet, uid, Number(data.awardedCashUsd) || 0);
         } else {
           deductSpendableUsd(tier.priceUsd, uid);
+        }
+        if (data.vehicleEligibility) {
+          setServerVehicleEligibility(data.vehicleEligibility);
         }
 
         const newTx: Transaction = {
@@ -7230,11 +7942,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           prize: data.prize,
           awardedCashUsd: data.awardedCashUsd,
           wonPrizeItem: data.wonPrizeItem || null,
+          finalWallet: data.wallet || null,
           signature: data.signature,
+          vehicleEligibility: data.vehicleEligibility || null,
         };
       }
     } catch {
-      // Offline fallback below
+      // Offline fallback enforcing Super Hard rare jackpots & weekly/unshipped vehicle lock
+      const eligibilityNow = getVehicleWinEligibility();
+      const rawOptions = Array.isArray(tier.possiblePrizes) ? tier.possiblePrizes : [];
+      const adjustedOptions = rawOptions
+        .filter((p) => !(p.isTeslaCar && !eligibilityNow.eligible))
+        .map((p) => {
+          const baseW = Math.max(1, Number(p.weight) || 1);
+          const isJackpotOrCar = Boolean(p.isTeslaCar) || Number(p.amountUsd) >= Math.max(5000, Number(tier.maxPrizeUsd || 0) * 0.5);
+          if (p.isTryAgain) return { ...p, weight: Math.max(baseW, 120) };
+          if (isJackpotOrCar) return { ...p, weight: Math.min(baseW, 3) };
+          return p;
+        });
+      const totalW = adjustedOptions.reduce((sum, o) => sum + Math.max(1, Number(o.weight) || 1), 0);
+      let roll = Math.random() * Math.max(1, totalW);
+      let pickedPrize = adjustedOptions[0];
+      for (const opt of adjustedOptions) {
+        roll -= Math.max(1, Number(opt.weight) || 1);
+        if (roll <= 0) {
+          pickedPrize = opt;
+          break;
+        }
+      }
       deductSpendableUsd(tier.priceUsd, uid);
       const newTx: Transaction = {
         id: `tx-${Date.now()}`,
@@ -7248,7 +7983,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         description: `Purchased ${tier.name} Scratch Card ($${tier.priceUsd})`,
       };
       setTransactions((prev) => [newTx, ...prev]);
-      return { success: true, tier };
+      return { success: true, tier, prize: pickedPrize };
     }
 
     if (serverRejection) {
@@ -7269,11 +8004,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       isTryAgain?: boolean;
       alreadySettledOnServer?: boolean;
       serverWonPrize?: WonPrizeItem | null;
+      finalWallet?: { usd: number; depositUsd: number; freeWinUsd: number } | null;
       ticketId?: string;
       signature?: string;
     }
   ) => {
     if (!requireSignedIn('claim scratch card rewards') || !currentUser) return;
+    if (extras?.finalWallet) {
+      applyServerWallet(extras.finalWallet, currentUser.id);
+    }
 
     const hash = extras?.signature
       ? `0x${extras.signature.slice(0, 6)}...${extras.signature.slice(-4)}`
@@ -7323,6 +8062,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         vinAssigned: vin,
         image: wonVehicle.image,
         wonAt: new Date().toISOString().split('T')[0],
+        wonAtIso: new Date().toISOString(),
         processingFeeUsd: procFee,
         shippingDocFeeUsd: docFee,
         shippingFreightFeeUsd: freightFee,
@@ -7442,7 +8182,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return false;
     }
 
-    setBalances((prev) => ({ ...prev, usd: prev.usd - totalCost }));
+    const currentUsdSnap = balances.usd;
+    const currentDepSnap = activeDepositBalanceUsd;
+    deductSpendableUsd(totalCost, currentUser?.id);
+    if (currentUser?.id && totalCost > 0) {
+      fetch(`/api/wallet/${encodeURIComponent(currentUser.id)}/consume`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          amountUsd: totalCost,
+          category: 'rental_payment',
+          notes: `Rental: ${vehicle.model} ${vehicle.trim} (${days} days)`,
+          clientWalletUsd: currentUsdSnap,
+          clientDepositUsd: currentDepSnap,
+        }),
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (d?.wallet) applyServerWallet(d.wallet, currentUser.id);
+        })
+        .catch(() => {});
+    }
 
     const booking = {
       rentalId: `rent-booking-${Date.now()}`,
@@ -7519,7 +8279,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return false;
     }
 
-    setBalances((prev) => ({ ...prev, usd: Number((prev.usd - finalTotalUsd).toFixed(2)) }));
+    const currentUsdSnap = balances.usd;
+    const currentDepSnap = activeDepositBalanceUsd;
+    deductSpendableUsd(finalTotalUsd, currentUser?.id);
+    if (currentUser?.id && finalTotalUsd > 0) {
+      fetch(`/api/wallet/${encodeURIComponent(currentUser.id)}/consume`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          amountUsd: finalTotalUsd,
+          category: 'shop_checkout',
+          notes: `Apex Store Order (${cart.length} item line(s))`,
+          clientWalletUsd: currentUsdSnap,
+          clientDepositUsd: currentDepSnap,
+        }),
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (d?.wallet) applyServerWallet(d.wallet, currentUser.id);
+        })
+        .catch(() => {});
+    }
 
     const txId = `tx-${Date.now()}`;
     const invoiceNumber = `INV-SHOP-${txId.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(-8)}`;
@@ -7584,7 +8364,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       await fetch('/api/cars', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify(newCar),
       });
     } catch (e) {
@@ -7603,7 +8383,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       await fetch(`/api/cars/${id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify(updates),
       });
     } catch (e) {
@@ -7620,7 +8400,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast('Vehicle removed from catalog.', 'info');
 
     try {
-      await fetch(`/api/cars/${id}`, { method: 'DELETE' });
+      await fetch(`/api/cars/${id}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders(false),
+      });
     } catch (e) {
       console.warn('Server sync error for car delete:', e);
     }
@@ -7634,7 +8417,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       await fetch('/api/cars/shipping-settings', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify(settings),
       });
     } catch (e) {
@@ -7650,7 +8433,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       await fetch('/api/cars/refund-policy', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify(policy),
       });
     } catch (e) {
@@ -7695,7 +8478,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const res = await fetch('/api/orders', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           userId: uid,
           userName: currentUser?.name || 'Alex Vance',
@@ -7713,9 +8496,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const data = await res.json();
       if (!res.ok) {
         if (data?.wallet && typeof data.wallet.usd === 'number') {
-          setBalances((prev) => ({ ...prev, usd: Number(data.wallet.usd) }));
-          setActiveDepositByUserId((prev) => ({ ...prev, [uid]: Number(data.wallet.depositUsd || 0) }));
-          setFreeWinByUserId((prev) => ({ ...prev, [uid]: Number(data.wallet.freeWinUsd || 0) }));
+          applyServerWallet(data.wallet, uid);
         }
         orderHttpError = data.error || 'Vehicle & shipping checkout rejected by server security validation.';
       } else if (data?.wallet && typeof data.wallet.usd === 'number') {
@@ -7736,9 +8517,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     if (paymentMethod === 'vault_balance') {
       if (serverWalletAfterOrder) {
-        setBalances((b) => ({ ...b, usd: serverWalletAfterOrder!.usd }));
-        setActiveDepositByUserId((prev) => ({ ...prev, [uid]: serverWalletAfterOrder!.depositUsd }));
-        setFreeWinByUserId((prev) => ({ ...prev, [uid]: serverWalletAfterOrder!.freeWinUsd }));
+        applyServerWallet(serverWalletAfterOrder, uid);
       } else {
         deductSpendableUsd(totalUsd, uid);
       }
@@ -7930,30 +8709,62 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // Free spins (activated coupons switch next free spins to Super Hard with 1-win cap)
     if (found.discountType === 'free_spins') {
+      const uid = currentUser?.id;
+      const existingTracker = uid ? spinSystemConfig.userTrackers?.[uid] : undefined;
+      if (existingTracker?.redeemedCouponCodes?.includes(upper)) {
+        const msg = `Coupon "${upper}" has already been redeemed on this account.`;
+        showToast(msg, 'error');
+        return { success: false, message: msg };
+      }
       const addedSpins = found.discountValue || 5;
       setAvailableSpins((prev) => prev + addedSpins);
-      if (currentUser?.id) {
+      if (uid) {
         fetch('/api/promotions/activate-coupon', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: currentUser.id, bonusSpins: addedSpins, code: upper }),
-        }).catch(() => {});
+          headers: getAuthHeaders(),
+          body: JSON.stringify({ userId: uid, bonusSpins: addedSpins, code: upper }),
+        })
+          .then(async (r) => {
+            const payload = await r.json().catch(() => null);
+            if (!r.ok) {
+              setAvailableSpins((prev) => Math.max(0, prev - addedSpins));
+              if (payload?.tracker) {
+                setSpinSystemConfig((prev) => ({
+                  ...prev,
+                  userTrackers: { ...prev.userTrackers, [uid]: payload.tracker },
+                }));
+              }
+              showToast(payload?.error || `Coupon "${upper}" could not be redeemed.`, 'error');
+              return;
+            }
+            if (payload?.tracker) {
+              setAvailableSpins(Math.max(0, Number(payload.tracker.activeOfferSpinsRemaining) || 0));
+              setSpinSystemConfig((prev) => ({
+                ...prev,
+                userTrackers: { ...prev.userTrackers, [uid]: payload.tracker },
+              }));
+            }
+          })
+          .catch(() => {});
         setSpinSystemConfig((prev) => {
-          const cur = prev.userTrackers?.[currentUser.id] || {
+          const cur = prev.userTrackers?.[uid] || {
             paidSpinsCount: 0,
             totalWinsCount: 0,
             freeSpinOfferWinsUsed: 0,
             freeSpinOffersRedeemed: 0,
             activeOfferSpinsRemaining: 0,
+            redeemedCouponCodes: [],
           };
+          const prevCodes = Array.isArray(cur.redeemedCouponCodes) ? cur.redeemedCouponCodes : [];
           return {
             ...prev,
             userTrackers: {
               ...prev.userTrackers,
-              [currentUser.id]: {
+              [uid]: {
                 ...cur,
                 freeSpinOffersRedeemed: (cur.freeSpinOffersRedeemed || 0) + 1,
                 activeOfferSpinsRemaining: (cur.activeOfferSpinsRemaining || 0) + addedSpins,
+                redeemedCouponCodes: prevCodes.includes(upper) ? prevCodes : [...prevCodes, upper],
                 lastReason: `coupon_activated:${upper}`,
               },
             },
@@ -8203,7 +9014,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const res = await fetch('/api/won-prizes/pay-fees', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           userId: currentUser.id,
           prizeId,
@@ -8217,9 +9028,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const data = await res.json();
       if (!res.ok) {
         if (data?.wallet && typeof data.wallet.usd === 'number') {
-          setBalances((prev) => ({ ...prev, usd: Number(data.wallet.usd) }));
-          setActiveDepositByUserId((prev) => ({ ...prev, [currentUser.id]: Number(data.wallet.depositUsd || 0) }));
-          setFreeWinByUserId((prev) => ({ ...prev, [currentUser.id]: Number(data.wallet.freeWinUsd || 0) }));
+          applyServerWallet(data.wallet, currentUser.id);
         }
         const msg = data.error || 'Deposit verification failed for vehicle fee settlement.';
         showToast(msg, 'error');
@@ -8240,9 +9049,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // Reconcile verified deposit balance + total USD vault with server ledger
     if (serverWalletAfterFees) {
-      setBalances((prev) => ({ ...prev, usd: serverWalletAfterFees!.usd }));
-      setActiveDepositByUserId((prev) => ({ ...prev, [currentUser.id]: serverWalletAfterFees!.depositUsd }));
-      setFreeWinByUserId((prev) => ({ ...prev, [currentUser.id]: serverWalletAfterFees!.freeWinUsd }));
+      applyServerWallet(serverWalletAfterFees, currentUser.id);
     } else {
       setBalances((prev) => ({
         ...prev,
@@ -8303,6 +9110,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateWonPrizeItem = (id: string, updates: Partial<WonPrizeItem>) => {
     setWonPrizes((prev) => prev.map((p) => (p.id === id ? { ...p, ...updates } : p)));
+    if (currentUser?.role === 'admin') {
+      fetch(`/api/won-prizes/${encodeURIComponent(id)}`, {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(updates),
+      }).catch(() => {});
+    }
     showToast('Won prize shipping record updated.', 'success');
   };
 
@@ -8313,11 +9127,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       wonAt: new Date().toISOString().split('T')[0],
     };
     setWonPrizes((prev) => [newItem, ...prev]);
+    if (currentUser?.role === 'admin') {
+      fetch('/api/won-prizes', {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(newItem),
+      }).catch(() => {});
+    }
     showToast(`Granted prize "${newItem.title}" to ${newItem.userName}!`, 'success');
   };
 
   const deleteWonPrizeItem = (id: string) => {
     setWonPrizes((prev) => prev.filter((p) => p.id !== id));
+    if (currentUser?.role === 'admin') {
+      fetch(`/api/won-prizes/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders(false),
+      }).catch(() => {});
+    }
     showToast('Won prize record deleted.', 'info');
   };
 
@@ -8384,7 +9211,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.setItem('apex_business_certificates_v1', JSON.stringify(targetList));
       const res = await fetch('/api/admin/state', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ section: 'business_certificates', value: targetList }),
       });
       if (auth.currentUser) {
@@ -8493,7 +9320,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Always mirror to Express /api/admin/state
     fetch('/api/admin/state', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(),
       body: JSON.stringify({ sections: { ...sections, seoSettings } }),
     }).catch(() => {});
 
@@ -8994,6 +9821,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       platform?: SocialSharePlatformId;
       overrideUser?: User;
       ignoreDailyCap?: boolean;
+      skipWalletCredit?: boolean;
     }): { awardedCents: number; awardedUsd: number; reason?: string } => {
       const targetUser = params.overrideUser || currentUser;
       if (!targetUser) {
@@ -9051,25 +9879,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setEngagementRewardLogs((prev) => [event, ...prev.slice(0, 299)]);
 
       if (currentUser?.id === targetUser.id) {
-        setBalances((prev) => ({
-          ...prev,
-          usd: Number((prev.usd + awardedUsd).toFixed(4)),
-        }));
-        setFreeWinByUserId((prev) => ({
-          ...prev,
-          [targetUser.id]: Number(((prev[targetUser.id] || 0) + awardedUsd).toFixed(4)),
-        }));
-        if (params.actionType !== 'daily_streak') {
-          fetch(`/api/wallet/${encodeURIComponent(targetUser.id)}/adjust`, {
+        if (!params.skipWalletCredit) {
+          setBalances((prev) => ({
+            ...prev,
+            usd: Number((prev.usd + awardedUsd).toFixed(4)),
+          }));
+          setFreeWinByUserId((prev) => ({
+            ...prev,
+            [targetUser.id]: Number(((prev[targetUser.id] || 0) + awardedUsd).toFixed(4)),
+          }));
+          fetch(`/api/wallet/${encodeURIComponent(targetUser.id)}/credit`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getAuthHeaders(),
             body: JSON.stringify({
-              currency: 'USD',
-              mode: 'add',
-              amount: awardedUsd,
+              amountUsd: awardedUsd,
               fundingType: 'free_win',
+              reason: params.description,
             }),
-          }).catch(() => {});
+          })
+            .then((r) => (r.ok ? r.json() : null))
+            .then((d) => {
+              if (d?.wallet) applyServerWallet(d.wallet, targetUser.id);
+            })
+            .catch(() => {});
         }
         const tx: Transaction = {
           id: `tx-eng-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 5)}`,
@@ -9083,7 +9915,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           description: `${params.description} (+${finalCents.toFixed(1)}¢ · ${multiplier.toFixed(2)}× ${targetUser.tier || 'Standard'})`,
         };
         setTransactions((prev) => [tx, ...prev]);
-      } else {
+      } else if (!params.skipWalletCredit) {
         setUserBalancesById((prev) => {
           const existing = prev[targetUser.id] || { usd: 0, btc: 0, usdt: 0, xrp: 0, bnb: 0 };
           return {
@@ -9098,11 +9930,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           ...prev,
           [targetUser.id]: Number(((prev[targetUser.id] || 0) + awardedUsd).toFixed(4)),
         }));
+        fetch(`/api/wallet/${encodeURIComponent(targetUser.id)}/credit`, {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({
+            amountUsd: awardedUsd,
+            fundingType: 'free_win',
+            reason: params.description,
+          }),
+        })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((d) => {
+            if (d?.wallet) applyServerWallet(d.wallet, targetUser.id);
+          })
+          .catch(() => {});
       }
 
       return { awardedCents: finalCents, awardedUsd };
     },
-    [currentUser, engagementRewardConfig, engagementRewardLogs, getUserTierMultiplier]
+    [currentUser, engagementRewardConfig, engagementRewardLogs, getUserTierMultiplier, getAuthHeaders, applyServerWallet]
   );
 
   // Flush uncredited dwell >= 10s cleanly on tab change
@@ -9579,7 +10425,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.setItem('apex_engagement_reward_config_v1', JSON.stringify(next));
       fetch('/api/admin/state', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ sections: { engagement_reward_config: next } }),
       }).catch(() => {});
       if (auth.currentUser) {
@@ -9637,6 +10483,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         };
       });
     }
+    if (currentUser?.role === 'admin') {
+      fetch(`/api/wallet/${encodeURIComponent(target.userId)}/adjust`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          currency: 'USD',
+          mode: deltaUsd >= 0 ? 'add' : 'subtract',
+          amount: Math.abs(deltaUsd),
+          fundingType: 'free_win',
+        }),
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (d?.wallet) applyServerWallet(d.wallet, target.userId);
+        })
+        .catch(() => {});
+    }
     showToast(
       `Reward ${rewardId} ${nextStatus === 'revoked' ? 'revoked and adjusted' : 're-credited'}!`,
       'info'
@@ -9667,7 +10530,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const res = await fetch('/api/streak/checkin', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ userId: uid, userTier: currentUser.tier || 'Standard' }),
       });
       const data = await res.json();
@@ -9685,6 +10548,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       if (res.ok && data.success) {
         if (data.state) setUserStreakStatesById((prev) => ({ ...prev, [uid]: data.state }));
+        const hasServerWallet = Boolean(data.wallet && typeof data.wallet.usd === 'number');
+        if (hasServerWallet) {
+          applyServerWallet(data.wallet, uid);
+        }
         const awardedCents = Number(data.centsAwarded) || 0;
         const awardedPoints = Number(data.pointsAwarded) || 0;
         const milestoneSpins = Number(data.milestoneSpins) || 0;
@@ -9695,9 +10562,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             rawBaseCents: awardedCents,
             description: `Day ${data.state?.currentStreak || 1} Daily Streak Check-In (+${awardedPoints} pts)`,
             ignoreDailyCap: true,
+            skipWalletCredit: hasServerWallet,
           });
         }
-        if (milestoneSpins > 0) {
+        if (data.tracker && typeof data.tracker.activeOfferSpinsRemaining === 'number') {
+          setAvailableSpins(Math.max(0, Number(data.tracker.activeOfferSpinsRemaining)));
+          setSpinSystemConfig((prev) => ({
+            ...prev,
+            userTrackers: { ...prev.userTrackers, [uid]: data.tracker },
+          }));
+        } else if (milestoneSpins > 0) {
           setAvailableSpins((prev) => prev + milestoneSpins);
         }
         showToast(
@@ -9789,7 +10663,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       await fetch('/api/streak/config', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ config: merged }),
       });
     } catch {
@@ -9805,7 +10679,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const res = await fetch('/api/streak/admin-update', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ userId, ...payload }),
       });
       const data = await res.json();
@@ -10012,6 +10886,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         deleteUser,
         executeSpin,
         spinSystemConfig,
+        getSpinStakeProfile,
+        getVehicleWinEligibility,
+        vehicleWinEligibility,
         getResolvedSpinContext,
         updateSpinSystemConfig,
         updateWheelSliceForLevel,

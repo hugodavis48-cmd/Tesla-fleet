@@ -967,6 +967,7 @@ export interface WonPrizeItem {
   image: string;
   estimatedValueUsd: number;
   wonAt: string;
+  wonAtIso?: string;
   source: 'Wheel Spin' | 'Scratch & Win';
   vinAssigned?: string;
   processingFeeUsd: number;
@@ -1306,6 +1307,7 @@ export interface UserSpinTracker {
   freeSpinOfferWinsUsed: number;
   freeSpinOffersRedeemed: number;
   activeOfferSpinsRemaining?: number;
+  redeemedCouponCodes?: string[];
   lastSpinAt?: string;
   lastResolvedLevel?: SpinDifficultyLevel;
   lastReason?: string;
@@ -1313,7 +1315,9 @@ export interface UserSpinTracker {
 
 export interface SpinSystemConfig {
   minSpinCostUsd: number; // strictly >= 150
-  maxCashWinUsd: number; // max $20,000
+  maxSpinCostUsd?: number; // up to $2,500
+  maxCashWinUsd: number; // up to $25,000 on max stake
+  minStakeCashCapUsd?: number; // max $2,000 on minimum $150 spin cost (no jackpot/car)
   adminMode: SpinAdminMode;
   autoSuperHardWinThreshold: number; // switch user to super_hard after >= N wins
   freeSpinMaxWinsPerOffer: number; // strictly 1 win across offered free spins

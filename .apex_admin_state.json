@@ -148,7 +148,7 @@
       }
     }
   },
-  "updatedAt": "2026-11-15T23:58:18.987Z",
+  "updatedAt": "2026-11-16T00:33:48.248Z",
   "sitemapEntries": [
     {
       "id": "sm-home",
@@ -3399,7 +3399,7 @@
       "totalStreakCents": 5,
       "lastCheckInDateUtc": "2026-11-15",
       "lastCheckInAtIso": "2026-11-15T23:48:32.780Z",
-      "checkedInToday": true,
+      "checkedInToday": false,
       "claimedMilestones": [],
       "history": [
         {
@@ -3412,6 +3412,29 @@
         }
       ],
       "securitySig": "9ae12e92916d2a37d604d3340fe04ba14bad999462eb4c2fe2a3aa61c5b68b2b"
+    },
+    "usr-1794789224694": {
+      "userId": "usr-1794789224694",
+      "currentStreak": 1,
+      "longestStreak": 1,
+      "totalCheckIns": 1,
+      "totalStreakPoints": 25,
+      "totalStreakCents": 5,
+      "lastCheckInDateUtc": "2026-11-16",
+      "lastCheckInAtIso": "2026-11-16T00:33:44.795Z",
+      "checkedInToday": true,
+      "claimedMilestones": [],
+      "history": [
+        {
+          "dateUtc": "2026-11-16",
+          "streakDay": 1,
+          "pointsAwarded": 25,
+          "centsAwarded": 5,
+          "milestoneBonusPoints": 0,
+          "timestamp": "2026-11-16T00:33:44.795Z"
+        }
+      ],
+      "securitySig": "11f019929b926822c290b4aa07d0d697e22f3d24b9eb28954f6ced9d06066823"
     }
   },
   "spinSystemConfig": {
@@ -3867,6 +3890,19 @@
         "lastSpinAt": "2026-11-15T23:58:18.977Z",
         "lastResolvedLevel": "easy",
         "lastReason": "paid_fair_random_easy"
+      },
+      "usr-apex-001": {
+        "paidSpinsCount": 1,
+        "totalWinsCount": 0,
+        "freeSpinOfferWinsUsed": 0,
+        "freeSpinOffersRedeemed": 1,
+        "activeOfferSpinsRemaining": 0,
+        "redeemedCouponCodes": [
+          "FREESPINS5"
+        ],
+        "lastReason": "paid_fair_random_hard",
+        "lastSpinAt": "2026-11-16T00:33:33.061Z",
+        "lastResolvedLevel": "hard"
       }
     }
   },
@@ -3877,7 +3913,7 @@
       "description": "Accrues daily dividends across running fleet & Fast-ROI equity plans and settles matured positions.",
       "enabled": true,
       "intervalMinutes": 1,
-      "lastRunAt": "2026-11-15T23:57:32.302Z",
+      "lastRunAt": "2026-11-16T00:33:48.243Z",
       "runsCount": 188,
       "lastSummary": "Accrued $8.56 ROI; 0 matured."
     },
@@ -3887,8 +3923,8 @@
       "description": "Audits UTC check-in timestamps, resets expired streaks beyond resetAfterHours, and seals milestone claims.",
       "enabled": true,
       "intervalMinutes": 15,
-      "lastRunAt": "2026-11-15T23:48:33.722Z",
-      "runsCount": 43,
+      "lastRunAt": "2026-11-16T00:26:40.576Z",
+      "runsCount": 45,
       "lastSummary": "Audited 1 member streak ledger(s); auto-reset 0 lapsed streak(s) exceeding 48h."
     },
     {
@@ -3897,9 +3933,9 @@
       "description": "Automatically switches repeat winners (>= threshold wins) to Super Hard difficulty and audits free-spin win caps.",
       "enabled": true,
       "intervalMinutes": 5,
-      "lastRunAt": "2026-11-15T23:53:51.827Z",
-      "runsCount": 96,
-      "lastSummary": "Audited 3 spin profile(s); switched 0 multi-winner account(s) (>= 2 wins) to Super Hard."
+      "lastRunAt": "2026-11-16T00:32:10.584Z",
+      "runsCount": 101,
+      "lastSummary": "Audited 4 spin profile(s); switched 0 multi-winner account(s) (>= 2 wins) to Super Hard."
     },
     {
       "id": "won_prize_logistics",
@@ -3907,9 +3943,9 @@
       "description": "Advances fee-paid won vehicles from fees_paid_processing to documentation_ready and carrier dispatch.",
       "enabled": true,
       "intervalMinutes": 10,
-      "lastRunAt": "2026-11-15T23:58:08.669Z",
-      "runsCount": 32,
-      "lastSummary": "Verified 0 won-prize vault item(s); prepared export documentation for 0 deposit-cleared vehicle(s)."
+      "lastRunAt": "2026-11-16T00:31:40.577Z",
+      "runsCount": 35,
+      "lastSummary": "Verified 1 won-prize vault item(s); prepared export documentation for 0 deposit-cleared vehicle(s)."
     },
     {
       "id": "tsla_market_sync",
@@ -3917,9 +3953,9 @@
       "description": "Refreshes TSLA quote baselines and triggers active user price alerts when thresholds cross.",
       "enabled": true,
       "intervalMinutes": 5,
-      "lastRunAt": "2026-11-15T23:53:21.830Z",
-      "runsCount": 119,
-      "lastSummary": "Synced live NASDAQ: TSLA telemetry feed ($329.77)."
+      "lastRunAt": "2026-11-16T00:32:10.587Z",
+      "runsCount": 124,
+      "lastSummary": "Synced live NASDAQ: TSLA telemetry feed ($332.21)."
     }
   ],
   "scratchTiers": [
@@ -4023,6 +4059,34 @@
   "depositRecords": {
     "usr-alex-001": [
       {
+        "id": "dep-mwij01ez-d2fe4c",
+        "userId": "usr-alex-001",
+        "currency": "USD",
+        "amount": 10000,
+        "usdEquivalent": 10000,
+        "remainingUsd": 10000,
+        "txHash": "CERT-MWIJ01EZ-RGER",
+        "gatewayName": "Fleet Maturity Settlement",
+        "source": "investment_maturity",
+        "status": "verified",
+        "createdAt": "2026-11-16T00:29:10.572Z",
+        "signature": "3af4a8710acc50457893d451fe542b46eefc9470266a9af7fe358a6bfb923cd9"
+      },
+      {
+        "id": "dep-mwiieti7-0abbb6",
+        "userId": "usr-alex-001",
+        "currency": "USD",
+        "amount": 5000,
+        "usdEquivalent": 5000,
+        "remainingUsd": 5000,
+        "txHash": "CERT-MWIIETI6-TAXI",
+        "gatewayName": "Fleet Maturity Settlement",
+        "source": "investment_maturity",
+        "status": "verified",
+        "createdAt": "2026-11-16T00:12:40.543Z",
+        "signature": "e9d967e9bbca7576a650938b51793fa9fdfd11a5a63739fd27a555e5b6d8fdfd"
+      },
+      {
         "id": "dep-seed-usr-alex-001",
         "userId": "usr-alex-001",
         "currency": "USD",
@@ -4039,12 +4103,40 @@
     ],
     "usr-apex-001": [
       {
+        "id": "dep-mwij5ny3-d96a88",
+        "userId": "usr-apex-001",
+        "currency": "USDT",
+        "amount": 25000,
+        "usdEquivalent": 25000,
+        "remainingUsd": 25000,
+        "txHash": "0xtestdeposit1",
+        "gatewayName": "Apex Verified Gateway",
+        "source": "gateway_deposit",
+        "status": "verified",
+        "createdAt": "2026-11-16T00:33:33.051Z",
+        "signature": "919f23ef35387ece7e96cc02ac4bdeb0b028010297a030e03cbe4d57e4291666"
+      },
+      {
+        "id": "dep-mwij2m0g-bbbd1b",
+        "userId": "usr-apex-001",
+        "currency": "USD",
+        "amount": 2500,
+        "usdEquivalent": 2500,
+        "remainingUsd": 2500,
+        "txHash": "CERT-MWIJ2M0G-V-01",
+        "gatewayName": "Fleet Maturity Settlement",
+        "source": "investment_maturity",
+        "status": "verified",
+        "createdAt": "2026-11-16T00:31:10.577Z",
+        "signature": "91d0fd6e213646d4590fde0d59078b5ee961183ee041f46866355b83d3857ba9"
+      },
+      {
         "id": "dep-seed-usr-apex-001",
         "userId": "usr-apex-001",
         "currency": "USD",
         "amount": 12450,
         "usdEquivalent": 12450,
-        "remainingUsd": 12450,
+        "remainingUsd": 3678.08,
         "txHash": "0xseede7f32144c6c2feef1b032d70e3ef",
         "gatewayName": "Apex Verified Custody Vault",
         "source": "seed_vault",
@@ -4196,9 +4288,230 @@
         "createdAt": "2026-11-15T23:58:18.944Z",
         "signature": "95bf696c5de0ff25ffd62b15273f7cf2d75f0cf30471580744913dbd07e3c247"
       }
+    ],
+    "usr-1794789224694": [
+      {
+        "id": "dep-mwij5wz2-4b407a",
+        "userId": "usr-1794789224694",
+        "currency": "USDT",
+        "amount": 3000,
+        "usdEquivalent": 3000,
+        "remainingUsd": 1220,
+        "txHash": "0xverifydep",
+        "gatewayName": "Apex Verified Gateway",
+        "source": "gateway_deposit",
+        "status": "verified",
+        "createdAt": "2026-11-16T00:33:44.751Z",
+        "signature": "a2d183b4fa7dc0cdd443d6aaf0f48b9a0e7611638c403bd6a4895c7661c534a7"
+      }
     ]
   },
   "transactionAudits": [
+    {
+      "userId": "usr-1794789224694",
+      "category": "won_vehicle_shipping",
+      "amountUsd": 1780,
+      "depositConsumedUsd": 1780,
+      "freeWinConsumedUsd": 0,
+      "depositRecordIdsUsed": [
+        "dep-mwij5wz2-4b407a"
+      ],
+      "verifiedDepositBeforeUsd": 3000,
+      "verifiedDepositAfterUsd": 1220,
+      "freeWinBeforeUsd": 5000,
+      "freeWinAfterUsd": 5000,
+      "outcome": "approved",
+      "reason": "Won vehicle shipping/doc/processing fee ($1780) settled strictly from verified deposit records.",
+      "id": "audit-mwij5wzf-aaff78",
+      "createdAt": "2026-11-16T00:33:44.763Z",
+      "signature": "cfe504fb6730583ac8d23147d4ecd74542a8e52480af35f8921abe1230473117"
+    },
+    {
+      "userId": "usr-1794789224694",
+      "category": "deposit_record",
+      "amountUsd": 3000,
+      "depositConsumedUsd": 0,
+      "freeWinConsumedUsd": 0,
+      "depositRecordIdsUsed": [
+        "dep-mwij5wz2-4b407a"
+      ],
+      "verifiedDepositBeforeUsd": 3000,
+      "verifiedDepositAfterUsd": 3000,
+      "freeWinBeforeUsd": 5000,
+      "freeWinAfterUsd": 5000,
+      "outcome": "approved",
+      "reason": "Verified deposit record (gateway_deposit) via Apex Verified Gateway",
+      "id": "audit-mwij5wz3-d5207c",
+      "createdAt": "2026-11-16T00:33:44.751Z",
+      "signature": "1c3b1b70425ad7c31f59ee26e267852ef2d8bb52d224fc4a21bdf7f03824b922"
+    },
+    {
+      "userId": "usr-1794789224694",
+      "category": "won_vehicle_shipping",
+      "amountUsd": 1780,
+      "depositConsumedUsd": 0,
+      "freeWinConsumedUsd": 0,
+      "depositRecordIdsUsed": [],
+      "verifiedDepositBeforeUsd": 0,
+      "verifiedDepositAfterUsd": 0,
+      "freeWinBeforeUsd": 5000,
+      "freeWinAfterUsd": 5000,
+      "outcome": "rejected",
+      "rejectionCode": "DEPOSIT_REQUIRED_FOR_VEHICLE_FEES",
+      "reason": "Verified deposit balance $0.00 is below required $1780.00 (free win balance $5000.00 excluded).",
+      "id": "audit-mwij5wyl-2b6099",
+      "createdAt": "2026-11-16T00:33:44.733Z",
+      "signature": "4ca270c23b16b1f51b244732bd559e0b235ca0e0eee108a842496bef22457a83"
+    },
+    {
+      "userId": "usr-1794789213143",
+      "category": "won_vehicle_shipping",
+      "amountUsd": 1780,
+      "depositConsumedUsd": 0,
+      "freeWinConsumedUsd": 0,
+      "depositRecordIdsUsed": [],
+      "verifiedDepositBeforeUsd": 0,
+      "verifiedDepositAfterUsd": 0,
+      "freeWinBeforeUsd": 5000,
+      "freeWinAfterUsd": 5000,
+      "outcome": "rejected",
+      "rejectionCode": "DEPOSIT_REQUIRED_FOR_VEHICLE_FEES",
+      "reason": "Verified deposit balance $0.00 is below required $1780.00 (free win balance $5000.00 excluded).",
+      "id": "audit-mwij5o1x-2588b0",
+      "createdAt": "2026-11-16T00:33:33.189Z",
+      "signature": "9e5ad53a90ae9e546ca8415fece3781a4d5e043d93678514a4c7ce63abc2eee3"
+    },
+    {
+      "userId": "usr-apex-001",
+      "category": "scratch_purchase",
+      "amountUsd": 1000,
+      "depositConsumedUsd": 1000,
+      "freeWinConsumedUsd": 0,
+      "depositRecordIdsUsed": [
+        "dep-seed-usr-apex-001"
+      ],
+      "verifiedDepositBeforeUsd": 32178.08,
+      "verifiedDepositAfterUsd": 31178.08,
+      "freeWinBeforeUsd": 0,
+      "freeWinAfterUsd": 0,
+      "outcome": "approved",
+      "reason": "Scratch Card \"Giga Gold Plaid VIP\" ($1000) cross-referenced against deposit records.",
+      "id": "audit-mwij5nyx-a12a10",
+      "createdAt": "2026-11-16T00:33:33.081Z",
+      "signature": "4a43efd851853f441e877f7dd29565c9ae15e0173bf451547d529a9d9c726959"
+    },
+    {
+      "userId": "usr-apex-001",
+      "category": "scratch_purchase",
+      "amountUsd": 8000,
+      "depositConsumedUsd": 7771.92,
+      "freeWinConsumedUsd": 228.08,
+      "depositRecordIdsUsed": [
+        "dep-seed-usr-apex-001"
+      ],
+      "verifiedDepositBeforeUsd": 39950,
+      "verifiedDepositAfterUsd": 32178.08,
+      "freeWinBeforeUsd": 228.08,
+      "freeWinAfterUsd": 0,
+      "outcome": "approved",
+      "reason": "Scratch Card \"Founders Roadster Apex Grand\" ($8000) cross-referenced against deposit records.",
+      "id": "audit-mwij5nyo-055586",
+      "createdAt": "2026-11-16T00:33:33.072Z",
+      "signature": "3837828f3640d158079f19bc257cb0785bf66ed9e8dcd9db8cfa8b0a6e007cdf"
+    },
+    {
+      "userId": "usr-apex-001",
+      "category": "spin_payment",
+      "amountUsd": 150,
+      "depositConsumedUsd": 0,
+      "freeWinConsumedUsd": 150,
+      "depositRecordIdsUsed": [],
+      "verifiedDepositBeforeUsd": 39950,
+      "verifiedDepositAfterUsd": 39950,
+      "freeWinBeforeUsd": 378.08,
+      "freeWinAfterUsd": 228.08,
+      "outcome": "approved",
+      "reason": "Paid Spin Wheel fee ($150 USD min $150) cross-referenced against deposit records.",
+      "id": "audit-mwij5nyc-d9ad1a",
+      "createdAt": "2026-11-16T00:33:33.061Z",
+      "signature": "ef245624c788470f3dc8ff1d00adf31314b90e9ff0d8cb7ce32915bede85b749"
+    },
+    {
+      "userId": "usr-apex-001",
+      "category": "deposit_record",
+      "amountUsd": 25000,
+      "depositConsumedUsd": 0,
+      "freeWinConsumedUsd": 0,
+      "depositRecordIdsUsed": [
+        "dep-mwij5ny3-d96a88"
+      ],
+      "verifiedDepositBeforeUsd": 39950,
+      "verifiedDepositAfterUsd": 39950,
+      "freeWinBeforeUsd": 378.08,
+      "freeWinAfterUsd": 378.08,
+      "outcome": "approved",
+      "reason": "Verified deposit record (gateway_deposit) via Apex Verified Gateway",
+      "id": "audit-mwij5ny4-6bb92a",
+      "createdAt": "2026-11-16T00:33:33.052Z",
+      "signature": "5dceaa8ae236a078ba2d6ea6af017b3733c73d1760272d9ce32808fbbbe61e99"
+    },
+    {
+      "userId": "usr-apex-001",
+      "category": "deposit_record",
+      "amountUsd": 2500,
+      "depositConsumedUsd": 0,
+      "freeWinConsumedUsd": 0,
+      "depositRecordIdsUsed": [
+        "dep-mwij2m0g-bbbd1b"
+      ],
+      "verifiedDepositBeforeUsd": 14950,
+      "verifiedDepositAfterUsd": 14950,
+      "freeWinBeforeUsd": 0,
+      "freeWinAfterUsd": 0,
+      "outcome": "approved",
+      "reason": "Verified deposit record (investment_maturity) via Fleet Maturity Settlement",
+      "id": "audit-mwij2m0h-1f9473",
+      "createdAt": "2026-11-16T00:31:10.577Z",
+      "signature": "0969fc4e8862f1678acb530b862ca3256eae247e7199b6967359237ecf589fe1"
+    },
+    {
+      "userId": "usr-alex-001",
+      "category": "deposit_record",
+      "amountUsd": 10000,
+      "depositConsumedUsd": 0,
+      "freeWinConsumedUsd": 0,
+      "depositRecordIdsUsed": [
+        "dep-mwij01ez-d2fe4c"
+      ],
+      "verifiedDepositBeforeUsd": 27450,
+      "verifiedDepositAfterUsd": 27450,
+      "freeWinBeforeUsd": 76.09,
+      "freeWinAfterUsd": 76.09,
+      "outcome": "approved",
+      "reason": "Verified deposit record (investment_maturity) via Fleet Maturity Settlement",
+      "id": "audit-mwij01f0-682b6c",
+      "createdAt": "2026-11-16T00:29:10.572Z",
+      "signature": "243e647ac0f0852469af6b9811b99156f3b241ea477b75792abbe07f5350936a"
+    },
+    {
+      "userId": "usr-alex-001",
+      "category": "deposit_record",
+      "amountUsd": 5000,
+      "depositConsumedUsd": 0,
+      "freeWinConsumedUsd": 0,
+      "depositRecordIdsUsed": [
+        "dep-mwiieti7-0abbb6"
+      ],
+      "verifiedDepositBeforeUsd": 17450,
+      "verifiedDepositAfterUsd": 17450,
+      "freeWinBeforeUsd": 0,
+      "freeWinAfterUsd": 0,
+      "outcome": "approved",
+      "reason": "Verified deposit record (investment_maturity) via Fleet Maturity Settlement",
+      "id": "audit-mwiieti7-07e159",
+      "createdAt": "2026-11-16T00:12:40.543Z",
+      "signature": "04e5a20543a238917686a7d28a9f503de09a59843522a17a74b8815e29d5001e"
+    },
     {
       "userId": "usr-sec-test-1794787098730",
       "category": "won_vehicle_shipping",
@@ -4451,8 +4764,8 @@
     }
   ],
   "serverWalletsFreeWin": {
-    "usr-alex-001": 0,
-    "usr-apex-001": 0,
+    "usr-alex-001": 437.78,
+    "usr-apex-001": 2500,
     "usr-003": 0,
     "usr-004": 0,
     "usr-005": 0,
@@ -4463,7 +4776,9 @@
     "usr-010": 0,
     "usr-sec-test-1794787034898": 0,
     "usr-sec-test-1794787068677": 0,
-    "usr-sec-test-1794787098730": 5850
+    "usr-sec-test-1794787098730": 5850,
+    "usr-1794789213143": 5000,
+    "usr-1794789224694": 5000.05
   },
   "wonPrizesList": [
     {
@@ -4481,8 +4796,55 @@
         "phone": "555-0100",
         "deliveryMethod": "RoRo"
       },
-      "shippingStatus": "fees_paid_processing",
+      "shippingStatus": "documentation_ready",
       "trackingNumber": "APX-EXP-MWIHWCQ1",
+      "carrierName": "Apex Bonded Enclosed EV Carrier"
+    },
+    {
+      "userId": "usr-1794789213143",
+      "userName": "Verify User",
+      "userEmail": "verify.1794789213087@apex-tesla.io",
+      "title": "2026 Tesla Model 3 Standard Range RWD",
+      "prizeType": "vehicle",
+      "source": "Scratch & Win",
+      "estimatedValueUsd": 38990,
+      "processingFeeUsd": 420,
+      "shippingDocFeeUsd": 310,
+      "shippingFreightFeeUsd": 1050,
+      "id": "prize-mwij5o1o",
+      "wonAt": "2026-11-16",
+      "totalFeesUsd": 1780,
+      "feesPaid": false,
+      "shippingStatus": "awaiting_details"
+    },
+    {
+      "userId": "usr-1794789224694",
+      "userName": "Verify User",
+      "userEmail": "verify.1794789224629@apex-tesla.io",
+      "title": "2026 Tesla Model 3 Standard Range RWD",
+      "prizeType": "vehicle",
+      "source": "Scratch & Win",
+      "estimatedValueUsd": 38990,
+      "processingFeeUsd": 420,
+      "shippingDocFeeUsd": 310,
+      "shippingFreightFeeUsd": 1050,
+      "id": "prize-mwij5wy5",
+      "wonAt": "2026-11-16",
+      "totalFeesUsd": 1780,
+      "feesPaid": true,
+      "shippingStatus": "fees_paid_processing",
+      "paidAt": "2026-11-16T00:33:44.764Z",
+      "paymentMethod": "deposit",
+      "shippingAddress": {
+        "fullName": "Verify User",
+        "street": "1 Tesla Rd",
+        "city": "Austin",
+        "state": "TX",
+        "postalCode": "78725",
+        "country": "US",
+        "phone": "555-0100"
+      },
+      "trackingNumber": "APX-EXP-MWIJ5WZG",
       "carrierName": "Apex Bonded Enclosed EV Carrier"
     }
   ]

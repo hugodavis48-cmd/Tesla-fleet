@@ -276,34 +276,52 @@ export const RentalFleet: React.FC<RentalFleetProps> = ({ onOpenDeposit, onNavig
               </div>
 
               {/* Balance status */}
-              <div className="flex justify-between items-center text-xs p-3 rounded-xl bg-black/60 border border-zinc-800">
-                <span className="text-zinc-400">Available Vault Balance:</span>
-                <span className="font-bold text-white">${balances.usd.toFixed(2)} USD</span>
-              </div>
+              {currentUser ? (
+                <>
+                  <div className="flex justify-between items-center text-xs p-3 rounded-xl bg-black/60 border border-zinc-800">
+                    <span className="text-zinc-400">Available Vault Balance:</span>
+                    <span className="font-bold text-white">${balances.usd.toFixed(2)} USD</span>
+                  </div>
 
-              {/* Action Buttons */}
-              <div className="space-y-2 pt-2">
-                {balances.usd < selectedRental.dailyRateUsd * rentalDays ? (
+                  {/* Action Buttons */}
+                  <div className="space-y-2 pt-2">
+                    {balances.usd < selectedRental.dailyRateUsd * rentalDays ? (
+                      <button
+                        onClick={() => {
+                          setSelectedRental(null);
+                          onOpenDeposit();
+                        }}
+                        className="w-full py-3.5 rounded-2xl bg-amber-600 hover:bg-amber-500 text-white font-heading font-bold text-xs flex items-center justify-center gap-2"
+                      >
+                        <span>Deposit Crypto (USDT, BTC, XRP, BNB) to Reserve</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </button>
+                    ) : (
+                      <button
+                        onClick={handleConfirmReservation}
+                        className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 text-white font-heading font-bold text-xs shadow-xl shadow-red-950/50 flex items-center justify-center gap-2"
+                      >
+                        <span>Instant Confirm & Add to Dashboard</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <div className="pt-2">
                   <button
+                    type="button"
                     onClick={() => {
                       setSelectedRental(null);
-                      onOpenDeposit();
+                      window.dispatchEvent(new CustomEvent('apex:require-auth', { detail: 'reserve a Tesla rental' }));
                     }}
-                    className="w-full py-3.5 rounded-2xl bg-amber-600 hover:bg-amber-500 text-white font-heading font-bold text-xs flex items-center justify-center gap-2"
+                    className="w-full py-3.5 rounded-2xl bg-zinc-800 hover:bg-zinc-700 text-amber-300 font-heading font-bold text-xs flex items-center justify-center gap-2 cursor-pointer"
                   >
-                    <span>Deposit Crypto (USDT, BTC, XRP, BNB) to Reserve</span>
+                    <span>Sign In to View Wallet &amp; Reserve</span>
                     <ArrowRight className="w-4 h-4" />
                   </button>
-                ) : (
-                  <button
-                    onClick={handleConfirmReservation}
-                    className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 text-white font-heading font-bold text-xs shadow-xl shadow-red-950/50 flex items-center justify-center gap-2"
-                  >
-                    <span>Instant Confirm & Add to Dashboard</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

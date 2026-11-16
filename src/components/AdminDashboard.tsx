@@ -954,8 +954,10 @@ export const AdminDashboard: React.FC = () => {
 
   // Spins CMS State
   const [localSpinCost, setLocalSpinCost] = useState<number>(Math.max(150, spinCostUsd));
+  const [localMaxSpinCost, setLocalMaxSpinCost] = useState<number>(Math.min(2500, spinSystemConfig.maxSpinCostUsd || 2500));
+  const [localMinStakeCap, setLocalMinStakeCap] = useState<number>(Math.min(2000, spinSystemConfig.minStakeCashCapUsd || 2000));
   const [activeSpinLevelTab, setActiveSpinLevelTab] = useState<SpinDifficultyLevel>('easy');
-  const [localMaxCashWin, setLocalMaxCashWin] = useState<number>(spinSystemConfig.maxCashWinUsd || 20000);
+  const [localMaxCashWin, setLocalMaxCashWin] = useState<number>(Math.min(25000, spinSystemConfig.maxCashWinUsd || 25000));
   const [localAutoSuperHardThreshold, setLocalAutoSuperHardThreshold] = useState<number>(spinSystemConfig.autoSuperHardWinThreshold || 2);
   const [localFreeSpinMaxWins, setLocalFreeSpinMaxWins] = useState<number>(spinSystemConfig.freeSpinMaxWinsPerOffer || 1);
   const [localSpinAdminMode, setLocalSpinAdminMode] = useState<SpinAdminMode>(spinSystemConfig.adminMode || 'auto');
@@ -963,7 +965,9 @@ export const AdminDashboard: React.FC = () => {
   const [cronIntervalsDraft, setCronIntervalsDraft] = useState<Record<string, number>>({});
   useEffect(() => {
     setLocalSpinCost(Math.max(150, spinSystemConfig.minSpinCostUsd || spinCostUsd || 150));
-    setLocalMaxCashWin(spinSystemConfig.maxCashWinUsd || 20000);
+    setLocalMaxSpinCost(Math.min(2500, Math.max(250, spinSystemConfig.maxSpinCostUsd || 2500)));
+    setLocalMinStakeCap(Math.min(2000, spinSystemConfig.minStakeCashCapUsd || 2000));
+    setLocalMaxCashWin(Math.min(25000, spinSystemConfig.maxCashWinUsd || 25000));
     setLocalAutoSuperHardThreshold(spinSystemConfig.autoSuperHardWinThreshold || 2);
     setLocalFreeSpinMaxWins(spinSystemConfig.freeSpinMaxWinsPerOffer || 1);
     setLocalSpinAdminMode(spinSystemConfig.adminMode || 'auto');
@@ -1207,9 +1211,13 @@ export const AdminDashboard: React.FC = () => {
     setAdminCopilotResponse(null);
 
     try {
+      const tok = typeof window !== 'undefined' ? localStorage.getItem('apex_session_token') : null;
       const res = await fetch('/api/gemini/admin', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(tok ? { Authorization: `Bearer ${tok}` } : {}),
+        },
         body: JSON.stringify({
           prompt: promptToSend,
           adminStats: {
@@ -1287,9 +1295,13 @@ export const AdminDashboard: React.FC = () => {
   const handleGenerateAiCopy = async () => {
     setIsGeneratingAiCopy(true);
     try {
+      const tok = typeof window !== 'undefined' ? localStorage.getItem('apex_session_token') : null;
       const res = await fetch('/api/gemini/marketing', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(tok ? { Authorization: `Bearer ${tok}` } : {}),
+        },
         body: JSON.stringify({
           campaignType: 'Tesla Promotion',
           targetAudience: campaignAudience,
@@ -1357,9 +1369,13 @@ export const AdminDashboard: React.FC = () => {
   const handleGenerateAiBanner = async (sizeToUse: BannerSizeType) => {
     setIsGeneratingAiBanner(true);
     try {
+      const tok = typeof window !== 'undefined' ? localStorage.getItem('apex_session_token') : null;
       const res = await fetch('/api/gemini/generate-banner', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(tok ? { Authorization: `Bearer ${tok}` } : {}),
+        },
         body: JSON.stringify({
           campaignGoal: aiBannerGoal,
           size: sizeToUse,
@@ -4221,10 +4237,10 @@ export const AdminDashboard: React.FC = () => {
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-800 pb-4">
                   <div>
                     <h4 className="font-heading font-bold text-base text-white">
-                      Scratch & Win Promotional Tiers ({scratchCardTiers.length})
+                      Scratch &amp; Win Promotional Tiers ({scratchCardTiers.length}) · Super Hard Jackpots
                     </h4>
                     <p className="text-xs text-zinc-400">
-                      Create, customize, price, or remove interactive scratch card tiers shown in the Promotions Hub.
+                      Rare/Super Hard jackpot &amp; Tesla vehicle weights enforced server-side. Users may win max 1 vehicle per week after prior fulfillment.
                     </p>
                   </div>
                   <button
@@ -6974,20 +6990,20 @@ export const AdminDashboard: React.FC = () => {
               <div>
                 <h3 className="text-lg font-heading font-black text-white flex items-center gap-2">
                   <Coins className="w-5 h-5 text-amber-500" />
-                  Multi-Level Spin Engine ($150 Min) &amp; Difficulty Overrides CMS
+                  Multi-Level Spin Engine ($150–$2,500 Stake) &amp; Difficulty Overrides CMS
                 </h3>
                 <p className="text-xs text-zinc-400 mt-1">
-                  Configure global Spin mode (Auto Fair Easy/Hard vs Locked Level), $150+ min cost, $20,000 max win, Free Spin 1-win cap, and multi-win Super Hard auto-switch criteria.
+                  Configure progressive stakes ($150 min w/ $2,000 cap &amp; vehicles locked up to $2,500 max w/ $25,000 jackpot &amp; peak vehicle odds), weekly 1-vehicle limit + prior ship enforcement, and Super Hard auto-switch criteria.
                 </p>
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 <span className="px-3 py-1 bg-amber-500/10 border border-amber-500/20 text-amber-400 font-mono font-bold rounded-lg text-xs uppercase">
-                  Mode: {spinSystemConfig.adminMode} · ${Math.max(150, spinCostUsd)}/Spin
+                  Mode: {spinSystemConfig.adminMode} · ${Math.max(150, spinCostUsd)}–${Math.min(2500, spinSystemConfig.maxSpinCostUsd || 2500)}/Spin
                 </span>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 text-xs">
               <div>
                 <label className="text-zinc-300 font-bold block mb-1">Global Spin Level Mode</label>
                 <select
@@ -7006,58 +7022,85 @@ export const AdminDashboard: React.FC = () => {
                 <input
                   type="number"
                   min={150}
+                  max={2000}
                   value={localSpinCost}
                   onChange={(e) => setLocalSpinCost(Math.max(150, Number(e.target.value) || 150))}
                   className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-amber-400 font-mono"
                 />
               </div>
               <div>
-                <label className="text-zinc-300 font-bold block mb-1">Max Cash Spin Win ($USD)</label>
+                <label className="text-zinc-300 font-bold block mb-1">Max Spin Cost ($2,500 Cap)</label>
+                <input
+                  type="number"
+                  min={250}
+                  max={2500}
+                  value={localMaxSpinCost}
+                  onChange={(e) => setLocalMaxSpinCost(Math.min(2500, Math.max(250, Number(e.target.value) || 2500)))}
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-amber-300 font-mono"
+                />
+              </div>
+              <div>
+                <label className="text-zinc-300 font-bold block mb-1">Min-Stake Cash Cap ($2k Max)</label>
                 <input
                   type="number"
                   min={500}
-                  max={20000}
+                  max={2000}
+                  value={localMinStakeCap}
+                  onChange={(e) => setLocalMinStakeCap(Math.min(2000, Math.max(500, Number(e.target.value) || 2000)))}
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-zinc-200 font-mono"
+                />
+              </div>
+              <div>
+                <label className="text-zinc-300 font-bold block mb-1">Max Cash Jackpot ($25k Max)</label>
+                <input
+                  type="number"
+                  min={500}
+                  max={25000}
                   value={localMaxCashWin}
-                  onChange={(e) => setLocalMaxCashWin(Math.min(20000, Math.max(500, Number(e.target.value) || 20000)))}
+                  onChange={(e) => setLocalMaxCashWin(Math.min(25000, Math.max(500, Number(e.target.value) || 25000)))}
                   className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-emerald-400 font-mono"
                 />
               </div>
               <div>
-                <label className="text-zinc-300 font-bold block mb-1">Multi-Win Super Hard After</label>
-                <input
-                  type="number"
-                  min={1}
-                  max={20}
-                  value={localAutoSuperHardThreshold}
-                  onChange={(e) => setLocalAutoSuperHardThreshold(Math.max(1, Number(e.target.value) || 2))}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-red-300 font-mono"
-                />
-              </div>
-              <div>
-                <label className="text-zinc-300 font-bold block mb-1">Free Spin Offer Max Wins</label>
-                <input
-                  type="number"
-                  min={1}
-                  max={5}
-                  value={localFreeSpinMaxWins}
-                  onChange={(e) => setLocalFreeSpinMaxWins(Math.max(1, Number(e.target.value) || 1))}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-cyan-300 font-mono"
-                />
+                <label className="text-zinc-300 font-bold block mb-1">Super Hard Wins / Free Cap</label>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <input
+                    type="number"
+                    min={1}
+                    max={20}
+                    title="Auto Super Hard After Wins"
+                    value={localAutoSuperHardThreshold}
+                    onChange={(e) => setLocalAutoSuperHardThreshold(Math.max(1, Number(e.target.value) || 2))}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-2 py-2 text-red-300 font-mono"
+                  />
+                  <input
+                    type="number"
+                    min={1}
+                    max={5}
+                    title="Free Spin Max Wins Per Offer"
+                    value={localFreeSpinMaxWins}
+                    onChange={(e) => setLocalFreeSpinMaxWins(Math.max(1, Number(e.target.value) || 1))}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-2 py-2 text-cyan-300 font-mono"
+                  />
+                </div>
               </div>
             </div>
 
             <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
               <p className="text-[11px] text-zinc-400">
-                Free spins always run on <strong className="text-red-300">Super Hard</strong> with strict {localFreeSpinMaxWins}-win cap across all offered free spins. Users reaching {localAutoSuperHardThreshold}+ wins automatically escalate to Super Hard.
+                At minimum stake (${localSpinCost}), payouts cap at ${localMinStakeCap.toLocaleString()} with no vehicle/jackpot. Raising stake to ${localMaxSpinCost.toLocaleString()} unlocks Tesla cars (1/wk after prior shipment) &amp; up to ${localMaxCashWin.toLocaleString()} jackpot.
               </p>
               <button
                 type="button"
                 onClick={() => {
-                  const clampedCost = Math.max(150, localSpinCost);
-                  updateSpinCost(clampedCost);
+                  const clampedMinCost = Math.max(150, localSpinCost);
+                  const clampedMaxCost = Math.max(clampedMinCost + 100, Math.min(2500, localMaxSpinCost));
+                  updateSpinCost(clampedMinCost);
                   updateSpinSystemConfig({
-                    minSpinCostUsd: clampedCost,
-                    maxCashWinUsd: Math.min(20000, Math.max(500, localMaxCashWin)),
+                    minSpinCostUsd: clampedMinCost,
+                    maxSpinCostUsd: clampedMaxCost,
+                    minStakeCashCapUsd: Math.min(2000, Math.max(500, localMinStakeCap)),
+                    maxCashWinUsd: Math.min(25000, Math.max(500, localMaxCashWin)),
                     adminMode: localSpinAdminMode,
                     autoSuperHardWinThreshold: Math.max(1, localAutoSuperHardThreshold),
                     freeSpinMaxWinsPerOffer: Math.max(1, localFreeSpinMaxWins),
@@ -7080,7 +7123,7 @@ export const AdminDashboard: React.FC = () => {
                   <span>Difficulty Wheel Slices ({levelSlices.length} Slices on {activeSpinLevelTab.replace('_', ' ').toUpperCase()})</span>
                 </h4>
                 <p className="text-xs text-zinc-400">
-                  Easy: 1 Try Again + 3 Cars (up to $20k) · Hard: 3 Try Again + 2 Cars (up to $15k) · Super Hard: 4 Try Again + 1 Car (up to $8k).
+                  Easy: 1 Try Again + 3 Cars (up to $25k on max stake) · Hard: 3 Try Again + 2 Cars (up to $15k) · Super Hard: 4 Try Again + 1 Car (up to $8k).
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -9916,9 +9959,13 @@ export const AdminDashboard: React.FC = () => {
                                   reader.onerror = reject;
                                   reader.readAsDataURL(file);
                                 });
+                                const tok = typeof window !== 'undefined' ? localStorage.getItem('apex_session_token') : null;
                                 const resp = await fetch('/api/media/upload', {
                                   method: 'POST',
-                                  headers: { 'Content-Type': 'application/json' },
+                                  headers: {
+                                    'Content-Type': 'application/json',
+                                    ...(tok ? { Authorization: `Bearer ${tok}` } : {}),
+                                  },
                                   body: JSON.stringify({
                                     filename: file.name,
                                     dataUrl,

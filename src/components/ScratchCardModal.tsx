@@ -12,6 +12,7 @@ interface ScratchCardModalProps {
     ticketId?: string;
     prize?: ScratchPrizeOption;
     wonPrizeItem?: WonPrizeItem | null;
+    finalWallet?: { usd: number; depositUsd: number; freeWinUsd: number } | null;
     signature?: string;
   } | null;
 }
@@ -206,12 +207,16 @@ export const ScratchCardModal: React.FC<ScratchCardModalProps> = ({
       isTryAgain: assignedPrize.isTryAgain || assignedPrize.amountUsd <= 0,
       alreadySettledOnServer: Boolean(serverTicket?.prize),
       serverWonPrize: serverTicket?.wonPrizeItem || null,
+      finalWallet: serverTicket?.finalWallet || null,
       ticketId: serverTicket?.ticketId,
       signature: serverTicket?.signature,
     });
   };
 
   const handleCloseModal = () => {
+    if (!revealed && serverTicket?.prize) {
+      handleFinalReveal();
+    }
     onClose();
   };
 

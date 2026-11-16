@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useApp } from '../context/AppContext';
-import { ScratchCardTier } from '../types';
+import { ScratchCardTier, SpinDifficultyLevel } from '../types';
 import { ScratchCardModal } from './ScratchCardModal';
 import confetti from 'canvas-confetti';
 import {
@@ -43,6 +43,8 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
     showToast,
     spinCostUsd,
     spinSystemConfig,
+    getSpinStakeProfile,
+    vehicleWinEligibility,
     getResolvedSpinContext,
     applyCoupon,
     scratchCardTiers,
@@ -52,6 +54,9 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
   const [isSpinning, setIsSpinning] = useState(false);
   const [wheelRotation, setWheelRotation] = useState(0);
   const [useFreeSpinMode, setUseFreeSpinMode] = useState(true);
+  const [selectedSpinStake, setSelectedSpinStake] = useState<number>(() =>
+    Math.max(150, spinSystemConfig.minSpinCostUsd || spinCostUsd || 150)
+  );
   const [spinCouponCode, setSpinCouponCode] = useState('');
   const [lastWonPrize, setLastWonPrize] = useState<{
     prize: string;
@@ -67,6 +72,7 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
     ticketId?: string;
     prize?: any;
     wonPrizeItem?: any;
+    finalWallet?: { usd: number; depositUsd: number; freeWinUsd: number } | null;
     signature?: string;
   } | null>(null);
   const [activeSlideIndex, setActiveSlideIndex] = useState(0);
@@ -113,12 +119,34 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
   }, [winAutoSlide, filteredWinners.length, scrollChildHorizontally]);
 
   const resolvedSpinCtx = getResolvedSpinContext(useFreeSpinMode && availableSpins > 0);
-  const wheelSlices = React.useMemo(() => {
-    const active = (resolvedSpinCtx.slices || []).filter((s) => s.isActive);
-    return active.length > 0 ? active : resolvedSpinCtx.slices;
-  }, [resolvedSpinCtx.slices]);
+  const [wheelDisplayLevel, setWheelDisplayLevel] = useState<SpinDifficultyLevel>(
+    resolvedSpinCtx.resolvedLevel
+  );
 
-  const effectivePaidCostUsd = Math.max(150, spinSystemConfig.minSpinCostUsd || 150, spinCostUsd || 150);
+  React.useEffect(() => {
+    if (!isSpinning) {
+      setWheelDisplayLevel(resolvedSpinCtx.resolvedLevel);
+    }
+    // Only re-sync display level when user/config mode toggles while idle
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.id, useFreeSpinMode, availableSpins, spinSystemConfig.adminMode]);
+
+  const minPaidSpinCost = Math.max(150, spinSystemConfig.minSpinCostUsd || spinCostUsd || 150);
+  const maxPaidSpinCost = Math.max(minPaidSpinCost + 100, Math.min(2500, spinSystemConfig.maxSpinCostUsd || 2500));
+
+  React.useEffect(() => {
+    setSelectedSpinStake((prev) => Math.min(maxPaidSpinCost, Math.max(minPaidSpinCost, prev || minPaidSpinCost)));
+  }, [minPaidSpinCost, maxPaidSpinCost]);
+
+  const effectivePaidCostUsd = Math.min(maxPaidSpinCost, Math.max(minPaidSpinCost, selectedSpinStake));
+  const stakeProfile = getSpinStakeProfile(effectivePaidCostUsd, resolvedSpinCtx.isUsingFreeSpin);
+  const canWinVehicleThisSpin = stakeProfile.canWinVehicleByStake && vehicleWinEligibility.eligible;
+
+  const wheelSlices = React.useMemo(() => {
+    const levelPool = spinSystemConfig.levels?.[wheelDisplayLevel] || resolvedSpinCtx.slices || [];
+    const active = levelPool.filter((s) => s.isActive !== false);
+    return active.length > 0 ? active : levelPool;
+  }, [spinSystemConfig.levels, wheelDisplayLevel, resolvedSpinCtx.slices]);
 
   // Synthesized mechanical ticking sound for the wheel
   const playTickSound = () => {
@@ -183,7 +211,7 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
       usedFreeSpin?: boolean;
     };
     try {
-      result = await executeSpin(wantFreeSpin);
+      result = await executeSpin(wantFreeSpin, effectivePaidCostUsd);
     } catch (err: unknown) {
       const error = err as Error;
       setIsSpinning(false);
@@ -199,13 +227,20 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
       if (tickCount > 24) clearInterval(tickInterval);
     }, 150);
 
+    // Sync SVG wheel slices to the exact server-resolved level before computing landing angle
+    const targetLevel = (result.resolvedLevel as SpinDifficultyLevel) || wheelDisplayLevel;
+    setWheelDisplayLevel(targetLevel);
+    const levelPool = spinSystemConfig.levels?.[targetLevel] || wheelSlices;
+    const activeTargetSlices = levelPool.filter((s) => s.isActive !== false);
+    const targetSlices = activeTargetSlices.length > 0 ? activeTargetSlices : levelPool;
+
     // Compute exact wheel rotation so pointer at top (0 deg) lands on selected slice
-    const count = Math.max(1, wheelSlices.length);
+    const count = Math.max(1, targetSlices.length);
     const sliceAngle = 360 / count;
     const idx =
       typeof result.sliceIndex === 'number' && result.sliceIndex >= 0 && result.sliceIndex < count
         ? result.sliceIndex
-        : Math.max(0, wheelSlices.findIndex((s) => s.id === result.sliceId));
+        : Math.max(0, targetSlices.findIndex((s) => s.id === result.sliceId));
     const centerDeg = idx * sliceAngle + sliceAngle / 2;
     const jitter = (Math.random() - 0.5) * (sliceAngle * 0.4);
     const targetMod = (360 - (centerDeg % 360) + jitter + 360) % 360;
@@ -254,6 +289,7 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
         ticketId: res.ticketId,
         prize: res.prize,
         wonPrizeItem: res.wonPrizeItem,
+        finalWallet: res.finalWallet || null,
         signature: res.signature,
       });
       setSelectedScratchTier(res.tier || tier);
@@ -372,28 +408,41 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
                 </span>
                 <span
                   className={`px-2.5 py-0.5 rounded-full text-[10px] font-mono font-black uppercase border ${
-                    resolvedSpinCtx.resolvedLevel === 'super_hard'
+                    wheelDisplayLevel === 'super_hard'
                       ? 'bg-red-600/20 border-red-500/50 text-red-300'
-                      : resolvedSpinCtx.resolvedLevel === 'hard'
+                      : wheelDisplayLevel === 'hard'
                       ? 'bg-amber-500/20 border-amber-500/50 text-amber-300'
                       : 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300'
                   }`}
                 >
-                  Level: {resolvedSpinCtx.resolvedLevel.replace('_', ' ').toUpperCase()}
+                  Level: {wheelDisplayLevel.replace('_', ' ').toUpperCase()}
                 </span>
               </div>
               <h3 className="font-heading font-black text-2xl sm:text-3xl text-white">
-                SPIN TO WIN UP TO $20,000 OR A TESLA
+                SPIN TO WIN UP TO $25,000 OR A TESLA
               </h3>
               <p className="text-xs text-zinc-400 leading-relaxed">
-                Cash prizes up to <strong className="text-emerald-400">$20,000 USD</strong> auto-credit directly to your wallet balance. Tesla vehicle jackpots queue in your Dashboard for deposit-funded shipping &amp; export documentation.
+                Adjust your spin stake from <strong className="text-zinc-200">${minPaidSpinCost.toLocaleString()}</strong> to{' '}
+                <strong className="text-amber-400">${maxPaidSpinCost.toLocaleString()} USD</strong>. At minimum stake ($150), payouts cap at{' '}
+                <strong className="text-zinc-200">$2,000</strong> with vehicles locked; raising your stake unlocks Tesla vehicles, boosts high-tier cash odds, and opens the{' '}
+                <strong className="text-emerald-400">$25,000 Max Jackpot</strong> at ${maxPaidSpinCost.toLocaleString()}.
               </p>
 
-              {/* Active Level Specs */}
+              {/* Active Level & Eligibility Specs */}
               <div className="flex flex-wrap gap-1.5 pt-1">
-                <span className="inline-flex items-center gap-1 text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-red-600/20 border border-red-500/40 text-red-300">
+                <span
+                  className={`inline-flex items-center gap-1 text-[10px] font-mono font-bold px-2 py-0.5 rounded border ${
+                    canWinVehicleThisSpin
+                      ? 'bg-emerald-600/20 border-emerald-500/40 text-emerald-300'
+                      : 'bg-zinc-900 border-zinc-700 text-zinc-400'
+                  }`}
+                >
                   <Car className="w-3 h-3" />
-                  {wheelSlices.filter((s) => s.type === 'car').length} Tesla Car Slice(s)
+                  {canWinVehicleThisSpin
+                    ? `${wheelSlices.filter((s) => s.type === 'car').length} Car Slice(s) Active (${stakeProfile.vehicleWeightMultiplier}x)`
+                    : !vehicleWinEligibility.eligible
+                    ? 'Car Locked (1/Wk · Ship Prior First)'
+                    : `Car Locked on $${minPaidSpinCost} Min`}
                 </span>
                 <span className="inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded bg-zinc-800 border border-zinc-700 text-zinc-300">
                   {wheelSlices.filter((s) => s.type === 'try_again').length} Try Again Slice(s)
@@ -405,6 +454,99 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
                 )}
               </div>
             </div>
+
+            {/* Interactive Stake Slider ($150 Min -> $2,500 Max) */}
+            {!resolvedSpinCtx.isUsingFreeSpin && (
+              <div className="p-4 rounded-2xl bg-zinc-900/95 border border-zinc-800 space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-white">
+                    <SlidersHorizontal className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Select Spin Stake</span>
+                  </div>
+                  <span
+                    className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase border ${
+                      stakeProfile.isMaxStake
+                        ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300'
+                        : stakeProfile.isMinOrFree
+                        ? 'bg-zinc-800 border-zinc-700 text-zinc-300'
+                        : 'bg-amber-500/15 border-amber-500/40 text-amber-300'
+                    }`}
+                  >
+                    {stakeProfile.isMaxStake
+                      ? '$25,000 Max Jackpot Live'
+                      : stakeProfile.isMinOrFree
+                      ? 'Minimum Stake ($2k Cash Cap)'
+                      : `Progressive ${Math.round(stakeProfile.stakeRatio * 100)}% Tier`}
+                  </span>
+                </div>
+
+                <div className="space-y-2">
+                  <input
+                    type="range"
+                    min={minPaidSpinCost}
+                    max={maxPaidSpinCost}
+                    step={50}
+                    disabled={isSpinning}
+                    value={effectivePaidCostUsd}
+                    onChange={(e) => setSelectedSpinStake(Number(e.target.value))}
+                    className="w-full accent-amber-500 cursor-pointer disabled:opacity-50"
+                  />
+                  <div className="grid grid-cols-5 gap-1.5">
+                    {[minPaidSpinCost, 500, 1000, 1750, maxPaidSpinCost]
+                      .filter((v, idx, arr) => v >= minPaidSpinCost && v <= maxPaidSpinCost && arr.indexOf(v) === idx)
+                      .map((preset) => {
+                        const active = effectivePaidCostUsd === preset;
+                        return (
+                          <button
+                            key={preset}
+                            type="button"
+                            disabled={isSpinning}
+                            onClick={() => setSelectedSpinStake(preset)}
+                            className={`py-1.5 px-1 rounded-lg text-[10px] font-mono font-bold border transition cursor-pointer disabled:opacity-50 ${
+                              active
+                                ? 'bg-amber-500 border-amber-400 text-black'
+                                : 'bg-zinc-950 border-zinc-800 text-zinc-300 hover:border-zinc-600'
+                            }`}
+                          >
+                            ${preset.toLocaleString()}
+                          </button>
+                        );
+                      })}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-[11px]">
+                  <div className="p-2.5 rounded-xl bg-zinc-950 border border-zinc-800">
+                    <span className="text-[10px] font-mono text-zinc-500 block">MAX CASH PAYOUT</span>
+                    <span className={`font-heading font-black text-sm tabular-nums ${stakeProfile.isMaxStake ? 'text-emerald-400' : 'text-amber-300'}`}>
+                      ${stakeProfile.maxAllowedCashUsd.toLocaleString()} USD
+                    </span>
+                    <span className="text-[9px] text-zinc-400 block">
+                      {stakeProfile.canWinJackpotByStake ? 'Top $25k Jackpot Eligible' : 'No Jackpot Below $2,500'}
+                    </span>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-zinc-950 border border-zinc-800">
+                    <span className="text-[10px] font-mono text-zinc-500 block">TESLA VEHICLE ODDS</span>
+                    <span className={`font-heading font-black text-sm ${canWinVehicleThisSpin ? 'text-emerald-400' : 'text-zinc-400'}`}>
+                      {!vehicleWinEligibility.eligible
+                        ? 'LOCKED'
+                        : stakeProfile.canWinVehicleByStake
+                        ? `${stakeProfile.vehicleWeightMultiplier}x Boosted`
+                        : 'LOCKED'}
+                    </span>
+                    <span className="text-[9px] text-zinc-400 block">
+                      {!vehicleWinEligibility.eligible
+                        ? vehicleWinEligibility.reasonCode === 'UNSHIPPED_VEHICLE_PENDING'
+                          ? 'Pay & ship won car first'
+                          : '1 vehicle / week limit'
+                        : stakeProfile.canWinVehicleByStake
+                        ? `${stakeProfile.winBoostMultiplier}x High-Win Scaling`
+                        : `Raise > $${minPaidSpinCost} to unlock`}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Spin Mode Toggle (Free Spins vs Paid $150+) */}
             {availableSpins > 0 && (
@@ -472,10 +614,14 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
             <div className="p-4 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-between gap-3">
               <div>
                 <span className="text-[11px] text-zinc-400 block font-mono uppercase">
-                  {resolvedSpinCtx.isUsingFreeSpin ? 'Free Bonus Spin Mode' : 'Minimum Paid Spin Cost'}
+                  {resolvedSpinCtx.isUsingFreeSpin
+                    ? 'Free Bonus Spin Mode ($2k Max · No Car)'
+                    : stakeProfile.isMinOrFree
+                    ? 'Minimum Spin Stake ($2k Max · No Car)'
+                    : 'Selected Paid Spin Stake'}
                 </span>
                 <span className="font-heading font-black text-2xl text-amber-400 tabular-nums">
-                  {resolvedSpinCtx.isUsingFreeSpin ? '$0.00' : `$${effectivePaidCostUsd.toFixed(2)}`}{' '}
+                  {resolvedSpinCtx.isUsingFreeSpin ? '$0.00' : `$${effectivePaidCostUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}{' '}
                   <span className="text-xs font-normal text-zinc-300">
                     {resolvedSpinCtx.isUsingFreeSpin ? 'USD (1 Free Spin)' : 'USD / Spin'}
                   </span>
@@ -485,9 +631,19 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
                 <span className="text-[10px] px-2.5 py-1 rounded-full bg-red-600/20 text-red-400 border border-red-500/30 font-mono font-bold block mb-1">
                   {currentUser ? 'READY TO SPIN' : 'SIGN IN REQUIRED'}
                 </span>
-                <span className="text-[10px] text-zinc-400 font-mono tabular-nums">
-                  Deposits: ${activeDepositBalanceUsd.toLocaleString()} · Wins: ${freeWinBalanceUsd.toLocaleString()}
-                </span>
+                {currentUser ? (
+                  <span className="text-[10px] text-zinc-400 font-mono tabular-nums">
+                    Deposits: ${activeDepositBalanceUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} · Wins: ${freeWinBalanceUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => window.dispatchEvent(new CustomEvent('apex:require-auth', { detail: 'view your wallet and spin the wheel' }))}
+                    className="text-[11px] font-semibold text-amber-400 hover:text-amber-300 underline cursor-pointer"
+                  >
+                    Sign in to view wallet balance
+                  </button>
+                )}
               </div>
             </div>
 
@@ -562,7 +718,9 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
             <div className="flex items-start gap-2 text-[11px] text-zinc-400 bg-zinc-900/60 border border-zinc-800 rounded-xl p-2.5">
               <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
               <span>
-                Vehicle prize shipping &amp; export documentation fees require an active wallet deposit; free promotional win balances cannot be used for vehicle fee settlement.
+                {!vehicleWinEligibility.eligible
+                  ? vehicleWinEligibility.message
+                  : '1 Tesla vehicle win limit per week across Spins & Scratch Cards. Winning another vehicle requires paying, processing, and shipping your previously won vehicle in Dashboard.'}
               </span>
             </div>
 
@@ -577,27 +735,45 @@ export const PromotionsHub: React.FC<PromotionsHubProps> = ({ onOpenDeposit }) =
       {/* Section 2: Purchasable Scratch & Win Cards */}
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 border-b border-zinc-800 pb-4">
-          <div>
-            <div className="inline-flex items-center gap-1.5 text-xs font-mono font-bold text-amber-400 uppercase tracking-wider mb-1">
+          <div className="space-y-1.5">
+            <div className="inline-flex items-center gap-1.5 text-xs font-mono font-bold text-amber-400 uppercase tracking-wider">
               <Flame className="w-4 h-4 text-amber-500" />
-              <span>Purchasable Foil Scratch Cards ($50 Min — ${siteSettings.maxScratchPrizeUsd.toLocaleString()} Max)</span>
+              <span>Purchasable Foil Scratch Cards ($50 Min — ${siteSettings.maxScratchPrizeUsd.toLocaleString()} Max) · Super Hard Rare Jackpots</span>
             </div>
             <h3 className="font-heading font-black text-2xl sm:text-3xl text-white">
               SCRATCH & WIN JACKPOTS
             </h3>
             <p className="text-xs text-zinc-400 max-w-xl">
-              Instant gratification. Slide through tiers and scratch off the metallic foil with your mouse or finger to uncover cash vault jackpots, body wraps, and crypto rewards.
+              Instant gratification. Slide through tiers and scratch off the metallic foil with your mouse or finger to uncover rare cash vault jackpots and Tesla vehicles (1 vehicle / week limit after prior shipment).
             </p>
+            {currentUser && !vehicleWinEligibility.eligible && (
+              <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/35 text-[11px] text-amber-300 font-medium">
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                <span>{vehicleWinEligibility.message}</span>
+              </div>
+            )}
           </div>
 
-          {/* Slider Controls & Wallet Balance */}
+          {/* Slider Controls & Wallet Balance (strictly shown to signed-in users only) */}
           <div className="flex flex-col sm:items-end gap-2">
-            <div className="text-right">
-              <span className="text-xs text-zinc-400 block">Your Wallet Balance:</span>
-              <span className="font-heading font-bold text-lg text-emerald-400">
-                ${balances.usd.toFixed(2)} USD
-              </span>
-            </div>
+            {currentUser ? (
+              <div className="text-right">
+                <span className="text-xs text-zinc-400 block">Your Wallet Balance:</span>
+                <span className="font-heading font-bold text-lg text-emerald-400 tabular-nums">
+                  ${balances.usd.toFixed(2)} USD
+                </span>
+              </div>
+            ) : (
+              <div className="text-right">
+                <button
+                  type="button"
+                  onClick={() => window.dispatchEvent(new CustomEvent('apex:require-auth', { detail: 'view your wallet and play scratch cards' }))}
+                  className="px-3.5 py-1.5 rounded-xl bg-zinc-900 border border-zinc-700 hover:border-amber-500 text-xs font-semibold text-amber-300 transition cursor-pointer"
+                >
+                  Sign in to view wallet &amp; play
+                </button>
+              </div>
+            )}
 
             {/* Slider Navigation Arrows */}
             {scratchCardTiers.length > 0 && (

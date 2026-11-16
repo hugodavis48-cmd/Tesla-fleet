@@ -29,6 +29,13 @@ export type ValidatedTxCategory =
   | 'vehicle_order_shipping'
   | 'deposit_record'
   | 'admin_adjust'
+  | 'service_payment'
+  | 'staking_payment'
+  | 'stock_trade'
+  | 'rental_booking'
+  | 'shop_checkout'
+  | 'withdrawal_request'
+  | 'wallet_consume'
   | 'security_rejection';
 
 export interface ServerTransactionAudit {

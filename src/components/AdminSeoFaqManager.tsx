@@ -157,9 +157,12 @@ export const AdminSeoFaqManager: React.FC = () => {
   const refreshMediaLibrary = useCallback(async () => {
     setIsLoadingFiles(true);
     try {
+      const tok = typeof window !== 'undefined' ? localStorage.getItem('apex_session_token') : null;
       const [fbAssets, serverRes] = await Promise.all([
         listFirebaseBrandingAssets(),
-        fetch('/api/media/list')
+        fetch('/api/media/list', {
+          headers: tok ? { Authorization: `Bearer ${tok}` } : {},
+        })
           .then((r) => (r.ok ? r.json() : { files: [] }))
           .catch(() => ({ files: [] })),
       ]);
@@ -314,8 +317,10 @@ export const AdminSeoFaqManager: React.FC = () => {
     try {
       await deleteBrandingMediaAsset(asset);
       if (asset.source === 'local_upload') {
+        const tok = typeof window !== 'undefined' ? localStorage.getItem('apex_session_token') : null;
         await fetch(`/api/media/delete?filename=${encodeURIComponent(asset.name)}`, {
           method: 'DELETE',
+          headers: tok ? { Authorization: `Bearer ${tok}` } : {},
         }).catch(() => {});
       }
       setMediaAssets((prev) => prev.filter((a) => a.id !== asset.id));

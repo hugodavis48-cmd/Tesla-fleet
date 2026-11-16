@@ -617,9 +617,13 @@ export const PromoBannersPage: React.FC<PromoBannersPageProps> = ({ onOpenAuth, 
   const uploadOrEncodeImage = async (file: File): Promise<string> => {
     const dataUrl = await readFileAsDataUrl(file);
     try {
+      const tok = typeof window !== 'undefined' ? localStorage.getItem('apex_session_token') : null;
       const resp = await fetch('/api/media/upload', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(tok ? { Authorization: `Bearer ${tok}` } : {}),
+        },
         body: JSON.stringify({ filename: file.name, dataUrl }),
       });
       if (resp.ok) {

@@ -71,6 +71,51 @@ export interface StoredUser {
 // In-memory persistent database for users and sessions
 const usersDatabase: Map<string, StoredUser> = new Map();
 const sessionsDatabase: Map<string, ServerSession> = new Map();
+const AUTH_STORE_FILE = path.join(process.cwd(), '.apex_auth_sessions.json');
+
+function persistAuthStore() {
+  try {
+    const activeSessions: ServerSession[] = [];
+    const now = Date.now();
+    for (const sess of sessionsDatabase.values()) {
+      if (sess.status === 'active' && new Date(sess.expiresAt).getTime() > now) {
+        activeSessions.push(sess);
+      }
+    }
+    const payload = {
+      users: Array.from(usersDatabase.values()),
+      sessions: activeSessions.slice(-200),
+      updatedAt: new Date().toISOString(),
+    };
+    fs.writeFileSync(AUTH_STORE_FILE, JSON.stringify(payload, null, 2), 'utf-8');
+  } catch {
+    // non-fatal on read-only fs
+  }
+}
+
+function hydrateAuthStore() {
+  try {
+    if (!fs.existsSync(AUTH_STORE_FILE)) return;
+    const raw = JSON.parse(fs.readFileSync(AUTH_STORE_FILE, 'utf-8'));
+    if (Array.isArray(raw.users)) {
+      for (const u of raw.users) {
+        if (u && u.email && !usersDatabase.has(String(u.email).toLowerCase())) {
+          usersDatabase.set(String(u.email).toLowerCase(), u);
+        }
+      }
+    }
+    if (Array.isArray(raw.sessions)) {
+      const now = Date.now();
+      for (const s of raw.sessions) {
+        if (s && s.token && s.status === 'active' && new Date(s.expiresAt).getTime() > now) {
+          sessionsDatabase.set(s.token, s);
+        }
+      }
+    }
+  } catch {
+    // ignore corrupt auth store
+  }
+}
 
 // Helper to hash password using scrypt
 export function hashPassword(password: string): { salt: string; hash: string } {
@@ -396,6 +441,23 @@ function seedInitialUsers() {
 }
 
 seedInitialUsers();
+hydrateAuthStore();
+
+export function getAuthenticatedUser(req: Request): StoredUser | null {
+  const authHeader = req.headers.authorization;
+  const token = authHeader?.startsWith('Bearer ')
+    ? authHeader.substring(7)
+    : (req.headers['x-session-token'] as string) || (req.query.token as string);
+  if (!token) return null;
+  const session = sessionsDatabase.get(token);
+  if (!session || session.status !== 'active') return null;
+  if (new Date(session.expiresAt).getTime() < Date.now()) {
+    session.status = 'expired';
+    return null;
+  }
+  const user = Array.from(usersDatabase.values()).find((u) => u.id === session.userId);
+  return user || null;
+}
 
 // Session verification middleware
 export function authenticateToken(req: Request, res: Response, next: NextFunction) {
@@ -461,6 +523,26 @@ export function requirePrivilege(privilege: AdminPrivilege) {
     }
     next();
   };
+}
+
+export function requireSelfOrAdmin(req: Request, res: Response, next: NextFunction) {
+  const user = (req as any).user as StoredUser | undefined;
+  if (!user) {
+    return res.status(401).json({ error: 'Authentication required.' });
+  }
+  const targetUserId = String(
+    req.params?.userId || req.body?.userId || req.query?.userId || ''
+  ).trim();
+  if (user.role === 'admin') {
+    return next();
+  }
+  if (!targetUserId || targetUserId === user.id) {
+    return next();
+  }
+  return res.status(403).json({
+    error: 'Forbidden: You can only access or modify your own account wallet and records.',
+    code: 'OWNERSHIP_MISMATCH',
+  });
 }
 
 export const authRouter = Router();
@@ -556,6 +638,7 @@ authRouter.post('/signup', async (req: Request, res: Response) => {
     };
 
     sessionsDatabase.set(token, session);
+    persistAuthStore();
 
     // Dispatch SMTP registration welcome alert via .env SMTP mailer utility
     let emailNotificationStatus: string = 'queued';
@@ -707,6 +790,7 @@ authRouter.post('/google', async (req: Request, res: Response) => {
     };
 
     sessionsDatabase.set(token, session);
+    persistAuthStore();
 
     let emailNotificationStatus: string | undefined;
     if (isNewUser) {
@@ -803,6 +887,7 @@ authRouter.post('/login', async (req: Request, res: Response) => {
     };
 
     sessionsDatabase.set(token, session);
+    persistAuthStore();
 
     return res.json({
       success: true,
@@ -872,6 +957,7 @@ authRouter.post('/admin/login', async (req: Request, res: Response) => {
     };
 
     sessionsDatabase.set(token, session);
+    persistAuthStore();
 
     return res.json({
       success: true,
@@ -920,6 +1006,7 @@ authRouter.post('/logout', (req: Request, res: Response) => {
   if (token && sessionsDatabase.has(token)) {
     const session = sessionsDatabase.get(token)!;
     session.status = 'revoked';
+    persistAuthStore();
   }
 
   return res.json({ success: true, message: 'Session successfully revoked and user logged out.' });
@@ -935,6 +1022,7 @@ authRouter.post('/revoke-all-sessions', authenticateToken, (req: Request, res: R
       session.status = 'revoked';
     }
   }
+  persistAuthStore();
 
   return res.json({
     success: true,

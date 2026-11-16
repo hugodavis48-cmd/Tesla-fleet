@@ -29,7 +29,10 @@ export const AdminWonPrizesManager: React.FC = () => {
   const loadAudits = useCallback(async () => {
     setLoadingAudits(true);
     try {
-      const res = await fetch('/api/security/transaction-audits?limit=25');
+      const tok = typeof window !== 'undefined' ? localStorage.getItem('apex_session_token') : null;
+      const res = await fetch('/api/security/transaction-audits?limit=25', {
+        headers: tok ? { Authorization: `Bearer ${tok}` } : {},
+      });
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data.audits)) {

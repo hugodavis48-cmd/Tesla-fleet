@@ -6,3 +6,4 @@ coverage/
 *.log
 .env*
 !.env.example
+.apex_auth_sessions.json

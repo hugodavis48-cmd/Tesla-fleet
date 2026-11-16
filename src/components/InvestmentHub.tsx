@@ -235,9 +235,13 @@ export const InvestmentHub: React.FC<InvestmentHubProps> = ({ onOpenDeposit, onN
     // 2. Email Notification dispatch
     if (alertSettings.emailAlerts && alertSettings.targetEmail) {
       try {
+        const tok = typeof window !== 'undefined' ? localStorage.getItem('apex_session_token') : null;
         await fetch('/api/mailer/asset-alert', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            ...(tok ? { Authorization: `Bearer ${tok}` } : {}),
+          },
           body: JSON.stringify({
             email: alertSettings.targetEmail,
             assetTitle,
@@ -1135,34 +1139,52 @@ export const InvestmentHub: React.FC<InvestmentHubProps> = ({ onOpenDeposit, onN
               </div>
 
               {/* Vault Balance status */}
-              <div className="flex justify-between items-center text-xs p-3 rounded-xl bg-black/60 border border-zinc-800">
-                <span className="text-zinc-400">Available Vault Balance:</span>
-                <span className="font-bold text-white">${balances.usd.toFixed(2)} USD</span>
-              </div>
+              {currentUser ? (
+                <>
+                  <div className="flex justify-between items-center text-xs p-3 rounded-xl bg-black/60 border border-zinc-800">
+                    <span className="text-zinc-400">Available Vault Balance:</span>
+                    <span className="font-bold text-white">${balances.usd.toFixed(2)} USD</span>
+                  </div>
 
-              {/* Action buttons */}
-              <div className="space-y-2 pt-2">
-                {balances.usd < numStake ? (
+                  {/* Action buttons */}
+                  <div className="space-y-2 pt-2">
+                    {balances.usd < numStake ? (
+                      <button
+                        onClick={() => {
+                          setActivePoolToStake(null);
+                          onOpenDeposit();
+                        }}
+                        className="w-full py-3.5 rounded-2xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs flex items-center justify-center gap-2"
+                      >
+                        <span>Deposit Crypto (USDT, BTC, XRP, BNB) to Fund</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </button>
+                    ) : (
+                      <button
+                        onClick={handleConfirmStake}
+                        className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 text-white font-heading font-bold text-xs shadow-lg shadow-emerald-950/50 flex items-center justify-center gap-2"
+                      >
+                        <span>Confirm Stake of ${numStake.toLocaleString()} USD</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <div className="pt-2">
                   <button
+                    type="button"
                     onClick={() => {
                       setActivePoolToStake(null);
-                      onOpenDeposit();
+                      window.dispatchEvent(new CustomEvent('apex:require-auth', { detail: 'view your wallet and stake in fleet pools' }));
                     }}
-                    className="w-full py-3.5 rounded-2xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs flex items-center justify-center gap-2"
+                    className="w-full py-3.5 rounded-2xl bg-zinc-800 hover:bg-zinc-700 text-amber-300 font-bold text-xs flex items-center justify-center gap-2 cursor-pointer"
                   >
-                    <span>Deposit Crypto (USDT, BTC, XRP, BNB) to Fund</span>
+                    <span>Sign In to View Wallet &amp; Stake</span>
                     <ArrowRight className="w-4 h-4" />
                   </button>
-                ) : (
-                  <button
-                    onClick={handleConfirmStake}
-                    className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 text-white font-heading font-bold text-xs shadow-lg shadow-emerald-950/50 flex items-center justify-center gap-2"
-                  >
-                    <span>Confirm Stake of ${numStake.toLocaleString()} USD</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
