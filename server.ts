@@ -38,6 +38,18 @@ import {
   hydrateValidatorState,
   signValidationPayload,
 } from './src/server/transactionValidator.ts';
+import {
+  DEFAULT_SERVER_AUTO_BLOG_CONFIG,
+  ServerAutoBlogConfig,
+  ServerAutoBlogRunLog,
+  ServerBlogPostRecord,
+  extractInsideEvsArticle,
+  fetchInsideEvsTeslaFeed,
+  generateBlogArticleImage,
+  isAllowedInsideEvsUrl,
+  normalizeUrlKey,
+  rewriteArticleWithGeminiAndSeo,
+} from './src/server/insideEvsAutoBlog.ts';
 
 dotenv.config();
 
@@ -46,8 +58,12 @@ const __dirname = path.dirname(__filename);
 
 const publicDir = path.join(__dirname, 'public');
 const uploadsDir = path.join(publicDir, 'uploads');
+const generatedBlogDir = path.join(publicDir, 'generated-blog');
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
+}
+if (!fs.existsSync(generatedBlogDir)) {
+  fs.mkdirSync(generatedBlogDir, { recursive: true });
 }
 
 const app = express();
@@ -55,6 +71,7 @@ const PORT = 3000;
 
 app.use(express.json({ limit: '25mb' }));
 app.use('/uploads', express.static(uploadsDir));
+app.use('/generated-blog', express.static(generatedBlogDir));
 app.use(express.static(publicDir));
 app.use('/api/auth', authRouter);
 
@@ -104,7 +121,7 @@ Tone: Futuristic, highly technical, courteous, confident, and concise. Format re
     if (ai) {
       try {
         const response = await ai.models.generateContent({
-          model: 'gemini-3.8-flash',
+          model: 'gemini-4-hydrogen',
           contents,
           config: {
             systemInstruction,
@@ -162,7 +179,7 @@ Respond with crisp executive summaries, data-driven suggestions, operational sta
     if (ai) {
       try {
         const response = await ai.models.generateContent({
-          model: 'gemini-3.8-flash',
+          model: 'gemini-4-hydrogen',
           contents: [
             {
               parts: [
@@ -216,7 +233,7 @@ Provide a concise breakdown:
     if (ai) {
       try {
         const response = await ai.models.generateContent({
-          model: 'gemini-3.8-flash',
+          model: 'gemini-4-hydrogen',
           contents: prompt,
           config: {
             systemInstruction: 'You are an ASE-certified master Tesla diagnostic engineer with deep expertise in CAN bus signals, thermal loops, High Voltage pyrofuses, and motor inverters.',
@@ -772,7 +789,7 @@ app.delete('/api/newsletter/subscribers/:id', authenticateToken, requireAdmin, (
   return res.json({ success: true });
 });
 
-// AI Marketing Copilot & Copywriter (Gemini 3.8 Flash)
+// AI Marketing Copilot & Copywriter (Gemini 4 Hydrogen)
 app.post('/api/gemini/marketing', authenticateToken, requireAdmin, async (req, res) => {
   try {
     const { objective, audience, campaignType, specialOffer } = req.body;
@@ -793,7 +810,7 @@ Format your response in structured markdown:
     if (ai) {
       try {
         const response = await ai.models.generateContent({
-          model: 'gemini-3.8-flash',
+          model: 'gemini-4-hydrogen',
           contents: prompt,
           config: {
             systemInstruction: 'You are an elite automotive performance marketing director who writes high-converting, premium email copy for luxury electric vehicle owners.',
@@ -901,10 +918,171 @@ let serverSmtpConfig: {
   fromEmail?: string;
 } | null = null;
 
+interface ServerInvestmentActivityItem {
+  id: string;
+  type: 'deposit' | 'payout' | 'milestone' | 'compound';
+  assetId: string;
+  assetTitle: string;
+  category: string;
+  amountUsd: number;
+  cryptoFormatted?: string;
+  apyRate?: number;
+  timestamp: string;
+  status: 'confirmed' | 'settled' | 'compounded';
+  txHash: string;
+  milestoneTitle?: string;
+  notes?: string;
+  userId?: string;
+  investmentId?: string;
+  sourceCron?: string;
+}
+
+const INITIAL_SERVER_INVESTMENT_ACTIVITIES: ServerInvestmentActivityItem[] = [
+  {
+    id: 'act-001',
+    type: 'milestone',
+    assetId: 'pool-robotaxi',
+    assetTitle: 'Autonomous Tesla Robotaxi Yield Pool',
+    category: 'Autonomous Robotaxi Fleet',
+    amountUsd: 75.0,
+    cryptoFormatted: '+75.00 USDT',
+    apyRate: 18.4,
+    timestamp: '2026-11-08 13:45',
+    status: 'confirmed',
+    txHash: '0x71e9a24bb1890cf2e84ad17b28a9e',
+    milestoneTitle: 'Fleet Utilization Target Reached (≥90%)',
+    notes: 'Telematics verified 92.4% autonomous ride-hailing load across Austin & Miami hubs.',
+  },
+  {
+    id: 'act-002',
+    type: 'payout',
+    assetId: 'pool-robotaxi',
+    assetTitle: 'Autonomous Tesla Robotaxi Yield Pool',
+    category: 'Autonomous Robotaxi Fleet',
+    amountUsd: 38.5,
+    cryptoFormatted: '+38.50 USDT',
+    apyRate: 18.4,
+    timestamp: '2026-11-08 10:15',
+    status: 'settled',
+    txHash: '0x48bc9281a0e34f19b26ce901aa48c',
+    notes: 'Automated daily fare revenue split from active 24-vehicle commercial fleet.',
+  },
+  {
+    id: 'act-003',
+    type: 'deposit',
+    assetId: 'pool-robotaxi',
+    assetTitle: 'Autonomous Tesla Robotaxi Yield Pool',
+    category: 'Autonomous Robotaxi Fleet',
+    amountUsd: 2000.0,
+    cryptoFormatted: '2,000.00 USDT',
+    apyRate: 18.4,
+    timestamp: '2026-11-07 22:00',
+    status: 'confirmed',
+    txHash: '0x91d382ef4190ba33c5e8812bf701d',
+    notes: 'Staking principal allocation locked for 30 days with daily smart contract distribution.',
+  },
+  {
+    id: 'act-004',
+    type: 'payout',
+    assetId: 'pool-supercharger',
+    assetTitle: 'Apex Megawatt Supercharger Node Staking',
+    category: 'Supercharger Mega-Node',
+    amountUsd: 24.3,
+    cryptoFormatted: '+24.30 USDT',
+    apyRate: 14.8,
+    timestamp: '2026-11-07 12:00',
+    status: 'settled',
+    txHash: '0x33aa71bf290ce8812bb33f901cc4e',
+    notes: 'Fixed kilowatt-hour dispensing yield payout from Megawatt commercial nodes.',
+  },
+  {
+    id: 'act-005',
+    type: 'milestone',
+    assetId: 'pool-plaid-fleet',
+    assetTitle: 'Luxury Performance Rental Fleet Share',
+    category: 'Plaid Track Rental Fleet',
+    amountUsd: 125.0,
+    cryptoFormatted: '+125.00 USDT',
+    apyRate: 22.6,
+    timestamp: '2026-11-06 18:30',
+    status: 'confirmed',
+    txHash: '0x55ee8811cf290ba33ce99120aa45b',
+    milestoneTitle: 'Plaid Track Club 30-Day Staker Retention Bonus',
+    notes: 'Unlocked Founders Club tier yield bonus for maintaining high-performance liquidity.',
+  },
+  {
+    id: 'act-006',
+    type: 'compound',
+    assetId: 'pool-supercharger',
+    assetTitle: 'Apex Megawatt Supercharger Node Staking',
+    category: 'Supercharger Mega-Node',
+    amountUsd: 31.2,
+    cryptoFormatted: '+31.20 USD',
+    apyRate: 14.8,
+    timestamp: '2026-11-06 09:15',
+    status: 'compounded',
+    txHash: '0x22ff44cc901ba33e88aa1192bb77a',
+    notes: 'Auto-compound protocol reinvested daily payout into Megawatt Node principal.',
+  },
+  {
+    id: 'act-007',
+    type: 'deposit',
+    assetId: 'pool-supercharger',
+    assetTitle: 'Apex Megawatt Supercharger Node Staking',
+    category: 'Supercharger Mega-Node',
+    amountUsd: 1500.0,
+    cryptoFormatted: '1,500.00 USD',
+    apyRate: 14.8,
+    timestamp: '2026-11-05 14:00',
+    status: 'confirmed',
+    txHash: '0x11bb99ee33aa88cc77ff221199a4c',
+    notes: 'Node staking subscription with automated 14-day cycle renewal.',
+  },
+  {
+    id: 'act-008',
+    type: 'deposit',
+    assetId: 'pool-plaid-fleet',
+    assetTitle: 'Luxury Performance Rental Fleet Share',
+    category: 'Plaid Track Rental Fleet',
+    amountUsd: 4000.0,
+    cryptoFormatted: '4,000.00 USDT',
+    apyRate: 22.6,
+    timestamp: '2026-11-04 16:20',
+    status: 'confirmed',
+    txHash: '0x88cc33aa99ee11ff55dd77cc44aa1',
+    notes: 'Staking allocation into Cybertruck Cyberbeast & Roadster Founders track pool.',
+  },
+  {
+    id: 'act-009',
+    type: 'milestone',
+    assetId: 'pool-robotaxi',
+    assetTitle: 'Autonomous Tesla Robotaxi Yield Pool',
+    category: 'Autonomous Robotaxi Fleet',
+    amountUsd: 50.0,
+    cryptoFormatted: '+50.00 USDT',
+    apyRate: 18.4,
+    timestamp: '2026-11-04 11:00',
+    status: 'confirmed',
+    txHash: '0x99aa22dd44ee88cc11bb77ff33aa9',
+    milestoneTitle: 'Early Pool Allocation Staking Milestone',
+    notes: 'Welcome incentive granted for participating in Genesis Robotaxi liquidity round.',
+  },
+];
+
+function inferActivityCategory(poolTitle: string): string {
+  const t = poolTitle.toLowerCase();
+  if (t.includes('robotaxi') || t.includes('cybercab')) return 'Autonomous Robotaxi Fleet';
+  if (t.includes('supercharger') || t.includes('mega-node')) return 'Supercharger Mega-Node';
+  if (t.includes('plaid') || t.includes('rental')) return 'Plaid Track Rental Fleet';
+  if (t.includes('tsla') || t.includes('stock') || t.includes('roi')) return 'TSLA Equity Fast-ROI';
+  return 'Commercial Fleet';
+}
+
 // In-Memory Persistent Stores
 const serverInvestments: Map<string, ServerInvestment> = new Map();
 const serverWallets: Map<string, ServerWallet> = new Map();
 const serverSettlementEvents: ServerSettlementEvent[] = [];
+const serverInvestmentActivities: ServerInvestmentActivityItem[] = [...INITIAL_SERVER_INVESTMENT_ACTIVITIES];
 const serverDispatchedEmails: Array<{
   id: string;
   type: string;
@@ -1279,6 +1457,16 @@ const DEFAULT_SERVER_SPIN_SYSTEM_CONFIG = {
 
 const DEFAULT_SERVER_CRON_JOBS = [
   {
+    id: 'investment-roi-cron',
+    name: 'Daily Investment ROI Wallet Payout & Activity Ledger (investment-roi-cron)',
+    description: 'Triggers daily (every 24h) to calculate ROI on active investment plans, credit payouts to user wallets, and append InvestmentActivityTable records.',
+    enabled: true,
+    intervalMinutes: 1440,
+    lastRunAt: new Date().toISOString(),
+    runsCount: 1,
+    lastSummary: 'Scheduled daily 24h ROI wallet payout & activity ledger persistence engine.',
+  },
+  {
     id: 'roi_accrual',
     name: 'Fleet Staking & TSLA Fast-ROI Accrual',
     description: 'Accrues daily dividends across running fleet & Fast-ROI equity plans and settles matured positions.',
@@ -1396,7 +1584,17 @@ let serverCronJobs: typeof DEFAULT_SERVER_CRON_JOBS = (() => {
     if (fs.existsSync(path.join(process.cwd(), '.apex_admin_state.json'))) {
       const raw = JSON.parse(fs.readFileSync(path.join(process.cwd(), '.apex_admin_state.json'), 'utf-8'));
       if (Array.isArray(raw.cronJobs) && raw.cronJobs.length > 0) {
-        return raw.cronJobs;
+        const byId = new Map<string, any>();
+        raw.cronJobs.forEach((j: any) => {
+          if (j?.id) byId.set(String(j.id), j);
+        });
+        const merged = DEFAULT_SERVER_CRON_JOBS.map((def) => byId.get(def.id) || def);
+        for (const extra of raw.cronJobs) {
+          if (extra?.id && !DEFAULT_SERVER_CRON_JOBS.some((d) => d.id === extra.id)) {
+            merged.push(extra);
+          }
+        }
+        return merged;
       }
     }
   } catch {
@@ -1533,6 +1731,21 @@ const serverUserNotifications: any[] = [];
           }
         }
       }
+      if (Array.isArray(raw.investmentsList) && raw.investmentsList.length > 0) {
+        for (const inv of raw.investmentsList) {
+          if (inv && inv.id) {
+            serverInvestments.set(String(inv.id), inv as ServerInvestment);
+          }
+        }
+      }
+      if (Array.isArray(raw.investmentActivities) && raw.investmentActivities.length > 0) {
+        serverInvestmentActivities.length = 0;
+        for (const act of raw.investmentActivities) {
+          if (act && act.id) {
+            serverInvestmentActivities.push(act as ServerInvestmentActivityItem);
+          }
+        }
+      }
       if (raw.serverWalletsFreeWin && typeof raw.serverWalletsFreeWin === 'object') {
         for (const [uid, fw] of Object.entries(raw.serverWalletsFreeWin)) {
           const w = reconcileWalletFromDepositRecords(uid, serverWallets);
@@ -1566,6 +1779,8 @@ function persistServerGameAndCronState() {
       depositRecords: validatorExport.depositRecords,
       transactionAudits: validatorExport.transactionAudits,
       serverWalletsFreeWin,
+      investmentsList: Array.from(serverInvestments.values()).slice(0, 300),
+      investmentActivities: serverInvestmentActivities.slice(0, 200),
       wonPrizesList: Array.from(serverWonPrizes.values()).slice(0, 100),
       userNotifications: serverUserNotifications.slice(0, 200),
       updatedAt: new Date().toISOString(),
@@ -1648,6 +1863,168 @@ function runWonPrizeLogisticsJob(): { advancedCount: number; summary: string } {
   return { advancedCount, summary };
 }
 
+function runInvestmentRoiCronJob(): {
+  payoutCount: number;
+  maturedCount: number;
+  totalRoiCreditedUsd: number;
+  createdActivities: ServerInvestmentActivityItem[];
+  settledEvents: ServerSettlementEvent[];
+  walletsUpdated: Record<string, number>;
+  summary: string;
+} {
+  const now = new Date();
+  const nowIso = now.toISOString();
+  const timestampFormatted = nowIso.replace('T', ' ').substring(0, 16);
+  let payoutCount = 0;
+  let maturedCount = 0;
+  let totalRoiCreditedUsd = 0;
+  const createdActivities: ServerInvestmentActivityItem[] = [];
+  const settledEvents: ServerSettlementEvent[] = [];
+  const walletsUpdated: Record<string, number> = {};
+
+  for (const inv of serverInvestments.values()) {
+    if (inv.status !== 'running' || inv.capitalReturned) continue;
+
+    const addedYield = computeDailyRoiUsd(inv);
+    if (addedYield <= 0) continue;
+
+    inv.dailyRoiRate = addedYield;
+    inv.earnedDividendsUsd = Number(((inv.earnedDividendsUsd || 0) + addedYield).toFixed(2));
+    inv.daysElapsed = Math.min(inv.durationDays, (inv.daysElapsed || 0) + 1);
+    totalRoiCreditedUsd = Number((totalRoiCreditedUsd + addedYield).toFixed(2));
+
+    // Credit daily ROI directly to the user wallet immediately
+    const creditedWallet = creditVerifiedFreeWinBalance(inv.userId, addedYield, serverWallets);
+    walletsUpdated[inv.userId] = creditedWallet.usd;
+    payoutCount++;
+
+    const txHash = `0x${crypto
+      .createHash('sha256')
+      .update(`investment-roi-cron:${inv.id}:${nowIso}:${payoutCount}`)
+      .digest('hex')
+      .slice(0, 28)}`;
+
+    const activityRecord: ServerInvestmentActivityItem = {
+      id: `act-cron-${inv.id}-${Date.now()}-${payoutCount}`,
+      type: 'payout',
+      assetId: inv.poolId,
+      assetTitle: inv.poolTitle,
+      category: inferActivityCategory(inv.poolTitle),
+      amountUsd: addedYield,
+      cryptoFormatted: `+${addedYield.toFixed(2)} USD`,
+      apyRate: inv.apy,
+      timestamp: timestampFormatted,
+      status: 'settled',
+      txHash,
+      notes: `investment-roi-cron daily ROI payout (Day ${inv.daysElapsed}/${inv.durationDays}) credited to wallet ($${creditedWallet.usd.toFixed(2)} USD).`,
+      userId: inv.userId,
+      investmentId: inv.id,
+      sourceCron: 'investment-roi-cron',
+    };
+
+    serverInvestmentActivities.unshift(activityRecord);
+    if (serverInvestmentActivities.length > 200) serverInvestmentActivities.length = 200;
+    createdActivities.push(activityRecord);
+
+    // Notify user dashboard inbox of the daily ROI wallet credit
+    serverUserNotifications.unshift({
+      id: `notif-roi-cron-${inv.id}-${Date.now()}-${payoutCount}`,
+      title: `Daily ROI Credited: +$${addedYield.toFixed(2)} USD`,
+      message: `investment-roi-cron calculated and credited $${addedYield.toFixed(2)} USD daily ROI from "${inv.poolTitle}" (Day ${inv.daysElapsed}/${inv.durationDays}) to your wallet.`,
+      type: 'payout',
+      priority: 'normal',
+      targetType: 'individual',
+      targetUserId: inv.userId,
+      targetUserEmail: inv.userEmail,
+      createdAt: timestampFormatted,
+      readBy: [],
+      dismissedBy: [],
+      actionUrl: 'investments',
+      actionLabel: 'View Yield Ledger',
+    });
+    if (serverUserNotifications.length > 200) serverUserNotifications.length = 200;
+
+    // Settle principal if final day reached during this daily cycle
+    if (inv.daysElapsed >= inv.durationDays) {
+      let extraDeltaUsd = 0;
+      if (inv.totalExpectedRoiUsd > 0 && inv.earnedDividendsUsd < inv.totalExpectedRoiUsd) {
+        extraDeltaUsd = Number((inv.totalExpectedRoiUsd - inv.earnedDividendsUsd).toFixed(2));
+        inv.earnedDividendsUsd = Number(inv.totalExpectedRoiUsd.toFixed(2));
+        totalRoiCreditedUsd = Number((totalRoiCreditedUsd + extraDeltaUsd).toFixed(2));
+        if (extraDeltaUsd > 0) {
+          const wAfterDelta = creditVerifiedFreeWinBalance(inv.userId, extraDeltaUsd, serverWallets);
+          walletsUpdated[inv.userId] = wAfterDelta.usd;
+        }
+      }
+
+      maturedCount++;
+      inv.status = 'completed';
+      inv.completedAt = nowIso;
+      inv.capitalReturned = true;
+      inv.certificateId = `CERT-${Date.now().toString(36).toUpperCase()}-${inv.id.slice(-4).toUpperCase()}`;
+
+      const principalReturn = registerVerifiedDepositRecord({
+        userId: inv.userId,
+        currency: 'USD',
+        amount: inv.amountInvestedUsd,
+        usdEquivalent: inv.amountInvestedUsd,
+        txHash: inv.certificateId,
+        gatewayName: 'investment-roi-cron Maturity Return',
+        source: 'investment_maturity',
+        walletsMap: serverWallets,
+      });
+      walletsUpdated[inv.userId] = principalReturn.wallet.usd;
+
+      const totalPayoutUsd = Number((inv.amountInvestedUsd + inv.earnedDividendsUsd).toFixed(2));
+      const settlementEvent: ServerSettlementEvent = {
+        id: `settle-${inv.id}-${Date.now()}`,
+        investmentId: inv.id,
+        userId: inv.userId,
+        userEmail: inv.userEmail,
+        userName: inv.userName,
+        poolTitle: inv.poolTitle,
+        principalUsd: inv.amountInvestedUsd,
+        roiUsd: inv.earnedDividendsUsd,
+        totalPayoutUsd,
+        certificateId: inv.certificateId,
+        settledAt: nowIso,
+        emailDispatched: true,
+      };
+      serverSettlementEvents.unshift(settlementEvent);
+      if (serverSettlementEvents.length > 50) serverSettlementEvents.length = 50;
+      settledEvents.push(settlementEvent);
+
+      dispatchMaturityEmail({
+        toEmail: inv.userEmail,
+        userName: inv.userName,
+        poolTitle: inv.poolTitle,
+        principalUsd: inv.amountInvestedUsd,
+        roiUsd: inv.earnedDividendsUsd,
+        totalPayoutUsd,
+        newWalletBalanceUsd: principalReturn.wallet.usd,
+        investmentId: inv.id,
+        certificateId: inv.certificateId,
+      }).catch((e) => console.warn('Email dispatch error:', e));
+    }
+  }
+
+  lastCronRunTimestamp = nowIso;
+  cronCyclesRun += 1;
+
+  const summary = `investment-roi-cron credited $${totalRoiCreditedUsd.toFixed(2)} USD daily ROI across ${payoutCount} active plan(s) (${maturedCount} matured) and logged ${createdActivities.length} InvestmentActivityTable record(s).`;
+  persistServerGameAndCronState();
+
+  return {
+    payoutCount,
+    maturedCount,
+    totalRoiCreditedUsd,
+    createdActivities,
+    settledEvents,
+    walletsUpdated,
+    summary,
+  };
+}
+
 function runSingleCronJobById(jobId: string): { success: boolean; summary: string; extra?: Record<string, unknown> } {
   const timeStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
   const nowIso = new Date().toISOString();
@@ -1655,7 +2032,16 @@ function runSingleCronJobById(jobId: string): { success: boolean; summary: strin
   let summary = '';
   let extra: Record<string, unknown> = {};
 
-  if (jobId === 'roi_accrual') {
+  if (jobId === 'investment-roi-cron') {
+    const res = runInvestmentRoiCronJob();
+    summary = res.summary;
+    extra = {
+      ...res,
+      investments: Array.from(serverInvestments.values()),
+      investmentActivities: serverInvestmentActivities.slice(0, 150),
+      settlementEvents: serverSettlementEvents.slice(0, 20),
+    };
+  } else if (jobId === 'roi_accrual') {
     const res = runServerCronCycle();
     summary = `Accrued $${res.yieldDistributedUsd.toFixed(2)} ROI; ${res.maturedCount} matured.`;
     extra = res;
@@ -1816,6 +2202,18 @@ setInterval(() => {
   }
 }, 30000);
 
+// Dedicated Daily Trigger for investment-roi-cron (every 24 hours)
+setInterval(() => {
+  if (!cronActive) return;
+  const roiCronJob = serverCronJobs.find((j) => j.id === 'investment-roi-cron');
+  if (roiCronJob && roiCronJob.enabled) {
+    const lastMs = roiCronJob.lastRunAt ? new Date(roiCronJob.lastRunAt).getTime() : 0;
+    if (!lastMs || Date.now() - lastMs >= 86400000) {
+      runSingleCronJobById('investment-roi-cron');
+    }
+  }
+}, 86400000);
+
 // Cron Job REST API Endpoints
 app.get('/api/cron/status', (_req, res) => {
   const investments = Array.from(serverInvestments.values());
@@ -1835,7 +2233,22 @@ app.get('/api/cron/status', (_req, res) => {
     logs: serverCronLogs.slice(0, 30),
     dispatchedEmails: getDispatchedEmailLogs().length > 0 ? getDispatchedEmailLogs().slice(0, 20) : serverDispatchedEmails.slice(0, 15),
     investments,
+    investmentActivities: serverInvestmentActivities.slice(0, 150),
     settlementEvents: serverSettlementEvents.slice(0, 20),
+  });
+});
+
+app.post('/api/cron/investment-roi-cron/run', authenticateToken, requireAdmin, (_req, res) => {
+  const outcome = runSingleCronJobById('investment-roi-cron');
+  return res.json({
+    success: outcome.success,
+    jobId: 'investment-roi-cron',
+    summary: outcome.summary,
+    jobs: serverCronJobs,
+    logs: serverCronLogs.slice(0, 30),
+    investments: Array.from(serverInvestments.values()),
+    investmentActivities: serverInvestmentActivities.slice(0, 150),
+    ...(outcome.extra || {}),
   });
 });
 
@@ -1852,6 +2265,7 @@ app.post('/api/cron/trigger', authenticateToken, requireAdmin, (_req, res) => {
     jobs: serverCronJobs,
     message: `Master Cron cycle #${cronCyclesRun} executed: $${result.yieldDistributedUsd.toFixed(2)} ROI accrued, ${result.maturedCount} plan(s) settled + streak/spin/logistics audits completed.`,
     investments: Array.from(serverInvestments.values()),
+    investmentActivities: serverInvestmentActivities.slice(0, 150),
     dispatchedEmails: serverDispatchedEmails.slice(0, 15),
     settlementEvents: serverSettlementEvents.slice(0, 20),
     ...result,
@@ -1870,6 +2284,8 @@ app.post('/api/cron/jobs/:jobId/run', authenticateToken, requireAdmin, (req, res
     summary: outcome.summary,
     jobs: serverCronJobs,
     logs: serverCronLogs.slice(0, 30),
+    investments: Array.from(serverInvestments.values()),
+    investmentActivities: serverInvestmentActivities.slice(0, 150),
     ...(outcome.extra || {}),
   });
 });
@@ -3646,6 +4062,45 @@ app.get('/api/investments', (_req, res) => {
   return res.json(Array.from(serverInvestments.values()));
 });
 
+app.get('/api/investments/activities', (_req, res) => {
+  return res.json({ success: true, activities: serverInvestmentActivities.slice(0, 150) });
+});
+
+app.post('/api/investments/activities', authenticateToken, (req, res) => {
+  const { activity } = req.body || {};
+  const caller = (req as any).user;
+  if (!activity || !activity.id || !activity.assetTitle) {
+    return res.status(400).json({ error: 'Valid investment activity object is required.' });
+  }
+  const existingIdx = serverInvestmentActivities.findIndex((a) => a.id === activity.id);
+  const item: ServerInvestmentActivityItem = {
+    id: String(activity.id),
+    type: activity.type || 'payout',
+    assetId: String(activity.assetId || 'pool-robotaxi'),
+    assetTitle: String(activity.assetTitle).slice(0, 180),
+    category: String(activity.category || inferActivityCategory(String(activity.assetTitle))).slice(0, 120),
+    amountUsd: Number(activity.amountUsd) || 0,
+    cryptoFormatted: activity.cryptoFormatted ? String(activity.cryptoFormatted).slice(0, 80) : undefined,
+    apyRate: typeof activity.apyRate === 'number' ? activity.apyRate : undefined,
+    timestamp: String(activity.timestamp || new Date().toISOString().replace('T', ' ').substring(0, 16)),
+    status: activity.status || 'confirmed',
+    txHash: String(activity.txHash || `0x${crypto.randomBytes(12).toString('hex')}`),
+    milestoneTitle: activity.milestoneTitle ? String(activity.milestoneTitle).slice(0, 180) : undefined,
+    notes: activity.notes ? String(activity.notes).slice(0, 400) : undefined,
+    userId: String(activity.userId || caller?.id || 'usr-apex-001'),
+    investmentId: activity.investmentId ? String(activity.investmentId) : undefined,
+    sourceCron: activity.sourceCron ? String(activity.sourceCron) : undefined,
+  };
+  if (existingIdx >= 0) {
+    serverInvestmentActivities[existingIdx] = item;
+  } else {
+    serverInvestmentActivities.unshift(item);
+    if (serverInvestmentActivities.length > 200) serverInvestmentActivities.length = 200;
+  }
+  persistServerGameAndCronState();
+  return res.json({ success: true, activity: item, activities: serverInvestmentActivities.slice(0, 150) });
+});
+
 app.post('/api/investments/sync', authenticateToken, (req, res) => {
   const { investments } = req.body || {};
   if (Array.isArray(investments)) {
@@ -3656,14 +4111,23 @@ app.post('/api/investments/sync', authenticateToken, (req, res) => {
       if (existing && existing.capitalReturned && existing.status === 'completed') {
         return;
       }
+      const existingDays = typeof existing?.daysElapsed === 'number' ? existing.daysElapsed : 0;
+      const incomingDays = typeof inv.daysElapsed === 'number' ? inv.daysElapsed : 0;
+      const preserveServerProgress = Boolean(existing && existingDays > incomingDays);
       serverInvestments.set(inv.id, {
         ...existing,
         ...inv,
+        daysElapsed: preserveServerProgress ? existingDays : incomingDays,
+        earnedDividendsUsd: preserveServerProgress
+          ? Math.max(Number(existing?.earnedDividendsUsd || 0), Number(inv.earnedDividendsUsd || 0))
+          : inv.earnedDividendsUsd,
+        status: preserveServerProgress ? existing?.status || inv.status : inv.status,
         userId: inv.userId || existing?.userId || 'usr-apex-001',
         userEmail: inv.userEmail || existing?.userEmail || 'alex.vance@apex-tesla.io',
         userName: inv.userName || existing?.userName || 'Alex Vance',
       });
     });
+    persistServerGameAndCronState();
   }
   return res.json({ success: true, count: serverInvestments.size, investments: Array.from(serverInvestments.values()) });
 });
@@ -4882,10 +5346,13 @@ const escapeXml = (str: string) =>
     .replace(/'/g, '&apos;');
 
 app.get('/api/admin/state', (req, res) => {
-  const state = readServerAdminState();
+  const state = {
+    ...readServerAdminState(),
+    investment_activities: serverInvestmentActivities.slice(0, 150),
+  };
   const caller = getAuthenticatedUser(req);
   if (caller?.role === 'admin') {
-    return res.json({ state });
+    return res.json({ state, geminiConfigured: Boolean(ai) });
   }
   const {
     depositRecords: _dr,
@@ -4911,7 +5378,7 @@ app.get('/api/admin/state', (req, res) => {
       userLevelOverrides: safeOverrides,
     };
   }
-  return res.json({ state: publicState });
+  return res.json({ state: publicState, geminiConfigured: Boolean(ai) });
 });
 
 app.post('/api/admin/state', authenticateToken, requireAdmin, (req, res) => {
@@ -5490,6 +5957,574 @@ app.delete('/api/analytics/visitors', authenticateToken, requireAdmin, (_req, re
   serverVisitorLogs.length = 0;
   return res.json({ success: true });
 });
+
+// ============================================================================
+// INSIDEEVS TESLA AUTO-BLOG, GEMINI AI REWRITER & SEO AUTOMATION ENGINE
+// ============================================================================
+
+let isAutoBlogSyncRunning = false;
+
+function getStoredAutoBlogState() {
+  const state = readServerAdminState();
+  const rawCfg = (state.auto_blog_config || {}) as Partial<ServerAutoBlogConfig>;
+  const config: ServerAutoBlogConfig = {
+    ...DEFAULT_SERVER_AUTO_BLOG_CONFIG,
+    ...rawCfg,
+  };
+  const logs: ServerAutoBlogRunLog[] = Array.isArray(state.auto_blog_logs)
+    ? (state.auto_blog_logs as ServerAutoBlogRunLog[])
+    : [];
+  const posts: ServerBlogPostRecord[] = Array.isArray(state.blog_posts)
+    ? (state.blog_posts as ServerBlogPostRecord[])
+    : [];
+  return { state, config, logs, posts };
+}
+
+function appendBlogPostsAndRss(newPosts: ServerBlogPostRecord[]) {
+  if (newPosts.length === 0) return readServerAdminState().blog_posts || [];
+  const state = readServerAdminState();
+  const existing = Array.isArray(state.blog_posts)
+    ? (state.blog_posts as ServerBlogPostRecord[])
+    : [];
+  const nextPosts = [...newPosts, ...existing];
+
+  const publishedNew = newPosts.filter((p) => p.status === 'published');
+  if (publishedNew.length > 0) {
+    const newRss = publishedNew.map((p) => ({
+      id: `rss-${p.id}`,
+      title: p.title,
+      linkTab: `blog&post=${p.slug}`,
+      description: p.metaDescription || p.excerpt,
+      pubDate: new Date().toUTCString(),
+      category: p.category,
+      guid: `apex-blog-${p.slug}`,
+      isPublished: true,
+    }));
+    serverRssItems = [...newRss, ...serverRssItems].slice(0, 100);
+    writeServerAdminState({ blog_posts: nextPosts, rssFeedItems: serverRssItems });
+  } else {
+    writeServerAdminState({ blog_posts: nextPosts });
+  }
+  return nextPosts;
+}
+
+async function runInsideEvsAutoBlogSyncCycle(
+  forceRefresh = false,
+  overrideMaxArticles?: number,
+  saveAsDraftsOverride?: boolean
+) {
+  if (isAutoBlogSyncRunning) {
+    return {
+      skipped: true,
+      message: 'Auto-blog sync cycle already in progress.',
+      newPosts: [] as ServerBlogPostRecord[],
+    };
+  }
+  isAutoBlogSyncRunning = true;
+  try {
+    const { config, logs, posts } = getStoredAutoBlogState();
+    const targetMax = Math.min(
+      25,
+      Math.max(1, Number(overrideMaxArticles ?? config.maxArticlesPerSync) || 6)
+    );
+    const shouldAutoPublish =
+      typeof saveAsDraftsOverride === 'boolean' ? !saveAsDraftsOverride : Boolean(config.autoPublish);
+    const feedRes = await fetchInsideEvsTeslaFeed(
+      config.sourceUrl,
+      25,
+      forceRefresh
+    );
+
+    const existingUrlKeys = new Set(
+      posts.map((p) => normalizeUrlKey(p.sourceUrl)).filter(Boolean)
+    );
+    const existingTitles = new Set(
+      posts.map((p) => p.title.toLowerCase().trim())
+    );
+    const runningSlugs = [...posts.map((p) => p.slug)];
+
+    const freshCandidates = feedRes.candidates.filter((c) => {
+      const urlKey = normalizeUrlKey(c.url);
+      if (urlKey && existingUrlKeys.has(urlKey)) return false;
+      if (existingTitles.has(c.title.toLowerCase().trim())) return false;
+      return true;
+    });
+
+    const batch = freshCandidates.slice(0, targetMax);
+    const newPosts: ServerBlogPostRecord[] = [];
+    let aiRewrittenCount = 0;
+    let imagesGeneratedCount = 0;
+    let firstAiError: string | undefined;
+
+    // Process rewrites + optional Gemini image generation in chunks of 3
+    for (let i = 0; i < batch.length; i += 3) {
+      const chunk = batch.slice(i, i + 3);
+      const results = await Promise.all(
+        chunk.map((candidate) =>
+          rewriteArticleWithGeminiAndSeo({
+            ai: config.autoRewriteWithAi ? ai : null,
+            source: candidate,
+            options: {
+              tone: config.targetTone,
+              category: config.defaultCategory,
+              autoPublish: shouldAutoPublish,
+              includeContentImages: config.includeContentImages,
+              includeSourceAttribution: config.includeSourceAttribution,
+              attributionPrefix: config.attributionPrefix,
+              existingSlugs: runningSlugs,
+              generateArticleImages: Boolean(config.generateArticleImages ?? true),
+              imageGenerationMode: config.imageGenerationMode || 'gemini_editorial_svg',
+            },
+          })
+        )
+      );
+      for (const { post, aiPowered, aiError, imageGeneratedWithAi, imageError } of results) {
+        if (runningSlugs.includes(post.slug)) {
+          post.slug = `${post.slug.slice(0, 62)}-${Math.random().toString(36).slice(2, 6)}`;
+          post.canonicalUrl = `https://apex-tesla.io/?tab=blog&post=${post.slug}`;
+        }
+        runningSlugs.push(post.slug);
+        if (aiPowered) aiRewrittenCount += 1;
+        if (imageGeneratedWithAi) imagesGeneratedCount += 1;
+        if (!firstAiError && (aiError || imageError)) {
+          firstAiError = aiError || imageError;
+        }
+        newPosts.push(post);
+      }
+    }
+
+    const updatedPosts = appendBlogPostsAndRss(newPosts);
+    const nowIso = new Date().toISOString();
+    const targetStateLabel = shouldAutoPublish ? 'published live' : 'saved as drafts for Admin Review';
+    const summaryMessage =
+      newPosts.length > 0
+        ? `Fetched ${newPosts.length} InsideEVs Tesla article(s) → ${targetStateLabel} (${aiRewrittenCount} Gemini SEO-rewritten, ${imagesGeneratedCount} AI artwork generated${firstAiError && aiRewrittenCount === 0 ? ` · Note: ${firstAiError}` : ''}).`
+        : `Checked ${feedRes.candidates.length} InsideEVs Tesla articles — all fetched items are already in your repository.`;
+
+    const nextConfig: ServerAutoBlogConfig = {
+      ...config,
+      lastSyncAt: nowIso,
+      lastSyncStatus: summaryMessage,
+      totalSyncedCount: (config.totalSyncedCount || 0) + newPosts.length,
+    };
+
+    const runLog: ServerAutoBlogRunLog = {
+      id: `ablog-${Date.now().toString(36)}`,
+      timestamp: nowIso,
+      status:
+        feedRes.candidates.length === 0
+          ? 'error'
+          : firstAiError && aiRewrittenCount === 0 && config.autoRewriteWithAi
+          ? 'partial'
+          : 'success',
+      fetchedCount: feedRes.candidates.length,
+      importedCount: newPosts.length,
+      aiRewrittenCount,
+      imagesGeneratedCount,
+      aiError: firstAiError,
+      message: summaryMessage,
+      importedTitles: newPosts.map((p) => p.title),
+    };
+
+    const nextLogs = [runLog, ...logs].slice(0, 40);
+    writeServerAdminState({
+      auto_blog_config: nextConfig,
+      auto_blog_logs: nextLogs,
+    });
+
+    return {
+      skipped: false,
+      newPosts,
+      posts: updatedPosts,
+      log: runLog,
+      autoBlogConfig: nextConfig,
+      logs: nextLogs,
+      fetchedCount: feedRes.candidates.length,
+      aiRewrittenCount,
+      imagesGeneratedCount,
+      aiError: firstAiError,
+      geminiConfigured: Boolean(ai),
+    };
+  } catch (err: any) {
+    const { config, logs } = getStoredAutoBlogState();
+    const nowIso = new Date().toISOString();
+    const failLog: ServerAutoBlogRunLog = {
+      id: `ablog-${Date.now().toString(36)}`,
+      timestamp: nowIso,
+      status: 'error',
+      fetchedCount: 0,
+      importedCount: 0,
+      aiRewrittenCount: 0,
+      imagesGeneratedCount: 0,
+      aiError: err?.message,
+      message: err?.message || 'InsideEVs sync failed.',
+      importedTitles: [],
+    };
+    const nextLogs = [failLog, ...logs].slice(0, 40);
+    const nextConfig: ServerAutoBlogConfig = {
+      ...config,
+      lastSyncAt: nowIso,
+      lastSyncStatus: failLog.message,
+    };
+    writeServerAdminState({ auto_blog_config: nextConfig, auto_blog_logs: nextLogs });
+    return {
+      skipped: false,
+      newPosts: [] as ServerBlogPostRecord[],
+      log: failLog,
+      autoBlogConfig: nextConfig,
+      logs: nextLogs,
+      error: failLog.message,
+      geminiConfigured: Boolean(ai),
+    };
+  } finally {
+    isAutoBlogSyncRunning = false;
+  }
+}
+
+app.get('/api/blog/auto-config', (_req, res) => {
+  const { config, logs } = getStoredAutoBlogState();
+  return res.json({ autoBlogConfig: config, logs, geminiConfigured: Boolean(ai) });
+});
+
+app.post('/api/blog/auto-config', authenticateToken, requireAdmin, (req, res) => {
+  const { config } = getStoredAutoBlogState();
+  const updates = (req.body || {}) as Partial<ServerAutoBlogConfig>;
+  const nextSource =
+    typeof updates.sourceUrl === 'string' && isAllowedInsideEvsUrl(updates.sourceUrl)
+      ? updates.sourceUrl
+      : config.sourceUrl;
+  const nextConfig: ServerAutoBlogConfig = {
+    ...config,
+    ...updates,
+    sourceUrl: nextSource,
+    intervalMinutes: Math.max(5, Math.min(1440, Number(updates.intervalMinutes ?? config.intervalMinutes) || 60)),
+    maxArticlesPerSync: Math.max(1, Math.min(25, Number(updates.maxArticlesPerSync ?? config.maxArticlesPerSync) || 6)),
+  };
+  writeServerAdminState({ auto_blog_config: nextConfig });
+  return res.json({ success: true, autoBlogConfig: nextConfig, geminiConfigured: Boolean(ai) });
+});
+
+app.get('/api/blog/insideevs/feed', async (req, res) => {
+  try {
+    const { config, posts } = getStoredAutoBlogState();
+    const force = req.query.refresh === '1' || req.query.refresh === 'true';
+    const limit = Math.min(25, Math.max(1, Number(req.query.limit) || 20));
+    const feed = await fetchInsideEvsTeslaFeed(config.sourceUrl, limit, force);
+
+    const existingUrlKeys = new Set(posts.map((p) => normalizeUrlKey(p.sourceUrl)).filter(Boolean));
+    const existingTitles = new Set(posts.map((p) => p.title.toLowerCase().trim()));
+
+    const candidates = feed.candidates.map((c) => ({
+      ...c,
+      alreadyImported:
+        existingUrlKeys.has(normalizeUrlKey(c.url)) ||
+        existingTitles.has(c.title.toLowerCase().trim()),
+    }));
+
+    return res.json({
+      success: true,
+      sourceUrl: feed.sourceUrl,
+      fetchedAt: feed.fetchedAt,
+      cached: feed.cached,
+      geminiConfigured: Boolean(ai),
+      candidates,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err?.message || 'Failed to fetch InsideEVs Tesla feed.' });
+  }
+});
+
+app.post('/api/blog/insideevs/rewrite-import', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const {
+      url,
+      candidate,
+      autoPublish,
+      category,
+      tone,
+      includeContentImages,
+      generateArticleImages,
+      imageGenerationMode,
+    } = req.body || {};
+    const { config, posts } = getStoredAutoBlogState();
+
+    let sourceCandidate = candidate;
+    if ((!sourceCandidate || !sourceCandidate.bodyText) && typeof url === 'string' && url.trim()) {
+      if (!isAllowedInsideEvsUrl(url.trim())) {
+        return res.status(400).json({ error: 'Only official https://insideevs.com article URLs are supported.' });
+      }
+      sourceCandidate = await extractInsideEvsArticle(url.trim(), true);
+    }
+
+    if (!sourceCandidate || !sourceCandidate.title) {
+      return res.status(400).json({ error: 'Could not extract InsideEVs article details. Verify the article URL.' });
+    }
+
+    const { post, aiPowered, aiError, imageGeneratedWithAi, imageError } = await rewriteArticleWithGeminiAndSeo({
+      ai,
+      source: sourceCandidate,
+      options: {
+        tone: tone || config.targetTone,
+        category: category || config.defaultCategory,
+        autoPublish: typeof autoPublish === 'boolean' ? autoPublish : Boolean(config.autoPublish),
+        includeContentImages: typeof includeContentImages === 'boolean' ? includeContentImages : config.includeContentImages,
+        includeSourceAttribution: config.includeSourceAttribution,
+        attributionPrefix: config.attributionPrefix,
+        existingSlugs: posts.map((p) => p.slug),
+        generateArticleImages:
+          typeof generateArticleImages === 'boolean'
+            ? generateArticleImages
+            : Boolean(config.generateArticleImages ?? true),
+        imageGenerationMode: imageGenerationMode || config.imageGenerationMode || 'gemini_editorial_svg',
+      },
+    });
+
+    const updatedPosts = appendBlogPostsAndRss([post]);
+    return res.json({
+      success: true,
+      aiPowered,
+      aiError,
+      imageGeneratedWithAi,
+      imageError,
+      post,
+      posts: updatedPosts,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err?.message || 'AI rewrite & import failed.' });
+  }
+});
+
+app.post('/api/blog/rewrite-existing', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const {
+      title,
+      excerpt,
+      content,
+      sourceUrl,
+      coverImageUrl,
+      category,
+      tone,
+      includeContentImages,
+      generateArticleImages,
+      imageGenerationMode,
+    } = req.body || {};
+    if (!title && !content) {
+      return res.status(400).json({ error: 'Article headline or content is required to AI-optimize.' });
+    }
+
+    const { config } = getStoredAutoBlogState();
+    let enrichedSource = {
+      title: String(title || 'Tesla EV Technical Update'),
+      excerpt: String(excerpt || ''),
+      bodyText: String(content || excerpt || title || ''),
+      url: typeof sourceUrl === 'string' && sourceUrl.trim() ? sourceUrl.trim() : undefined,
+      imageUrl: typeof coverImageUrl === 'string' && coverImageUrl.trim() ? coverImageUrl.trim() : undefined,
+      galleryImages: coverImageUrl ? [String(coverImageUrl)] : [],
+    };
+
+    if (enrichedSource.url && isAllowedInsideEvsUrl(enrichedSource.url) && enrichedSource.bodyText.length < 180) {
+      const extracted = await extractInsideEvsArticle(enrichedSource.url, false);
+      if (extracted) {
+        enrichedSource = {
+          ...extracted,
+          title: enrichedSource.title || extracted.title,
+          imageUrl: enrichedSource.imageUrl || extracted.imageUrl,
+        };
+      }
+    }
+
+    const { post, aiPowered, aiError, imageGeneratedWithAi, imageError } = await rewriteArticleWithGeminiAndSeo({
+      ai,
+      source: enrichedSource,
+      options: {
+        tone: tone || config.targetTone,
+        category: category || config.defaultCategory,
+        autoPublish: false,
+        includeContentImages: typeof includeContentImages === 'boolean' ? includeContentImages : true,
+        includeSourceAttribution: config.includeSourceAttribution,
+        attributionPrefix: config.attributionPrefix,
+        generateArticleImages: Boolean(generateArticleImages),
+        imageGenerationMode: imageGenerationMode || config.imageGenerationMode || 'gemini_editorial_svg',
+      },
+    });
+
+    if (!ai) {
+      return res.status(400).json({
+        error: aiError || 'Gemini API key (GEMINI_API_KEY) is not configured in Settings > Secrets.',
+      });
+    }
+
+    return res.json({
+      success: true,
+      aiPowered,
+      aiError,
+      imageGeneratedWithAi,
+      imageError,
+      rewritten: {
+        title: post.title,
+        subtitle: post.subtitle,
+        slug: post.slug,
+        category: post.category,
+        excerpt: post.excerpt,
+        content: post.content,
+        coverImageUrl: post.coverImageUrl,
+        contentImages: post.contentImages,
+        seoTitle: post.seoTitle,
+        metaDescription: post.metaDescription,
+        focusKeywords: post.focusKeywords,
+        schemaType: post.schemaType,
+        readTimeMinutes: post.readTimeMinutes,
+        sourceName: post.sourceName,
+        sourceUrl: post.sourceUrl,
+        seoScore: post.seoScore,
+        imageGeneratedWithAi: post.imageGeneratedWithAi,
+        imageGenerationPrompt: post.imageGenerationPrompt,
+      },
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err?.message || 'AI optimization failed.' });
+  }
+});
+
+app.post('/api/blog/generate-image', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const { postId, title, excerpt, category, slug, imageMode } = req.body || {};
+    if (!title) {
+      return res.status(400).json({ error: 'Article title is required to generate an image.' });
+    }
+    const { config, posts } = getStoredAutoBlogState();
+    const imgResult = await generateBlogArticleImage({
+      ai,
+      title: String(title),
+      excerpt: String(excerpt || ''),
+      category: String(category || config.defaultCategory),
+      slug: String(slug || title),
+      imageMode: imageMode || config.imageGenerationMode || 'gemini_editorial_svg',
+    });
+
+    if (!imgResult.aiPowered || !imgResult.imageUrl) {
+      return res.status(ai ? 502 : 400).json({
+        error:
+          imgResult.error ||
+          'Gemini image generation requires GEMINI_API_KEY configured in Settings > Secrets.',
+        imagePrompt: imgResult.imagePrompt,
+      });
+    }
+
+    let updatedPosts = posts;
+    let updatedPost: ServerBlogPostRecord | undefined;
+    if (postId) {
+      const today = new Date().toISOString().split('T')[0];
+      updatedPosts = posts.map((p) => {
+        if (p.id !== postId) return p;
+        updatedPost = {
+          ...p,
+          coverImageUrl: imgResult.imageUrl!,
+          imageGeneratedWithAi: true,
+          imageGenerationPrompt: imgResult.imagePrompt,
+          updatedAt: today,
+        };
+        return updatedPost;
+      });
+      if (updatedPost) {
+        writeServerAdminState({ blog_posts: updatedPosts });
+      }
+    }
+
+    return res.json({
+      success: true,
+      imageUrl: imgResult.imageUrl,
+      imagePrompt: imgResult.imagePrompt,
+      aiPowered: true,
+      post: updatedPost,
+      posts: updatedPosts,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err?.message || 'Article image generation failed.' });
+  }
+});
+
+app.post('/api/blog/drafts/approve', authenticateToken, requireAdmin, (req, res) => {
+  try {
+    const { postIds, publishAll } = req.body || {};
+    const targetIds = Array.isArray(postIds) ? new Set(postIds.map(String)) : new Set<string>();
+    const state = readServerAdminState();
+    const existing = Array.isArray(state.blog_posts)
+      ? (state.blog_posts as ServerBlogPostRecord[])
+      : [];
+
+    const today = new Date().toISOString().split('T')[0];
+    const newlyPublished: ServerBlogPostRecord[] = [];
+    const nextPosts = existing.map((p) => {
+      const shouldApprove =
+        p.status === 'draft' && (publishAll === true || targetIds.has(p.id));
+      if (!shouldApprove) return p;
+      const promoted: ServerBlogPostRecord = {
+        ...p,
+        status: 'published',
+        pipelineStage: 'approved_published',
+        publishedAt: p.publishedAt || today,
+        updatedAt: today,
+      };
+      newlyPublished.push(promoted);
+      return promoted;
+    });
+
+    if (newlyPublished.length > 0) {
+      const newRss = newlyPublished.map((p) => ({
+        id: `rss-${p.id}`,
+        title: p.title,
+        linkTab: `blog&post=${p.slug}`,
+        description: p.metaDescription || p.excerpt,
+        pubDate: new Date().toUTCString(),
+        category: p.category,
+        guid: `apex-blog-${p.slug}`,
+        isPublished: true,
+      }));
+      serverRssItems = [...newRss, ...serverRssItems].slice(0, 100);
+      writeServerAdminState({ blog_posts: nextPosts, rssFeedItems: serverRssItems });
+    }
+
+    return res.json({
+      success: true,
+      publishedCount: newlyPublished.length,
+      publishedIds: newlyPublished.map((p) => p.id),
+      posts: nextPosts,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err?.message || 'Failed to approve draft posts.' });
+  }
+});
+
+app.post('/api/blog/auto-sync', authenticateToken, requireAdmin, async (req, res) => {
+  const force = req.body?.force !== false;
+  const maxArticles = req.body?.maxArticles ? Number(req.body.maxArticles) : undefined;
+  const saveAsDrafts = typeof req.body?.saveAsDrafts === 'boolean' ? req.body.saveAsDrafts : undefined;
+  const result = await runInsideEvsAutoBlogSyncCycle(force, maxArticles, saveAsDrafts);
+  return res.json({
+    success: !result.error,
+    ...result,
+  });
+});
+
+// Background InsideEVs Auto-Blog Scheduler (ticks every 60s; hydrates initial Tesla wire on empty state)
+setTimeout(() => {
+  const { config, posts } = getStoredAutoBlogState();
+  const insideEvsCount = posts.filter((p) => p.isAutoIngested || p.sourceName === 'InsideEVs').length;
+  if (config.enabled && insideEvsCount === 0) {
+    void runInsideEvsAutoBlogSyncCycle(false, config.maxArticlesPerSync || 6, !config.autoPublish);
+  }
+}, 18000);
+
+setInterval(() => {
+  const { config } = getStoredAutoBlogState();
+  if (!config.enabled) return;
+  const intervalMs = Math.max(5, Number(config.intervalMinutes) || 60) * 60000;
+  const lastMs = config.lastSyncAt ? new Date(config.lastSyncAt).getTime() : 0;
+  if (!lastMs || Date.now() - lastMs >= intervalMs) {
+    void runInsideEvsAutoBlogSyncCycle(false);
+  }
+}, 60000);
 
 // Vite middleware setup for Development or Static serving for Production
 async function startServer() {

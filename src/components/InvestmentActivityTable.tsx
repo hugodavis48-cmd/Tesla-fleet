@@ -325,7 +325,7 @@ export const InvestmentActivityTable: React.FC<InvestmentActivityTableProps> = (
         </div>
 
         {/* KPI Summary Cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 font-mono">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 font-mono">
           <div className="p-4 rounded-2xl bg-zinc-900/80 border border-zinc-800 space-y-1">
             <span className="text-[10px] text-zinc-500 block uppercase">Total Staked Principal</span>
             <div className="font-heading font-black text-lg sm:text-2xl text-white">
@@ -366,7 +366,7 @@ export const InvestmentActivityTable: React.FC<InvestmentActivityTableProps> = (
       {/* Filter Tabs & Search Controls */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
         {/* Category Filter Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
+        <div className="flex items-center gap-1.5 overflow-x-auto flex-nowrap whitespace-nowrap [scrollbar-width:none] [&::-webkit-scrollbar]:hidden pb-1 sm:pb-0">
           {[
             { id: 'all', label: 'All Activity', count: activities.length },
             { id: 'deposit', label: 'Staking Deposits', count: activities.filter((a) => a.type === 'deposit').length },

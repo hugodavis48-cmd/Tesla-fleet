@@ -628,7 +628,7 @@ export const ReferralHub: React.FC<ReferralHubProps> = ({ onOpenDeposit, onOpenA
       </div>
 
       {/* KPI Stats Ribbon */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="p-5 rounded-3xl bg-zinc-950 border border-zinc-800 space-y-1">
           <span className="text-[11px] text-zinc-500 uppercase font-mono">Total Referral Earned</span>
           <div className="font-heading font-black text-3xl text-emerald-400">
@@ -673,7 +673,7 @@ export const ReferralHub: React.FC<ReferralHubProps> = ({ onOpenDeposit, onOpenA
               Active Tier: {engagementSummary.activeLevel.name} (+${currentTierReferralUsd}/referral)
             </span>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
             {tierLevelsList.map((lvl) => {
               const isCurrent = lvl.id === engagementSummary.activeLevel.id;
               return (
@@ -813,7 +813,7 @@ export const ReferralHub: React.FC<ReferralHubProps> = ({ onOpenDeposit, onOpenA
               {/* Instant Social Share Buttons */}
               <div className="p-4 rounded-2xl bg-zinc-900/60 border border-zinc-800 space-y-2">
                 <span className="text-xs text-zinc-400 block">Quick Share via Socials</span>
-                <div className="grid grid-cols-3 gap-2 pt-1">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
                   <a
                     href={twitterShareUrl}
                     target="_blank"
@@ -1353,7 +1353,7 @@ export const ReferralHub: React.FC<ReferralHubProps> = ({ onOpenDeposit, onOpenA
                               </div>
                             </div>
 
-                            <div className="relative grid grid-cols-2 gap-4 pt-3 border-t border-zinc-800">
+                            <div className="relative grid grid-cols-1 sm:grid-cols-2 gap-4 pt-3 border-t border-zinc-800">
                               <div>
                                 <span className="text-[11px] font-mono text-zinc-500 block">Verified Invites</span>
                                 <span className="font-heading font-bold text-lg font-mono tabular-nums text-white">
@@ -1363,7 +1363,7 @@ export const ReferralHub: React.FC<ReferralHubProps> = ({ onOpenDeposit, onOpenA
                                   </span>
                                 </span>
                               </div>
-                              <div className="text-right">
+                              <div className="text-left sm:text-right">
                                 <span className="text-[11px] font-mono text-zinc-500 block">Total Credits Earned</span>
                                 <span className="font-heading font-black text-xl font-mono tabular-nums text-emerald-400 whitespace-nowrap">
                                   ${activeFeaturedEntry.totalCreditsUsd.toLocaleString()} USD

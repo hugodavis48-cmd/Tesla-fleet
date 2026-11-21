@@ -282,7 +282,7 @@ export const TeslaCarSales: React.FC<TeslaCarSalesProps> = ({
           </div>
 
           {/* Quick Pillars */}
-          <div className="flex flex-wrap sm:flex-nowrap items-center gap-3 shrink-0">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:flex md:items-center gap-3 shrink-0 w-full md:w-auto">
             <div className="flex items-center gap-2.5 px-3.5 py-2 rounded-xl bg-zinc-900/80 border border-zinc-800 text-xs">
               <Truck className="w-4 h-4 text-cyan-400 shrink-0" />
               <div>
@@ -295,7 +295,7 @@ export const TeslaCarSales: React.FC<TeslaCarSalesProps> = ({
 
             <button
               onClick={() => setShowPolicyModal(true)}
-              className="flex items-center gap-2.5 px-3.5 py-2 rounded-xl bg-zinc-900/80 border border-emerald-500/30 hover:border-emerald-500 text-xs transition group"
+              className="flex items-center gap-2.5 px-3.5 py-2 rounded-xl bg-zinc-900/80 border border-emerald-500/30 hover:border-emerald-500 text-xs transition group w-full sm:w-auto"
             >
               <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 group-hover:scale-110 transition" />
               <div className="text-left">
@@ -313,14 +313,14 @@ export const TeslaCarSales: React.FC<TeslaCarSalesProps> = ({
         <div className="space-y-4">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             {/* Model Filter Pills */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
+            <div className="flex items-center gap-1.5 overflow-x-auto flex-nowrap whitespace-nowrap [scrollbar-width:none] [&::-webkit-scrollbar]:hidden pb-1 sm:pb-0">
               {modelTabs.map((tab) => {
                 const active = selectedModelFilter === tab.id;
                 return (
                   <button
                     key={tab.id}
                     onClick={() => setSelectedModelFilter(tab.id)}
-                    className={`px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition ${
+                    className={`shrink-0 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
                       active
                         ? 'bg-red-600 text-white shadow-lg shadow-red-900/30'
                         : 'bg-zinc-900/80 text-zinc-400 hover:text-white hover:bg-zinc-800 border border-zinc-800'
@@ -333,8 +333,8 @@ export const TeslaCarSales: React.FC<TeslaCarSalesProps> = ({
             </div>
 
             {/* Search & Sort Controls */}
-            <div className="flex items-center gap-3">
-              <div className="relative flex-1 sm:w-64">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full lg:w-auto">
+              <div className="relative w-full sm:w-64">
                 <Search className="w-4 h-4 text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
@@ -353,37 +353,39 @@ export const TeslaCarSales: React.FC<TeslaCarSalesProps> = ({
                 )}
               </div>
 
-              <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 rounded-xl px-2.5 py-1.5 text-xs text-zinc-300">
-                <SlidersHorizontal className="w-3.5 h-3.5 text-zinc-500" />
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as any)}
-                  className="bg-transparent text-xs text-zinc-200 focus:outline-none cursor-pointer"
-                >
-                  <option value="featured" className="bg-zinc-900">Featured</option>
-                  <option value="price_asc" className="bg-zinc-900">Price: Low to High</option>
-                  <option value="price_desc" className="bg-zinc-900">Price: High to Low</option>
-                  <option value="range" className="bg-zinc-900">Longest Range</option>
-                  <option value="accel" className="bg-zinc-900">Fastest 0-60</option>
-                </select>
-              </div>
+              <div className="flex items-center gap-2 overflow-x-auto flex-nowrap [scrollbar-width:none] [&::-webkit-scrollbar]:hidden shrink-0">
+                <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 rounded-xl px-2.5 py-1.5 text-xs text-zinc-300 shrink-0">
+                  <SlidersHorizontal className="w-3.5 h-3.5 text-zinc-500" />
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value as any)}
+                    className="bg-transparent text-xs text-zinc-200 focus:outline-none cursor-pointer"
+                  >
+                    <option value="featured" className="bg-zinc-900">Featured</option>
+                    <option value="price_asc" className="bg-zinc-900">Price: Low to High</option>
+                    <option value="price_desc" className="bg-zinc-900">Price: High to Low</option>
+                    <option value="range" className="bg-zinc-900">Longest Range</option>
+                    <option value="accel" className="bg-zinc-900">Fastest 0-60</option>
+                  </select>
+                </div>
 
-              <div className="flex items-center gap-1.5 bg-zinc-900 border border-zinc-800 rounded-xl px-2.5 py-1.5 text-xs text-zinc-300">
-                <Globe className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-                <select
-                  aria-label="Vehicle Price Currency"
-                  value={selectedCurrencyCode}
-                  onChange={(e) => setSelectedCurrencyCode(e.target.value)}
-                  className="bg-transparent text-xs font-mono font-bold text-white focus:outline-none cursor-pointer"
-                >
-                  {currencies
-                    .filter((c) => c.isActive)
-                    .map((c) => (
-                      <option key={c.code} value={c.code} className="bg-zinc-900 text-white">
-                        {c.code}
-                      </option>
-                    ))}
-                </select>
+                <div className="flex items-center gap-1.5 bg-zinc-900 border border-zinc-800 rounded-xl px-2.5 py-1.5 text-xs text-zinc-300 shrink-0">
+                  <Globe className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                  <select
+                    aria-label="Vehicle Price Currency"
+                    value={selectedCurrencyCode}
+                    onChange={(e) => setSelectedCurrencyCode(e.target.value)}
+                    className="bg-transparent text-xs font-mono font-bold text-white focus:outline-none cursor-pointer"
+                  >
+                    {currencies
+                      .filter((c) => c.isActive)
+                      .map((c) => (
+                        <option key={c.code} value={c.code} className="bg-zinc-900 text-white">
+                          {c.code}
+                        </option>
+                      ))}
+                  </select>
+                </div>
               </div>
             </div>
           </div>
@@ -434,8 +436,8 @@ export const TeslaCarSales: React.FC<TeslaCarSalesProps> = ({
                     <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-transparent to-black/30 pointer-events-none" />
 
                     {/* Model & Year Tag */}
-                    <div className="absolute top-3 left-3 flex items-center gap-1.5 pointer-events-none">
-                      <span className="px-2.5 py-1 rounded-lg bg-zinc-900/90 backdrop-blur-md border border-zinc-700 text-[11px] font-heading font-black text-white tracking-wide">
+                    <div className="absolute top-3 left-3 flex flex-wrap items-center gap-1.5 max-w-[56%] pointer-events-none">
+                      <span className="px-2.5 py-1 rounded-lg bg-zinc-900/90 backdrop-blur-md border border-zinc-700 text-[10px] sm:text-[11px] font-heading font-black text-white tracking-wide">
                         {car.year} {car.model}
                       </span>
                       {car.isFeatured && (
@@ -497,7 +499,7 @@ export const TeslaCarSales: React.FC<TeslaCarSalesProps> = ({
                       </div>
 
                       {/* Specs Matrix */}
-                      <div className="grid grid-cols-4 gap-2 pt-2 border-t border-zinc-800/80">
+                      <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 pt-2 border-t border-zinc-800/80">
                         <div className="bg-zinc-900/80 border border-zinc-800/60 rounded-xl p-2 text-center">
                           <Gauge className="w-3.5 h-3.5 text-red-400 mx-auto mb-1" />
                           <span className="text-[10px] text-zinc-400 block">0-60 mph</span>
@@ -679,7 +681,7 @@ export const TeslaCarSales: React.FC<TeslaCarSalesProps> = ({
               {/* Technical Specifications Matrix */}
               <div className="space-y-2">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-400">Engineering & Performance Specs</h4>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 text-xs">
                   <div className="p-2.5 rounded-xl bg-zinc-900 border border-zinc-800/80">
                     <span className="text-zinc-500 block text-[10px]">Acceleration 0-60</span>
                     <span className="font-bold text-white font-mono">{viewingCar.zeroToSixty}</span>
@@ -721,15 +723,15 @@ export const TeslaCarSales: React.FC<TeslaCarSalesProps> = ({
 
               {/* Delivery & Warranty Terms */}
               <div className="p-4 rounded-2xl bg-zinc-900/60 border border-zinc-800 space-y-2 text-xs">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-0.5">
                   <span className="text-zinc-400">Nationwide Shipping Turnaround:</span>
                   <span className="font-semibold text-white">{viewingCar.deliveryEstimate}</span>
                 </div>
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-0.5">
                   <span className="text-zinc-400">Tesla Factory Warranty:</span>
                   <span className="font-semibold text-white">{viewingCar.warrantyDetails}</span>
                 </div>
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-0.5">
                   <span className="text-zinc-400">Enclosed Carrier Partners:</span>
                   <span className="font-semibold text-zinc-300">Reliable Carriers, Apex Logistics</span>
                 </div>
@@ -863,7 +865,7 @@ export const TeslaCarSales: React.FC<TeslaCarSalesProps> = ({
                 /* ORDER FORM */
                 <div className="space-y-6">
                   {/* Vehicle Summary Snippet */}
-                  <div className="p-4 rounded-2xl bg-zinc-900/80 border border-zinc-800 flex items-center gap-4">
+                  <div className="p-4 rounded-2xl bg-zinc-900/80 border border-zinc-800 flex flex-col sm:flex-row sm:items-center gap-4">
                     <img
                       src={orderingCar.image}
                       alt={orderingCar.model}
@@ -872,7 +874,7 @@ export const TeslaCarSales: React.FC<TeslaCarSalesProps> = ({
                         e.currentTarget.onerror = null;
                         e.currentTarget.src = '/promo-cyberbeast.jpg';
                       }}
-                      className="w-20 h-14 object-cover rounded-xl border border-zinc-700 shrink-0"
+                      className="w-full sm:w-20 h-32 sm:h-14 object-cover rounded-xl border border-zinc-700 shrink-0"
                     />
                     <div className="flex-1 min-w-0">
                       <h4 className="font-heading font-black text-sm text-white truncate">
@@ -882,7 +884,7 @@ export const TeslaCarSales: React.FC<TeslaCarSalesProps> = ({
                         Color: {orderingCar.color} • Interior: {orderingCar.interiorColor}
                       </p>
                     </div>
-                    <div className="text-right shrink-0">
+                    <div className="text-left sm:text-right shrink-0">
                       <span className="text-[10px] text-zinc-500 uppercase block">Vehicle Price</span>
                       <span className="text-base font-heading font-black text-white tabular-nums">
                         {formatCurrency(orderingCar.salePriceUsd)}
@@ -1152,30 +1154,30 @@ export const TeslaCarSales: React.FC<TeslaCarSalesProps> = ({
 
                     return (
                       <div className="p-4 rounded-2xl bg-zinc-900 border border-zinc-800 space-y-2">
-                        <div className="flex justify-between text-xs text-zinc-400">
+                        <div className="flex flex-col sm:flex-row sm:justify-between gap-0.5 text-xs text-zinc-400">
                           <span>Tesla {orderingCar.model} {orderingCar.trim}:</span>
                           <span className="text-white font-mono tabular-nums">{formatCurrency(orderingCar.salePriceUsd, { includeCode: true })}</span>
                         </div>
-                        <div className="flex justify-between text-xs text-zinc-400">
+                        <div className="flex flex-col sm:flex-row sm:justify-between gap-0.5 text-xs text-zinc-400">
                           <span>Nationwide Enclosed Transport:</span>
                           <span className={shippingFee === 0 ? 'text-emerald-400 font-bold' : 'text-white font-mono tabular-nums'}>
                             {shippingFee === 0 ? 'Free Member Delivery' : formatCurrency(shippingFee, { includeCode: true })}
                           </span>
                         </div>
                         {discountUsd > 0 && (
-                          <div className="flex justify-between text-xs text-emerald-400 font-semibold">
+                          <div className="flex flex-col sm:flex-row sm:justify-between gap-0.5 text-xs text-emerald-400 font-semibold">
                             <span>Coupon Discount ({appliedVehicleCoupon?.code}):</span>
                             <span className="font-mono tabular-nums">- {formatCurrency(discountUsd, { includeCode: true })}</span>
                           </div>
                         )}
-                        <div className="flex justify-between text-xs text-zinc-400">
+                        <div className="flex flex-col sm:flex-row sm:justify-between gap-0.5 text-xs text-zinc-400">
                           <span>Title, Documentation & Temp Registration:</span>
                           <span className="text-emerald-400 font-semibold font-mono">Included ({formatCurrency(0)})</span>
                         </div>
 
                         <hr className="border-zinc-800 my-2" />
 
-                        <div className="flex justify-between items-center text-sm font-bold">
+                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 text-sm font-bold">
                           <span className="text-white">Total Delivery Settlement:</span>
                           <span className="text-xl font-heading font-black text-red-400 tabular-nums">
                             {formatCurrency(totalDue, { includeCode: true })}

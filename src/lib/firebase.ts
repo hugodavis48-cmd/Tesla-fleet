@@ -172,12 +172,15 @@ export const PUBLIC_ADMIN_SETTING_SECTIONS = [
   'business_certificates',
   'blog_posts',
   'blog_comments',
+  'auto_blog_config',
+  'auto_blog_logs',
   'engagement_reward_config',
   'social_links',
   'spin_cost',
   'streak_config',
   'spin_system_config',
   'cron_jobs_config',
+  'investment_activities',
 ] as const;
 
 export const PROTECTED_ADMIN_SETTING_SECTIONS = [

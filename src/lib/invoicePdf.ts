@@ -1,4 +1,5 @@
-import { jsPDF } from 'jspdf';
+import { jsPDF, GState } from 'jspdf';
+import QRCode from 'qrcode';
 import {
   ServiceBooking,
   Transaction,
@@ -77,6 +78,139 @@ function buildFallbackInvoiceDetails(
   };
 }
 
+function isTransactionPaid(statusLabel: string): boolean {
+  const s = (statusLabel || '').toLowerCase();
+  if (!s) return false;
+  if (s.includes('pending') || s.includes('failed') || s.includes('rejected') || s.includes('cancelled') || s.includes('unpaid')) {
+    return false;
+  }
+  return ['completed', 'paid', 'approved', 'verified', 'settled', 'confirmed', 'ready', 'scheduled', 'in bay'].some((k) =>
+    s.includes(k)
+  );
+}
+
+function drawQrVerificationBox(
+  doc: jsPDF,
+  x: number,
+  y: number,
+  width: number,
+  invoiceNumber: string,
+  txHash: string,
+  totalUsd: number,
+  statusLabel: string,
+  paid: boolean
+): void {
+  const boxHeight = 33;
+  doc.setFillColor(248, 250, 252);
+  doc.setDrawColor(203, 213, 225);
+  doc.roundedRect(x, y, width, boxHeight, 2, 2, 'FD');
+
+  const origin =
+    typeof window !== 'undefined' && window.location?.origin
+      ? window.location.origin
+      : 'https://apex-tesla.io';
+  const verifyPayload = `${origin}/?tab=dashboard&verify=${encodeURIComponent(invoiceNumber)}&tx=${encodeURIComponent(
+    txHash
+  )}&amount=${Number(totalUsd || 0).toFixed(2)}&status=${paid ? 'PAID' : 'PENDING'}`;
+
+  const qrOuterSize = 27;
+  const qrX = x + 3;
+  const qrY = y + 3;
+
+  doc.setFillColor(255, 255, 255);
+  doc.setDrawColor(226, 232, 240);
+  doc.roundedRect(qrX, qrY, qrOuterSize, qrOuterSize, 1.5, 1.5, 'FD');
+
+  try {
+    const qr = QRCode.create(verifyPayload, { errorCorrectionLevel: 'M' });
+    const count = qr.modules.size;
+    const data = qr.modules.data;
+    const quietZone = 1.8;
+    const cellSize = (qrOuterSize - quietZone * 2) / count;
+
+    doc.setFillColor(15, 23, 42);
+    for (let row = 0; row < count; row++) {
+      for (let col = 0; col < count; col++) {
+        if (data[row * count + col]) {
+          doc.rect(qrX + quietZone + col * cellSize, qrY + quietZone + row * cellSize, cellSize + 0.05, cellSize + 0.05, 'F');
+        }
+      }
+    }
+  } catch {
+    doc.setFont('courier', 'bold');
+    doc.setFontSize(7);
+    doc.setTextColor(15, 23, 42);
+    doc.text('QR SEAL', qrX + qrOuterSize / 2, qrY + qrOuterSize / 2, { align: 'center' });
+  }
+
+  const infoX = qrX + qrOuterSize + 3.5;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  doc.setTextColor(100, 116, 139);
+  doc.text('QUICK VERIFICATION QR', infoX, y + 7.5);
+
+  doc.setFont('courier', 'bold');
+  doc.setFontSize(8.5);
+  doc.setTextColor(15, 23, 42);
+  doc.text(invoiceNumber.slice(0, 22), infoX, y + 13);
+
+  doc.setFont('courier', 'normal');
+  doc.setFontSize(7.2);
+  doc.setTextColor(71, 85, 105);
+  const shortTx = txHash.length > 20 ? `${txHash.slice(0, 10)}...${txHash.slice(-6)}` : txHash;
+  doc.text(`TX: ${shortTx}`, infoX, y + 18);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  if (paid) {
+    doc.setTextColor(5, 150, 105);
+    doc.text('STATUS: PAID · VERIFIED', infoX, y + 23.5);
+  } else {
+    doc.setTextColor(217, 119, 6);
+    doc.text(`STATUS: ${statusLabel.toUpperCase().slice(0, 18)}`, infoX, y + 23.5);
+  }
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.8);
+  doc.setTextColor(100, 116, 139);
+  doc.text('Scan code to verify settlement', infoX, y + 28.5);
+}
+
+function drawPaidWatermark(doc: jsPDF, invoiceNumber: string): void {
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const totalPages = doc.getNumberOfPages();
+
+  for (let p = 1; p <= totalPages; p++) {
+    doc.setPage(p);
+    doc.saveGraphicsState();
+    doc.setGState(new GState({ opacity: 0.11 }));
+
+    const cx = pageWidth / 2;
+    const cy = pageHeight * 0.56;
+
+    doc.setTextColor(16, 185, 129);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(76);
+    doc.text('PAID', cx, cy, {
+      align: 'center',
+      baseline: 'middle',
+      angle: 35,
+    });
+
+    doc.setGState(new GState({ opacity: 0.16 }));
+    doc.setFontSize(11);
+    doc.setTextColor(5, 150, 105);
+    doc.text(`VERIFIED SETTLEMENT · ${invoiceNumber}`, cx + 8, cy + 20, {
+      align: 'center',
+      baseline: 'middle',
+      angle: 35,
+    });
+
+    doc.restoreGraphicsState();
+  }
+}
+
 function renderPdfInvoiceDocument(
   invoiceNumber: string,
   issuedAt: string,
@@ -92,6 +226,7 @@ function renderPdfInvoiceDocument(
     format: 'a4',
   });
 
+  const paid = isTransactionPaid(statusLabel);
   const pageWidth = doc.internal.pageSize.getWidth();
   const margin = 16;
   const contentWidth = pageWidth - margin * 2;
@@ -272,47 +407,65 @@ function renderPdfInvoiceDocument(
   });
 
   y += 8;
+  if (y + 38 > 256) {
+    doc.addPage();
+    y = 22;
+  }
 
-  // Totals Summary Box (Right aligned)
+  // Left: Cryptographic Verification QR Block | Right: Totals Summary Box
+  const qrBoxWidth = 92;
+  drawQrVerificationBox(
+    doc,
+    margin,
+    y,
+    qrBoxWidth,
+    invoiceNumber,
+    txHash,
+    details.totalUsd,
+    statusLabel,
+    paid
+  );
+
   const summaryWidth = 78;
   const summaryX = pageWidth - margin - summaryWidth;
+  let summaryY = y + 3;
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
   doc.setTextColor(71, 85, 105);
-  doc.text('Subtotal:', summaryX, y);
+  doc.text('Subtotal:', summaryX, summaryY);
   doc.setFont('courier', 'normal');
-  doc.text(formatMoney(details.subtotalUsd), pageWidth - margin, y, { align: 'right' });
-  y += 6;
+  doc.text(formatMoney(details.subtotalUsd), pageWidth - margin, summaryY, { align: 'right' });
+  summaryY += 6;
 
   if (details.discountUsd > 0) {
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(22, 163, 74);
-    doc.text(`Discount${details.couponCode ? ` (${details.couponCode})` : ''}:`, summaryX, y);
+    doc.text(`Discount${details.couponCode ? ` (${details.couponCode})` : ''}:`, summaryX, summaryY);
     doc.setFont('courier', 'bold');
-    doc.text(`- ${formatMoney(details.discountUsd)}`, pageWidth - margin, y, { align: 'right' });
-    y += 6;
+    doc.text(`- ${formatMoney(details.discountUsd)}`, pageWidth - margin, summaryY, { align: 'right' });
+    summaryY += 6;
   }
 
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(71, 85, 105);
-  doc.text('Shipping & Bay Handling:', summaryX, y);
+  doc.text('Shipping & Bay Handling:', summaryX, summaryY);
   doc.setFont('courier', 'normal');
-  doc.text(details.shippingUsd > 0 ? formatMoney(details.shippingUsd) : '$0.00 USD (FREE)', pageWidth - margin, y, {
+  doc.text(details.shippingUsd > 0 ? formatMoney(details.shippingUsd) : '$0.00 USD (FREE)', pageWidth - margin, summaryY, {
     align: 'right',
   });
-  y += 6;
+  summaryY += 6;
 
   doc.setFillColor(9, 13, 22);
-  doc.roundedRect(summaryX - 4, y, summaryWidth + 4, 12, 2, 2, 'F');
+  doc.roundedRect(summaryX - 4, summaryY, summaryWidth + 4, 12, 2, 2, 'F');
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10);
   doc.setTextColor(255, 255, 255);
-  doc.text('TOTAL PAID:', summaryX, y + 7.8);
+  doc.text(paid ? 'TOTAL PAID:' : 'TOTAL DUE:', summaryX, summaryY + 7.8);
   doc.setFont('courier', 'bold');
   doc.setFontSize(11);
-  doc.setTextColor(52, 211, 153);
-  doc.text(formatMoney(details.totalUsd), pageWidth - margin - 2, y + 7.8, { align: 'right' });
+  doc.setTextColor(paid ? 52 : 251, paid ? 211 : 191, paid ? 153 : 36);
+  doc.text(formatMoney(details.totalUsd), pageWidth - margin - 2, summaryY + 7.8, { align: 'right' });
 
   // Warranty & Legal Footer
   const footerY = 268;
@@ -337,6 +490,11 @@ function renderPdfInvoiceDocument(
     margin,
     footerY + 9
   );
+
+  // Diagonal PAID rubber-stamp watermark overlay when settlement succeeded
+  if (paid) {
+    drawPaidWatermark(doc, invoiceNumber);
+  }
 
   doc.save(filename);
 }

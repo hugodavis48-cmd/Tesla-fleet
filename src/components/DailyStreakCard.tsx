@@ -202,7 +202,7 @@ export const DailyStreakCard: React.FC<DailyStreakCardProps> = ({ compact = fals
       </div>
 
       {/* KPI Strip */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
         <div className="rounded-2xl bg-zinc-900/80 border border-zinc-800 p-4 space-y-1">
           <span className="text-[10px] font-mono text-zinc-400 uppercase block">Current Streak</span>
           <div className="font-heading font-black text-2xl text-amber-400 tabular-nums flex items-center gap-1.5">
@@ -257,7 +257,7 @@ export const DailyStreakCard: React.FC<DailyStreakCardProps> = ({ compact = fals
           </span>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5">
+        <div className="grid grid-cols-1 sm:grid-cols-4 lg:grid-cols-7 gap-2.5">
           {dailyRates.map((rate) => {
             const completed = activeCycleDay >= rate.day && userStreakState.currentStreak > 0;
             const isNext = !userStreakState.checkedInToday && upcomingDay === rate.day;

@@ -538,7 +538,7 @@ export const PendingShipmentsSection: React.FC<PendingShipmentsSectionProps> = (
       {isAdmin && sectionTab === 'admin' && (
         <div className="space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex flex-wrap items-center gap-1.5">
+            <div className="flex items-center gap-1.5 overflow-x-auto flex-nowrap whitespace-nowrap max-w-full [scrollbar-width:none] [&::-webkit-scrollbar]:hidden pb-1 sm:pb-0">
               {[
                 { id: 'all', label: `All Records (${wonPrizes.length})` },
                 {
@@ -804,8 +804,8 @@ export const PendingShipmentsSection: React.FC<PendingShipmentsSectionProps> = (
       {(!isAdmin || sectionTab === 'user') && (
         <>
           {/* Filter & Balance Bar */}
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-1.5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-1.5 overflow-x-auto flex-nowrap whitespace-nowrap max-w-full [scrollbar-width:none] [&::-webkit-scrollbar]:hidden pb-1 sm:pb-0">
               {[
                 { id: 'all', label: `All (${myPrizes.length})` },
                 { id: 'pending', label: `Pending & Verification (${pendingActionCount})` },
@@ -815,7 +815,7 @@ export const PendingShipmentsSection: React.FC<PendingShipmentsSectionProps> = (
                   key={tab.id}
                   type="button"
                   onClick={() => setFilterMode(tab.id as typeof filterMode)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                  className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition cursor-pointer ${
                     filterMode === tab.id
                       ? 'bg-zinc-800 text-white border border-zinc-700'
                       : 'text-zinc-400 hover:text-white border border-transparent'

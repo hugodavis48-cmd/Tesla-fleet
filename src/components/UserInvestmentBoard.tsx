@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { UserInvestment } from '../types';
+import { UserInvestment, InvestmentActivityItem } from '../types';
+import { INVESTMENT_POOLS } from '../data/mockData';
 import { RoiGrowthChart } from './RoiGrowthChart';
+import { InvestmentActivityTable } from './InvestmentActivityTable';
 import {
   TrendingUp,
   Clock,
@@ -42,6 +44,8 @@ export const UserInvestmentBoard: React.FC<UserInvestmentBoardProps> = ({
     triggerManualCronCycle,
     showToast,
     currentUser,
+    investmentActivities,
+    appendInvestmentActivity,
   } = useApp();
 
   const [activeFilter, setActiveFilter] = useState<'all' | 'running' | 'completed'>('all');
@@ -98,7 +102,7 @@ export const UserInvestmentBoard: React.FC<UserInvestmentBoardProps> = ({
   return (
     <div className="space-y-8">
       {/* KPI Summary Dashboard Header */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Active Principal */}
         <div className="p-5 rounded-3xl bg-zinc-950 border border-zinc-800 shadow-xl relative overflow-hidden">
           <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/10 rounded-full blur-xl pointer-events-none" />
@@ -185,10 +189,10 @@ export const UserInvestmentBoard: React.FC<UserInvestmentBoardProps> = ({
       {/* Tabs and Controls Bar */}
       <div className="p-4 rounded-3xl bg-zinc-950 border border-zinc-800 flex flex-col sm:flex-row items-center justify-between gap-4">
         {/* Filter buttons */}
-        <div className="flex items-center p-1 bg-zinc-900 rounded-2xl border border-zinc-800 w-full sm:w-auto">
+        <div className="flex items-center p-1 bg-zinc-900 rounded-2xl border border-zinc-800 w-full sm:w-auto overflow-x-auto flex-nowrap whitespace-nowrap [scrollbar-width:none] [&::-webkit-scrollbar]:hidden gap-1">
           <button
             onClick={() => setActiveFilter('all')}
-            className={`flex-1 sm:flex-none px-4 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 ${
+            className={`shrink-0 px-4 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 whitespace-nowrap ${
               activeFilter === 'all'
                 ? 'bg-gradient-to-r from-red-600 to-rose-600 text-white shadow-md'
                 : 'text-zinc-400 hover:text-white'
@@ -199,7 +203,7 @@ export const UserInvestmentBoard: React.FC<UserInvestmentBoardProps> = ({
           </button>
           <button
             onClick={() => setActiveFilter('running')}
-            className={`flex-1 sm:flex-none px-4 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 ${
+            className={`shrink-0 px-4 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 whitespace-nowrap ${
               activeFilter === 'running'
                 ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md'
                 : 'text-zinc-400 hover:text-white'
@@ -210,7 +214,7 @@ export const UserInvestmentBoard: React.FC<UserInvestmentBoardProps> = ({
           </button>
           <button
             onClick={() => setActiveFilter('completed')}
-            className={`flex-1 sm:flex-none px-4 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 ${
+            className={`shrink-0 px-4 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 whitespace-nowrap ${
               activeFilter === 'completed'
                 ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md'
                 : 'text-zinc-400 hover:text-white'
@@ -289,9 +293,9 @@ export const UserInvestmentBoard: React.FC<UserInvestmentBoardProps> = ({
                 }`}
               >
                 {/* Header status bar */}
-                <div className="flex items-start justify-between gap-3 border-b border-zinc-800/80 pb-4">
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 border-b border-zinc-800/80 pb-4">
                   <div className="space-y-1">
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <span
                         className={`px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase tracking-wider border ${
                           isRunning
@@ -306,8 +310,8 @@ export const UserInvestmentBoard: React.FC<UserInvestmentBoardProps> = ({
                     <h3 className="font-heading font-bold text-lg text-white">{inv.poolTitle}</h3>
                   </div>
 
-                  <div className="text-right">
-                    <span className="px-3 py-1 rounded-xl bg-gradient-to-r from-emerald-600/20 to-teal-600/20 text-emerald-400 border border-emerald-500/30 text-xs font-mono font-bold block">
+                  <div className="text-left sm:text-right shrink-0">
+                    <span className="inline-block sm:block px-3 py-1 rounded-xl bg-gradient-to-r from-emerald-600/20 to-teal-600/20 text-emerald-400 border border-emerald-500/30 text-xs font-mono font-bold">
                       {inv.apy}% APY
                     </span>
                     <span className="text-[10px] text-zinc-500 font-mono mt-1 block">
@@ -342,7 +346,7 @@ export const UserInvestmentBoard: React.FC<UserInvestmentBoardProps> = ({
                 )}
 
                 {/* Financial Figures Grid */}
-                <div className="grid grid-cols-3 gap-3 p-4 rounded-2xl bg-zinc-900/60 border border-zinc-800/80 text-xs font-mono">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 rounded-2xl bg-zinc-900/60 border border-zinc-800/80 text-xs font-mono">
                   <div>
                     <span className="text-[10px] text-zinc-500 uppercase block font-medium">Principal</span>
                     <span className="text-white font-bold text-sm">
@@ -457,6 +461,33 @@ export const UserInvestmentBoard: React.FC<UserInvestmentBoardProps> = ({
         </div>
       )}
 
+      {/* Persistent Investment Activity & Daily ROI Cron Payout Ledger */}
+      <InvestmentActivityTable
+        activities={investmentActivities}
+        onSimulateMilestone={() => {
+          const pool = INVESTMENT_POOLS[0];
+          const randomHex = Math.random().toString(16).substring(2, 8);
+          const item: InvestmentActivityItem = {
+            id: `act-mile-${Date.now()}`,
+            type: 'milestone',
+            assetId: pool?.id || 'pool-robotaxi',
+            assetTitle: pool?.title || 'Autonomous Tesla Robotaxi Yield Pool',
+            category: pool?.category || 'Autonomous Robotaxi Fleet',
+            amountUsd: 175,
+            cryptoFormatted: '+175.00 USD (Reward)',
+            apyRate: pool?.apy || 18.4,
+            timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
+            status: 'confirmed',
+            txHash: `0x89${randomHex}...${Math.random().toString(16).substring(2, 6)}`,
+            milestoneTitle: 'Autonomous Fleet Telematics Target Surpassed (94.2%)',
+            notes: 'Milestone bonus logged directly from Dashboard Investment Board.',
+            userId: currentUser?.id || 'usr-apex-001',
+          };
+          appendInvestmentActivity(item);
+          showToast('Milestone reward event logged to Investment Activity Ledger!', 'success');
+        }}
+      />
+
       {/* Official Yield Certificate Modal */}
       {selectedCertificate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
@@ -532,10 +563,10 @@ export const UserInvestmentBoard: React.FC<UserInvestmentBoardProps> = ({
             </div>
 
             {/* Actions */}
-            <div className="flex items-center justify-between gap-3 pt-2">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2">
               <button
                 onClick={() => handleWhatsAppShare(selectedCertificate)}
-                className="px-4 py-2.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 text-emerald-400 text-xs font-bold transition flex items-center gap-2"
+                className="px-4 py-2.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 text-emerald-400 text-xs font-bold transition flex items-center justify-center gap-2"
               >
                 <Share2 className="w-4 h-4" />
                 <span>Share Certificate on WhatsApp</span>
@@ -546,7 +577,7 @@ export const UserInvestmentBoard: React.FC<UserInvestmentBoardProps> = ({
                   showToast('Certificate PDF generated for print dispatch.', 'success');
                   setSelectedCertificate(null);
                 }}
-                className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold shadow-lg transition flex items-center gap-2"
+                className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold shadow-lg transition flex items-center justify-center gap-2"
               >
                 <Printer className="w-4 h-4" />
                 <span>Print Certificate</span>

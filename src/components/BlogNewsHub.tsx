@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { useTheme } from '../context/ThemeContext';
-import { BlogCategory, BlogPost, SocialSharePlatformId } from '../types';
+import { BlogCategory, BlogContentImage, BlogPost, SocialSharePlatformId } from '../types';
 import {
   SOCIAL_SHARE_PLATFORMS,
   buildArticleShareUrl,
@@ -32,6 +32,8 @@ import {
   Globe,
   ShieldCheck,
   UserCheck,
+  RefreshCw,
+  Rss,
 } from 'lucide-react';
 
 const BLOG_CATEGORIES: { id: 'all' | BlogCategory; label: string }[] = [
@@ -48,16 +50,95 @@ const formatCentsLabel = (cents: number): string => {
   return `${clean}¢ ($${(clean / 100).toFixed(2)})`;
 };
 
-const renderArticleBody = (content: string, isLight: boolean) => {
+const renderInlineRichText = (text: string, isLight: boolean): React.ReactNode[] => {
+  const nodes: React.ReactNode[] = [];
+  const tokenRegex = /(\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|\*\*([^*]+)\*\*)/g;
+  let lastIdx = 0;
+  let match: RegExpExecArray | null;
+  let partKey = 0;
+
+  while ((match = tokenRegex.exec(text)) !== null) {
+    if (match.index > lastIdx) {
+      nodes.push(text.slice(lastIdx, match.index));
+    }
+    if (match[2] && match[3]) {
+      nodes.push(
+        <a
+          key={`lnk-${partKey++}`}
+          href={match[3]}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 font-semibold text-red-500 hover:text-red-400 underline underline-offset-4 decoration-red-500/40 transition"
+        >
+          <span>{match[2]}</span>
+          <ExternalLink className="w-3 h-3 inline shrink-0" />
+        </a>
+      );
+    } else if (match[4]) {
+      nodes.push(
+        <strong key={`bld-${partKey++}`} className={isLight ? 'font-bold text-slate-900' : 'font-bold text-white'}>
+          {match[4]}
+        </strong>
+      );
+    }
+    lastIdx = match.index + match[0].length;
+  }
+
+  if (lastIdx < text.length) {
+    nodes.push(text.slice(lastIdx));
+  }
+  return nodes.length > 0 ? nodes : [text];
+};
+
+const renderContentFigure = (img: BlogContentImage, isLight: boolean, key: string) => (
+  <figure
+    key={key}
+    className={`my-6 rounded-2xl overflow-hidden border ${
+      isLight ? 'bg-slate-50 border-slate-200' : 'bg-zinc-900/60 border-zinc-800'
+    }`}
+  >
+    <div className="aspect-video w-full overflow-hidden bg-zinc-900">
+      <img
+        src={img.url}
+        alt={img.alt || img.caption || 'Tesla EV editorial briefing visual'}
+        referrerPolicy="no-referrer"
+        onError={(e) => {
+          (e.currentTarget as HTMLImageElement).src = '/img-supercharger-node.jpg';
+        }}
+        className="w-full h-full object-cover"
+      />
+    </div>
+    {img.caption && (
+      <figcaption
+        className={`px-4 py-2.5 text-xs font-mono flex items-center justify-between gap-2 ${
+          isLight ? 'text-slate-600' : 'text-zinc-400'
+        }`}
+      >
+        <span>{img.caption}</span>
+      </figcaption>
+    )}
+  </figure>
+);
+
+const renderArticleBody = (
+  content: string,
+  isLight: boolean,
+  contentImages: BlogContentImage[] = []
+) => {
   const blocks = content.split(/\n\n+/);
-  return blocks.map((block, idx) => {
+  const midIdx = Math.max(1, Math.floor(blocks.length * 0.4));
+  const lateIdx = Math.max(midIdx + 1, Math.floor(blocks.length * 0.78));
+
+  const elements: React.ReactNode[] = [];
+
+  blocks.forEach((block, idx) => {
     const trimmed = block.trim();
-    if (!trimmed) return null;
+    if (!trimmed) return;
 
     if (trimmed.startsWith('## ')) {
-      return (
+      elements.push(
         <h2
-          key={idx}
+          key={`blk-${idx}`}
           className={`font-heading font-bold text-xl sm:text-2xl tracking-tight pt-4 ${
             isLight ? 'text-slate-900' : 'text-white'
           }`}
@@ -65,12 +146,10 @@ const renderArticleBody = (content: string, isLight: boolean) => {
           {trimmed.replace(/^##\s+/, '')}
         </h2>
       );
-    }
-
-    if (trimmed.startsWith('### ')) {
-      return (
+    } else if (trimmed.startsWith('### ')) {
+      elements.push(
         <h3
-          key={idx}
+          key={`blk-${idx}`}
           className={`font-heading font-bold text-lg tracking-tight pt-2 ${
             isLight ? 'text-slate-800' : 'text-zinc-100'
           }`}
@@ -78,36 +157,49 @@ const renderArticleBody = (content: string, isLight: boolean) => {
           {trimmed.replace(/^###\s+/, '')}
         </h3>
       );
+    } else {
+      const lines = trimmed.split('\n');
+      const isBulletList = lines.every((l) => l.trim().startsWith('- ') || l.trim().startsWith('* '));
+      if (isBulletList) {
+        elements.push(
+          <ul
+            key={`blk-${idx}`}
+            className={`space-y-2.5 pl-5 list-disc text-sm sm:text-base leading-relaxed ${
+              isLight ? 'text-slate-700' : 'text-zinc-300'
+            }`}
+          >
+            {lines.map((line, lIdx) => (
+              <li key={lIdx}>{renderInlineRichText(line.trim().replace(/^[-*]\s+/, ''), isLight)}</li>
+            ))}
+          </ul>
+        );
+      } else {
+        elements.push(
+          <p
+            key={`blk-${idx}`}
+            className={`text-sm sm:text-base leading-relaxed ${
+              isLight ? 'text-slate-700' : 'text-zinc-300'
+            }`}
+          >
+            {renderInlineRichText(trimmed, isLight)}
+          </p>
+        );
+      }
     }
 
-    const lines = trimmed.split('\n');
-    const isBulletList = lines.every((l) => l.trim().startsWith('- ') || l.trim().startsWith('* '));
-    if (isBulletList) {
-      return (
-        <ul
-          key={idx}
-          className={`space-y-2 pl-5 list-disc text-sm sm:text-base leading-relaxed ${
-            isLight ? 'text-slate-700' : 'text-zinc-300'
-          }`}
-        >
-          {lines.map((line, lIdx) => (
-            <li key={lIdx}>{line.trim().replace(/^[-*]\s+/, '')}</li>
-          ))}
-        </ul>
-      );
+    if (idx === midIdx && contentImages[0]) {
+      elements.push(renderContentFigure(contentImages[0], isLight, 'fig-mid'));
     }
-
-    return (
-      <p
-        key={idx}
-        className={`text-sm sm:text-base leading-relaxed ${
-          isLight ? 'text-slate-700' : 'text-zinc-300'
-        }`}
-      >
-        {trimmed}
-      </p>
-    );
+    if (idx === lateIdx && contentImages[1]) {
+      elements.push(renderContentFigure(contentImages[1], isLight, 'fig-late'));
+    }
   });
+
+  if (blocks.length <= midIdx && contentImages[0]) {
+    elements.push(renderContentFigure(contentImages[0], isLight, 'fig-mid-tail'));
+  }
+
+  return elements;
 };
 
 export const BlogNewsHub: React.FC = () => {
@@ -133,6 +225,9 @@ export const BlogNewsHub: React.FC = () => {
     toggleBlogBookmark,
     addBlogComment,
     seoSettings,
+    autoBlogConfig,
+    isSyncingAutoBlog,
+    runAutoBlogSyncNow,
     showToast,
   } = useApp();
 
@@ -326,23 +421,54 @@ export const BlogNewsHub: React.FC = () => {
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div className="space-y-1.5">
             <div className={`flex flex-wrap items-center gap-2 text-xs font-mono uppercase tracking-wider ${mutedText}`}>
-              <span className="text-red-500 font-bold">Apex Editorial & Engagement Economy</span>
+              <span className="text-red-500 font-bold">Apex Editorial & InsideEVs Tesla Wire</span>
               <span>·</span>
               <span>{engagementRewardConfig.enabled ? 'Rewards Active' : 'Rewards Paused'}</span>
+              <span>·</span>
+              <span className="inline-flex items-center gap-1 text-sky-400 font-semibold">
+                <Rss className="w-3 h-3" />
+                {autoBlogConfig.enabled ? 'Auto-Sync ON' : 'Manual Wire'}
+              </span>
               <span>·</span>
               <span className="text-emerald-500 font-semibold">
                 {tierLabel} ({tierMultiplier.toFixed(2)}× Tier Boost)
               </span>
             </div>
             <h1 className={`font-heading font-black text-2xl sm:text-3xl tracking-tight ${isLight ? 'text-slate-900' : 'text-white'}`}>
-              EV Intelligence, Fleet News & Social Share Rewards
+              EV Intelligence, InsideEVs Tesla Wire & Social Share Rewards
             </h1>
             <p className={`text-sm max-w-2xl ${mutedText}`}>
-              Read technical briefings, share articles across social platforms for progressive multi-share cents, and accumulate real fractional USD directly into your spendable vault.
+              Real-time Tesla EV reporting synced and AI-enriched from{' '}
+              <a
+                href="https://insideevs.com/tesla/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-red-500 hover:underline font-medium"
+              >
+                InsideEVs.com/tesla
+              </a>
+              {' '}with verified source links, SEO briefs, and fractional USD vault rewards.
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-3 shrink-0">
+            {currentUser?.role === 'admin' && (
+              <button
+                type="button"
+                disabled={isSyncingAutoBlog}
+                onClick={() => {
+                  void runAutoBlogSyncNow(true);
+                }}
+                className={`px-4 py-3 rounded-xl border font-heading font-bold text-xs transition flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0 ${
+                  isLight
+                    ? 'bg-white border-slate-200 hover:border-red-500 text-slate-800'
+                    : 'bg-zinc-900 border-zinc-700 hover:border-red-500 text-zinc-100'
+                } disabled:opacity-60`}
+              >
+                <RefreshCw className={`w-3.5 h-3.5 text-red-500 ${isSyncingAutoBlog ? 'animate-spin' : ''}`} />
+                <span>{isSyncingAutoBlog ? 'Syncing InsideEVs...' : 'Sync InsideEVs Now'}</span>
+              </button>
+            )}
             {currentUser ? (
               <div className={`px-4 py-3 rounded-xl border text-right ${isLight ? 'bg-slate-50 border-slate-200' : 'bg-zinc-900/90 border-zinc-800'}`}>
                 <span className={`text-[11px] font-mono uppercase block ${mutedText}`}>Lifetime Earned</span>
@@ -570,8 +696,53 @@ export const BlogNewsHub: React.FC = () => {
                 <p className={`text-base sm:text-lg font-medium leading-relaxed ${isLight ? 'text-slate-800' : 'text-zinc-200'}`}>
                   {activePost.excerpt}
                 </p>
+
+                {/* Verified Source Attribution & Original Reporting Hyperlink Card */}
+                {activePost.sourceUrl && (
+                  <div
+                    className={`rounded-xl border p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                      isLight
+                        ? 'bg-slate-50 border-slate-200 text-slate-800'
+                        : 'bg-zinc-900/80 border-zinc-800 text-zinc-200'
+                    }`}
+                  >
+                    <div className="space-y-0.5 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2 text-[11px] font-mono uppercase tracking-wider">
+                        <span className="text-red-500 font-bold">
+                          Source Attribution · {activePost.sourceName || 'InsideEVs'}
+                        </span>
+                        {activePost.isAiRewritten && (
+                          <>
+                            <span className={mutedText}>·</span>
+                            <span className="text-emerald-500 font-semibold">AI Editorial Adaptation</span>
+                          </>
+                        )}
+                        {activePost.sourcePublishedAt && (
+                          <>
+                            <span className={mutedText}>·</span>
+                            <span className={mutedText}>{activePost.sourcePublishedAt}</span>
+                          </>
+                        )}
+                      </div>
+                      <p className={`text-xs ${mutedText}`}>
+                        {activePost.sourceAuthor ? `Original reporting by ${activePost.sourceAuthor} on ` : 'Adapted & analyzed from '}
+                        {activePost.sourceName || 'InsideEVs'}. Full factual attribution maintained.
+                      </p>
+                    </div>
+                    <a
+                      href={activePost.sourceUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-semibold transition whitespace-nowrap shrink-0"
+                    >
+                      <span>Original {activePost.sourceName || 'InsideEVs'} Article</span>
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </a>
+                  </div>
+                )}
+
                 <div className={`border-t pt-5 space-y-4 ${isLight ? 'border-slate-200' : 'border-zinc-800'}`}>
-                  {renderArticleBody(activePost.content, isLight)}
+                  {renderArticleBody(activePost.content, isLight, activePost.contentImages || [])}
                 </div>
 
                 {/* Engagement Actions Bar */}
@@ -669,8 +840,21 @@ export const BlogNewsHub: React.FC = () => {
                       </div>
                       <div>
                         <strong className={isLight ? 'text-slate-900' : 'text-zinc-200'}>Canonical URL & Schema:</strong>{' '}
-                        <span className="font-mono">/?tab=blog&post={activePost.slug}</span> ({activePost.schemaType})
+                        <span className="font-mono">/?tab=blog&post={activePost.slug}</span> ({activePost.schemaType || 'NewsArticle'})
                       </div>
+                      {activePost.sourceUrl && (
+                        <div>
+                          <strong className={isLight ? 'text-slate-900' : 'text-zinc-200'}>Schema.org Citation / isBasedOn:</strong>{' '}
+                          <a
+                            href={activePost.sourceUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-red-500 hover:underline font-mono break-all"
+                          >
+                            {activePost.sourceUrl}
+                          </a>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -981,6 +1165,12 @@ export const BlogNewsHub: React.FC = () => {
                 <div className="space-y-3">
                   <div className={`flex flex-wrap items-center gap-2 text-xs font-mono ${mutedText}`}>
                     <span className="text-red-500 font-bold uppercase">Featured · {featuredPost.category}</span>
+                    {featuredPost.sourceName && (
+                      <>
+                        <span>·</span>
+                        <span className="text-sky-400 font-semibold">{featuredPost.sourceName} Wire</span>
+                      </>
+                    )}
                     <span>·</span>
                     <span>{featuredPost.publishedAt}</span>
                     <span>·</span>
@@ -1013,6 +1203,17 @@ export const BlogNewsHub: React.FC = () => {
               </div>
             </div>
           )}
+
+          {/* Editorial Archive Counter */}
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-mono">
+            <span className={mutedText}>
+              Showing <strong className={isLight ? 'text-slate-900' : 'text-white'}>{filteredPosts.length}</strong> of{' '}
+              <strong className={isLight ? 'text-slate-900' : 'text-white'}>{publishedPosts.length}</strong> SEO-Optimized EV Briefings
+            </span>
+            <span className="text-sky-400 font-semibold">
+              {publishedPosts.filter((p) => p.sourceName === 'InsideEVs' || p.isAutoIngested).length} InsideEVs Wire Reposts Indexed
+            </span>
+          </div>
 
           {/* Articles Grid */}
           {filteredPosts.length === 0 ? (
@@ -1056,6 +1257,12 @@ export const BlogNewsHub: React.FC = () => {
                       <div className="space-y-2">
                         <div className={`flex flex-wrap items-center gap-1.5 text-[11px] font-mono ${mutedText}`}>
                           <span className="text-red-500 font-bold uppercase">{post.category}</span>
+                          {post.sourceName && (
+                            <>
+                              <span>·</span>
+                              <span className="text-sky-400 font-semibold">{post.sourceName}</span>
+                            </>
+                          )}
                           <span>·</span>
                           <span>{post.publishedAt}</span>
                           <span>·</span>

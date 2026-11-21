@@ -546,7 +546,7 @@ export const LoyaltyHub: React.FC<LoyaltyHubProps> = ({
             />
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 text-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2 text-xs">
             <div className="flex items-center justify-between py-2 px-3 rounded-xl bg-zinc-900/70 border border-zinc-800">
               <span className="text-zinc-400">Active Multiplier</span>
               <span className={`font-mono font-bold tabular-nums ${activeTier.accentText}`}>{activeTier.multiplierLabel}</span>
@@ -670,7 +670,7 @@ export const LoyaltyHub: React.FC<LoyaltyHubProps> = ({
                       : `$${tier.minDepositUsd.toLocaleString()}+ deposited`}
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2 text-[11px] py-2 border-y border-zinc-800/80">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] py-2 border-y border-zinc-800/80">
                     <div>
                       <span className="text-zinc-500 block">Cashback</span>
                       <span className="font-mono font-bold text-emerald-400 tabular-nums">{tier.cashbackRatePct}%</span>
@@ -724,19 +724,19 @@ export const LoyaltyHub: React.FC<LoyaltyHubProps> = ({
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="relative">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full md:w-auto">
+            <div className="relative w-full sm:w-auto">
               <Search className="w-3.5 h-3.5 text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search activity..."
-                className="pl-8 pr-3 py-1.5 rounded-xl bg-zinc-900 border border-zinc-800 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-red-500"
+                className="w-full sm:w-44 pl-8 pr-3 py-1.5 rounded-xl bg-zinc-900 border border-zinc-800 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-red-500"
               />
             </div>
 
-            <div className="flex items-center gap-1 bg-zinc-900 border border-zinc-800 rounded-xl p-1">
+            <div className="flex items-center gap-1 bg-zinc-900 border border-zinc-800 rounded-xl p-1 overflow-x-auto flex-nowrap whitespace-nowrap max-w-full [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {(
                 [
                   { id: 'all', label: 'All' },
@@ -749,7 +749,7 @@ export const LoyaltyHub: React.FC<LoyaltyHubProps> = ({
                   key={tab.id}
                   type="button"
                   onClick={() => setActivityFilter(tab.id)}
-                  className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition cursor-pointer ${
+                  className={`shrink-0 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition cursor-pointer whitespace-nowrap ${
                     activityFilter === tab.id
                       ? 'bg-red-600 text-white'
                       : 'text-zinc-400 hover:text-white'

@@ -43,6 +43,7 @@ import {
   SpinDifficultyLevel,
   SpinSystemConfig,
   CronJobConfigItem,
+  AutoBlogConfig,
 } from '../types';
 
 
@@ -3865,6 +3866,16 @@ export const DEFAULT_DAILY_STREAK_CONFIG: DailyStreakConfig = {
 
 export const DEFAULT_CRON_JOBS_CONFIG: CronJobConfigItem[] = [
   {
+    id: 'investment-roi-cron',
+    name: 'Daily Investment ROI Wallet Payout & Activity Ledger (investment-roi-cron)',
+    description: 'Triggers daily (every 24h) to calculate ROI on active investment plans, credit payouts to user wallets, and append InvestmentActivityTable records.',
+    enabled: true,
+    intervalMinutes: 1440,
+    lastRunAt: null,
+    runsCount: 1,
+    lastSummary: 'Scheduled daily 24h ROI wallet payout & activity ledger persistence engine.',
+  },
+  {
     id: 'roi_accrual',
     name: 'Fleet Staking & TSLA Fast-ROI Accrual',
     description: 'Accrues daily dividends across running fleet & Fast-ROI equity plans and settles matured positions.',
@@ -3915,3 +3926,22 @@ export const DEFAULT_CRON_JOBS_CONFIG: CronJobConfigItem[] = [
     lastSummary: 'Synced live NASDAQ: TSLA telemetry feed.',
   },
 ];
+
+export const DEFAULT_AUTO_BLOG_CONFIG: AutoBlogConfig = {
+  enabled: true,
+  sourceUrl: 'https://insideevs.com/tesla/',
+  intervalMinutes: 60,
+  autoRewriteWithAi: true,
+  autoPublish: false,
+  generateArticleImages: true,
+  imageGenerationMode: 'gemini_editorial_svg',
+  maxArticlesPerSync: 6,
+  defaultCategory: 'Vehicle Deliveries',
+  includeContentImages: true,
+  includeSourceAttribution: true,
+  attributionPrefix: 'Originally reported by InsideEVs',
+  targetTone: 'Authoritative EV Engineering',
+  lastSyncAt: null,
+  lastSyncStatus: 'Ready to fetch InsideEVs articles, Gemini SEO-rewrite, generate artwork & save drafts for review.',
+  totalSyncedCount: 0,
+};

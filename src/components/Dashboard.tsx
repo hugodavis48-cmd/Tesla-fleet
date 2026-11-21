@@ -606,8 +606,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
           {/* Action buttons & Total Vault Balance */}
           <div className="flex flex-col sm:flex-row lg:flex-col items-stretch sm:items-end gap-3 shrink-0 w-full lg:w-auto">
-            <div className="p-3.5 rounded-2xl bg-zinc-900 border border-zinc-800 text-right w-full sm:w-auto space-y-1.5">
-              <div className="flex items-center justify-end gap-2">
+            <div className="p-3.5 rounded-2xl bg-zinc-900 border border-zinc-800 text-left sm:text-right w-full sm:w-auto space-y-1.5">
+              <div className="flex items-center justify-between sm:justify-end gap-2">
                 <span className="text-[10px] text-zinc-400 font-mono uppercase">Total Vault Assets</span>
                 <div className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-zinc-950 border border-zinc-700">
                   <Globe className="w-3 h-3 text-cyan-400" />
@@ -729,7 +729,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 sm:gap-5 text-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:flex lg:items-center gap-3 sm:gap-5 text-xs w-full lg:w-auto">
           <div>
             <span className="text-zinc-500 block text-[10px] font-mono uppercase">Store Cashback</span>
             <span className="font-mono font-bold text-emerald-400 tabular-nums">
@@ -757,7 +757,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab('loyalty')}
-            className="px-3.5 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-white text-xs font-bold transition cursor-pointer"
+            className="w-full sm:w-auto sm:col-span-2 lg:w-auto px-3.5 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-white text-xs font-bold transition cursor-pointer"
           >
             View LoyaltyHub
           </button>
@@ -765,7 +765,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
       </div>
 
       {/* Dashboard Subtabs Navigation */}
-      <div className="flex items-center gap-2 border-b border-zinc-800 pb-2 overflow-x-auto">
+      <div className="flex items-center gap-2 border-b border-zinc-800 pb-2 overflow-x-auto flex-nowrap whitespace-nowrap [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {(() => {
           const engSum = getUserEngagementSummary(displayUser);
           return [
@@ -894,7 +894,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
                 <div className="p-6 space-y-4">
                   {/* Telematics Bar */}
-                  <div className="grid grid-cols-3 gap-2 p-3 rounded-2xl bg-zinc-900/80 border border-zinc-800 text-center font-mono text-xs">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 p-3 rounded-2xl bg-zinc-900/80 border border-zinc-800 text-center font-mono text-xs">
                     <div>
                       <span className="text-[10px] text-zinc-500 block">EST. RANGE</span>
                       <span className="text-white font-bold">{v.estimatedRange} mi</span>
@@ -950,14 +950,14 @@ export const Dashboard: React.FC<DashboardProps> = ({
       {/* Tab 2: Active Service Tracker */}
       {activeTab === 'services' && (
         <div className="space-y-6">
-          <div className="flex justify-between items-center">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h3 className="font-heading font-bold text-xl text-white">Active Service Bay Telematics</h3>
-              <p className="text-xs text-zinc-400">Step-by-step telemetry, technician notes & GPS Ranger tracking</p>
+              <p className="text-xs text-zinc-400">Step-by-step telemetry, technician notes &amp; GPS Ranger tracking</p>
             </div>
             <button
               onClick={onNavigateToServices}
-              className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold transition cursor-pointer"
+              className="w-full sm:w-auto px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold transition cursor-pointer shrink-0"
             >
               + Schedule New Repair
             </button>
@@ -1016,7 +1016,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                         <p className="text-xs text-zinc-400">{booking.location}</p>
                       </div>
 
-                      <div className="text-right space-y-1.5">
+                      <div className="text-left sm:text-right space-y-1.5">
                         <span className="px-3 py-1 rounded-full bg-red-600/20 text-red-400 border border-red-500/30 text-xs font-bold inline-block">
                           {booking.status}
                         </span>
@@ -1057,12 +1057,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
                       </div>
 
                       {/* Stage steps indicator */}
-                      <div className="grid grid-cols-6 gap-1 pt-2">
+                      <div className="flex sm:grid sm:grid-cols-6 gap-3 sm:gap-1 pt-2 overflow-x-auto flex-nowrap pb-2 sm:pb-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                         {stages.map((stg, i) => {
                           const isDone = i <= currentStageIdx;
                           const isCurrent = i === currentStageIdx;
                           return (
-                            <div key={stg} className="text-center space-y-1">
+                            <div key={stg} className="text-center space-y-1 shrink-0 min-w-[76px] sm:min-w-0">
                               <div
                                 className={`w-5 h-5 mx-auto rounded-full flex items-center justify-center text-[10px] font-bold ${
                                   isDone
@@ -1072,7 +1072,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                               >
                                 {isDone ? '✓' : i + 1}
                               </div>
-                              <span className="text-[9px] text-zinc-400 hidden sm:block truncate leading-tight">
+                              <span className="text-[9px] text-zinc-400 block whitespace-nowrap sm:whitespace-normal sm:truncate leading-tight">
                                 {stg}
                               </span>
                             </div>
@@ -1156,8 +1156,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
                       )}
                     </div>
 
-                    <div className="flex sm:flex-col items-center sm:items-end justify-between gap-2 shrink-0 border-t sm:border-t-0 border-zinc-800 pt-3 sm:pt-0">
-                      <div className="text-right">
+                    <div className="flex flex-col sm:items-end justify-between gap-2 shrink-0 border-t sm:border-t-0 border-zinc-800 pt-3 sm:pt-0">
+                      <div className="text-left sm:text-right">
                         <span className="text-xs text-zinc-500 block font-mono">TOTAL INVOICE</span>
                         <span className="font-heading font-black text-lg text-emerald-400">
                           ${item.totalCostUsd.toLocaleString()} USD
@@ -1240,7 +1240,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
 
           {/* Balances Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-3">
             {[
               { label: `Apex Vault (${selectedCurrency.code})`, symbol: selectedCurrency.code, val: formatCurrency(balances.usd), isFiat: true },
               { label: 'Tether USD', symbol: 'USDT', val: balances.usdt.toFixed(2) },
@@ -1302,7 +1302,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
               </div>
 
               {/* Filter Tabs */}
-              <div className="flex flex-wrap items-center gap-1.5 bg-zinc-900/90 p-1 rounded-xl border border-zinc-800">
+              <div className="flex items-center gap-1.5 bg-zinc-900/90 p-1 rounded-xl border border-zinc-800 overflow-x-auto flex-nowrap whitespace-nowrap w-full sm:w-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 {[
                   { id: 'all', label: 'All' },
                   { id: 'deposit', label: 'Deposits' },
@@ -1314,7 +1314,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   <button
                     key={f.id}
                     onClick={() => setTxFilter(f.id as typeof txFilter)}
-                    className={`px-3 py-1 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                    className={`shrink-0 px-3 py-1 rounded-lg text-xs font-semibold transition cursor-pointer whitespace-nowrap ${
                       txFilter === f.id
                         ? 'bg-red-600 text-white'
                         : 'text-zinc-400 hover:text-white'
@@ -1353,7 +1353,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                           )}
                         </div>
                         <div className="min-w-0">
-                          <p className="font-semibold text-white truncate max-w-sm sm:max-w-md">{tx.description}</p>
+                          <p className="font-semibold text-white truncate max-w-full sm:max-w-md">{tx.description}</p>
                           <span className="text-[10px] text-zinc-500 font-mono block truncate">
                             {tx.timestamp} • TX: {tx.txHash} • Currency: {tx.currency}
                           </span>
@@ -1955,7 +1955,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   </p>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-1.5">
+                <div className="flex items-center gap-1.5 overflow-x-auto flex-nowrap whitespace-nowrap max-w-full [scrollbar-width:none] [&::-webkit-scrollbar]:hidden pb-1 md:pb-0">
                   {(
                     [
                       { id: 'all', label: 'All' },
@@ -1971,7 +1971,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                       key={f.id}
                       type="button"
                       onClick={() => setEngHistoryFilter(f.id)}
-                      className={`px-3 py-1 rounded-lg text-xs font-semibold cursor-pointer ${
+                      className={`shrink-0 px-3 py-1 rounded-lg text-xs font-semibold cursor-pointer whitespace-nowrap ${
                         engHistoryFilter === f.id
                           ? 'bg-red-600 text-white'
                           : 'bg-zinc-900 text-zinc-400 hover:text-white'
@@ -2067,15 +2067,15 @@ export const Dashboard: React.FC<DashboardProps> = ({
               </div>
 
               {/* Live Ticker Metrics Pill */}
-              <div className="flex flex-wrap items-center gap-4 bg-zinc-900/90 border border-zinc-800 p-4 rounded-2xl">
-                <div>
+              <div className="flex items-center gap-4 bg-zinc-900/90 border border-zinc-800 p-4 rounded-2xl overflow-x-auto flex-nowrap whitespace-nowrap [scrollbar-width:none] [&::-webkit-scrollbar]:hidden max-w-full">
+                <div className="shrink-0">
                   <span className="text-[10px] text-zinc-500 block font-mono">SPOT PRICE</span>
                   <span className="font-heading font-black text-2xl text-white font-mono">
                     ${tslaQuote.price.toFixed(2)}
                   </span>
                 </div>
-                <div className="h-8 w-px bg-zinc-800" />
-                <div>
+                <div className="h-8 w-px bg-zinc-800 shrink-0" />
+                <div className="shrink-0">
                   <span className="text-[10px] text-zinc-500 block font-mono">24H CHANGE</span>
                   <span className={`font-mono font-bold text-sm flex items-center gap-0.5 ${
                     tslaQuote.change24h >= 0 ? 'text-emerald-400' : 'text-red-400'
@@ -2083,15 +2083,15 @@ export const Dashboard: React.FC<DashboardProps> = ({
                     {tslaQuote.change24h >= 0 ? '+' : ''}{tslaQuote.change24h.toFixed(2)}%
                   </span>
                 </div>
-                <div className="h-8 w-px bg-zinc-800 hidden sm:block" />
-                <div className="hidden sm:block">
+                <div className="h-8 w-px bg-zinc-800 shrink-0" />
+                <div className="shrink-0">
                   <span className="text-[10px] text-zinc-500 block font-mono">24H RANGE</span>
                   <span className="font-mono text-xs text-zinc-300">
                     ${tslaQuote.low24h.toFixed(1)} - ${tslaQuote.high24h.toFixed(1)}
                   </span>
                 </div>
-                <div className="h-8 w-px bg-zinc-800 hidden sm:block" />
-                <div className="hidden sm:block">
+                <div className="h-8 w-px bg-zinc-800 shrink-0" />
+                <div className="shrink-0">
                   <span className="text-[10px] text-zinc-500 block font-mono">MARKET CAP</span>
                   <span className="font-mono text-xs text-zinc-300">{tslaQuote.marketCap}</span>
                 </div>
@@ -2103,7 +2103,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Holdings Card */}
             <div className="lg:col-span-2 p-6 rounded-3xl bg-zinc-950 border border-zinc-800 space-y-6">
-              <div className="flex items-center justify-between border-b border-zinc-800/80 pb-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-zinc-800/80 pb-4">
                 <div className="flex items-center gap-2">
                   <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
                     <Activity className="w-5 h-5" />
@@ -2119,7 +2119,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
               </div>
 
               {/* Stats Grid */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="p-4 rounded-2xl bg-zinc-900/70 border border-zinc-800">
                   <span className="text-[10px] text-zinc-500 uppercase font-mono block">Current Equity</span>
                   <span className="font-heading font-bold text-xl text-emerald-400 font-mono">
@@ -2337,7 +2337,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                       {plan.description}
                     </p>
 
-                    <div className="grid grid-cols-2 gap-3 p-3 rounded-2xl bg-zinc-900/60 border border-zinc-800 text-center font-mono">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-2xl bg-zinc-900/60 border border-zinc-800 text-center font-mono">
                       <div>
                         <span className="text-[10px] text-zinc-500 block">EST. APY</span>
                         <span className="text-emerald-400 font-bold text-lg">{plan.apy}%</span>
@@ -2540,7 +2540,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
             {/* Presets Grid */}
             <div className="space-y-2">
               <span className="text-xs font-mono uppercase text-zinc-400 font-bold block">Choose From Verified Tesla Presets</span>
-              <div className="grid grid-cols-4 gap-2.5">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                 {PRESET_AVATARS.map((preset) => {
                   const isSelected = selectedAvatarUrl === preset.url;
                   return (
@@ -2846,7 +2846,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <div>
                   <label className="text-zinc-400 block mb-1">Year</label>
                   <input

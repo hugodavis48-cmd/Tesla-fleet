@@ -441,6 +441,9 @@ export interface InvestmentActivityItem {
   txHash: string;
   milestoneTitle?: string;
   notes?: string;
+  userId?: string;
+  investmentId?: string;
+  sourceCron?: string;
 }
 
 export type NotificationType = 'announcement' | 'payout' | 'alert' | 'system' | 'bonus' | 'investment' | 'system_alert' | 'promotion' | 'kyc' | 'direct_message';
@@ -1190,6 +1193,13 @@ export type SocialSharePlatformId =
   | 'email'
   | 'copy_link';
 
+export interface BlogContentImage {
+  url: string;
+  caption?: string;
+  alt?: string;
+  placement?: 'top' | 'middle' | 'bottom';
+}
+
 export interface BlogPost {
   id: string;
   slug: string;
@@ -1201,6 +1211,7 @@ export interface BlogPost {
   excerpt: string;
   content: string;
   coverImageUrl: string;
+  contentImages?: BlogContentImage[];
   authorName: string;
   authorRole: string;
   publishedAt: string;
@@ -1211,6 +1222,18 @@ export interface BlogPost {
   focusKeywords: string;
   canonicalUrl?: string;
   schemaType?: 'BlogPosting' | 'NewsArticle' | 'TechArticle';
+  sourceName?: string;
+  sourceUrl?: string;
+  sourceAuthor?: string;
+  sourcePublishedAt?: string;
+  isAutoIngested?: boolean;
+  isAiRewritten?: boolean;
+  rewrittenAt?: string;
+  imageGeneratedWithAi?: boolean;
+  imageGenerationPrompt?: string;
+  pipelineStage?: 'draft_review' | 'approved_published';
+  seoScore?: number;
+  tags?: string[];
   viewsCount: number;
   sharesCount: number;
   likesCount: number;
@@ -1218,6 +1241,55 @@ export interface BlogPost {
   commentsCount: number;
   customReadCents?: number;
   customShareCents?: number;
+}
+
+export interface InsideEvsArticleCandidate {
+  id: string;
+  title: string;
+  url: string;
+  category: string;
+  excerpt: string;
+  imageUrl: string;
+  galleryImages: string[];
+  author: string;
+  publishedAt: string;
+  bodyText?: string;
+  alreadyImported?: boolean;
+}
+
+export interface AutoBlogRunLog {
+  id: string;
+  timestamp: string;
+  status: 'success' | 'partial' | 'error';
+  fetchedCount: number;
+  importedCount: number;
+  aiRewrittenCount: number;
+  imagesGeneratedCount?: number;
+  aiError?: string;
+  message: string;
+  importedTitles: string[];
+}
+
+export interface AutoBlogConfig {
+  enabled: boolean;
+  sourceUrl: string;
+  intervalMinutes: number;
+  autoRewriteWithAi: boolean;
+  autoPublish: boolean;
+  generateArticleImages?: boolean;
+  imageGenerationMode?: 'gemini_editorial_svg' | 'gemini_imagen' | 'source_media';
+  maxArticlesPerSync: number;
+  defaultCategory: BlogCategory;
+  includeContentImages: boolean;
+  includeSourceAttribution: boolean;
+  attributionPrefix: string;
+  targetTone:
+    | 'Authoritative EV Engineering'
+    | 'Executive Fleet & Market Brief'
+    | 'Accessible Owner Digest';
+  lastSyncAt: string | null;
+  lastSyncStatus: string;
+  totalSyncedCount: number;
 }
 
 export interface BlogComment {
@@ -1344,6 +1416,7 @@ export interface WalletLedgerSummary {
 }
 
 export type CronJobId =
+  | 'investment-roi-cron'
   | 'roi_accrual'
   | 'daily_streak_audit'
   | 'spin_criteria_audit'

@@ -1,7 +1,9 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import {
+  AutoBlogConfig,
   BlogCategory,
+  BlogContentImage,
   BlogPost,
   BlogPostStatus,
   DailyStreakConfig,
@@ -11,7 +13,11 @@ import {
   StreakMilestoneBonus,
   StreakTierRate,
 } from '../types';
-import { DEFAULT_DAILY_STREAK_CONFIG, DEFAULT_ENGAGEMENT_REWARD_CONFIG } from '../data/mockData';
+import {
+  DEFAULT_AUTO_BLOG_CONFIG,
+  DEFAULT_DAILY_STREAK_CONFIG,
+  DEFAULT_ENGAGEMENT_REWARD_CONFIG,
+} from '../data/mockData';
 import { SOCIAL_SHARE_PLATFORMS } from '../lib/socialShare';
 import {
   Newspaper,
@@ -38,6 +44,12 @@ import {
   X,
   Star,
   Flame,
+  RefreshCw,
+  Rss,
+  ExternalLink,
+  Image as ImageIcon,
+  Link2,
+  Wand2,
 } from 'lucide-react';
 
 const COVER_PRESETS: { label: string; url: string }[] = [
@@ -111,7 +123,7 @@ const computeSeoScore = (draft: {
 };
 
 interface AdminBlogRewardsManagerProps {
-  initialSubTab?: 'posts' | 'rewards' | 'analytics';
+  initialSubTab?: 'posts' | 'autoblog' | 'rewards' | 'analytics';
   sectionMode?: 'blog' | 'engagement_rewards';
 }
 
@@ -142,15 +154,49 @@ export const AdminBlogRewardsManager: React.FC<AdminBlogRewardsManagerProps> = (
     allUserStreakStates,
     updateDailyStreakConfig,
     adminUpdateUserStreak,
+    autoBlogConfig,
+    autoBlogLogs,
+    insideEvsCandidates,
+    isFetchingInsideEvs,
+    isSyncingAutoBlog,
+    isRewritingArticle,
+    isGeneratingBlogImage,
+    geminiConfigured,
+    updateAutoBlogConfig,
+    fetchInsideEvsArticles,
+    importAndRewriteInsideEvsArticle,
+    aiRewriteDraftArticle,
+    generateBlogPostImage,
+    approveDraftBlogPosts,
+    runAutoBlogSyncNow,
     showToast,
   } = useApp();
 
-  const [subTab, setSubTab] = useState<'posts' | 'rewards' | 'analytics'>(initialSubTab);
+  const [subTab, setSubTab] = useState<'posts' | 'autoblog' | 'rewards' | 'analytics'>(initialSubTab);
   const [postSearch, setPostSearch] = useState('');
   const [postStatusFilter, setPostStatusFilter] = useState<'all' | BlogPostStatus>('all');
   const [isComposerOpen, setIsComposerOpen] = useState(false);
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
   const [isUploadingCover, setIsUploadingCover] = useState(false);
+  const [customImportUrl, setCustomImportUrl] = useState('');
+  const [importingCandidateId, setImportingCandidateId] = useState<string | null>(null);
+  const [autoBlogDraft, setAutoBlogDraft] = useState<AutoBlogConfig>(() => ({
+    ...DEFAULT_AUTO_BLOG_CONFIG,
+    ...autoBlogConfig,
+  }));
+
+  useEffect(() => {
+    setAutoBlogDraft({
+      ...DEFAULT_AUTO_BLOG_CONFIG,
+      ...autoBlogConfig,
+    });
+  }, [autoBlogConfig]);
+
+  useEffect(() => {
+    if (subTab === 'autoblog' && insideEvsCandidates.length === 0 && !isFetchingInsideEvs) {
+      void fetchInsideEvsArticles(false);
+    }
+  }, [subTab]);
 
   const [draft, setDraft] = useState<{
     title: string;
@@ -162,6 +208,7 @@ export const AdminBlogRewardsManager: React.FC<AdminBlogRewardsManagerProps> = (
     authorName: string;
     authorRole: string;
     coverImageUrl: string;
+    contentImages: BlogContentImage[];
     readTimeMinutes: number;
     publishedAt: string;
     excerpt: string;
@@ -170,6 +217,10 @@ export const AdminBlogRewardsManager: React.FC<AdminBlogRewardsManagerProps> = (
     metaDescription: string;
     focusKeywordsText: string;
     schemaType: 'BlogPosting' | 'NewsArticle' | 'TechArticle';
+    sourceName: string;
+    sourceUrl: string;
+    sourceAuthor: string;
+    isAiRewritten: boolean;
     customReadCents: string;
     customShareCents: string;
   }>({
@@ -182,6 +233,7 @@ export const AdminBlogRewardsManager: React.FC<AdminBlogRewardsManagerProps> = (
     authorName: 'Apex Editorial Desk',
     authorRole: 'Lead EV Engineering Analyst',
     coverImageUrl: '/cert-hv-safety.jpg',
+    contentImages: [],
     readTimeMinutes: 5,
     publishedAt: new Date().toISOString().split('T')[0],
     excerpt: '',
@@ -189,7 +241,11 @@ export const AdminBlogRewardsManager: React.FC<AdminBlogRewardsManagerProps> = (
     seoTitle: '',
     metaDescription: '',
     focusKeywordsText: 'Tesla diagnostics, Apex Tesla Hub',
-    schemaType: 'BlogPosting',
+    schemaType: 'NewsArticle',
+    sourceName: '',
+    sourceUrl: '',
+    sourceAuthor: '',
+    isAiRewritten: false,
     customReadCents: '',
     customShareCents: '',
   });
@@ -276,6 +332,7 @@ export const AdminBlogRewardsManager: React.FC<AdminBlogRewardsManagerProps> = (
       authorName: 'Apex Editorial Desk',
       authorRole: 'Lead EV Engineering Analyst',
       coverImageUrl: '/cert-hv-safety.jpg',
+      contentImages: [],
       readTimeMinutes: 5,
       publishedAt: new Date().toISOString().split('T')[0],
       excerpt: '',
@@ -284,7 +341,11 @@ export const AdminBlogRewardsManager: React.FC<AdminBlogRewardsManagerProps> = (
       seoTitle: '',
       metaDescription: '',
       focusKeywordsText: 'Tesla engineering, EV diagnostics, Apex Tesla Hub',
-      schemaType: 'BlogPosting',
+      schemaType: 'NewsArticle',
+      sourceName: '',
+      sourceUrl: '',
+      sourceAuthor: '',
+      isAiRewritten: false,
       customReadCents: '',
       customShareCents: '',
     });
@@ -303,6 +364,7 @@ export const AdminBlogRewardsManager: React.FC<AdminBlogRewardsManagerProps> = (
       authorName: post.authorName,
       authorRole: post.authorRole,
       coverImageUrl: post.coverImageUrl,
+      contentImages: Array.isArray(post.contentImages) ? post.contentImages : [],
       readTimeMinutes: post.readTimeMinutes,
       publishedAt: post.publishedAt,
       excerpt: post.excerpt,
@@ -310,11 +372,54 @@ export const AdminBlogRewardsManager: React.FC<AdminBlogRewardsManagerProps> = (
       seoTitle: post.seoTitle,
       metaDescription: post.metaDescription,
       focusKeywordsText: post.focusKeywords || '',
-      schemaType: post.schemaType || 'BlogPosting',
+      schemaType: post.schemaType || 'NewsArticle',
+      sourceName: post.sourceName || '',
+      sourceUrl: post.sourceUrl || '',
+      sourceAuthor: post.sourceAuthor || '',
+      isAiRewritten: Boolean(post.isAiRewritten),
       customReadCents: post.customReadCents !== undefined ? String(post.customReadCents) : '',
       customShareCents: post.customShareCents !== undefined ? String(post.customShareCents) : '',
     });
     setIsComposerOpen(true);
+  };
+
+  const handleAiOptimizeComposer = async () => {
+    if (!draft.title.trim() && !draft.content.trim() && !draft.sourceUrl.trim()) {
+      showToast('Enter a headline, source URL, or draft text first.', 'info');
+      return;
+    }
+    const res = await aiRewriteDraftArticle({
+      title: draft.title.trim(),
+      excerpt: draft.excerpt.trim(),
+      content: draft.content.trim(),
+      sourceUrl: draft.sourceUrl.trim() || undefined,
+      coverImageUrl: draft.coverImageUrl.trim() || undefined,
+      category: draft.category,
+      tone: autoBlogDraft.targetTone,
+      includeContentImages: autoBlogDraft.includeContentImages,
+    });
+    if (res.rewritten) {
+      const rw = res.rewritten;
+      setDraft((prev) => ({
+        ...prev,
+        title: rw.title || prev.title,
+        subtitle: rw.subtitle || prev.subtitle,
+        slug: rw.slug || prev.slug,
+        category: rw.category || prev.category,
+        excerpt: rw.excerpt || prev.excerpt,
+        content: rw.content || prev.content,
+        coverImageUrl: rw.coverImageUrl || prev.coverImageUrl,
+        contentImages: rw.contentImages || prev.contentImages,
+        seoTitle: rw.seoTitle || prev.seoTitle,
+        metaDescription: rw.metaDescription || prev.metaDescription,
+        focusKeywordsText: rw.focusKeywords || prev.focusKeywordsText,
+        schemaType: rw.schemaType || prev.schemaType,
+        readTimeMinutes: rw.readTimeMinutes || prev.readTimeMinutes,
+        sourceName: rw.sourceName || prev.sourceName,
+        sourceUrl: rw.sourceUrl || prev.sourceUrl,
+        isAiRewritten: true,
+      }));
+    }
   };
 
   const handleUploadCoverFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -373,6 +478,7 @@ export const AdminBlogRewardsManager: React.FC<AdminBlogRewardsManagerProps> = (
       authorName: draft.authorName.trim() || 'Apex Editorial Desk',
       authorRole: draft.authorRole.trim() || 'EV Analyst',
       coverImageUrl: draft.coverImageUrl.trim() || '/cert-hv-safety.jpg',
+      contentImages: draft.contentImages.filter((ci) => ci.url.trim()),
       readTimeMinutes: Math.max(1, Number(draft.readTimeMinutes) || 4),
       publishedAt: draft.publishedAt || new Date().toISOString().split('T')[0],
       excerpt:
@@ -386,6 +492,11 @@ export const AdminBlogRewardsManager: React.FC<AdminBlogRewardsManagerProps> = (
         draft.content.replace(/[#*-]/g, '').trim().slice(0, 155),
       focusKeywords: draft.focusKeywordsText.trim() || 'Tesla, Apex Tesla Hub',
       schemaType: draft.schemaType,
+      sourceName: draft.sourceName.trim() || (draft.sourceUrl.trim() ? 'InsideEVs' : undefined),
+      sourceUrl: draft.sourceUrl.trim() || undefined,
+      sourceAuthor: draft.sourceAuthor.trim() || undefined,
+      isAiRewritten: draft.isAiRewritten,
+      seoScore: seoAudit.score,
       customReadCents: draft.customReadCents.trim() ? Math.max(0, Number(draft.customReadCents)) : undefined,
       customShareCents: draft.customShareCents.trim() ? Math.max(0, Number(draft.customShareCents)) : undefined,
     };
@@ -410,6 +521,11 @@ export const AdminBlogRewardsManager: React.FC<AdminBlogRewardsManagerProps> = (
       );
     });
   }, [blogPosts, postSearch, postStatusFilter]);
+
+  const draftReviewPosts = useMemo(
+    () => blogPosts.filter((p) => p.status === 'draft'),
+    [blogPosts]
+  );
 
   const analyticsStats = useMemo(() => {
     const credited = engagementRewardLogs.filter((ev) => ev.status === 'credited');
@@ -491,6 +607,18 @@ export const AdminBlogRewardsManager: React.FC<AdminBlogRewardsManagerProps> = (
           <div className="flex flex-wrap items-center gap-2.5 shrink-0">
             <button
               type="button"
+              disabled={isSyncingAutoBlog}
+              onClick={() => {
+                setSubTab('autoblog');
+                void runAutoBlogSyncNow(true, autoBlogDraft.maxArticlesPerSync, true);
+              }}
+              className="px-3.5 py-2.5 rounded-xl bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/40 text-sky-300 font-bold text-xs flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0 transition disabled:opacity-60"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isSyncingAutoBlog ? 'animate-spin' : ''}`} />
+              <span>{isSyncingAutoBlog ? 'Running Draft Pipeline...' : 'Run Draft Pipeline'}</span>
+            </button>
+            <button
+              type="button"
               onClick={() => updateFeatureToggles({ enableBlogPage: featureToggles.enableBlogPage === false })}
               className={`px-3.5 py-2.5 rounded-xl border text-xs font-bold flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0 transition ${
                 featureToggles.enableBlogPage !== false
@@ -515,7 +643,16 @@ export const AdminBlogRewardsManager: React.FC<AdminBlogRewardsManagerProps> = (
         {/* Sub-navigation tabs */}
         <div className="flex flex-wrap items-center gap-2 border-t border-zinc-800 pt-4">
           {[
-            { id: 'posts', label: `Articles & SEO CMS (${blogPosts.length})`, icon: Newspaper },
+            {
+              id: 'posts',
+              label: `Articles & SEO CMS (${blogPosts.length})${draftReviewPosts.length > 0 ? ` · ${draftReviewPosts.length} Drafts` : ''}`,
+              icon: Newspaper,
+            },
+            {
+              id: 'autoblog',
+              label: `Gemini Draft Pipeline (${draftReviewPosts.length} Pending)`,
+              icon: Rss,
+            },
             { id: 'rewards', label: 'Cents Rates & Tier Multipliers', icon: Coins },
             { id: 'analytics', label: `Analytics, Grants & Ledger (${engagementRewardLogs.length})`, icon: BarChart3 },
           ].map((tab) => {
@@ -548,22 +685,35 @@ export const AdminBlogRewardsManager: React.FC<AdminBlogRewardsManagerProps> = (
               onSubmit={handleSavePost}
               className="rounded-3xl bg-zinc-950 border border-red-500/40 p-6 space-y-6 shadow-2xl"
             >
-              <div className="flex items-center justify-between border-b border-zinc-800 pb-4">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-800 pb-4">
                 <div>
                   <h3 className="font-heading font-bold text-lg text-white">
-                    {editingPostId ? 'Edit Article & SEO Settings' : 'Compose New SEO Article'}
+                    {editingPostId ? 'Edit Article, Source Attribution & SEO Settings' : 'Compose New SEO Article'}
                   </h3>
                   <p className="text-xs text-zinc-400">
-                    Automatically feeds sitemap (/sitemap.xml), RSS syndication (/rss.xml), and per-post Schema.org markup.
+                    Automatically feeds sitemap (/sitemap.xml), RSS syndication (/rss.xml), and Schema.org NewsArticle markup.
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setIsComposerOpen(false)}
-                  className="p-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white cursor-pointer"
-                >
-                  <X className="w-4 h-4" />
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={isRewritingArticle}
+                    onClick={() => {
+                      void handleAiOptimizeComposer();
+                    }}
+                    className="px-3.5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
+                  >
+                    <Wand2 className={`w-3.5 h-3.5 ${isRewritingArticle ? 'animate-spin' : ''}`} />
+                    <span>{isRewritingArticle ? 'AI Rewriting...' : 'AI Rewrite & SEO Optimize'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsComposerOpen(false)}
+                    className="p-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -743,9 +893,9 @@ export const AdminBlogRewardsManager: React.FC<AdminBlogRewardsManagerProps> = (
                     />
                   </div>
 
-                  {/* Cover Image + Upload + Presets */}
+                  {/* Cover Image + Gemini Generator + Upload + Presets */}
                   <div className="space-y-2">
-                    <label className="text-zinc-400 block">Cover Image URL or Upload</label>
+                    <label className="text-zinc-400 block">Cover Image URL, Gemini AI Artwork or Upload</label>
                     <div className="flex flex-wrap gap-2">
                       <input
                         type="text"
@@ -753,6 +903,27 @@ export const AdminBlogRewardsManager: React.FC<AdminBlogRewardsManagerProps> = (
                         onChange={(e) => setDraft((prev) => ({ ...prev, coverImageUrl: e.target.value }))}
                         className="flex-1 min-w-[200px] rounded-xl bg-zinc-900 border border-zinc-800 px-3.5 py-2 text-cyan-300 font-mono"
                       />
+                      <button
+                        type="button"
+                        disabled={isGeneratingBlogImage || !draft.title.trim()}
+                        onClick={async () => {
+                          const res = await generateBlogPostImage({
+                            postId: editingPostId || undefined,
+                            title: draft.title.trim(),
+                            excerpt: draft.excerpt.trim(),
+                            category: draft.category,
+                            slug: draft.slug.trim() || slugify(draft.title),
+                            imageMode: autoBlogDraft.imageGenerationMode || 'gemini_editorial_svg',
+                          });
+                          if (res.imageUrl) {
+                            setDraft((prev) => ({ ...prev, coverImageUrl: res.imageUrl! }));
+                          }
+                        }}
+                        className="px-3.5 py-2 rounded-xl bg-violet-600/20 hover:bg-violet-600/35 border border-violet-500/40 text-violet-200 font-semibold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                      >
+                        <Sparkles className={`w-3.5 h-3.5 ${isGeneratingBlogImage ? 'animate-spin' : ''}`} />
+                        <span>{isGeneratingBlogImage ? 'Generating...' : 'Gemini Generate Artwork'}</span>
+                      </button>
                       <label className="px-3.5 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-200 font-semibold flex items-center gap-1.5 cursor-pointer">
                         <Upload className="w-3.5 h-3.5 text-sky-400" />
                         <span>{isUploadingCover ? 'Uploading...' : 'Upload Image'}</span>
@@ -780,6 +951,138 @@ export const AdminBlogRewardsManager: React.FC<AdminBlogRewardsManagerProps> = (
                         </button>
                       ))}
                     </div>
+                  </div>
+
+                  {/* Source Attribution & Backlink Controls */}
+                  <div className="rounded-2xl bg-zinc-900/60 border border-zinc-800 p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-zinc-200 flex items-center gap-1.5">
+                        <Link2 className="w-3.5 h-3.5 text-red-400" />
+                        <span>Original Source Attribution & Hyperlink</span>
+                      </span>
+                      <label className="flex items-center gap-1.5 text-[11px] text-emerald-400 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={draft.isAiRewritten}
+                          onChange={(e) => setDraft((prev) => ({ ...prev, isAiRewritten: e.target.checked }))}
+                          className="accent-emerald-500"
+                        />
+                        <span>AI Rewritten Tag</span>
+                      </label>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div>
+                        <label className="text-zinc-400 block mb-1">Source Publication</label>
+                        <input
+                          type="text"
+                          value={draft.sourceName}
+                          onChange={(e) => setDraft((prev) => ({ ...prev, sourceName: e.target.value }))}
+                          placeholder="InsideEVs"
+                          className="w-full rounded-xl bg-zinc-950 border border-zinc-800 px-3 py-2 text-white"
+                        />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <label className="text-zinc-400 block mb-1">Original Article URL (Hyperlinked in Post)</label>
+                        <input
+                          type="url"
+                          value={draft.sourceUrl}
+                          onChange={(e) => setDraft((prev) => ({ ...prev, sourceUrl: e.target.value }))}
+                          placeholder="https://insideevs.com/news/..."
+                          className="w-full rounded-xl bg-zinc-950 border border-zinc-800 px-3 py-2 text-cyan-300 font-mono"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Inline Content Images Manager */}
+                  <div className="rounded-2xl bg-zinc-900/60 border border-zinc-800 p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-zinc-200 flex items-center gap-1.5">
+                        <ImageIcon className="w-3.5 h-3.5 text-sky-400" />
+                        <span>In-Article Contextual Figures ({draft.contentImages.length})</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setDraft((prev) => ({
+                            ...prev,
+                            contentImages: [
+                              ...prev.contentImages,
+                              {
+                                url: '/img-supercharger-node.jpg',
+                                caption: 'Technical overview & fleet telemetry figure',
+                                alt: prev.title || 'Tesla EV technical figure',
+                                placement: prev.contentImages.length === 0 ? 'middle' : 'bottom',
+                              },
+                            ],
+                          }))
+                        }
+                        className="px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-[11px] font-semibold cursor-pointer"
+                      >
+                        + Add Inline Image
+                      </button>
+                    </div>
+                    {draft.contentImages.length === 0 ? (
+                      <p className="text-[11px] text-zinc-500">
+                        No extra in-article figures yet. Use AI Rewrite or click "+ Add Inline Image" to insert visuals between sections.
+                      </p>
+                    ) : (
+                      <div className="space-y-2.5">
+                        {draft.contentImages.map((img, iIdx) => (
+                          <div key={iIdx} className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center bg-zinc-950 border border-zinc-800 rounded-xl p-2.5">
+                            <img
+                              src={img.url}
+                              alt={img.alt || 'Inline figure'}
+                              referrerPolicy="no-referrer"
+                              onError={(e) => {
+                                (e.currentTarget as HTMLImageElement).src = '/img-cybertruck-awd.jpg';
+                              }}
+                              className="sm:col-span-2 w-full h-11 rounded-lg object-cover bg-zinc-900"
+                            />
+                            <input
+                              type="text"
+                              value={img.url}
+                              onChange={(e) =>
+                                setDraft((prev) => ({
+                                  ...prev,
+                                  contentImages: prev.contentImages.map((item, k) =>
+                                    k === iIdx ? { ...item, url: e.target.value } : item
+                                  ),
+                                }))
+                              }
+                              placeholder="Image URL"
+                              className="sm:col-span-4 rounded-lg bg-zinc-900 border border-zinc-800 px-2.5 py-1.5 text-cyan-300 font-mono"
+                            />
+                            <input
+                              type="text"
+                              value={img.caption || ''}
+                              onChange={(e) =>
+                                setDraft((prev) => ({
+                                  ...prev,
+                                  contentImages: prev.contentImages.map((item, k) =>
+                                    k === iIdx ? { ...item, caption: e.target.value } : item
+                                  ),
+                                }))
+                              }
+                              placeholder="Editorial caption..."
+                              className="sm:col-span-5 rounded-lg bg-zinc-900 border border-zinc-800 px-2.5 py-1.5 text-white"
+                            />
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setDraft((prev) => ({
+                                  ...prev,
+                                  contentImages: prev.contentImages.filter((_, k) => k !== iIdx),
+                                }))
+                              }
+                              className="sm:col-span-1 p-1.5 rounded-lg bg-red-600/15 text-red-400 hover:bg-red-600/30 flex justify-center cursor-pointer"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -1019,6 +1322,18 @@ export const AdminBlogRewardsManager: React.FC<AdminBlogRewardsManagerProps> = (
                           )}
                           <span className="text-zinc-500">·</span>
                           <span className="text-sky-400">SEO {postScore}/100</span>
+                          {post.sourceName && (
+                            <>
+                              <span className="text-zinc-500">·</span>
+                              <span className="text-cyan-400">{post.sourceName}</span>
+                            </>
+                          )}
+                          {post.isAiRewritten && (
+                            <>
+                              <span className="text-zinc-500">·</span>
+                              <span className="text-violet-400">AI Rewritten</span>
+                            </>
+                          )}
                         </div>
                         <h4 className="font-heading font-bold text-sm text-white truncate max-w-2xl">
                           {post.title}
@@ -1035,6 +1350,20 @@ export const AdminBlogRewardsManager: React.FC<AdminBlogRewardsManagerProps> = (
                           <span className="inline-flex items-center gap-1">
                             <Heart className="w-3 h-3 text-rose-400" /> {post.likesCount.toLocaleString()}
                           </span>
+                          {post.sourceUrl && (
+                            <>
+                              <span>·</span>
+                              <a
+                                href={post.sourceUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-red-400 hover:underline"
+                              >
+                                <span>Original Source</span>
+                                <ExternalLink className="w-3 h-3" />
+                              </a>
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1080,6 +1409,672 @@ export const AdminBlogRewardsManager: React.FC<AdminBlogRewardsManagerProps> = (
                 );
               })}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* SUBTAB 2: GEMINI AUTO-DRAFT PIPELINE & ADMIN REVIEW */}
+      {subTab === 'autoblog' && (
+        <div className="space-y-6">
+          {/* Pipeline Overview & Gemini Connectivity Banner */}
+          <div className="rounded-3xl bg-zinc-950 border border-zinc-800 p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 text-xs">
+            <div className="space-y-1.5">
+              <div className="flex flex-wrap items-center gap-2 font-mono text-[11px]">
+                <span className="px-2.5 py-0.5 rounded-lg bg-red-500/15 border border-red-500/30 text-red-400 font-bold">
+                  1. Fetch InsideEVs
+                </span>
+                <span className="text-zinc-500">→</span>
+                <span className="px-2.5 py-0.5 rounded-lg bg-sky-500/15 border border-sky-500/30 text-sky-300 font-bold">
+                  2. Gemini SEO Rewrite
+                </span>
+                <span className="text-zinc-500">→</span>
+                <span className="px-2.5 py-0.5 rounded-lg bg-violet-500/15 border border-violet-500/30 text-violet-300 font-bold">
+                  3. Generate Article Artwork
+                </span>
+                <span className="text-zinc-500">→</span>
+                <span className="px-2.5 py-0.5 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-300 font-bold">
+                  4. Admin Draft Review ({draftReviewPosts.length})
+                </span>
+                <span className="text-zinc-500">→</span>
+                <span className="px-2.5 py-0.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-bold">
+                  5. Publish Live
+                </span>
+              </div>
+              <p className="text-zinc-400">
+                Automated pipeline fetches new Tesla EV stories from InsideEVs, rewrites them with SEO targeting &amp; original source backlinks, generates custom artwork, and stages them in the Draft Review Queue before going public.
+              </p>
+            </div>
+            <div className="shrink-0 flex flex-col items-start lg:items-end gap-1">
+              <span
+                className={`px-3 py-1.5 rounded-xl font-mono text-[11px] font-bold border ${
+                  geminiConfigured
+                    ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300'
+                    : 'bg-amber-500/15 border-amber-500/40 text-amber-300'
+                }`}
+              >
+                {geminiConfigured
+                  ? 'Gemini API: Connected (gemini-4-hydrogen)'
+                  : 'Gemini API Key Pending in Settings > Secrets'}
+              </span>
+              {!geminiConfigured && (
+                <span className="text-[11px] text-zinc-500">
+                  Add GEMINI_API_KEY in Settings &gt; Secrets to enable live AI rewriting &amp; artwork generation.
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* ADMIN DRAFT REVIEW QUEUE */}
+          <div className="rounded-3xl bg-zinc-950 border border-amber-500/30 p-6 space-y-4 text-xs shadow-xl">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-800 pb-4">
+              <div>
+                <h3 className="font-heading font-bold text-base text-white flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-amber-400" />
+                  <span>Admin Draft Review Queue ({draftReviewPosts.length} Awaiting Approval)</span>
+                </h3>
+                <p className="text-zinc-400 mt-0.5">
+                  Inspect SEO titles, meta descriptions, backlinks, and generated artwork before publishing drafts to the public Blog &amp; News hub.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  disabled={isSyncingAutoBlog}
+                  onClick={() => {
+                    void runAutoBlogSyncNow(true, autoBlogDraft.maxArticlesPerSync, true);
+                  }}
+                  className="px-3.5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
+                >
+                  <Sparkles className={`w-3.5 h-3.5 ${isSyncingAutoBlog ? 'animate-spin' : ''}`} />
+                  <span>{isSyncingAutoBlog ? 'Pipeline Running...' : 'Fetch & Stage New Drafts'}</span>
+                </button>
+                {draftReviewPosts.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void approveDraftBlogPosts([], true);
+                    }}
+                    className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>Approve &amp; Publish All ({draftReviewPosts.length})</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {draftReviewPosts.length === 0 ? (
+              <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-6 text-center space-y-2">
+                <Newspaper className="w-7 h-7 text-zinc-500 mx-auto" />
+                <p className="text-zinc-200 font-semibold">No draft blog posts pending review</p>
+                <p className="text-zinc-400 max-w-xl mx-auto">
+                  Click &ldquo;Fetch &amp; Stage New Drafts&rdquo; above (or click &ldquo;AI Rewrite → Draft&rdquo; on any InsideEVs wire story below) to create SEO-rewritten drafts for approval.
+                </p>
+              </div>
+            ) : (
+              <div className="divide-y divide-zinc-800/80 max-h-[520px] overflow-y-auto pr-1">
+                {draftReviewPosts.map((draftPost) => {
+                  const score = computeSeoScore({
+                    title: draftPost.title,
+                    seoTitle: draftPost.seoTitle,
+                    metaDescription: draftPost.metaDescription,
+                    focusKeywordsText: draftPost.focusKeywords || '',
+                    content: draftPost.content,
+                    coverImageUrl: draftPost.coverImageUrl,
+                  }).score;
+
+                  return (
+                    <div key={draftPost.id} className="py-4 flex flex-col lg:flex-row lg:items-start justify-between gap-4">
+                      <div className="flex flex-col sm:flex-row gap-4 min-w-0 flex-1">
+                        <div className="relative w-full sm:w-44 h-28 rounded-xl overflow-hidden bg-zinc-900 border border-zinc-800 shrink-0">
+                          <img
+                            src={draftPost.coverImageUrl}
+                            alt={draftPost.title}
+                            referrerPolicy="no-referrer"
+                            onError={(e) => {
+                              (e.currentTarget as HTMLImageElement).src = '/img-cybertruck-awd.jpg';
+                            }}
+                            className="w-full h-full object-cover"
+                          />
+                          <span
+                            className={`absolute top-2 left-2 px-2 py-0.5 rounded-md text-[10px] font-mono font-bold ${
+                              draftPost.imageGeneratedWithAi
+                                ? 'bg-violet-600/90 text-white'
+                                : 'bg-zinc-950/85 text-zinc-200'
+                            }`}
+                          >
+                            {draftPost.imageGeneratedWithAi ? 'Gemini Artwork' : 'Source Photo'}
+                          </span>
+                        </div>
+
+                        <div className="min-w-0 space-y-1.5 flex-1">
+                          <div className="flex flex-wrap items-center gap-2 text-[11px] font-mono">
+                            <span className="text-amber-400 font-bold uppercase">DRAFT REVIEW</span>
+                            <span className="text-zinc-600">·</span>
+                            <span className="text-red-400 font-bold">{draftPost.category}</span>
+                            <span className="text-zinc-600">·</span>
+                            <span className="text-sky-400">SEO {score}/100</span>
+                            <span className="text-zinc-600">·</span>
+                            <span className={draftPost.isAiRewritten ? 'text-violet-400 font-semibold' : 'text-zinc-400'}>
+                              {draftPost.isAiRewritten ? 'Gemini SEO Rewritten' : 'InsideEVs Structured Brief'}
+                            </span>
+                            {draftPost.sourceUrl && (
+                              <>
+                                <span className="text-zinc-600">·</span>
+                                <a
+                                  href={draftPost.sourceUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 text-cyan-400 hover:underline"
+                                >
+                                  <span>InsideEVs Source</span>
+                                  <ExternalLink className="w-3 h-3" />
+                                </a>
+                              </>
+                            )}
+                          </div>
+
+                          <h4 className="font-heading font-bold text-sm text-white leading-snug">
+                            {draftPost.title}
+                          </h4>
+                          <p className="text-zinc-400 line-clamp-2">{draftPost.metaDescription || draftPost.excerpt}</p>
+                          <p className="text-[11px] font-mono text-zinc-500 truncate">
+                            Keywords: {draftPost.focusKeywords} · SEO Title: {draftPost.seoTitle}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap lg:flex-col gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            void approveDraftBlogPosts([draftPost.id]);
+                          }}
+                          className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>Approve &amp; Publish</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            openEditComposer(draftPost);
+                            setSubTab('posts');
+                          }}
+                          className="px-3.5 py-1.5 rounded-xl bg-sky-600/20 hover:bg-sky-600/30 border border-sky-500/40 text-sky-300 font-semibold flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                          <span>Review &amp; Edit</span>
+                        </button>
+                        <button
+                          type="button"
+                          disabled={isGeneratingBlogImage}
+                          onClick={() => {
+                            void generateBlogPostImage({
+                              postId: draftPost.id,
+                              title: draftPost.title,
+                              excerpt: draftPost.excerpt,
+                              category: draftPost.category,
+                              slug: draftPost.slug,
+                              imageMode: autoBlogDraft.imageGenerationMode || 'gemini_editorial_svg',
+                            });
+                          }}
+                          className="px-3.5 py-1.5 rounded-xl bg-violet-600/20 hover:bg-violet-600/35 border border-violet-500/40 text-violet-200 font-semibold flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                        >
+                          <ImageIcon className="w-3.5 h-3.5" />
+                          <span>{isGeneratingBlogImage ? 'Generating...' : 'Regenerate AI Image'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => deleteBlogPost(draftPost.id)}
+                          className="px-3.5 py-1.5 rounded-xl bg-red-600/15 hover:bg-red-600/30 border border-red-500/30 text-red-400 font-semibold flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Discard Draft</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* Pipeline Scheduler & AI Rules Config */}
+            <div className="lg:col-span-5 rounded-3xl bg-zinc-950 border border-zinc-800 p-6 space-y-5 text-xs">
+              <div className="flex items-center justify-between border-b border-zinc-800 pb-4">
+                <div>
+                  <h3 className="font-heading font-bold text-base text-white flex items-center gap-2">
+                    <Rss className="w-4 h-4 text-red-400" />
+                    <span>InsideEVs → Gemini Draft Pipeline Config</span>
+                  </h3>
+                  <p className="text-zinc-400 mt-0.5">
+                    Configure scheduled crawling, Gemini SEO rewriting, AI cover artwork generation, and draft staging.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAutoBlogDraft((prev) => ({ ...prev, enabled: !prev.enabled }))}
+                  className={`px-3 py-1.5 rounded-xl font-bold cursor-pointer ${
+                    autoBlogDraft.enabled
+                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                      : 'bg-zinc-900 text-zinc-400 border border-zinc-800'
+                  }`}
+                >
+                  {autoBlogDraft.enabled ? 'ACTIVE' : 'PAUSED'}
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="text-zinc-400 block mb-1">InsideEVs Source URL</label>
+                  <input
+                    type="url"
+                    value={autoBlogDraft.sourceUrl}
+                    onChange={(e) => setAutoBlogDraft((prev) => ({ ...prev, sourceUrl: e.target.value }))}
+                    className="w-full rounded-xl bg-zinc-900 border border-zinc-800 px-3 py-2 text-cyan-300 font-mono"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-zinc-400 block mb-1">Sync Interval</label>
+                    <select
+                      value={autoBlogDraft.intervalMinutes}
+                      onChange={(e) =>
+                        setAutoBlogDraft((prev) => ({ ...prev, intervalMinutes: Number(e.target.value) || 60 }))
+                      }
+                      className="w-full rounded-xl bg-zinc-900 border border-zinc-800 px-3 py-2 text-white"
+                    >
+                      <option value={15}>Every 15 Minutes</option>
+                      <option value={30}>Every 30 Minutes</option>
+                      <option value={60}>Hourly (60m)</option>
+                      <option value={180}>Every 3 Hours</option>
+                      <option value={360}>Every 6 Hours</option>
+                      <option value={1440}>Daily (24h)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-zinc-400 block mb-1">Max Articles / Sync (1–25)</label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={25}
+                      value={autoBlogDraft.maxArticlesPerSync}
+                      onChange={(e) =>
+                        setAutoBlogDraft((prev) => ({
+                          ...prev,
+                          maxArticlesPerSync: Math.min(25, Math.max(1, Number(e.target.value) || 6)),
+                        }))
+                      }
+                      className="w-full rounded-xl bg-zinc-900 border border-zinc-800 px-3 py-2 text-white font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-zinc-400 block mb-1">Default Category</label>
+                    <select
+                      value={autoBlogDraft.defaultCategory}
+                      onChange={(e) =>
+                        setAutoBlogDraft((prev) => ({ ...prev, defaultCategory: e.target.value as BlogCategory }))
+                      }
+                      className="w-full rounded-xl bg-zinc-900 border border-zinc-800 px-3 py-2 text-white"
+                    >
+                      {BLOG_CATEGORY_OPTIONS.map((c) => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-zinc-400 block mb-1">AI Editorial Voice</label>
+                    <select
+                      value={autoBlogDraft.targetTone}
+                      onChange={(e) =>
+                        setAutoBlogDraft((prev) => ({
+                          ...prev,
+                          targetTone: e.target.value as AutoBlogConfig['targetTone'],
+                        }))
+                      }
+                      className="w-full rounded-xl bg-zinc-900 border border-zinc-800 px-3 py-2 text-white"
+                    >
+                      <option value="Authoritative EV Engineering">Authoritative EV Engineering</option>
+                      <option value="Executive Fleet & Market Brief">Executive Fleet & Market Brief</option>
+                      <option value="Accessible Owner Digest">Accessible Owner Digest</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-zinc-400 block mb-1">Gemini Article Image Generation Mode</label>
+                  <select
+                    value={autoBlogDraft.imageGenerationMode || 'gemini_editorial_svg'}
+                    onChange={(e) =>
+                      setAutoBlogDraft((prev) => ({
+                        ...prev,
+                        imageGenerationMode: e.target.value as AutoBlogConfig['imageGenerationMode'],
+                      }))
+                    }
+                    className="w-full rounded-xl bg-zinc-900 border border-zinc-800 px-3 py-2 text-white"
+                  >
+                    <option value="gemini_editorial_svg">Gemini 4 Editorial Technical Illustration (SVG)</option>
+                    <option value="gemini_imagen">Gemini Image Generation Model (Paid Key in Secrets)</option>
+                    <option value="source_media">Extracted InsideEVs Photos Only</option>
+                  </select>
+                </div>
+
+                <div className="space-y-2 pt-1">
+                  <label className="flex items-center justify-between gap-3 rounded-xl bg-amber-500/10 border border-amber-500/30 px-3.5 py-2.5 cursor-pointer">
+                    <span className="text-amber-200 font-semibold">
+                      Save Pipeline Output as Drafts for Admin Review (Recommended)
+                    </span>
+                    <input
+                      type="checkbox"
+                      checked={!autoBlogDraft.autoPublish}
+                      onChange={(e) =>
+                        setAutoBlogDraft((prev) => ({ ...prev, autoPublish: !e.target.checked }))
+                      }
+                      className="accent-amber-500"
+                    />
+                  </label>
+                  {[
+                    {
+                      key: 'autoRewriteWithAi' as const,
+                      label: 'Gemini SEO-Focused Rewriting & Keyword Metadata',
+                    },
+                    {
+                      key: 'generateArticleImages' as const,
+                      label: 'Generate Custom Gemini Cover Artwork for Each Draft',
+                    },
+                    {
+                      key: 'includeContentImages' as const,
+                      label: 'Attach Extracted InsideEVs Figures Inside Body',
+                    },
+                    {
+                      key: 'includeSourceAttribution' as const,
+                      label: 'Embed Source Attribution & Hyperlink Back to InsideEVs',
+                    },
+                  ].map((item) => (
+                    <label
+                      key={item.key}
+                      className="flex items-center justify-between gap-3 rounded-xl bg-zinc-900/70 border border-zinc-800 px-3.5 py-2.5 cursor-pointer"
+                    >
+                      <span className="text-zinc-200">{item.label}</span>
+                      <input
+                        type="checkbox"
+                        checked={Boolean(autoBlogDraft[item.key])}
+                        onChange={(e) =>
+                          setAutoBlogDraft((prev) => ({ ...prev, [item.key]: e.target.checked }))
+                        }
+                        className="accent-red-600"
+                      />
+                    </label>
+                  ))}
+                </div>
+
+                <div>
+                  <label className="text-zinc-400 block mb-1">Attribution Callout Prefix</label>
+                  <input
+                    type="text"
+                    value={autoBlogDraft.attributionPrefix}
+                    onChange={(e) =>
+                      setAutoBlogDraft((prev) => ({ ...prev, attributionPrefix: e.target.value }))
+                    }
+                    className="w-full rounded-xl bg-zinc-900 border border-zinc-800 px-3 py-2 text-white"
+                  />
+                </div>
+              </div>
+
+              <div className="rounded-xl bg-zinc-900/60 border border-zinc-800 p-3 space-y-1 text-[11px] font-mono">
+                <div className="flex justify-between">
+                  <span className="text-zinc-400">Last Sync:</span>
+                  <span className="text-zinc-200">
+                    {autoBlogConfig.lastSyncAt ? new Date(autoBlogConfig.lastSyncAt).toLocaleString() : 'Never'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-zinc-400">Total Processed:</span>
+                  <span className="text-emerald-400 font-bold">{autoBlogConfig.totalSyncedCount} articles</span>
+                </div>
+                <p className="text-zinc-400 pt-1">{autoBlogConfig.lastSyncStatus}</p>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    void updateAutoBlogConfig(autoBlogDraft);
+                  }}
+                  className="flex-1 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  <span>Save Pipeline Rules</span>
+                </button>
+                <button
+                  type="button"
+                  disabled={isSyncingAutoBlog}
+                  onClick={() => {
+                    void runAutoBlogSyncNow(true, autoBlogDraft.maxArticlesPerSync, !autoBlogDraft.autoPublish);
+                  }}
+                  className="px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold flex items-center gap-2 cursor-pointer disabled:opacity-60"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isSyncingAutoBlog ? 'animate-spin' : ''}`} />
+                  <span>{isSyncingAutoBlog ? 'Running...' : !autoBlogDraft.autoPublish ? 'Run Draft Pipeline' : 'Run Auto-Sync Now'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Live InsideEVs Feed Queue + URL Importer */}
+            <div className="lg:col-span-7 rounded-3xl bg-zinc-950 border border-zinc-800 p-6 space-y-5 text-xs">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-800 pb-4">
+                <div>
+                  <h3 className="font-heading font-bold text-base text-white flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-sky-400" />
+                    <span>Live InsideEVs.com/Tesla Wire Queue ({insideEvsCandidates.length})</span>
+                  </h3>
+                  <p className="text-zinc-400 mt-0.5">
+                    Select any article to run Gemini SEO rewriting + artwork generation into your Draft Review Queue.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={isSyncingAutoBlog}
+                    onClick={() => {
+                      void runAutoBlogSyncNow(true, autoBlogDraft.maxArticlesPerSync, true);
+                    }}
+                    className="px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>{isSyncingAutoBlog ? 'Staging...' : `Stage Next ${autoBlogDraft.maxArticlesPerSync} as Drafts`}</span>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isFetchingInsideEvs}
+                    onClick={() => {
+                      void fetchInsideEvsArticles(true);
+                    }}
+                    className="px-3.5 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-200 font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 text-sky-400 ${isFetchingInsideEvs ? 'animate-spin' : ''}`} />
+                    <span>{isFetchingInsideEvs ? 'Scanning Feed...' : 'Fetch Latest InsideEVs'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Direct InsideEVs URL Importer */}
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input
+                  type="url"
+                  value={customImportUrl}
+                  onChange={(e) => setCustomImportUrl(e.target.value)}
+                  placeholder="Paste any https://insideevs.com/news/... article URL to Gemini SEO-rewrite as Draft..."
+                  className="flex-1 rounded-xl bg-zinc-900 border border-zinc-800 px-3.5 py-2.5 text-cyan-300 font-mono outline-none focus:border-red-500"
+                />
+                <button
+                  type="button"
+                  disabled={isRewritingArticle || !customImportUrl.trim()}
+                  onClick={async () => {
+                    const res = await importAndRewriteInsideEvsArticle(customImportUrl.trim(), {
+                      autoPublish: false,
+                      tone: autoBlogDraft.targetTone,
+                      generateArticleImages: autoBlogDraft.generateArticleImages,
+                      imageGenerationMode: autoBlogDraft.imageGenerationMode,
+                    });
+                    if (res.post) setCustomImportUrl('');
+                  }}
+                  className="px-4 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 whitespace-nowrap"
+                >
+                  <Wand2 className="w-3.5 h-3.5" />
+                  <span>Rewrite URL → Draft</span>
+                </button>
+              </div>
+
+              {/* Candidates List */}
+              {insideEvsCandidates.length === 0 ? (
+                <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-8 text-center space-y-2">
+                  <Rss className="w-7 h-7 text-zinc-500 mx-auto" />
+                  <p className="text-zinc-300 font-semibold">
+                    {isFetchingInsideEvs ? 'Fetching live Tesla briefings from InsideEVs...' : 'Feed queue empty — click Fetch Latest InsideEVs'}
+                  </p>
+                </div>
+              ) : (
+                <div className="divide-y divide-zinc-800/80 max-h-[560px] overflow-y-auto pr-1">
+                  {insideEvsCandidates.map((cand) => {
+                    const isBusy = importingCandidateId === cand.id && isRewritingArticle;
+                    return (
+                      <div key={cand.id} className="py-3.5 flex flex-col sm:flex-row gap-3.5 items-start">
+                        <img
+                          src={cand.imageUrl}
+                          alt={cand.title}
+                          referrerPolicy="no-referrer"
+                          onError={(e) => {
+                            (e.currentTarget as HTMLImageElement).src = '/img-cybertruck-awd.jpg';
+                          }}
+                          className="w-full sm:w-28 h-20 rounded-xl object-cover bg-zinc-900 border border-zinc-800 shrink-0"
+                        />
+                        <div className="flex-1 min-w-0 space-y-1.5">
+                          <div className="flex flex-wrap items-center gap-2 text-[11px] font-mono text-zinc-400">
+                            <span className="text-red-400 font-bold">{cand.category}</span>
+                            <span>·</span>
+                            <span>{cand.publishedAt}</span>
+                            <span>·</span>
+                            <span>{cand.galleryImages.length} img(s)</span>
+                            {cand.alreadyImported && (
+                              <>
+                                <span>·</span>
+                                <span className="text-emerald-400 font-bold">Imported</span>
+                              </>
+                            )}
+                          </div>
+                          <h4 className="font-heading font-bold text-sm text-white leading-snug">
+                            {cand.title}
+                          </h4>
+                          <p className="text-zinc-400 line-clamp-2">{cand.excerpt}</p>
+                          <div className="flex flex-wrap items-center gap-2 pt-1">
+                            <button
+                              type="button"
+                              disabled={isRewritingArticle}
+                              onClick={async () => {
+                                setImportingCandidateId(cand.id);
+                                await importAndRewriteInsideEvsArticle(cand, {
+                                  autoPublish: false,
+                                  tone: autoBlogDraft.targetTone,
+                                  generateArticleImages: autoBlogDraft.generateArticleImages,
+                                  imageGenerationMode: autoBlogDraft.imageGenerationMode,
+                                });
+                                setImportingCandidateId(null);
+                              }}
+                              className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-semibold flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                            >
+                              <Sparkles className="w-3 h-3" />
+                              <span>{isBusy ? 'Processing...' : 'SEO Rewrite & Gen Image → Draft'}</span>
+                            </button>
+                            <button
+                              type="button"
+                              disabled={isRewritingArticle}
+                              onClick={async () => {
+                                setImportingCandidateId(cand.id);
+                                await importAndRewriteInsideEvsArticle(cand, {
+                                  autoPublish: true,
+                                  tone: autoBlogDraft.targetTone,
+                                  generateArticleImages: autoBlogDraft.generateArticleImages,
+                                  imageGenerationMode: autoBlogDraft.imageGenerationMode,
+                                });
+                                setImportingCandidateId(null);
+                              }}
+                              className="px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-emerald-300 font-semibold cursor-pointer disabled:opacity-50"
+                            >
+                              Direct Publish
+                            </button>
+                            <a
+                              href={cand.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-2.5 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-red-400 hover:underline inline-flex items-center gap-1"
+                            >
+                              <span>Source</span>
+                              <ExternalLink className="w-3 h-3" />
+                            </a>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Auto-Sync Audit Logs */}
+          <div className="rounded-3xl bg-zinc-950 border border-zinc-800 p-6 space-y-4 text-xs">
+            <h3 className="font-heading font-bold text-base text-white">
+              Auto-Blog Sync &amp; Gemini Pipeline Execution Log ({autoBlogLogs.length})
+            </h3>
+            {autoBlogLogs.length === 0 ? (
+              <p className="text-zinc-500">No sync runs logged yet. Click &ldquo;Fetch &amp; Stage New Drafts&rdquo; to execute the InsideEVs pipeline.</p>
+            ) : (
+              <div className="divide-y divide-zinc-800/80 max-h-72 overflow-y-auto">
+                {autoBlogLogs.map((log) => (
+                  <div key={log.id} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="space-y-0.5">
+                      <div className="flex flex-wrap items-center gap-2 font-mono text-[11px]">
+                        <span
+                          className={`font-bold uppercase ${
+                            log.status === 'success'
+                              ? 'text-emerald-400'
+                              : log.status === 'partial'
+                              ? 'text-amber-400'
+                              : 'text-red-400'
+                          }`}
+                        >
+                          {log.status}
+                        </span>
+                        <span className="text-zinc-500">·</span>
+                        <span className="text-zinc-400">{new Date(log.timestamp).toLocaleString()}</span>
+                        <span className="text-zinc-500">·</span>
+                        <span className="text-sky-400">
+                          Fetched {log.fetchedCount} / Staged {log.importedCount} ({log.aiRewrittenCount} AI SEO{typeof log.imagesGeneratedCount === 'number' ? `, ${log.imagesGeneratedCount} AI Img` : ''})
+                        </span>
+                      </div>
+                      <p className="text-zinc-200">{log.message}</p>
+                      {log.aiError && (
+                        <p className="text-[11px] font-mono text-amber-400">Gemini API note: {log.aiError}</p>
+                      )}
+                      {log.importedTitles.length > 0 && (
+                        <p className="text-[11px] text-zinc-400">
+                          Added: {log.importedTitles.join(' · ')}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}

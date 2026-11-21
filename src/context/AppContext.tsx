@@ -97,6 +97,9 @@ import {
   NewsletterSubscriber,
   BlogPost,
   BlogComment,
+  AutoBlogConfig,
+  AutoBlogRunLog,
+  InsideEvsArticleCandidate,
   EngagementRewardConfig,
   EngagementRewardEvent,
   EngagementActionType,
@@ -112,7 +115,9 @@ import {
   UserSpinTracker,
   CronJobConfigItem,
   CronJobId,
+  InvestmentActivityItem,
 } from '../types';
+import { INITIAL_INVESTMENT_ACTIVITIES } from '../components/InvestmentActivityTable';
 import {
   CRYPTO_NETWORKS,
   INITIAL_VEHICLES,
@@ -157,6 +162,7 @@ import {
   DEFAULT_SPIN_SYSTEM_CONFIG,
   DEFAULT_DAILY_STREAK_CONFIG,
   DEFAULT_CRON_JOBS_CONFIG,
+  DEFAULT_AUTO_BLOG_CONFIG,
 } from '../data/mockData';
 
 
@@ -346,6 +352,8 @@ interface AppContextType {
   runCronJobById: (jobId: CronJobId) => Promise<{ success: boolean; summary: string }>;
   toggleCronJobEnabled: (jobId: CronJobId) => Promise<void>;
   allInvestments: UserInvestment[];
+  investmentActivities: InvestmentActivityItem[];
+  appendInvestmentActivity: (item: InvestmentActivityItem) => void;
   // Investment Pools & Plans CMS
   investmentPools: InvestmentPool[];
   createInvestmentPool: (pool: Omit<InvestmentPool, 'id'>) => void;
@@ -776,6 +784,62 @@ interface AppContextType {
   updateBlogPost: (id: string, updates: Partial<BlogPost>) => void;
   deleteBlogPost: (id: string) => void;
   toggleBlogPostStatus: (id: string, status: BlogPost['status']) => void;
+  autoBlogConfig: AutoBlogConfig;
+  autoBlogLogs: AutoBlogRunLog[];
+  insideEvsCandidates: InsideEvsArticleCandidate[];
+  isFetchingInsideEvs: boolean;
+  isSyncingAutoBlog: boolean;
+  isRewritingArticle: boolean;
+  isGeneratingBlogImage: boolean;
+  geminiConfigured: boolean;
+  updateAutoBlogConfig: (updates: Partial<AutoBlogConfig>) => Promise<boolean>;
+  fetchInsideEvsArticles: (forceRefresh?: boolean) => Promise<InsideEvsArticleCandidate[]>;
+  importAndRewriteInsideEvsArticle: (
+    candidateOrUrl: InsideEvsArticleCandidate | string,
+    options?: {
+      autoPublish?: boolean;
+      category?: BlogPost['category'];
+      tone?: AutoBlogConfig['targetTone'];
+      generateArticleImages?: boolean;
+      imageGenerationMode?: AutoBlogConfig['imageGenerationMode'];
+    }
+  ) => Promise<{ post?: BlogPost; aiPowered?: boolean; error?: string }>;
+  aiRewriteDraftArticle: (input: {
+    title: string;
+    excerpt?: string;
+    content?: string;
+    sourceUrl?: string;
+    coverImageUrl?: string;
+    category?: BlogPost['category'];
+    tone?: AutoBlogConfig['targetTone'];
+    includeContentImages?: boolean;
+    generateArticleImages?: boolean;
+    imageGenerationMode?: AutoBlogConfig['imageGenerationMode'];
+  }) => Promise<{ rewritten?: Partial<BlogPost>; aiPowered?: boolean; error?: string }>;
+  generateBlogPostImage: (input: {
+    postId?: string;
+    title: string;
+    excerpt?: string;
+    category?: string;
+    slug?: string;
+    imageMode?: AutoBlogConfig['imageGenerationMode'];
+  }) => Promise<{ imageUrl?: string; imagePrompt?: string; error?: string }>;
+  approveDraftBlogPosts: (
+    postIds: string[],
+    publishAll?: boolean
+  ) => Promise<{ publishedCount: number; error?: string }>;
+  runAutoBlogSyncNow: (
+    force?: boolean,
+    maxArticles?: number,
+    saveAsDrafts?: boolean
+  ) => Promise<{
+    importedCount: number;
+    message: string;
+    aiRewrittenCount?: number;
+    imagesGeneratedCount?: number;
+    aiError?: string;
+    error?: string;
+  }>;
   updateEngagementRewardConfig: (updates: Partial<EngagementRewardConfig>) => void;
   grantManualEngagementReward: (userId: string, cents: number, reason: string) => boolean;
   revokeEngagementReward: (rewardId: string) => void;
@@ -1804,12 +1868,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const saved = localStorage.getItem('apex_cron_jobs_config_v1');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const existingIds = new Set(parsed.map((j: any) => j?.id));
+          const missing = DEFAULT_CRON_JOBS_CONFIG.filter((d) => !existingIds.has(d.id));
+          return [...parsed, ...missing];
+        }
       }
     } catch {
       // fallback
     }
     return DEFAULT_CRON_JOBS_CONFIG;
+  });
+
+  const [investmentActivities, setInvestmentActivities] = useState<InvestmentActivityItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('apex_investment_activities_v1');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {
+      // fallback
+    }
+    return INITIAL_INVESTMENT_ACTIVITIES;
   });
 
   const [wheelRewards, setWheelRewards] = useState<WheelReward[]>(() => {
@@ -2409,6 +2490,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return INITIAL_BLOG_COMMENTS;
   });
 
+  const [autoBlogConfig, setAutoBlogConfig] = useState<AutoBlogConfig>(() => {
+    const saved = localStorage.getItem('apex_auto_blog_config_v1');
+    if (saved) {
+      try {
+        return { ...DEFAULT_AUTO_BLOG_CONFIG, ...JSON.parse(saved) };
+      } catch {
+        // fallback
+      }
+    }
+    return DEFAULT_AUTO_BLOG_CONFIG;
+  });
+
+  const [autoBlogLogs, setAutoBlogLogs] = useState<AutoBlogRunLog[]>(() => {
+    const saved = localStorage.getItem('apex_auto_blog_logs_v1');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      } catch {
+        // fallback
+      }
+    }
+    return [];
+  });
+
+  const [insideEvsCandidates, setInsideEvsCandidates] = useState<InsideEvsArticleCandidate[]>([]);
+  const [isFetchingInsideEvs, setIsFetchingInsideEvs] = useState(false);
+  const [isSyncingAutoBlog, setIsSyncingAutoBlog] = useState(false);
+  const [isRewritingArticle, setIsRewritingArticle] = useState(false);
+  const [isGeneratingBlogImage, setIsGeneratingBlogImage] = useState(false);
+  const [geminiConfigured, setGeminiConfigured] = useState(false);
+
   const [engagementRewardConfig, setEngagementRewardConfig] = useState<EngagementRewardConfig>(() => {
     const saved = localStorage.getItem('apex_engagement_reward_config_v1');
     if (saved) {
@@ -2768,6 +2881,55 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem('apex_cron_jobs_config_v1', JSON.stringify(cronJobsConfig));
   }, [cronJobsConfig]);
 
+  useEffect(() => {
+    localStorage.setItem('apex_investment_activities_v1', JSON.stringify(investmentActivities));
+  }, [investmentActivities]);
+
+  const mergeInvestmentActivities = useCallback((incoming: InvestmentActivityItem[]) => {
+    if (!Array.isArray(incoming) || incoming.length === 0) return;
+    setInvestmentActivities((prev) => {
+      const map = new Map<string, InvestmentActivityItem>();
+      incoming.forEach((item) => {
+        if (item?.id) map.set(item.id, item);
+      });
+      prev.forEach((item) => {
+        if (item?.id && !map.has(item.id)) map.set(item.id, item);
+      });
+      return Array.from(map.values()).slice(0, 150);
+    });
+  }, []);
+
+  const appendInvestmentActivity = useCallback(
+    (item: InvestmentActivityItem) => {
+      let nextSnapshot: InvestmentActivityItem[] = [item];
+      setInvestmentActivities((prev) => {
+        const filtered = prev.filter((a) => a.id !== item.id);
+        nextSnapshot = [item, ...filtered].slice(0, 150);
+        return nextSnapshot;
+      });
+      try {
+        localStorage.setItem('apex_investment_activities_v1', JSON.stringify(nextSnapshot));
+      } catch {
+        // ignore storage quota errors
+      }
+      const tok = localStorage.getItem('apex_session_token');
+      if (tok) {
+        fetch('/api/investments/activities', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${tok}`,
+          },
+          body: JSON.stringify({ activity: item }),
+        }).catch(() => {});
+      }
+      if (auth.currentUser) {
+        void saveAdminSectionToFirestore('investment_activities', nextSnapshot.slice(0, 120)).catch(() => {});
+      }
+    },
+    []
+  );
+
   // Derived segregated balances for active user
   const activeDepositBalanceUsd = currentUser
     ? Number(
@@ -2975,6 +3137,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setMeta('meta[property="og:title"]', resolvedOgTitle);
       setMeta('meta[property="og:description"]', resolvedDescription);
       setMeta('meta[property="og:image"]', resolvedOgImage);
+      setMeta('meta[property="og:type"]', activeArticle ? 'article' : 'website');
       setMeta('meta[name="twitter:image"]', resolvedOgImage);
 
       const canonicalEl = document.getElementById('canonical-link');
@@ -3002,13 +3165,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (activeArticle) {
           schemaEl.textContent = JSON.stringify({
             '@context': 'https://schema.org',
-            '@type': activeArticle.schemaType || 'BlogPosting',
+            '@type': activeArticle.schemaType || 'NewsArticle',
             headline: activeArticle.title,
             description: resolvedDescription,
-            image: resolvedOgImage,
+            image: [resolvedOgImage, ...(activeArticle.contentImages || []).map((ci) => ci.url)].filter(Boolean),
             datePublished: activeArticle.publishedAt,
             dateModified: activeArticle.updatedAt || activeArticle.publishedAt,
+            articleSection: activeArticle.category,
             keywords: resolvedKeywords,
+            ...(activeArticle.sourceUrl
+              ? {
+                  isBasedOn: activeArticle.sourceUrl,
+                  citation: activeArticle.sourceUrl,
+                }
+              : {}),
             author: {
               '@type': 'Person',
               name: activeArticle.authorName,
@@ -3184,6 +3354,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (Array.isArray(sections.blog_comments)) {
         setBlogComments(sections.blog_comments);
       }
+      if (sections.auto_blog_config && typeof sections.auto_blog_config === 'object') {
+        setAutoBlogConfig((prev) => ({
+          ...prev,
+          ...(sections.auto_blog_config as Partial<AutoBlogConfig>),
+        }));
+      }
+      if (Array.isArray(sections.auto_blog_logs)) {
+        setAutoBlogLogs(sections.auto_blog_logs as AutoBlogRunLog[]);
+      }
       if (sections.engagement_reward_config && typeof sections.engagement_reward_config === 'object') {
         const cfg = sections.engagement_reward_config as Partial<EngagementRewardConfig>;
         setEngagementRewardConfig((prev) => ({
@@ -3222,7 +3401,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setDailyStreakConfig((prev) => ({ ...prev, ...(sections.streak_config as Partial<DailyStreakConfig>) }));
       }
       if (Array.isArray(sections.cron_jobs_config) && sections.cron_jobs_config.length > 0) {
-        setCronJobsConfig(sections.cron_jobs_config as CronJobConfigItem[]);
+        const loadedJobs = sections.cron_jobs_config as CronJobConfigItem[];
+        const existingIds = new Set(loadedJobs.map((j) => j.id));
+        const missingDefaults = DEFAULT_CRON_JOBS_CONFIG.filter((d) => !existingIds.has(d.id));
+        setCronJobsConfig([...loadedJobs, ...missingDefaults]);
+      }
+      if (Array.isArray(sections.investment_activities) && sections.investment_activities.length > 0) {
+        mergeInvestmentActivities(sections.investment_activities as InvestmentActivityItem[]);
       }
       if (typeof sections.spin_cost === 'number' && sections.spin_cost >= 150) {
         setSpinCostUsd(Math.max(150, sections.spin_cost));
@@ -3238,6 +3423,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const res = await fetch('/api/admin/state', { headers: getAuthHeaders(false) });
         if (res.ok) {
           const data = await res.json();
+          if (typeof data?.geminiConfigured === 'boolean') {
+            setGeminiConfigured(data.geminiConfigured);
+          }
           const st = data?.state || {};
           if (st.seoSettings) {
             setSeoSettings((prev) => ({
@@ -3408,6 +3596,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [blogComments]);
 
   useEffect(() => {
+    localStorage.setItem('apex_auto_blog_config_v1', JSON.stringify(autoBlogConfig));
+  }, [autoBlogConfig]);
+
+  useEffect(() => {
+    localStorage.setItem('apex_auto_blog_logs_v1', JSON.stringify(autoBlogLogs));
+  }, [autoBlogLogs]);
+
+  useEffect(() => {
     localStorage.setItem('apex_engagement_reward_config_v1', JSON.stringify(engagementRewardConfig));
   }, [engagementRewardConfig]);
 
@@ -3572,6 +3768,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               if (Array.isArray(status.logs)) setCronLogs(status.logs);
               if (Array.isArray(status.dispatchedEmails)) setDispatchedCronEmails(status.dispatchedEmails);
               if (Array.isArray(status.jobs) && status.jobs.length > 0) setCronJobsConfig(status.jobs);
+              if (Array.isArray(status.investmentActivities) && status.investmentActivities.length > 0) {
+                mergeInvestmentActivities(status.investmentActivities);
+              }
+              if (Array.isArray(status.investments) && status.investments.length > 0) {
+                const srvMap = new Map<string, any>();
+                status.investments.forEach((s: any) => {
+                  if (s?.id) srvMap.set(s.id, s);
+                });
+                setUserInvestments((prev) =>
+                  prev.map((inv) => {
+                    const srv = srvMap.get(inv.id);
+                    if (!srv) return inv;
+                    return {
+                      ...inv,
+                      earnedDividendsUsd: typeof srv.earnedDividendsUsd === 'number' ? srv.earnedDividendsUsd : inv.earnedDividendsUsd,
+                      daysElapsed: typeof srv.daysElapsed === 'number' ? srv.daysElapsed : inv.daysElapsed,
+                      status: srv.status || inv.status,
+                      completedAt: srv.completedAt ? String(srv.completedAt).substring(0, 10) : inv.completedAt,
+                      capitalReturned: typeof srv.capitalReturned === 'boolean' ? srv.capitalReturned : inv.capitalReturned,
+                      certificateId: srv.certificateId || inv.certificateId,
+                    };
+                  })
+                );
+              }
             }
           })
           .catch((e) => console.warn('Failed to fetch cron status:', e));
@@ -5071,6 +5291,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
     setTransactions((prev) => [newTx, ...prev]);
 
+    const stakeActivity: InvestmentActivityItem = {
+      id: `act-dep-${Date.now()}`,
+      type: 'deposit',
+      assetId: pool.id,
+      assetTitle: pool.title,
+      category: pool.category,
+      amountUsd,
+      cryptoFormatted: `${(amountUsd / 92000).toFixed(4)} BTC / ${(amountUsd / 3100).toFixed(3)} ETH`,
+      apyRate: pool.apy,
+      timestamp: now.toISOString().replace('T', ' ').substring(0, 16),
+      status: 'confirmed',
+      txHash: newInvestment.txHash || newTx.txHash || `0x${Math.random().toString(16).substring(2, 10)}`,
+      notes: `Smart contract staking into ${pool.title} (${pool.apy}% APY lockup).`,
+      userId: currentUser?.id || 'usr-apex-001',
+      investmentId: newInvestment.id,
+    };
+    appendInvestmentActivity(stakeActivity);
+
     showToast(`Staked $${amountUsd.toLocaleString()} in ${pool.title}! Daily payouts activated.`);
     return true;
   };
@@ -5128,6 +5366,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       },
       ...prev.slice(0, 23),
     ]);
+
+    const claimActivity: InvestmentActivityItem = {
+      id: `act-payout-${Date.now()}`,
+      type: 'payout',
+      assetId: inv.poolId,
+      assetTitle: inv.poolTitle,
+      category: 'Commercial Fleet',
+      amountUsd: amount,
+      cryptoFormatted: `+${amount.toFixed(2)} USD`,
+      apyRate: inv.apy,
+      timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
+      status: 'confirmed',
+      txHash: newTx.txHash || `0x${Math.random().toString(16).substring(2, 10)}...div`,
+      notes: `User-initiated dividend yield harvest credited directly to available balance.`,
+      userId: currentUser?.id || inv.userId || 'usr-apex-001',
+      investmentId: inv.id,
+    };
+    appendInvestmentActivity(claimActivity);
 
     showToast(`Claimed $${amount.toFixed(2)} dividends into your vault!`, 'success');
   };
@@ -5367,6 +5623,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     dispatchedEmails?: CronDispatchedEmail[];
     jobs?: CronJobConfigItem[];
     investments?: any[];
+    investmentActivities?: InvestmentActivityItem[];
     settlementEvents?: Array<{
       id: string;
       investmentId: string;
@@ -5387,6 +5644,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (Array.isArray(snapshot.logs)) setCronLogs(snapshot.logs);
     if (Array.isArray(snapshot.dispatchedEmails)) setDispatchedCronEmails(snapshot.dispatchedEmails);
     if (Array.isArray(snapshot.jobs) && snapshot.jobs.length > 0) setCronJobsConfig(snapshot.jobs);
+    if (Array.isArray(snapshot.investmentActivities) && snapshot.investmentActivities.length > 0) {
+      mergeInvestmentActivities(snapshot.investmentActivities);
+    }
 
     if (Array.isArray(snapshot.investments) && snapshot.investments.length > 0) {
       const serverById = new Map<string, any>();
@@ -5412,6 +5672,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     const activeUid = currentUser?.id;
+    let shouldRefreshWallet = false;
+
+    if (activeUid && Array.isArray(snapshot.investmentActivities) && snapshot.investmentActivities.length > 0) {
+      const seenCronRaw = localStorage.getItem('apex_applied_cron_payouts');
+      const seenCronIds: string[] = seenCronRaw ? JSON.parse(seenCronRaw) : [];
+      const seenCronSet = new Set<string>(seenCronIds);
+      let sawNewCronPayout = false;
+
+      snapshot.investmentActivities.forEach((act) => {
+        if (
+          act.sourceCron === 'investment-roi-cron' &&
+          (!act.userId || act.userId === activeUid) &&
+          !seenCronSet.has(act.id)
+        ) {
+          seenCronSet.add(act.id);
+          sawNewCronPayout = true;
+        }
+      });
+
+      if (sawNewCronPayout) {
+        shouldRefreshWallet = true;
+        localStorage.setItem('apex_applied_cron_payouts', JSON.stringify(Array.from(seenCronSet).slice(-120)));
+      }
+    }
+
     if (activeUid && Array.isArray(snapshot.settlementEvents) && snapshot.settlementEvents.length > 0) {
       const appliedRaw = localStorage.getItem('apex_applied_settlements');
       const appliedIds: string[] = appliedRaw ? JSON.parse(appliedRaw) : [];
@@ -5452,14 +5737,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
 
       if (creditedAny) {
+        shouldRefreshWallet = true;
         localStorage.setItem('apex_applied_settlements', JSON.stringify(Array.from(appliedSet).slice(-100)));
-        fetch(`/api/wallet/${encodeURIComponent(activeUid)}`, { headers: getAuthHeaders(false) })
-          .then((r) => (r.ok ? r.json() : null))
-          .then((d) => {
-            if (d?.wallet) applyServerWallet(d.wallet, activeUid);
-          })
-          .catch(() => {});
       }
+    }
+
+    if (activeUid && shouldRefreshWallet) {
+      fetch(`/api/wallet/${encodeURIComponent(activeUid)}`, { headers: getAuthHeaders(false) })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (d?.wallet) applyServerWallet(d.wallet, activeUid);
+        })
+        .catch(() => {});
     }
   };
 
@@ -5611,8 +5900,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        if (Array.isArray(data.jobs)) setCronJobsConfig(data.jobs);
-        if (Array.isArray(data.logs)) setCronLogs(data.logs);
+        applyServerCronSnapshot(data);
+        if ((jobId === 'investment-roi-cron' || jobId === 'roi_accrual') && currentUser?.id) {
+          fetch(`/api/wallet/${encodeURIComponent(currentUser.id)}`, { headers: getAuthHeaders(false) })
+            .then((r) => (r.ok ? r.json() : null))
+            .then((d) => {
+              if (d?.wallet) applyServerWallet(d.wallet, currentUser.id);
+            })
+            .catch(() => {});
+        }
+        if (Array.isArray(data.investmentActivities) && auth.currentUser) {
+          void saveAdminSectionToFirestore('investment_activities', data.investmentActivities.slice(0, 120)).catch(() => {});
+        }
         showToast(data.summary || `Executed cron job: ${jobId}`, 'success');
         return { success: true, summary: data.summary };
       }
@@ -9749,8 +10048,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     business_certificates: businessCertificates,
     blog_posts: blogPosts,
     blog_comments: blogComments,
+    auto_blog_config: autoBlogConfig,
+    auto_blog_logs: autoBlogLogs,
     engagement_reward_config: engagementRewardConfig,
     engagement_rewards: engagementRewardLogs,
+    investment_activities: investmentActivities.slice(0, 120),
   });
 
   // Business & Operating License Certificates CMS CRUD
@@ -9960,6 +10262,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     businessCertificates,
     blogPosts,
     blogComments,
+    autoBlogConfig,
+    autoBlogLogs,
     engagementRewardConfig,
     engagementRewardLogs,
   ]);
@@ -10947,6 +11251,345 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast(`Article status updated to ${status.toUpperCase()}.`, 'success');
   };
 
+  const updateAutoBlogConfig = async (updates: Partial<AutoBlogConfig>): Promise<boolean> => {
+    const merged: AutoBlogConfig = {
+      ...autoBlogConfig,
+      ...updates,
+    };
+    setAutoBlogConfig(merged);
+    try {
+      const res = await fetch('/api/blog/auto-config', {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(merged),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (typeof data?.geminiConfigured === 'boolean') {
+          setGeminiConfigured(data.geminiConfigured);
+        }
+        if (data?.autoBlogConfig) {
+          setAutoBlogConfig((prev) => ({ ...prev, ...data.autoBlogConfig }));
+        }
+        showToast('Auto-Blog & InsideEVs pipeline settings saved!', 'success');
+        return true;
+      }
+    } catch {
+      // non-fatal local update
+    }
+    showToast('Auto-Blog settings updated locally.', 'info');
+    return false;
+  };
+
+  const fetchInsideEvsArticles = async (forceRefresh = false): Promise<InsideEvsArticleCandidate[]> => {
+    setIsFetchingInsideEvs(true);
+    try {
+      const res = await fetch(
+        `/api/blog/insideevs/feed?refresh=${forceRefresh ? '1' : '0'}&limit=20`,
+        { headers: getAuthHeaders(false) }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        if (typeof data?.geminiConfigured === 'boolean') {
+          setGeminiConfigured(data.geminiConfigured);
+        }
+        const items = Array.isArray(data?.candidates) ? (data.candidates as InsideEvsArticleCandidate[]) : [];
+        setInsideEvsCandidates(items);
+        if (forceRefresh) {
+          showToast(
+            items.length > 0
+              ? `Fetched ${items.length} latest Tesla EV articles from InsideEVs!`
+              : 'No new articles returned from InsideEVs feed.',
+            items.length > 0 ? 'success' : 'info'
+          );
+        }
+        return items;
+      }
+    } catch {
+      showToast('Could not reach InsideEVs feed endpoint.', 'error');
+    } finally {
+      setIsFetchingInsideEvs(false);
+    }
+    return [];
+  };
+
+  const importAndRewriteInsideEvsArticle = async (
+    candidateOrUrl: InsideEvsArticleCandidate | string,
+    options?: {
+      autoPublish?: boolean;
+      category?: BlogPost['category'];
+      tone?: AutoBlogConfig['targetTone'];
+      generateArticleImages?: boolean;
+      imageGenerationMode?: AutoBlogConfig['imageGenerationMode'];
+    }
+  ): Promise<{ post?: BlogPost; aiPowered?: boolean; error?: string }> => {
+    setIsRewritingArticle(true);
+    try {
+      const bodyPayload =
+        typeof candidateOrUrl === 'string'
+          ? { url: candidateOrUrl, ...options }
+          : { url: candidateOrUrl.url, candidate: candidateOrUrl, ...options };
+      const res = await fetch('/api/blog/insideevs/rewrite-import', {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(bodyPayload),
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.post) {
+        const errMsg = data?.error || 'Failed to AI-rewrite and import article.';
+        showToast(errMsg, 'error');
+        return { error: errMsg };
+      }
+
+      const createdPost = data.post as BlogPost;
+      if (Array.isArray(data.posts) && data.posts.length > 0) {
+        setBlogPosts(data.posts as BlogPost[]);
+      } else {
+        setBlogPosts((prev) => [createdPost, ...prev]);
+      }
+
+      if (createdPost.status === 'published') {
+        const rssEntry: RssFeedItem = {
+          id: `rss-${createdPost.id}`,
+          title: createdPost.title,
+          linkTab: `blog&post=${createdPost.slug}`,
+          description: createdPost.metaDescription || createdPost.excerpt,
+          pubDate: new Date().toUTCString(),
+          category: createdPost.category,
+          guid: `apex-blog-${createdPost.slug}`,
+          isPublished: true,
+        };
+        setRssFeedItems((prev) => [rssEntry, ...prev]);
+      }
+
+      setInsideEvsCandidates((prev) =>
+        prev.map((item) =>
+          item.url === createdPost.sourceUrl ? { ...item, alreadyImported: true } : item
+        )
+      );
+
+      if (data.aiError && !data.aiPowered) {
+        showToast(
+          `Saved ${createdPost.status === 'draft' ? 'as Draft for Review' : 'article'} with source media. Gemini note: ${data.aiError}`,
+          'info'
+        );
+      } else {
+        showToast(
+          `${data.aiPowered ? 'Gemini SEO Rewritten' : 'Imported'}${data.imageGeneratedWithAi ? ' + Artwork Generated' : ''} (${
+            createdPost.status === 'published' ? 'Published' : 'Saved as Draft'
+          }): "${createdPost.title}"`,
+          'success'
+        );
+      }
+      return { post: createdPost, aiPowered: Boolean(data.aiPowered) };
+    } catch (err: any) {
+      const msg = err?.message || 'Import request failed.';
+      showToast(msg, 'error');
+      return { error: msg };
+    } finally {
+      setIsRewritingArticle(false);
+    }
+  };
+
+  const aiRewriteDraftArticle = async (input: {
+    title: string;
+    excerpt?: string;
+    content?: string;
+    sourceUrl?: string;
+    coverImageUrl?: string;
+    category?: BlogPost['category'];
+    tone?: AutoBlogConfig['targetTone'];
+    includeContentImages?: boolean;
+    generateArticleImages?: boolean;
+    imageGenerationMode?: AutoBlogConfig['imageGenerationMode'];
+  }): Promise<{ rewritten?: Partial<BlogPost>; aiPowered?: boolean; error?: string }> => {
+    setIsRewritingArticle(true);
+    try {
+      const res = await fetch('/api/blog/rewrite-existing', {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(input),
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.rewritten) {
+        const errMsg = data?.error || 'Gemini SEO rewrite failed. Check GEMINI_API_KEY in Settings > Secrets.';
+        showToast(errMsg, 'error');
+        return { error: errMsg };
+      }
+      showToast(
+        data.imageGeneratedWithAi
+          ? 'Article SEO-rewritten & custom artwork generated with Gemini AI!'
+          : 'Article SEO-rewritten with Gemini AI!',
+        'success'
+      );
+      return { rewritten: data.rewritten as Partial<BlogPost>, aiPowered: Boolean(data.aiPowered) };
+    } catch (err: any) {
+      const msg = err?.message || 'AI optimization request failed.';
+      showToast(msg, 'error');
+      return { error: msg };
+    } finally {
+      setIsRewritingArticle(false);
+    }
+  };
+
+  const generateBlogPostImage = async (input: {
+    postId?: string;
+    title: string;
+    excerpt?: string;
+    category?: string;
+    slug?: string;
+    imageMode?: AutoBlogConfig['imageGenerationMode'];
+  }): Promise<{ imageUrl?: string; imagePrompt?: string; error?: string }> => {
+    setIsGeneratingBlogImage(true);
+    try {
+      const res = await fetch('/api/blog/generate-image', {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(input),
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.imageUrl) {
+        const errMsg = data?.error || 'Could not generate article image with Gemini API.';
+        showToast(errMsg, 'error');
+        return { error: errMsg };
+      }
+      if (Array.isArray(data.posts) && data.posts.length > 0) {
+        setBlogPosts(data.posts as BlogPost[]);
+      } else if (input.postId) {
+        setBlogPosts((prev) =>
+          prev.map((p) =>
+            p.id === input.postId
+              ? {
+                  ...p,
+                  coverImageUrl: data.imageUrl,
+                  imageGeneratedWithAi: true,
+                  imageGenerationPrompt: data.imagePrompt,
+                }
+              : p
+          )
+        );
+      }
+      showToast('Generated bespoke Gemini article artwork!', 'success');
+      return { imageUrl: data.imageUrl, imagePrompt: data.imagePrompt };
+    } catch (err: any) {
+      const msg = err?.message || 'Gemini article image generation failed.';
+      showToast(msg, 'error');
+      return { error: msg };
+    } finally {
+      setIsGeneratingBlogImage(false);
+    }
+  };
+
+  const approveDraftBlogPosts = async (
+    postIds: string[],
+    publishAll = false
+  ): Promise<{ publishedCount: number; error?: string }> => {
+    try {
+      const res = await fetch('/api/blog/drafts/approve', {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ postIds, publishAll }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        const errMsg = data?.error || 'Failed to publish draft blog posts.';
+        showToast(errMsg, 'error');
+        return { publishedCount: 0, error: errMsg };
+      }
+      if (Array.isArray(data.posts)) {
+        setBlogPosts(data.posts as BlogPost[]);
+      } else {
+        const idSet = new Set(postIds);
+        setBlogPosts((prev) =>
+          prev.map((p) =>
+            p.status === 'draft' && (publishAll || idSet.has(p.id))
+              ? { ...p, status: 'published', pipelineStage: 'approved_published' }
+              : p
+          )
+        );
+      }
+      const count = Number(data.publishedCount) || 0;
+      showToast(
+        count > 0
+          ? `Approved & published ${count} draft article${count === 1 ? '' : 's'} to live Blog & RSS!`
+          : 'No pending drafts matched approval.',
+        count > 0 ? 'success' : 'info'
+      );
+      return { publishedCount: count };
+    } catch (err: any) {
+      const msg = err?.message || 'Draft approval request failed.';
+      showToast(msg, 'error');
+      return { publishedCount: 0, error: msg };
+    }
+  };
+
+  const runAutoBlogSyncNow = async (
+    force = true,
+    maxArticles?: number,
+    saveAsDrafts?: boolean
+  ): Promise<{
+    importedCount: number;
+    message: string;
+    aiRewrittenCount?: number;
+    imagesGeneratedCount?: number;
+    aiError?: string;
+    error?: string;
+  }> => {
+    setIsSyncingAutoBlog(true);
+    try {
+      const res = await fetch('/api/blog/auto-sync', {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          force,
+          ...(maxArticles ? { maxArticles } : {}),
+          ...(typeof saveAsDrafts === 'boolean' ? { saveAsDrafts } : {}),
+        }),
+      });
+      const data = await res.json();
+      if (typeof data?.geminiConfigured === 'boolean') {
+        setGeminiConfigured(data.geminiConfigured);
+      }
+      if (Array.isArray(data?.posts) && data.posts.length > 0) {
+        setBlogPosts(data.posts as BlogPost[]);
+      }
+      if (data?.autoBlogConfig) {
+        setAutoBlogConfig((prev) => ({ ...prev, ...data.autoBlogConfig }));
+      }
+      if (Array.isArray(data?.logs)) {
+        setAutoBlogLogs(data.logs as AutoBlogRunLog[]);
+      }
+      const importedCount = Array.isArray(data?.newPosts) ? data.newPosts.length : 0;
+      const message = data?.log?.message || data?.message || 'InsideEVs sync cycle complete.';
+      if (!res.ok || data?.error) {
+        showToast(data?.error || message, 'error');
+        return { importedCount: 0, message, error: data?.error || message };
+      }
+      showToast(
+        message,
+        data?.aiError && data?.aiRewrittenCount === 0
+          ? 'info'
+          : importedCount > 0
+          ? 'success'
+          : 'info'
+      );
+      void fetchInsideEvsArticles(false);
+      return {
+        importedCount,
+        message,
+        aiRewrittenCount: data?.aiRewrittenCount,
+        imagesGeneratedCount: data?.imagesGeneratedCount,
+        aiError: data?.aiError,
+      };
+    } catch (err: any) {
+      const msg = err?.message || 'Auto-blog sync request failed.';
+      showToast(msg, 'error');
+      return { importedCount: 0, message: msg, error: msg };
+    } finally {
+      setIsSyncingAutoBlog(false);
+    }
+  };
+
   const updateEngagementRewardConfig = (updates: Partial<EngagementRewardConfig>) => {
     setEngagementRewardConfig((prev) => {
       const normalizedTiers = Array.isArray(updates.tierLevels)
@@ -11610,6 +12253,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateBlogPost,
         deleteBlogPost,
         toggleBlogPostStatus,
+        autoBlogConfig,
+        autoBlogLogs,
+        insideEvsCandidates,
+        isFetchingInsideEvs,
+        isSyncingAutoBlog,
+        isRewritingArticle,
+        isGeneratingBlogImage,
+        geminiConfigured,
+        updateAutoBlogConfig,
+        fetchInsideEvsArticles,
+        importAndRewriteInsideEvsArticle,
+        aiRewriteDraftArticle,
+        generateBlogPostImage,
+        approveDraftBlogPosts,
+        runAutoBlogSyncNow,
         updateEngagementRewardConfig,
         grantManualEngagementReward,
         revokeEngagementReward,
@@ -11626,6 +12284,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         trackVisitorAction,
         soundEnabled,
         toggleSoundEnabled,
+        investmentActivities,
+        appendInvestmentActivity,
       }}
     >
 

@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext';
 import { INVESTMENT_POOLS } from '../data/mockData';
 import { InvestmentPool, AssetNotificationSettings, AssetAlertHistoryItem, InvestmentActivityItem } from '../types';
 import { AssetAlertsModal, PRESET_TARGETS } from './AssetAlertsModal';
-import { InvestmentActivityTable, INITIAL_INVESTMENT_ACTIVITIES } from './InvestmentActivityTable';
+import { InvestmentActivityTable } from './InvestmentActivityTable';
 import { UserInvestmentBoard } from './UserInvestmentBoard';
 import {
   TrendingUp,
@@ -40,7 +40,6 @@ interface InvestmentHubProps {
 }
 
 const STORAGE_KEY = 'apex_fleet_target_alert_settings';
-const ACTIVITY_STORAGE_KEY = 'apex_fleet_investment_activities';
 
 export const InvestmentHub: React.FC<InvestmentHubProps> = ({ onOpenDeposit, onNavigateToDashboard }) => {
   const {
@@ -56,6 +55,8 @@ export const InvestmentHub: React.FC<InvestmentHubProps> = ({ onOpenDeposit, onN
     removeStockPriceAlert,
     toggleStockPriceAlert,
     resetStockPriceAlert,
+    investmentActivities,
+    appendInvestmentActivity,
   } = useApp();
 
   const [activePoolToStake, setActivePoolToStake] = useState<InvestmentPool | null>(null);
@@ -65,31 +66,6 @@ export const InvestmentHub: React.FC<InvestmentHubProps> = ({ onOpenDeposit, onN
   const [stockAlertCondition, setStockAlertCondition] = useState<'above' | 'below'>('above');
   const [stockAlertPrice, setStockAlertPrice] = useState<string>(() => (tslaQuote.price + 5).toFixed(2));
   const [stockAlertNote, setStockAlertNote] = useState<string>('');
-
-  // Investment activity chronological history with localStorage persistence
-  const [activities, setActivities] = useState<InvestmentActivityItem[]>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem(ACTIVITY_STORAGE_KEY);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-        }
-      } catch (e) {
-        console.warn('Failed to load investment activities:', e);
-      }
-    }
-    return INITIAL_INVESTMENT_ACTIVITIES;
-  });
-
-  const saveActivities = (newActivities: InvestmentActivityItem[]) => {
-    setActivities(newActivities);
-    try {
-      localStorage.setItem(ACTIVITY_STORAGE_KEY, JSON.stringify(newActivities));
-    } catch (e) {
-      console.warn('Failed to save investment activities:', e);
-    }
-  };
 
   // Notification settings state with localStorage persistence
   const [alertSettings, setAlertSettings] = useState<AssetNotificationSettings>(() => {
@@ -326,26 +302,7 @@ export const InvestmentHub: React.FC<InvestmentHubProps> = ({ onOpenDeposit, onN
 
     const ok = stakeInPool(activePoolToStake.id, numStake);
     if (ok) {
-      // Record new deposit activity item
-      const randomHex = Math.random().toString(16).substring(2, 8);
-      const newDepositItem: InvestmentActivityItem = {
-        id: `act-dep-${Date.now()}`,
-        type: 'deposit',
-        assetId: activePoolToStake.id,
-        assetTitle: activePoolToStake.title,
-        category: activePoolToStake.category,
-        amountUsd: numStake,
-        cryptoFormatted: `${(numStake / 92000).toFixed(4)} BTC / ${(numStake / 3100).toFixed(3)} ETH`,
-        apyRate: activePoolToStake.apy,
-        timestamp: 'Just now',
-        status: 'confirmed',
-        txHash: `0x7f${randomHex}...${Math.random().toString(16).substring(2, 6)}`,
-        notes: `Smart contract staking into ${activePoolToStake.title} (${activePoolToStake.apy}% APY lockup).`,
-      };
-
-      saveActivities([newDepositItem, ...activities]);
       setActivePoolToStake(null);
-      showToast(`Successfully staked $${numStake.toLocaleString()} into ${activePoolToStake.title}!`, 'success');
       playTeslaAudioChime();
     }
   };
@@ -355,27 +312,7 @@ export const InvestmentHub: React.FC<InvestmentHubProps> = ({ onOpenDeposit, onN
       showToast('No unclaimed dividends available to withdraw yet.', 'info');
       return;
     }
-    const claimedAmt = inv.earnedDividendsUsd;
     claimDividends(inv.id);
-
-    const randomHex = Math.random().toString(16).substring(2, 8);
-    const newPayoutItem: InvestmentActivityItem = {
-      id: `act-payout-${Date.now()}`,
-      type: 'payout',
-      assetId: inv.poolId,
-      assetTitle: inv.poolTitle,
-      category: 'Commercial Fleet',
-      amountUsd: claimedAmt,
-      cryptoFormatted: `${(claimedAmt / 3100).toFixed(4)} ETH`,
-      apyRate: inv.apy,
-      timestamp: 'Just now',
-      status: 'confirmed',
-      txHash: `0x3c${randomHex}...${Math.random().toString(16).substring(2, 6)}`,
-      notes: `User-initiated dividend yield harvest credited directly to available balance.`,
-    };
-
-    saveActivities([newPayoutItem, ...activities]);
-    showToast(`Claimed $${claimedAmt.toFixed(2)} in dividends!`, 'success');
     playTeslaAudioChime();
   };
 
@@ -416,14 +353,15 @@ export const InvestmentHub: React.FC<InvestmentHubProps> = ({ onOpenDeposit, onN
       amountUsd: chosen.bonus,
       cryptoFormatted: `+${(chosen.bonus / 3100).toFixed(4)} ETH (Reward)`,
       apyRate: pool.apy,
-      timestamp: 'Just now',
+      timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
       status: 'confirmed',
       txHash: `0x89${randomHex}...${Math.random().toString(16).substring(2, 6)}`,
       milestoneTitle: chosen.title,
       notes: chosen.note,
+      userId: currentUser?.id || 'usr-apex-001',
     };
 
-    saveActivities([newMilestoneItem, ...activities]);
+    appendInvestmentActivity(newMilestoneItem);
     showToast(`🏆 Milestone Reward Recorded: ${chosen.title} (+$${chosen.bonus})`, 'success');
     playTeslaAudioChime();
   };
@@ -936,7 +874,7 @@ export const InvestmentHub: React.FC<InvestmentHubProps> = ({ onOpenDeposit, onN
                     </div>
 
                     {/* Pool Metrics Grid */}
-                    <div className="grid grid-cols-2 gap-3 p-3.5 rounded-2xl bg-zinc-900/80 border border-zinc-800 text-xs">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3.5 rounded-2xl bg-zinc-900/80 border border-zinc-800 text-xs">
                       <div>
                         <span className="text-[10px] text-zinc-500 block font-mono">LOCK PERIOD</span>
                         <span className="text-white font-bold">{pool.lockPeriodDays} Days</span>
@@ -1011,7 +949,7 @@ export const InvestmentHub: React.FC<InvestmentHubProps> = ({ onOpenDeposit, onN
 
       {/* Investment Activity History Table (Deposits, Payouts & Performance Milestones) */}
       <InvestmentActivityTable
-        activities={activities}
+        activities={investmentActivities}
         onSimulateMilestone={handleSimulateMilestoneEvent}
       />
 
