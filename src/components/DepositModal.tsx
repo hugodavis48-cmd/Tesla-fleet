@@ -91,7 +91,8 @@ export const DepositModal: React.FC<DepositModalProps> = ({
   const [web3Amount, setWeb3Amount] = useState<string>('500');
   const [connectedWalletAddress, setConnectedWalletAddress] = useState<string | null>(null);
   const [connectedWalletType, setConnectedWalletType] = useState<'metamask' | 'trust_wallet' | null>(null);
-  const [walletConnectionMode, setWalletConnectionMode] = useState<'live' | 'sandbox' | null>(null);
+  const [manualSenderAddress, setManualSenderAddress] = useState<string>('');
+  const [web3TxHashInput, setWeb3TxHashInput] = useState<string>('');
   const [isConnectingWallet, setIsConnectingWallet] = useState<boolean>(false);
   const [wcSessionNonce] = useState<string>(() =>
     `${Math.random().toString(16).slice(2, 10)}${Date.now().toString(16)}`
@@ -104,6 +105,7 @@ export const DepositModal: React.FC<DepositModalProps> = ({
       ''
   );
   const [depositAmount, setDepositAmount] = useState<string>('500');
+  const [cryptoTxHashInput, setCryptoTxHashInput] = useState<string>('');
 
   // Manual / Bank Wire state
   const [selectedManualMethodId, setSelectedManualMethodId] = useState<string>(
@@ -210,78 +212,57 @@ export const DepositModal: React.FC<DepositModalProps> = ({
     setTimeout(() => setCopiedKey(null), 2200);
   };
 
-  // Connect MetaMask (EIP-1193) or Trust Wallet Connect
-  const handleConnectWeb3Wallet = async (
-    providerType: 'metamask' | 'trust_wallet',
-    useSandboxFallback = false
-  ) => {
+  // Connect MetaMask (EIP-1193) or Trust Wallet browser provider
+  const handleConnectWeb3Wallet = async (providerType: 'metamask' | 'trust_wallet') => {
     setIsConnectingWallet(true);
     const injected = getInjectedProvider();
 
-    if (!useSandboxFallback && injected?.request) {
-      try {
-        if (
-          providerType === 'metamask' &&
-          !injected.isMetaMask &&
-          (injected.isTrust || injected.isTrustWallet)
-        ) {
-          showToast('Detected Trust Wallet provider instead of MetaMask. Switching to Sandbox Signer if needed.', 'info');
-        }
-        const accounts = (await injected.request({
-          method: 'eth_requestAccounts',
-        })) as string[];
-        if (Array.isArray(accounts) && accounts.length > 0) {
-          if (activeWeb3Gateway?.chainId) {
-            try {
-              await injected.request({
-                method: 'wallet_switchEthereumChain',
-                params: [{ chainId: activeWeb3Gateway.chainId }],
-              });
-            } catch {
-              // Ignore chain switch rejection if user keeps current EVM chain
-            }
-          }
-          setConnectedWalletAddress(accounts[0]);
-          setConnectedWalletType(providerType);
-          setWalletConnectionMode('live');
-          showToast(
-            `${providerType === 'metamask' ? 'MetaMask' : 'Trust Wallet'} connected: ${shortAddress(accounts[0])}`,
-            'success'
-          );
-          setIsConnectingWallet(false);
-          return;
-        }
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : 'Wallet authorization rejected.';
-        showToast(message, 'error');
-        setIsConnectingWallet(false);
-        return;
-      }
-    }
-
-    // Verified Sandbox Pairing for preview/iframe browsers without browser wallet extension
-    setTimeout(() => {
-      const demoAddr =
-        providerType === 'metamask'
-          ? '0x742d35Cc6634C0532925a3b844Bc454e4438f44e'
-          : '0x8894E0a0c962CB723c1976a4421c95949bE2D4E3';
-      setConnectedWalletAddress(demoAddr);
-      setConnectedWalletType(providerType);
-      setWalletConnectionMode('sandbox');
+    if (!injected?.request) {
       showToast(
-        `${
-          providerType === 'metamask' ? 'MetaMask Web3' : 'Trust Wallet Connect v2'
-        } paired (${shortAddress(demoAddr)})!`,
-        'success'
+        providerType === 'metamask'
+          ? 'MetaMask browser extension was not detected. Transfer directly to the vault address below and paste your sender address & TX hash, or open this page inside the MetaMask mobile browser.'
+          : 'No injected Web3 provider detected. Scan the Trust Wallet Connect QR / deep link below, transfer to the vault address, and enter your TX hash to verify.',
+        'info'
       );
       setIsConnectingWallet(false);
-    }, 650);
+      return;
+    }
+
+    try {
+      const accounts = (await injected.request({
+        method: 'eth_requestAccounts',
+      })) as string[];
+      if (Array.isArray(accounts) && accounts.length > 0) {
+        if (activeWeb3Gateway?.chainId) {
+          try {
+            await injected.request({
+              method: 'wallet_switchEthereumChain',
+              params: [{ chainId: activeWeb3Gateway.chainId }],
+            });
+          } catch {
+            // Ignore chain switch rejection if user keeps current EVM chain
+          }
+        }
+        setConnectedWalletAddress(accounts[0]);
+        setConnectedWalletType(providerType);
+        showToast(
+          `${providerType === 'metamask' ? 'MetaMask' : 'Trust Wallet'} connected: ${shortAddress(accounts[0])}`,
+          'success'
+        );
+      } else {
+        showToast('No wallet accounts returned by your Web3 provider.', 'error');
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Wallet authorization rejected.';
+      showToast(message, 'error');
+    } finally {
+      setIsConnectingWallet(false);
+    }
   };
 
   const handleDisconnectWeb3 = () => {
     setConnectedWalletAddress(null);
     setConnectedWalletType(null);
-    setWalletConnectionMode(null);
     showToast('Web3 wallet disconnected.', 'info');
   };
 
@@ -308,11 +289,13 @@ export const DepositModal: React.FC<DepositModalProps> = ({
       );
       return;
     }
-    if (!connectedWalletAddress) {
+
+    const effectiveSenderAddress = (connectedWalletAddress || manualSenderAddress).trim();
+    if (!effectiveSenderAddress && !web3TxHashInput.trim()) {
       showToast(
-        `Please connect your ${
+        `Connect your ${
           activeWeb3Gateway.providerType === 'trust_wallet' ? 'Trust Wallet' : 'MetaMask'
-        } wallet first.`,
+        } extension or enter your sending address and on-chain transaction hash.`,
         'error'
       );
       return;
@@ -321,10 +304,10 @@ export const DepositModal: React.FC<DepositModalProps> = ({
     setIsConfirming(true);
     setConfirmationStep(1);
 
-    let onChainTxHash = `0x${Math.random().toString(16).slice(2, 14)}${Date.now().toString(16)}`;
+    let onChainTxHash = web3TxHashInput.trim();
     const injected = getInjectedProvider();
 
-    if (walletConnectionMode === 'live' && injected?.request) {
+    if (connectedWalletAddress && injected?.request && !onChainTxHash) {
       try {
         const resultHash = await injected.request({
           method: 'eth_sendTransaction',
@@ -348,8 +331,8 @@ export const DepositModal: React.FC<DepositModalProps> = ({
       }
     }
 
-    setTimeout(() => setConfirmationStep(2), 950);
-    setTimeout(async () => {
+    setConfirmationStep(2);
+    try {
       setConfirmationStep(3);
       const netTokenAmount =
         web3FeePercent > 0
@@ -358,16 +341,17 @@ export const DepositModal: React.FC<DepositModalProps> = ({
       await depositFunds(web3Token, netTokenAmount, {
         gatewayId: activeWeb3Gateway.id,
         gatewayName: activeWeb3Gateway.name,
-        txHash: onChainTxHash,
-        senderAddress: connectedWalletAddress,
+        txHash: onChainTxHash || undefined,
+        senderAddress: effectiveSenderAddress || undefined,
       });
+      onClose();
+    } finally {
       setIsConfirming(false);
       setConfirmationStep(0);
-      onClose();
-    }, 1950);
+    }
   };
 
-  const handleSimulateCryptoDeposit = async () => {
+  const handleConfirmCryptoDeposit = async () => {
     if (!activeCryptoGateway) {
       showToast('Instant crypto gateways are currently disabled by Administrator.', 'error');
       return;
@@ -393,25 +377,26 @@ export const DepositModal: React.FC<DepositModalProps> = ({
 
     setIsConfirming(true);
     setConfirmationStep(1);
-
-    setTimeout(() => setConfirmationStep(2), 1000);
-    setTimeout(async () => {
-      setConfirmationStep(3);
+    try {
+      setConfirmationStep(2);
       const netAmount =
         cryptoFeePercent > 0
           ? Number((numCryptoAmount * (1 - cryptoFeePercent / 100)).toFixed(6))
           : numCryptoAmount;
+      setConfirmationStep(3);
       await depositFunds(selectedCurrency, netAmount, {
         gatewayId: activeCryptoGateway.id,
         gatewayName: activeCryptoGateway.name,
+        txHash: cryptoTxHashInput.trim() || undefined,
       });
+      onClose();
+    } finally {
       setIsConfirming(false);
       setConfirmationStep(0);
-      onClose();
-    }, 2000);
+    }
   };
 
-  const handleSimulateManualDeposit = () => {
+  const handleSubmitManualDeposit = async () => {
     const numMan = parseFloat(manualAmount) || 0;
     if (numMan <= 0) {
       showToast('Please enter a valid deposit amount.', 'error');
@@ -424,17 +409,18 @@ export const DepositModal: React.FC<DepositModalProps> = ({
 
     setIsConfirming(true);
     setConfirmationStep(1);
-    setTimeout(() => setConfirmationStep(2), 1000);
-    setTimeout(async () => {
+    try {
+      setConfirmationStep(2);
       await depositFunds('USD', numMan, {
         gatewayName: activeManualMethod?.name || activeManualMethod?.title || 'Manual Wire',
         txHash: manualTxProof.trim() || undefined,
       });
+      showToast(`Manual deposit of $${numMan.toLocaleString()} USD submitted cleanly!`, 'success');
+      onClose();
+    } finally {
       setIsConfirming(false);
       setConfirmationStep(0);
-      showToast(`Manual deposit of $${numMan.toLocaleString()} USD credited to vault!`, 'success');
-      onClose();
-    }, 2000);
+    }
   };
 
   const hasInjectedProvider = Boolean(getInjectedProvider());
@@ -545,7 +531,6 @@ export const DepositModal: React.FC<DepositModalProps> = ({
                               ) {
                                 setConnectedWalletAddress(null);
                                 setConnectedWalletType(null);
-                                setWalletConnectionMode(null);
                               }
                             }}
                             className={`p-3.5 rounded-xl border text-left transition flex flex-col justify-between ${
@@ -635,8 +620,7 @@ export const DepositModal: React.FC<DepositModalProps> = ({
                             <div className="flex items-center gap-2">
                               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 font-mono text-xs">
                                 <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                                {shortAddress(connectedWalletAddress)}
-                                {walletConnectionMode === 'sandbox' ? ' (Paired)' : ' (Live)'}
+                                {shortAddress(connectedWalletAddress)} (Live)
                               </span>
                               <button
                                 type="button"
@@ -648,34 +632,6 @@ export const DepositModal: React.FC<DepositModalProps> = ({
                             </div>
                           ) : (
                             <div className="flex flex-wrap items-center gap-2">
-                              {hasInjectedProvider && (
-                                <button
-                                  type="button"
-                                  disabled={isConnectingWallet}
-                                  onClick={() =>
-                                    handleConnectWeb3Wallet(
-                                      activeWeb3Gateway.providerType === 'trust_wallet'
-                                        ? 'trust_wallet'
-                                        : 'metamask',
-                                      false
-                                    )
-                                  }
-                                  className={`px-3.5 py-2 rounded-xl font-heading font-bold text-xs text-white transition flex items-center gap-1.5 ${
-                                    activeWeb3Gateway.providerType === 'metamask'
-                                      ? 'bg-amber-600 hover:bg-amber-500'
-                                      : 'bg-blue-600 hover:bg-blue-500'
-                                  }`}
-                                >
-                                  <Wallet className="w-3.5 h-3.5" />
-                                  <span>
-                                    {isConnectingWallet
-                                      ? 'Connecting...'
-                                      : activeWeb3Gateway.providerType === 'metamask'
-                                      ? 'Connect Browser MetaMask'
-                                      : 'Connect Trust Browser'}
-                                  </span>
-                                </button>
-                              )}
                               <button
                                 type="button"
                                 disabled={isConnectingWallet}
@@ -683,24 +639,61 @@ export const DepositModal: React.FC<DepositModalProps> = ({
                                   handleConnectWeb3Wallet(
                                     activeWeb3Gateway.providerType === 'trust_wallet'
                                       ? 'trust_wallet'
-                                      : 'metamask',
-                                    true
+                                      : 'metamask'
                                   )
                                 }
-                                className="px-3.5 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-white font-heading font-bold text-xs transition flex items-center gap-1.5"
+                                className={`px-3.5 py-2 rounded-xl font-heading font-bold text-xs text-white transition flex items-center gap-1.5 ${
+                                  activeWeb3Gateway.providerType === 'metamask'
+                                    ? 'bg-amber-600 hover:bg-amber-500'
+                                    : 'bg-blue-600 hover:bg-blue-500'
+                                }`}
                               >
-                                <Zap className="w-3.5 h-3.5 text-emerald-400" />
+                                <Wallet className="w-3.5 h-3.5" />
                                 <span>
-                                  {activeWeb3Gateway.providerType === 'metamask'
-                                    ? hasInjectedProvider
-                                      ? 'Pair Demo MetaMask'
-                                      : 'Connect MetaMask Wallet'
-                                    : 'Pair Trust Wallet Session'}
+                                  {isConnectingWallet
+                                    ? 'Connecting...'
+                                    : !hasInjectedProvider
+                                    ? activeWeb3Gateway.providerType === 'metamask'
+                                      ? 'Check MetaMask Extension'
+                                      : 'Check Trust Browser Wallet'
+                                    : activeWeb3Gateway.providerType === 'metamask'
+                                    ? 'Connect Browser MetaMask'
+                                    : 'Connect Trust Browser'}
                                 </span>
                               </button>
                             </div>
                           )}
                         </div>
+
+                        {/* Manual Sender Address & On-Chain TX Hash for Mobile / External Wallet Transfers */}
+                        {!connectedWalletAddress && (
+                          <div className="pt-3 border-t border-zinc-800/80 grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                            <div>
+                              <label className="text-[11px] text-zinc-400 block mb-1">
+                                Sending Wallet Address (EVM / Native)
+                              </label>
+                              <input
+                                type="text"
+                                value={manualSenderAddress}
+                                onChange={(e) => setManualSenderAddress(e.target.value)}
+                                placeholder="0x... your wallet address"
+                                className="w-full bg-black/60 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-white font-mono focus:outline-none focus:border-amber-500"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[11px] text-zinc-400 block mb-1">
+                                On-Chain TX Hash (for external transfers)
+                              </label>
+                              <input
+                                type="text"
+                                value={web3TxHashInput}
+                                onChange={(e) => setWeb3TxHashInput(e.target.value)}
+                                placeholder="0x... transaction hash"
+                                className="w-full bg-black/60 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-white font-mono focus:outline-none focus:border-amber-500"
+                              />
+                            </div>
+                          </div>
+                        )}
 
                         {/* Trust Wallet Connect v2 QR & Deep Link */}
                         {activeWeb3Gateway.providerType === 'trust_wallet' && (
@@ -1105,11 +1098,25 @@ export const DepositModal: React.FC<DepositModalProps> = ({
                     </span>
                   </div>
 
+                  {/* Optional TX Hash Input */}
+                  <div className="bg-zinc-900/80 p-3.5 rounded-xl border border-zinc-800">
+                    <span className="text-xs text-zinc-400 block mb-1.5">
+                      On-Chain Transaction Hash / Reference (Recommended)
+                    </span>
+                    <input
+                      type="text"
+                      value={cryptoTxHashInput}
+                      onChange={(e) => setCryptoTxHashInput(e.target.value)}
+                      placeholder="Paste blockchain TXID / hash after sending"
+                      className="w-full bg-black/60 border border-zinc-700 rounded-lg px-3 py-2 text-zinc-200 font-mono text-xs focus:outline-none focus:border-red-500"
+                    />
+                  </div>
+
                   {/* Transfer Confirmation Button */}
                   <div className="pt-1">
                     <button
                       type="button"
-                      onClick={handleSimulateCryptoDeposit}
+                      onClick={handleConfirmCryptoDeposit}
                       disabled={isConfirming}
                       className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-red-600 via-red-500 to-rose-600 hover:from-red-500 hover:to-rose-500 font-heading font-bold text-white shadow-lg shadow-red-900/50 flex items-center justify-center gap-2 transition disabled:opacity-60"
                     >
@@ -1263,7 +1270,7 @@ export const DepositModal: React.FC<DepositModalProps> = ({
 
               <button
                 type="button"
-                onClick={handleSimulateManualDeposit}
+                onClick={handleSubmitManualDeposit}
                 disabled={isConfirming}
                 className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 font-heading font-bold text-white shadow-lg shadow-emerald-950/60 flex items-center justify-center gap-2 transition disabled:opacity-60"
               >

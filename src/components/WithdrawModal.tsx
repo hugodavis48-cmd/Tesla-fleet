@@ -31,7 +31,6 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({ isOpen, onClose, o
     withdrawalRequests,
     requestWithdrawal,
     isEligibleForWithdrawal,
-    setUserDepositedForDemo,
     lockedWinBalanceUsd,
     minDepositToActivateWinsUsd,
     openWinActivationPopup,
@@ -225,16 +224,6 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({ isOpen, onClose, o
                   <span>Deposit $200 to Activate Withdrawals</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
-
-                {/* Tester / Evaluator Simulation Quick-Action */}
-                <button
-                  type="button"
-                  onClick={() => setUserDepositedForDemo(500)}
-                  className="px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 hover:border-zinc-500 text-zinc-300 hover:text-white text-[11px] font-semibold transition shrink-0"
-                  title="Simulate a $500 verified deposit to unlock the withdrawal form"
-                >
-                  ⚡ Demo: Set $500 Deposit
-                </button>
               </div>
             </div>
           ) : (
@@ -247,14 +236,6 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({ isOpen, onClose, o
                   <span className="font-mono font-bold text-white">${eligibility.totalDeposited.toFixed(2)} USD</span> on file.
                 </span>
               </div>
-              <button
-                type="button"
-                onClick={() => setUserDepositedForDemo(0)}
-                className="text-[10px] text-zinc-400 hover:text-red-400 underline shrink-0 transition"
-                title="Reset deposit to $0 to test the rejection alert again"
-              >
-                Reset to $0 for testing
-              </button>
             </div>
           )}
 

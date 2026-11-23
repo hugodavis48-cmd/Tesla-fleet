@@ -23,7 +23,6 @@ import { InvestmentActivityItem, InvestmentActivityType } from '../types';
 
 interface InvestmentActivityTableProps {
   activities: InvestmentActivityItem[];
-  onSimulateMilestone: () => void;
   onRefresh?: () => void;
 }
 
@@ -161,7 +160,6 @@ export const INITIAL_INVESTMENT_ACTIVITIES: InvestmentActivityItem[] = [
 
 export const InvestmentActivityTable: React.FC<InvestmentActivityTableProps> = ({
   activities,
-  onSimulateMilestone,
   onRefresh,
 }) => {
   const [filterType, setFilterType] = useState<string>('all');
@@ -304,15 +302,6 @@ export const InvestmentActivityTable: React.FC<InvestmentActivityTableProps> = (
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <button
-              onClick={onSimulateMilestone}
-              className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 text-white font-heading font-bold text-xs shadow-md transition flex items-center gap-1.5 cursor-pointer"
-              title="Trigger a simulated performance milestone reward and dividend distribution event"
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>Simulate Milestone Event</span>
-            </button>
-
             <button
               onClick={handleExportCsv}
               className="px-3.5 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-300 font-heading font-bold text-xs transition flex items-center gap-1.5 cursor-pointer"

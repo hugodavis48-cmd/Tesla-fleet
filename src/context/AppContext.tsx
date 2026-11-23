@@ -311,7 +311,7 @@ interface AppContextType {
   ) => Promise<void>;
   deleteNewsletterSubscriber: (id: string) => Promise<void>;
   refreshNewsletterSubscribers: () => Promise<void>;
-  sendTestEmail: (recipientEmail: string, simulateScenario?: string) => Promise<TestEmailResult>;
+  sendTestEmail: (recipientEmail: string) => Promise<TestEmailResult>;
   sendMarketingCampaign: (campaign: {
     title: string;
     subject: string;
@@ -557,7 +557,6 @@ interface AppContextType {
   // Referral System
   referralLink: string;
   updateReferralCode: (code: string) => boolean;
-  simulateFriendReferral: (friendName?: string, depositAmount?: number) => void;
   // Tesla Car Sales & Nationwide Delivery
   teslaCarListings: TeslaCarListing[];
   createTeslaCarListing: (car: Omit<TeslaCarListing, 'id'>) => Promise<void>;
@@ -624,7 +623,6 @@ interface AppContextType {
     rejectionReason?: string
   ) => void;
   isEligibleForWithdrawal: (user: User | null) => { eligible: boolean; totalDeposited: number; required: number; reason?: string };
-  setUserDepositedForDemo: (amountUsd: number) => void;
   // Spins & Promotion CMS
   wheelRewards: WheelReward[];
   updateWheelRewards: (rewards: WheelReward[]) => void;
@@ -3663,7 +3661,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [tslaQuote.price, stockPriceAlerts]);
 
 
-  // Live TSLA stock price fluctuation (simulating real-time NASDAQ market updates)
+  // Live TSLA stock quote feed updates
   useEffect(() => {
     const stockInterval = setInterval(() => {
       setTslaQuote((prev) => {
@@ -3935,77 +3933,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         .catch(() => {});
     }
   }, [currentUser?.id, currentUser?.role, getAuthHeaders, applyServerWallet]);
-
-  // Periodic simulated live community win & ROI ledger drops every 10s (Spin, Scratch, Staking ROI & TSLA Stock ROI)
-  useEffect(() => {
-    const verifiedAvatars = [
-      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
-      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80',
-      'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=150&q=80',
-      'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=150&q=80',
-      'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=150&q=80',
-      'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&w=150&q=80',
-      'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&w=150&q=80',
-      'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=150&q=80',
-      'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
-    ];
-
-    const interval = setInterval(() => {
-      const mockNames = [
-        'Marcus_V_Plaid',
-        'Sarah_Cyber99',
-        'Elena_Berlin_EV',
-        'Mateo_Miami_TSLA',
-        'Kenji_Roadster',
-        'Chloe_London_FSD',
-        'Priya_Austin_Grid',
-        'Liam_Seattle_EV',
-        'Viktor_Apex',
-        'TeslaKing_Austin',
-      ];
-      const drops: Array<{
-        label: string;
-        val: number;
-        type: WinRecord['type'];
-        category: WinRecord['category'];
-        poolOrTicker?: string;
-        roiPercent?: number;
-      }> = [
-        { label: 'Robotaxi Fleet Staking ROI Settled', val: 1480, type: 'Staking ROI', category: 'staking', poolOrTicker: 'Robotaxi Yield', roiPercent: 18.4 },
-        { label: 'TSLA.FSD Fast-ROI Stock Dividend Payout', val: 3250, type: 'TSLA Stock ROI', category: 'stock', poolOrTicker: 'TSLA.FSD', roiPercent: 34.0 },
-        { label: '2026 Tesla Model 3 Performance Jackpot', val: 54990, type: 'Wheel Spin', category: 'vehicle' },
-        { label: 'Supercharger V4 Grid Staking Yield', val: 920, type: 'Staking ROI', category: 'staking', poolOrTicker: 'Supercharger V4', roiPercent: 14.8 },
-        { label: 'TSLA Spot Equity +14.6% Swing Gain', val: 4120, type: 'TSLA Stock ROI', category: 'stock', poolOrTicker: 'TSLA Spot', roiPercent: 14.6 },
-        { label: '500 USDT Instant Wheel Win', val: 500, type: 'Wheel Spin', category: 'spin_scratch' },
-        { label: 'Plaid Track Fleet Staking Compound', val: 2150, type: 'Staking ROI', category: 'staking', poolOrTicker: 'Plaid Track', roiPercent: 22.6 },
-        { label: '$8,000 Max Scratch Cash Jackpot', val: 8000, type: 'Scratch & Win', category: 'spin_scratch' },
-        { label: 'TSLA.OPTM Robotics Call ROI Yield', val: 2890, type: 'TSLA Stock ROI', category: 'stock', poolOrTicker: 'TSLA.OPTM', roiPercent: 28.5 },
-        { label: '2026 Cybertruck AWD Scratch Win', val: 79990, type: 'Scratch & Win', category: 'vehicle' },
-      ];
-      const randomName = mockNames[Math.floor(Math.random() * mockNames.length)];
-      const drop = drops[Math.floor(Math.random() * drops.length)];
-      const randomAvatar = verifiedAvatars[Math.floor(Math.random() * verifiedAvatars.length)];
-      const randomHash = `0x${Math.random().toString(16).substring(2, 6)}...${Math.random().toString(16).substring(2, 6)}`;
-
-      const newWin: WinRecord = {
-        id: `win-${Date.now()}-${Math.floor(Math.random() * 999)}`,
-        username: randomName,
-        prize: drop.label,
-        type: drop.type,
-        category: drop.category,
-        poolOrTicker: drop.poolOrTicker,
-        roiPercent: drop.roiPercent,
-        valueUsd: drop.val,
-        timestamp: 'Just now',
-        verifiedHash: randomHash,
-        avatar: randomAvatar,
-      };
-
-      setRecentWinners((prev) => [newWin, ...prev.slice(0, 29)]);
-    }, 6000);
-
-    return () => clearInterval(interval);
-  }, []);
 
   const [sessionToken, setSessionToken] = useState<string | null>(() => {
     return localStorage.getItem('apex_session_token') || null;
@@ -4807,94 +4734,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCurrentUser(updated);
     showToast(`Your unique invite code updated to: ${cleanCode}`, 'success');
     return true;
-  };
-
-  const simulateFriendReferral = (friendName?: string, depositAmount: number = 500) => {
-    if (!requireSignedIn('simulate referral rewards')) return;
-
-    const names = ['Liam Thorne', 'Mia Vance', 'David Chen', 'Chloe Sterling', 'Jordan Rivera', 'Noah Zhao'];
-    const selectedName = friendName || names[Math.floor(Math.random() * names.length)];
-    const friendEmail = `${selectedName.toLowerCase().replace(/\s+/g, '.')}@tesla-driver.io`;
-    const verifiedAvatarsList = [
-      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
-      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80',
-      'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=150&q=80',
-      'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=150&q=80',
-      'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=150&q=80',
-      'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&w=150&q=80',
-    ];
-    const avatar = verifiedAvatarsList[Math.floor(Math.random() * verifiedAvatarsList.length)];
-
-    // Tier-based referral reward strictly bounded [$25, $200]
-    const activeTierSummary = getUserEngagementSummary(currentUser);
-    const bonusCredits = Math.min(200, Math.max(25, activeTierSummary.referralRewardUsd || 25));
-    const bonusSpins = 2;
-
-    const newReferred: ReferredUser = {
-      id: `ref-${Date.now()}`,
-      name: selectedName,
-      email: friendEmail,
-      avatar,
-      date: new Date().toISOString().substring(0, 10),
-      status: 'deposit_completed',
-      depositAmountUsd: depositAmount,
-      earnedCreditUsd: bonusCredits,
-      bonusSpinsEarned: bonusSpins,
-    };
-
-    // Credit USD wallet balance & sync server ledger
-    creditFreeWinUsd(bonusCredits, currentUser?.id);
-    if (currentUser?.id) {
-      fetch(`/api/wallet/${encodeURIComponent(currentUser.id)}/credit`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({
-          amountUsd: bonusCredits,
-          fundingType: 'free_win',
-          reason: `Referral reward (${selectedName})`,
-        }),
-      })
-        .then((r) => (r.ok ? r.json() : null))
-        .then((d) => {
-          if (d?.wallet) applyServerWallet(d.wallet, currentUser.id);
-        })
-        .catch(() => {});
-    }
-
-    // Add extra promotional spins
-    setAvailableSpins((prev) => prev + bonusSpins);
-
-    // Record on-chain transaction
-    const txId = `tx-ref-${Date.now()}`;
-    const txHash = `0x${Math.random().toString(16).substring(2, 10)}...ref`;
-    const newTx: Transaction = {
-      id: txId,
-      type: 'referral_credit',
-      currency: 'USD',
-      amount: bonusCredits,
-      usdEquivalent: bonusCredits,
-      timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
-      status: 'completed',
-      txHash,
-      description: `${activeTierSummary.activeLevel.name} Referral Reward: ${selectedName} completed $${depositAmount} USD deposit`,
-    };
-    setTransactions((prev) => [newTx, ...prev]);
-
-    // Update current user's referredUsers list and metrics
-    if (currentUser) {
-      const updatedUser: User = {
-        ...currentUser,
-        referralEarningsUsd: (currentUser.referralEarningsUsd || 0) + bonusCredits,
-        referralCount: (currentUser.referralCount || 0) + 1,
-        referredUsers: [newReferred, ...(currentUser.referredUsers || [])],
-      };
-      setCurrentUser(updatedUser);
-    }
-
-    showToast(
-      `Referral Reward Earned (${activeTierSummary.activeLevel.name})! ${selectedName} deposited $${depositAmount} USD — +$${bonusCredits} USD & ${bonusSpins} Free Spins added!`,
-      'success'
-    );
   };
 
   const setRole = (role: UserRole) => {
@@ -6505,12 +6344,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Test Email Sender with live delivery verification & failure diagnostic reporting
-  const sendTestEmail = async (recipientEmail: string, simulateScenario?: string): Promise<TestEmailResult> => {
+  const sendTestEmail = async (recipientEmail: string): Promise<TestEmailResult> => {
     try {
       const res = await fetch('/api/mailer/test', {
         method: 'POST',
         headers: getAuthHeaders(),
-        body: JSON.stringify({ smtpConfig, testEmail: recipientEmail, simulateScenario }),
+        body: JSON.stringify({ smtpConfig, testEmail: recipientEmail }),
       });
       const data = await res.json();
 
@@ -6527,7 +6366,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           port: data.port || smtpConfig.port,
           timestamp: data.timestamp || new Date().toISOString(),
           smtpLog: data.smtpLog,
-          simulationMode: data.simulationMode,
         };
       }
 
@@ -6795,12 +6633,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           smtpConfig,
         }),
       });
-      if (res.ok) {
-        const data = await res.json();
-        if (data?.message) serverMessage = data.message;
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        const msg = errData?.error || 'Failed to dispatch campaign to mail relay.';
+        showToast(msg, 'error');
+        return { success: false, message: msg };
       }
-    } catch {
-      // Local simulated fallback
+      const data = await res.json();
+      if (data?.message) serverMessage = data.message;
+    } catch (err: any) {
+      const msg = err?.message || 'Unable to reach server mailer endpoint.';
+      showToast(msg, 'error');
+      return { success: false, message: msg };
     }
 
     const newCampaign: EmailCampaign = {
@@ -7916,29 +7760,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     return { eligible: true, totalDeposited, required };
-  };
-
-  const setUserDepositedForDemo = (amountUsd: number) => {
-    if (currentUser) {
-      const updatedUser: User = { ...currentUser, totalDepositedUsd: amountUsd };
-      setCurrentUser(updatedUser);
-      setAllUsers((prevUsers) =>
-        prevUsers.map((u) => (u.id === currentUser.id ? { ...u, totalDepositedUsd: amountUsd } : u))
-      );
-
-      const lockedAmt = lockedWinsByUserId[currentUser.id] || 0;
-      if (amountUsd >= MIN_DEPOSIT_TO_ACTIVATE_WINS_USD && lockedAmt > 0) {
-        setBalances((prev) => ({ ...prev, usd: Number((prev.usd + lockedAmt).toFixed(2)) }));
-        setLockedWinsByUserId((prev) => ({ ...prev, [currentUser.id]: 0 }));
-      }
-
-      showToast(
-        amountUsd >= MIN_DEPOSIT_TO_ACTIVATE_WINS_USD
-          ? `Demo Profile: Deposits set to $${amountUsd} USD (Withdrawals & Promo Winnings UNLOCKED).`
-          : `Demo Profile: Deposits set to $${amountUsd} USD (Min $${MIN_DEPOSIT_TO_ACTIVATE_WINS_USD} required to unlock spin $$ wins).`,
-        'info'
-      );
-    }
   };
 
   const updateWithdrawalSettings = (settingsUpdates: Partial<WithdrawalSettings>) => {
@@ -12098,7 +11919,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         showToast,
         referralLink,
         updateReferralCode,
-        simulateFriendReferral,
         teslaCarListings,
         createTeslaCarListing,
         updateTeslaCarListing,
@@ -12138,7 +11958,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         requestWithdrawal,
         processWithdrawalRequest,
         isEligibleForWithdrawal,
-        setUserDepositedForDemo,
         // Spins & Promotion CMS
         wheelRewards,
         updateWheelRewards,

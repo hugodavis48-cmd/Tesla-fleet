@@ -141,7 +141,6 @@ export interface TestEmailResult {
   recipient?: string;
   host?: string;
   port?: number;
-  simulationMode?: boolean;
 }
 
 export interface ReferredUser {
@@ -405,7 +404,7 @@ export interface AssetAlertHistoryItem {
   currentValue: string;
   timestamp: string;
   channels: ('browser' | 'email')[];
-  status: 'delivered' | 'simulated';
+  status: 'delivered' | 'queued';
 }
 
 export interface AssetNotificationSettings {
@@ -954,7 +953,7 @@ export interface CronDispatchedEmail {
   investmentId: string;
   certificateId: string;
   dispatchedAt: string;
-  status: 'delivered' | 'simulated' | 'failed';
+  status: 'delivered' | 'queued' | 'failed';
   detail?: string;
   host?: string;
 }

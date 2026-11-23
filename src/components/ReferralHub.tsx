@@ -41,7 +41,6 @@ export const ReferralHub: React.FC<ReferralHubProps> = ({ onOpenDeposit, onOpenA
     allUsers,
     referralLink,
     updateReferralCode,
-    simulateFriendReferral,
     engagementRewardConfig,
     getUserEngagementSummary,
     trackSocialShareActivity,
@@ -56,9 +55,6 @@ export const ReferralHub: React.FC<ReferralHubProps> = ({ onOpenDeposit, onOpenA
   const [copiedCode, setCopiedCode] = useState(false);
   const [isEditingCode, setIsEditingCode] = useState(false);
   const [customCodeInput, setCustomCodeInput] = useState(currentUser?.referralCode || 'APEX-ALEX-99');
-  const [simFriendName, setSimFriendName] = useState('Jordan Rivera');
-  const [simDepositAmount, setSimDepositAmount] = useState<number>(500);
-  const [isSimulating, setIsSimulating] = useState(false);
   const [leaderboardSearch, setLeaderboardSearch] = useState<string>('');
   const [failedAvatars, setFailedAvatars] = useState<Record<string, boolean>>({});
   const [activeSlideIndex, setActiveSlideIndex] = useState<number>(0);
@@ -114,19 +110,6 @@ export const ReferralHub: React.FC<ReferralHubProps> = ({ onOpenDeposit, onOpenA
     if (updateReferralCode(customCodeInput)) {
       setIsEditingCode(false);
     }
-  };
-
-  const handleRunSimulation = () => {
-    if (!currentUser) {
-      showToast('Sign in to credit live referral bonuses to your personal vault.', 'info');
-      onOpenAuth?.();
-      return;
-    }
-    setIsSimulating(true);
-    setTimeout(() => {
-      simulateFriendReferral(simFriendName, simDepositAmount);
-      setIsSimulating(false);
-    }, 800);
   };
 
   // Social share URLs
@@ -972,64 +955,6 @@ export const ReferralHub: React.FC<ReferralHubProps> = ({ onOpenDeposit, onOpenA
         </div>
       </div>
 
-      {/* Interactive Simulation Sandbox for Testing */}
-      <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-zinc-950 via-zinc-900 to-zinc-950 border border-emerald-500/30 shadow-2xl space-y-5">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-800 pb-4">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
-              <h3 className="font-heading font-bold text-xl text-white">
-                Live Referral Simulation Tester
-              </h3>
-            </div>
-            <p className="text-xs text-zinc-400">
-              Test how new friends join via your invite link and trigger your ${currentTierReferralUsd} ({engagementSummary.activeLevel.name} tier) referral payout in real time.
-            </p>
-          </div>
-
-          <div className="px-3 py-1.5 rounded-xl bg-zinc-900 border border-zinc-800 text-xs font-mono text-zinc-300">
-            Interactive Test Sandbox
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
-          <div>
-            <label className="text-zinc-400 block mb-1">Simulated Friend Name</label>
-            <input
-              type="text"
-              value={simFriendName}
-              onChange={(e) => setSimFriendName(e.target.value)}
-              className="w-full bg-black/60 border border-zinc-700 rounded-xl px-3 py-2 text-white font-medium"
-            />
-          </div>
-
-          <div>
-            <label className="text-zinc-400 block mb-1">Friend's First Deposit Amount (USD)</label>
-            <select
-              value={simDepositAmount}
-              onChange={(e) => setSimDepositAmount(Number(e.target.value))}
-              className="w-full bg-black/60 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono"
-            >
-              <option value={100}>$100 USD (e.g. 100 USDT)</option>
-              <option value={500}>$500 USD (e.g. 210 XRP)</option>
-              <option value={1200}>$1,200 USD (e.g. 0.013 BTC)</option>
-              <option value={2500}>$2,500 USD (e.g. 3.8 BNB)</option>
-            </select>
-          </div>
-
-          <div className="flex items-end">
-            <button
-              onClick={handleRunSimulation}
-              disabled={isSimulating}
-              className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 text-white font-heading font-bold text-xs shadow-lg shadow-emerald-950/40 flex items-center justify-center gap-2 transition disabled:opacity-50"
-            >
-              <Coins className="w-4 h-4" />
-              <span>{isSimulating ? 'Processing On-Chain Referral...' : `Simulate Deposit & Claim $${currentTierReferralUsd}`}</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
       {/* Top Tesla Fleet Referrers Leaderboard Slider */}
       <section
         aria-labelledby="referral-leaderboard-heading"
@@ -1655,7 +1580,7 @@ export const ReferralHub: React.FC<ReferralHubProps> = ({ onOpenDeposit, onOpenA
           <div className="text-center py-12 space-y-2">
             <Users className="w-12 h-12 text-zinc-600 mx-auto" />
             <p className="text-zinc-300 font-bold text-sm">No referred friends yet.</p>
-            <p className="text-xs text-zinc-500">Copy your invite link above or run the simulation tester to start earning!</p>
+            <p className="text-xs text-zinc-500">Copy and share your personal invite link above to start earning referral rewards!</p>
           </div>
         ) : (
           <div className="divide-y divide-zinc-800/80">

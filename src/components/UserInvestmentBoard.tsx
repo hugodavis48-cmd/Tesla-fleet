@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { UserInvestment, InvestmentActivityItem } from '../types';
-import { INVESTMENT_POOLS } from '../data/mockData';
+import { UserInvestment } from '../types';
 import { RoiGrowthChart } from './RoiGrowthChart';
 import { InvestmentActivityTable } from './InvestmentActivityTable';
 import {
@@ -45,7 +44,6 @@ export const UserInvestmentBoard: React.FC<UserInvestmentBoardProps> = ({
     showToast,
     currentUser,
     investmentActivities,
-    appendInvestmentActivity,
   } = useApp();
 
   const [activeFilter, setActiveFilter] = useState<'all' | 'running' | 'completed'>('all');
@@ -464,28 +462,6 @@ export const UserInvestmentBoard: React.FC<UserInvestmentBoardProps> = ({
       {/* Persistent Investment Activity & Daily ROI Cron Payout Ledger */}
       <InvestmentActivityTable
         activities={investmentActivities}
-        onSimulateMilestone={() => {
-          const pool = INVESTMENT_POOLS[0];
-          const randomHex = Math.random().toString(16).substring(2, 8);
-          const item: InvestmentActivityItem = {
-            id: `act-mile-${Date.now()}`,
-            type: 'milestone',
-            assetId: pool?.id || 'pool-robotaxi',
-            assetTitle: pool?.title || 'Autonomous Tesla Robotaxi Yield Pool',
-            category: pool?.category || 'Autonomous Robotaxi Fleet',
-            amountUsd: 175,
-            cryptoFormatted: '+175.00 USD (Reward)',
-            apyRate: pool?.apy || 18.4,
-            timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
-            status: 'confirmed',
-            txHash: `0x89${randomHex}...${Math.random().toString(16).substring(2, 6)}`,
-            milestoneTitle: 'Autonomous Fleet Telematics Target Surpassed (94.2%)',
-            notes: 'Milestone bonus logged directly from Dashboard Investment Board.',
-            userId: currentUser?.id || 'usr-apex-001',
-          };
-          appendInvestmentActivity(item);
-          showToast('Milestone reward event logged to Investment Activity Ledger!', 'success');
-        }}
       />
 
       {/* Official Yield Certificate Modal */}

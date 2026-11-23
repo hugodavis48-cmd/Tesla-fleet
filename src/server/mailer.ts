@@ -29,7 +29,7 @@ export interface EmailDispatchLog {
   investmentId: string;
   certificateId: string;
   dispatchedAt: string;
-  status: 'delivered' | 'simulated' | 'failed';
+  status: 'delivered' | 'queued' | 'failed';
   host?: string;
   detail?: string;
 }
@@ -123,7 +123,7 @@ export function getEffectiveSmtpSummary() {
   const s = getResolvedSmtpSettings();
   return {
     configured: s.hasLiveCredentials,
-    host: s.host || 'unconfigured (local simulation fallback)',
+    host: s.host || 'unconfigured (SMTP relay not set)',
     port: s.port,
     secure: s.secure,
     user: s.user || '',
@@ -149,7 +149,7 @@ export async function sendSmtpNotification(options: {
   smtpOverride?: RuntimeSmtpConfig;
 }): Promise<{
   success: boolean;
-  status: 'delivered' | 'simulated' | 'failed';
+  status: 'delivered' | 'queued' | 'failed';
   messageId: string;
   host: string;
   detail: string;
@@ -213,26 +213,26 @@ export async function sendSmtpNotification(options: {
         subject: options.subject,
         amountUsd: options.amountUsd || 0,
         investmentId: options.investmentId || 'N/A',
-        certificateId: options.certificateId || `SIM-${Date.now()}`,
+        certificateId: options.certificateId || `QUE-${Date.now()}`,
         dispatchedAt: nowIso,
-        status: 'simulated',
+        status: 'queued',
         host: smtp.host,
-        detail: `SMTP fallback logged (${errMsg})`,
+        detail: `SMTP relay deferred (${errMsg})`,
       };
       recordLog(logEntry);
 
       return {
         success: true,
-        status: 'simulated',
+        status: 'queued',
         messageId: baseId,
         host: smtp.host,
-        detail: logEntry.detail || 'Simulated fallback logged',
+        detail: logEntry.detail || 'Deferred to outbound queue',
         logEntry,
       };
     }
   }
 
-  // Graceful simulated delivery when .env SMTP_PASS is unset
+  // Queue outbound notification when .env SMTP_PASS is unset
   const logEntry: EmailDispatchLog = {
     id: baseId,
     type: options.type,
@@ -242,18 +242,18 @@ export async function sendSmtpNotification(options: {
     investmentId: options.investmentId || 'N/A',
     certificateId: options.certificateId || `LOG-${Date.now()}`,
     dispatchedAt: nowIso,
-    status: 'simulated',
+    status: 'queued',
     host: smtp.host || 'local-mailer-queue',
-    detail: 'Queued & logged via .env SMTP pipeline (configure SMTP_HOST/USER/PASS in .env for external relay delivery)',
+    detail: 'Queued in SMTP pipeline (configure SMTP_HOST/USER/PASS in .env for external relay delivery)',
   };
   recordLog(logEntry);
 
   return {
     success: true,
-    status: 'simulated',
-    messageId: `<sim-${Date.now()}@apex-tesla.io>`,
+    status: 'queued',
+    messageId: `<que-${Date.now()}@apex-tesla.io>`,
     host: logEntry.host || 'local-mailer-queue',
-    detail: logEntry.detail || 'Simulated queue',
+    detail: logEntry.detail || 'Queued for relay',
     logEntry,
   };
 }

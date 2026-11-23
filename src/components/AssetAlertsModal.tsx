@@ -714,7 +714,7 @@ export const AssetAlertsModal: React.FC<AssetAlertsModalProps> = ({
                   <Activity className="w-8 h-8 text-zinc-600 mx-auto" />
                   <p className="text-zinc-400 text-xs">No alerts have been dispatched yet.</p>
                   <p className="text-[11px] text-zinc-500">
-                    Click "Fire Test Alert" in Channels to test immediate delivery!
+                    Click "Send Test Alert" below to verify delivery across your enabled channels!
                   </p>
                 </div>
               ) : (
@@ -777,7 +777,7 @@ export const AssetAlertsModal: React.FC<AssetAlertsModalProps> = ({
               className="px-3.5 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-bold font-mono transition flex items-center gap-1.5"
             >
               <Send className="w-3.5 h-3.5" />
-              <span>Simulate Trigger</span>
+              <span>{isSendingTest ? 'Sending...' : 'Send Test Alert'}</span>
             </button>
 
             <button

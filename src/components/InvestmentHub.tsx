@@ -316,56 +316,6 @@ export const InvestmentHub: React.FC<InvestmentHubProps> = ({ onOpenDeposit, onN
     playTeslaAudioChime();
   };
 
-  const handleSimulateMilestoneEvent = (assetId?: string) => {
-    const pool = (assetId ? INVESTMENT_POOLS.find((p) => p.id === assetId) : null) || INVESTMENT_POOLS[Math.floor(Math.random() * INVESTMENT_POOLS.length)];
-    const milestones = [
-      {
-        title: 'Quarterly High-Utilization Dividend Surge (94.2%)',
-        bonus: 175,
-        note: 'Fleet utilization exceeded target threshold (94.2% vs 85.0%). Distributed surplus performance dividend.',
-      },
-      {
-        title: 'Autonomous FSD Zero-Incident Safety Tier Bonus',
-        bonus: 250,
-        note: 'Fleet completed 250,000 continuous autonomous commercial miles with 0 safety incidents.',
-      },
-      {
-        title: 'Megawatt Grid Peak-Demand Arbitrage Distribution',
-        bonus: 320,
-        note: 'Supercharger node automated virtual power plant (VPP) energy arbitrage during summer peak.',
-      },
-      {
-        title: 'Exotic Performance Fleet Weekend Surge Revenue',
-        bonus: 190,
-        note: 'Plaid & Cyberbeast weekend rental booking rate hit 100% capacity in Los Angeles & Miami hubs.',
-      },
-    ];
-
-    const chosen = milestones[Math.floor(Math.random() * milestones.length)];
-    const randomHex = Math.random().toString(16).substring(2, 8);
-
-    const newMilestoneItem: InvestmentActivityItem = {
-      id: `act-mile-${Date.now()}`,
-      type: 'milestone',
-      assetId: pool.id,
-      assetTitle: pool.title,
-      category: pool.category,
-      amountUsd: chosen.bonus,
-      cryptoFormatted: `+${(chosen.bonus / 3100).toFixed(4)} ETH (Reward)`,
-      apyRate: pool.apy,
-      timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
-      status: 'confirmed',
-      txHash: `0x89${randomHex}...${Math.random().toString(16).substring(2, 6)}`,
-      milestoneTitle: chosen.title,
-      notes: chosen.note,
-      userId: currentUser?.id || 'usr-apex-001',
-    };
-
-    appendInvestmentActivity(newMilestoneItem);
-    showToast(`🏆 Milestone Reward Recorded: ${chosen.title} (+$${chosen.bonus})`, 'success');
-    playTeslaAudioChime();
-  };
-
   const handleSharePoolOnWhatsApp = (pool: InvestmentPool) => {
     const text = `🚗 Check out this decentralized Tesla fleet yield pool: ${pool.title} earning ${pool.apy}% APY with daily payouts! Learn more:`;
     const url = typeof window !== 'undefined' ? window.location.origin : 'https://apex-tesla.io';
@@ -950,7 +900,6 @@ export const InvestmentHub: React.FC<InvestmentHubProps> = ({ onOpenDeposit, onN
       {/* Investment Activity History Table (Deposits, Payouts & Performance Milestones) */}
       <InvestmentActivityTable
         activities={investmentActivities}
-        onSimulateMilestone={handleSimulateMilestoneEvent}
       />
 
       {/* Historical Investment Performance & Total Accrued Yield Dashboard Board */}

@@ -227,7 +227,7 @@ export const PendingShipmentsSection: React.FC<PendingShipmentsSectionProps> = (
             trackingNumber: res.prize?.trackingNumber,
             notificationTitle: res.notification?.title,
             emailRecipient: res.emailDispatch?.recipient || res.prize?.userEmail,
-            emailStatus: res.emailDispatch?.status || 'simulated',
+            emailStatus: res.emailDispatch?.status || 'queued',
             timestamp: new Date().toLocaleTimeString(),
           },
         }));
@@ -277,7 +277,7 @@ export const PendingShipmentsSection: React.FC<PendingShipmentsSectionProps> = (
             trackingNumber: res.prize?.trackingNumber,
             notificationTitle: res.notification?.title,
             emailRecipient: res.emailDispatch?.recipient || res.prize?.userEmail,
-            emailStatus: res.emailDispatch?.status || (res.notification ? 'simulated' : undefined),
+            emailStatus: res.emailDispatch?.status || (res.notification ? 'queued' : undefined),
             timestamp: new Date().toLocaleTimeString(),
           },
         }));

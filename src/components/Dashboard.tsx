@@ -236,6 +236,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
     proofOfAddressUrl: currentUser?.kycData?.proofOfAddressUrl || '',
     submittedAt: currentUser?.kycData?.submittedAt || '',
   });
+  const [kycIdFrontFileName, setKycIdFrontFileName] = useState<string>('');
+  const [kycProofAddressFileName, setKycProofAddressFileName] = useState<string>('');
   const [isSubmittingKyc, setIsSubmittingKyc] = useState(false);
 
   // Add vehicle state
@@ -371,6 +373,31 @@ export const Dashboard: React.FC<DashboardProps> = ({
     reader.readAsDataURL(file);
   };
 
+  const handleKycDocumentUpload = (
+    field: 'idFrontUrl' | 'proofOfAddressUrl',
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      showToast('Document size must be under 5MB.', 'error');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setKycForm((prev) => ({ ...prev, [field]: reader.result as string }));
+        if (field === 'idFrontUrl') {
+          setKycIdFrontFileName(file.name);
+        } else {
+          setKycProofAddressFileName(file.name);
+        }
+        showToast(`${file.name} attached cleanly.`, 'success');
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleKycSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentUser) {
@@ -380,6 +407,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
     }
     if (!kycForm.legalName || !kycForm.idNumber) {
       showToast('Please provide your full legal name and government ID number.', 'error');
+      return;
+    }
+    if (!kycForm.idFrontUrl || !kycForm.proofOfAddressUrl) {
+      showToast('Please attach both your government ID scan and proof of address document.', 'error');
       return;
     }
 
@@ -1565,21 +1596,45 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 </div>
               </div>
 
-              {/* Document upload simulation dropzones */}
+              {/* Document upload inputs */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-                <div className="p-4 rounded-2xl bg-zinc-900/60 border border-dashed border-zinc-700 hover:border-red-500/50 text-center space-y-2 transition cursor-pointer">
+                <label className="p-4 rounded-2xl bg-zinc-900/60 border border-dashed border-zinc-700 hover:border-red-500/50 text-center space-y-2 transition cursor-pointer block">
+                  <input
+                    type="file"
+                    accept="image/*,.pdf"
+                    onChange={(e) => handleKycDocumentUpload('idFrontUrl', e)}
+                    className="sr-only"
+                  />
                   <Upload className="w-6 h-6 text-red-400 mx-auto" />
                   <span className="font-semibold text-white block">Front of Government ID</span>
-                  <span className="text-[10px] text-zinc-400 block">Clear color scan or smartphone camera photo (PNG, JPG, PDF)</span>
-                  <span className="text-[10px] text-emerald-400 font-mono font-bold block">✓ Document Attached (Simulated)</span>
-                </div>
+                  <span className="text-[10px] text-zinc-400 block">Clear color scan or photo (PNG, JPG, PDF up to 5MB)</span>
+                  {kycForm.idFrontUrl ? (
+                    <span className="text-[10px] text-emerald-400 font-mono font-bold block truncate px-2">
+                      ✓ Uploaded{kycIdFrontFileName ? `: ${kycIdFrontFileName}` : ' on file'}
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-amber-400 font-mono block">Click to upload ID document</span>
+                  )}
+                </label>
 
-                <div className="p-4 rounded-2xl bg-zinc-900/60 border border-dashed border-zinc-700 hover:border-red-500/50 text-center space-y-2 transition cursor-pointer">
+                <label className="p-4 rounded-2xl bg-zinc-900/60 border border-dashed border-zinc-700 hover:border-red-500/50 text-center space-y-2 transition cursor-pointer block">
+                  <input
+                    type="file"
+                    accept="image/*,.pdf"
+                    onChange={(e) => handleKycDocumentUpload('proofOfAddressUrl', e)}
+                    className="sr-only"
+                  />
                   <Upload className="w-6 h-6 text-red-400 mx-auto" />
                   <span className="font-semibold text-white block">Proof of Address / Utility Bill</span>
                   <span className="text-[10px] text-zinc-400 block">Bank statement or electric utility bill dated within 90 days</span>
-                  <span className="text-[10px] text-emerald-400 font-mono font-bold block">✓ Document Attached (Simulated)</span>
-                </div>
+                  {kycForm.proofOfAddressUrl ? (
+                    <span className="text-[10px] text-emerald-400 font-mono font-bold block truncate px-2">
+                      ✓ Uploaded{kycProofAddressFileName ? `: ${kycProofAddressFileName}` : ' on file'}
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-amber-400 font-mono block">Click to upload proof of address</span>
+                  )}
+                </label>
               </div>
 
               <div className="pt-2">
