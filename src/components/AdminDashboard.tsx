@@ -928,6 +928,7 @@ export const AdminDashboard: React.FC = () => {
     volume: tslaQuote.volume,
   });
   const [editingStockPlan, setEditingStockPlan] = useState<FeaturedStockPlan | null>(null);
+  const [confirmDeleteStockPlanId, setConfirmDeleteStockPlanId] = useState<string | null>(null);
   const [isAddingStockPlan, setIsAddingStockPlan] = useState(false);
   const [stockPlanForm, setStockPlanForm] = useState<Omit<FeaturedStockPlan, 'id' | 'subscribersCount'>>({
     title: 'Cyber-Optimus Accelerated Fleet Pool',
@@ -6776,16 +6777,35 @@ export const AdminDashboard: React.FC = () => {
                         >
                           <Edit3 className="w-3.5 h-3.5" />
                         </button>
-                        <button
-                          onClick={() => {
-                            if (window.confirm(`Delete plan ${plan.name}?`)) {
-                              deleteFeaturedStockPlan(plan.id);
-                            }
-                          }}
-                          className="p-1.5 rounded-lg bg-zinc-800 hover:bg-red-600/30 text-zinc-400 hover:text-red-400 inline-block"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        {confirmDeleteStockPlanId === plan.id ? (
+                          <span className="inline-flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                deleteFeaturedStockPlan(plan.id);
+                                setConfirmDeleteStockPlanId(null);
+                              }}
+                              className="px-2 py-1 rounded-lg bg-red-600 hover:bg-red-500 text-white text-[10px] font-bold"
+                            >
+                              Confirm
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setConfirmDeleteStockPlanId(null)}
+                              className="px-2 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-[10px] font-bold"
+                            >
+                              Cancel
+                            </button>
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setConfirmDeleteStockPlanId(plan.id)}
+                            className="p-1.5 rounded-lg bg-zinc-800 hover:bg-red-600/30 text-zinc-400 hover:text-red-400 inline-block"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}

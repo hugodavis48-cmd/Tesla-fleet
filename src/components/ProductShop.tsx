@@ -216,70 +216,71 @@ export const ProductShop: React.FC<ProductShopProps> = ({ onOpenCart, onOpenAuth
                 {/* Social Share Bar for Product */}
                 <div className="flex items-center justify-between pt-2 border-t border-zinc-900/90 text-[10px] text-zinc-400">
                   <span className="font-mono">Share Spec:</span>
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      onClick={() => {
-                        const url = encodeURIComponent(window.location.href);
-                        const text = encodeURIComponent(`Check out ${product.name} on Apex Tesla Hub!`);
-                        window.open(`https://twitter.com/intent/tweet?url=${url}&text=${text}`, '_blank');
-                      }}
-                      title="Share on X"
-                      className="p-1 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-300 font-mono text-[10px] font-bold cursor-pointer"
-                    >
-                      𝕏
-                    </button>
-                    <button
-                      onClick={() => {
-                        const url = encodeURIComponent(window.location.href);
-                        const text = encodeURIComponent(`Check out ${product.name} on Apex Tesla Hub!`);
-                        window.open(`https://pinterest.com/pin/create/button/?url=${url}&description=${text}`, '_blank');
-                      }}
-                      title="Pin to Pinterest"
-                      className="px-1.5 py-0.5 rounded-lg bg-red-600/20 text-red-400 hover:bg-red-600/30 text-[10px] font-bold cursor-pointer"
-                    >
-                      Pin
-                    </button>
-                    <button
-                      onClick={() => {
-                        const text = encodeURIComponent(`Check out ${product.name} on Apex Tesla Hub: ${window.location.href}`);
-                        window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
-                      }}
-                      title="Share on WhatsApp"
-                      className="px-1.5 py-0.5 rounded-lg bg-emerald-600/20 text-emerald-300 hover:bg-emerald-600/30 text-[10px] font-bold cursor-pointer"
-                    >
-                      WA
-                    </button>
-                    <button
-                      onClick={() => {
-                        const url = encodeURIComponent(window.location.href);
-                        window.open(`https://www.facebook.com/sharer/sharer.php?u=${url}`, '_blank');
-                      }}
-                      title="Share on Facebook"
-                      className="px-1.5 py-0.5 rounded-lg bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 text-[10px] font-bold cursor-pointer"
-                    >
-                      FB
-                    </button>
-                    <button
-                      onClick={() => {
-                        const text = encodeURIComponent(`Check out ${product.name} on Apex Tesla Hub: ${window.location.href}`);
-                        window.open(`https://threads.net/intent/post?text=${text}`, '_blank');
-                      }}
-                      title="Share on Threads"
-                      className="px-1.5 py-0.5 rounded-lg bg-zinc-800 text-zinc-300 hover:bg-zinc-700 text-[10px] font-bold cursor-pointer"
-                    >
-                      Threads
-                    </button>
-                    <button
-                      onClick={() => {
-                        navigator.clipboard.writeText(`${window.location.origin}/#shop - ${product.name}`);
-                        showToast(`Link for "${product.name}" copied!`, 'success');
-                      }}
-                      title="Copy Link"
-                      className="p-1 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white cursor-pointer"
-                    >
-                      <Share2 className="w-3 h-3" />
-                    </button>
-                  </div>
+                  {(() => {
+                    const sharePageUrl = typeof window !== 'undefined' ? window.location.href : 'https://apex-tesla.io';
+                    const encodedUrl = encodeURIComponent(sharePageUrl);
+                    const encodedText = encodeURIComponent(`Check out ${product.name} on Apex Tesla Hub!`);
+                    const fullMsg = encodeURIComponent(`Check out ${product.name} on Apex Tesla Hub: ${sharePageUrl}`);
+                    return (
+                      <div className="flex items-center gap-1.5">
+                        <a
+                          href={`https://twitter.com/intent/tweet?url=${encodedUrl}&text=${encodedText}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title="Share on X"
+                          className="p-1 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-300 font-mono text-[10px] font-bold cursor-pointer"
+                        >
+                          𝕏
+                        </a>
+                        <a
+                          href={`https://pinterest.com/pin/create/button/?url=${encodedUrl}&description=${encodedText}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title="Pin to Pinterest"
+                          className="px-1.5 py-0.5 rounded-lg bg-red-600/20 text-red-400 hover:bg-red-600/30 text-[10px] font-bold cursor-pointer"
+                        >
+                          Pin
+                        </a>
+                        <a
+                          href={`https://api.whatsapp.com/send?text=${fullMsg}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title="Share on WhatsApp"
+                          className="px-1.5 py-0.5 rounded-lg bg-emerald-600/20 text-emerald-300 hover:bg-emerald-600/30 text-[10px] font-bold cursor-pointer"
+                        >
+                          WA
+                        </a>
+                        <a
+                          href={`https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title="Share on Facebook"
+                          className="px-1.5 py-0.5 rounded-lg bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 text-[10px] font-bold cursor-pointer"
+                        >
+                          FB
+                        </a>
+                        <a
+                          href={`https://threads.net/intent/post?text=${fullMsg}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title="Share on Threads"
+                          className="px-1.5 py-0.5 rounded-lg bg-zinc-800 text-zinc-300 hover:bg-zinc-700 text-[10px] font-bold cursor-pointer"
+                        >
+                          Threads
+                        </a>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard?.writeText(`${window.location.origin}/#shop - ${product.name}`);
+                            showToast(`Link for "${product.name}" copied!`, 'success');
+                          }}
+                          title="Copy Link"
+                          className="p-1 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white cursor-pointer"
+                        >
+                          <Share2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             </div>

@@ -148,7 +148,7 @@
       }
     }
   },
-  "updatedAt": "2026-11-21T12:47:06.044Z",
+  "updatedAt": "2026-11-23T23:43:21.676Z",
   "sitemapEntries": [
     {
       "id": "sm-home",
@@ -4392,9 +4392,9 @@
       "description": "Triggers daily (every 24h) to calculate ROI on active investment plans, credit payouts to user wallets, and append InvestmentActivityTable records.",
       "enabled": true,
       "intervalMinutes": 1440,
-      "lastRunAt": "2026-11-21T12:47:06.027Z",
-      "runsCount": 2,
-      "lastSummary": "investment-roi-cron credited $8.56 USD daily ROI across 2 active plan(s) (0 matured) and logged 2 InvestmentActivityTable record(s)."
+      "lastRunAt": "2026-11-23T23:33:51.647Z",
+      "runsCount": 3,
+      "lastSummary": "investment-roi-cron credited $8.56 USD daily ROI across 2 active plan(s) (1 matured) and logged 2 InvestmentActivityTable record(s)."
     },
     {
       "id": "roi_accrual",
@@ -4402,8 +4402,8 @@
       "description": "Accrues daily dividends across running fleet & Fast-ROI equity plans and settles matured positions.",
       "enabled": true,
       "intervalMinutes": 1,
-      "lastRunAt": "2026-11-21T12:46:11.037Z",
-      "runsCount": 202,
+      "lastRunAt": "2026-11-23T23:43:21.671Z",
+      "runsCount": 198,
       "lastSummary": "Accrued $6.03 ROI; 0 matured."
     },
     {
@@ -4412,8 +4412,8 @@
       "description": "Audits UTC check-in timestamps, resets expired streaks beyond resetAfterHours, and seals milestone claims.",
       "enabled": true,
       "intervalMinutes": 15,
-      "lastRunAt": "2026-11-21T12:35:11.026Z",
-      "runsCount": 52,
+      "lastRunAt": "2026-11-23T23:33:51.689Z",
+      "runsCount": 53,
       "lastSummary": "Audited 2 member streak ledger(s); auto-reset 0 lapsed streak(s) exceeding 48h."
     },
     {
@@ -4422,8 +4422,8 @@
       "description": "Automatically switches repeat winners (>= threshold wins) to Super Hard difficulty and audits free-spin win caps.",
       "enabled": true,
       "intervalMinutes": 5,
-      "lastRunAt": "2026-11-21T12:45:41.036Z",
-      "runsCount": 116,
+      "lastRunAt": "2026-11-23T23:39:21.672Z",
+      "runsCount": 118,
       "lastSummary": "Audited 6 spin profile(s); switched 0 multi-winner account(s) (>= 2 wins) to Super Hard."
     },
     {
@@ -4432,8 +4432,8 @@
       "description": "Advances fee-paid won vehicles from fees_paid_processing to documentation_ready and carrier dispatch.",
       "enabled": true,
       "intervalMinutes": 10,
-      "lastRunAt": "2026-11-21T12:45:11.048Z",
-      "runsCount": 44,
+      "lastRunAt": "2026-11-23T23:33:51.704Z",
+      "runsCount": 45,
       "lastSummary": "Verified 4 won-prize vault item(s); progressed shipping logistics on 0 admin-approved vehicle(s)."
     },
     {
@@ -4442,9 +4442,9 @@
       "description": "Refreshes TSLA quote baselines and triggers active user price alerts when thresholds cross.",
       "enabled": true,
       "intervalMinutes": 5,
-      "lastRunAt": "2026-11-21T12:46:11.045Z",
-      "runsCount": 139,
-      "lastSummary": "Synced live NASDAQ: TSLA telemetry feed ($334.03)."
+      "lastRunAt": "2026-11-23T23:39:21.680Z",
+      "runsCount": 141,
+      "lastSummary": "Synced NASDAQ: TSLA telemetry feed ($330.7)."
     }
   ],
   "scratchTiers": [
@@ -4674,6 +4674,20 @@
       }
     ],
     "usr-apex-001": [
+      {
+        "id": "dep-mwtwjpuo-ac1704",
+        "userId": "usr-apex-001",
+        "currency": "USD",
+        "amount": 5000,
+        "usdEquivalent": 5000,
+        "remainingUsd": 5000,
+        "txHash": "CERT-MWTWJPUO-TAXI",
+        "gatewayName": "investment-roi-cron Maturity Return",
+        "source": "investment_maturity",
+        "status": "verified",
+        "createdAt": "2026-11-23T23:33:51.648Z",
+        "signature": "bda42426c535405c304a34470149f6a8bff0905743d537e6b1cec2e2f549b3ea"
+      },
       {
         "id": "dep-mwqe2dly-fe0778",
         "userId": "usr-apex-001",
@@ -5025,6 +5039,25 @@
     ]
   },
   "transactionAudits": [
+    {
+      "userId": "usr-apex-001",
+      "category": "deposit_record",
+      "amountUsd": 5000,
+      "depositConsumedUsd": 0,
+      "freeWinConsumedUsd": 0,
+      "depositRecordIdsUsed": [
+        "dep-mwtwjpuo-ac1704"
+      ],
+      "verifiedDepositBeforeUsd": 30080.38,
+      "verifiedDepositAfterUsd": 30080.38,
+      "freeWinBeforeUsd": 391.54,
+      "freeWinAfterUsd": 391.54,
+      "outcome": "approved",
+      "reason": "Verified deposit record (investment_maturity) via investment-roi-cron Maturity Return",
+      "id": "audit-mwtwjpuo-d8d7f5",
+      "createdAt": "2026-11-23T23:33:51.648Z",
+      "signature": "2fd82eb788677ad6b5c7d78f283c225c5984c57ffad13ebd023f2d96460e9a5e"
+    },
     {
       "userId": "usr-apex-001",
       "category": "deposit_record",
@@ -5993,7 +6026,7 @@
   ],
   "serverWalletsFreeWin": {
     "usr-alex-001": 437.78,
-    "usr-apex-001": 389.01,
+    "usr-apex-001": 397.57,
     "usr-003": 0,
     "usr-004": 0,
     "usr-005": 0,
@@ -6768,6 +6801,186 @@
     }
   ],
   "blog_posts": [
+    {
+      "id": "blog-mwtwkwa1-7u2a",
+      "slug": "tesla-factory-starlink-option-unsupervised-fsd-2027",
+      "title": "Tesla Targets Late 2027 for Factory Starlink Across All EVs",
+      "subtitle": "Elon Musk confirms optional satellite connectivity for unsupervised FSD, though roof packaging and China restrictions remain key engineering hurdles.",
+      "category": "Vehicle Deliveries",
+      "status": "draft",
+      "featured": false,
+      "excerpt": "Tesla plans to introduce an optional factory Starlink integration across its entire EV lineup by late 2027 to support unsupervised FSD telemetry and cabin bandwidth, excluding China.",
+      "content": "Tesla is preparing to bridge its vehicle architecture directly with SpaceX's low-Earth-orbit satellite network across its entire consumer lineup. According to recent reporting by InsideEVs, CEO Elon Musk confirmed on X that an embedded Starlink connectivity option is targeted to arrive across all Tesla models toward the end of 2027. Responding to inquiries from David Marcus regarding whether satellite hardware would expand beyond the purpose-built Cybercab, Musk noted that ubiquitous high-bandwidth connectivity will be critical as Tesla transitions toward unsupervised Full Self-Driving (FSD), allowing occupants to stream media or work uninterrupted regardless of cellular dead zones. The only major regional exception will be China, where Starlink operations remain prohibited by law.\n\n## Packaging Starlink Hardware Beyond the Cybercab\n\nIntegrating phased-array satellite hardware into mass-market passenger EVs presents a non-trivial body-in-white engineering challenge. As observed on the driverless Cybercab fleet currently operating in Dallas, Tesla engineered a dedicated square roof cutout to house the flat Starlink antenna panel flush with the vehicle skin. Retrofitting that exact architecture onto existing Model 3, Model Y, Model S, and Model X production lines would require stamping and glass-roof tooling revisions—an expensive and complex mid-cycle modification.\n\nAlternatively, Tesla could pursue an external low-profile roof-mounted terminal, similar to the flat test antenna recently spotted atop a Cybertruck. While an external fairing avoids structural roof redesigns, engineers must carefully manage aerodynamic drag coefficients, wind noise, and thermal dissipation to prevent range penalties at highway speeds. With patent filings already secured for vehicle-integrated satellite arrays, the core transceiver technology is validated; the primary bottleneck now lies in clean industrial packaging for high-volume vehicle deliveries.\n\n## Unsupervised FSD Bandwidth and Fleet Telemetry\n\nInterestingly, Tesla's current satellite deployment prioritizes operational control over consumer infotainment. Tesla AI lead Ashok Elluswamy recently clarified that Cybercab passengers in Dallas cannot yet access the onboard Starlink link. Instead, the satellite connection is strictly partitioned for fleet management, navigation updates, and remote customer service dispatch.\n\nWhile Tesla's vision-based FSD neural network executes path planning locally on edge inference hardware—allowing vehicles to navigate secluded trails with zero cellular signal—unsupervised autonomy introduces new telemetry demands. Real-time surround camera streaming, high-definition remote assistance, and seamless over-the-air diagnostics require resilient backhaul capacity that terrestrial LTE and 5G towers cannot guarantee in rural corridors. Expanding Starlink access to cabin passengers represents the next software and bandwidth tier beyond baseline robotaxi operations.\n\n## Strategic Impact Across the Tesla Ecosystem\n\nWhile Musk's late-2027 delivery timeline carries the usual caveats of aggressive automotive hardware schedules, embedded satellite connectivity reshapes the value proposition for every stakeholder in the Tesla ecosystem:\n\n- **Tesla Owners and Daily Drivers:** Eliminating cellular dead zones transforms long-distance road trips and rural commutes, enabling uninterrupted remote work, cloud gaming, and real-time FSD surround-view monitoring without relying on tethering or third-party roof dishes.\n- **Autonomous Fleet Operators:** Redundant satellite backhaul ensures uninterrupted remote fleet telemetry, automated dispatch, and live customer support intervention, drastically reducing operational downtime in fringe coverage zones.\n- **Investors and Valuation Analysts:** Bundling proprietary SpaceX connectivity into factory vehicle options unlocks a high-margin recurring software and data subscription tier, though exclusion from the Chinese market caps near-term global attach rates.\n\n[Read original coverage on InsideEVs](https://insideevs.com/news/816501/tesla-starlink-unsupervised-fsd/)",
+      "coverImageUrl": "https://cdn.motor1.com/images/mgl/vx0BkG/s3/2026-tesla-model-y-7-seat-version.jpg",
+      "contentImages": [
+        {
+          "url": "https://cdn.motor1.com/images/mgl/9mWZXv/s3/tesla-cybercab-robotaxi.webp",
+          "alt": "Tesla Targets Late 2027 for Factory Starlink Across All EVs — technical showcase visual",
+          "caption": "Close-up view of the Tesla Cybercab roof panel showing the flush square cutout engineered for its integrated Starlink phased-array antenna.",
+          "placement": "middle"
+        },
+        {
+          "url": "https://cdn.motor1.com/images/mgl/jlRKbR/s3/tesla-starlink.webp",
+          "alt": "Tesla Targets Late 2027 for Factory Starlink Across All EVs — fleet & ownership analysis",
+          "caption": "Prototype Tesla Cybertruck equipped with an externally mounted flat Starlink terminal undergoing aerodynamic and connectivity validation testing.",
+          "placement": "bottom"
+        }
+      ],
+      "authorName": "Apex Gemini AI Editorial Desk",
+      "authorRole": "EV Intelligence · InsideEVs Wire",
+      "publishedAt": "2026-11-23",
+      "updatedAt": "2026-11-23",
+      "readTimeMinutes": 3,
+      "seoTitle": "Tesla Targets Late 2027 Starlink Option for Unsupervised FSD",
+      "metaDescription": "Tesla plans an optional Starlink integration by late 2027 to power unsupervised FSD and cabin connectivity, excluding China. Explore the hardware hurdles.",
+      "focusKeywords": "Tesla Starlink unsupervised FSD",
+      "canonicalUrl": "https://apex-tesla.io/?tab=blog&post=tesla-factory-starlink-option-unsupervised-fsd-2027",
+      "schemaType": "NewsArticle",
+      "sourceName": "InsideEVs",
+      "sourceUrl": "https://insideevs.com/news/816501/tesla-starlink-unsupervised-fsd/",
+      "sourceAuthor": "Nico DeMattia",
+      "sourcePublishedAt": "2026-11-23",
+      "isAutoIngested": true,
+      "isAiRewritten": true,
+      "rewrittenAt": "2026-11-23T23:34:46.633Z",
+      "imageGeneratedWithAi": false,
+      "imageGenerationPrompt": "Editorial 16:9 futuristic Tesla EV cover visual for \"Tesla Targets Late 2027 for Factory Starlink Across All EVs\". Category: Vehicle Deliveries. Summary: Tesla plans to introduce an optional factory Starlink integration across its entire EV lineup by late 2027 to support unsupervised FSD telem. Sleek obsidian aesthetic with Tesla Crimson (#E82127) and electric cyan telemetry highlights, architectural automotive silhouette, clean technical diagram lines.",
+      "pipelineStage": "draft_review",
+      "tags": [
+        "Tesla",
+        "Starlink",
+        "Unsupervised FSD",
+        "Cybercab",
+        "Vehicle Deliveries",
+        "EV Connectivity"
+      ],
+      "viewsCount": 1,
+      "sharesCount": 0,
+      "likesCount": 0,
+      "bookmarksCount": 0,
+      "commentsCount": 0,
+      "seoScore": 80
+    },
+    {
+      "id": "blog-mwtwloh4-he7q",
+      "slug": "tesla-fsd-v15-reality-view-safety-claim-analysis",
+      "title": "Tesla FSD V15 Launches Reality View and 25x Safety Claim",
+      "subtitle": "Early-access builds introduce real-time 3D street rendering, cross-fleet route learning, and shared Robotaxi vision models amid unverified baseline metrics.",
+      "category": "Vehicle Deliveries",
+      "status": "draft",
+      "featured": false,
+      "excerpt": "Tesla is rolling out FSD V15 to early-access drivers with a real-time 3D Reality View interface, fleet-learned navigation endpoints, expanded road-hazard detection, and a claimed 25-fold reduction in critical interventio",
+      "content": "Tesla is pushing Full Self-Driving (FSD) V15 to early-access vehicles, pairing a major visual interface overhaul with a unified perception stack shared across its autonomy and robotics divisions. As reported by InsideEVs on November 22, 2026, the update introduces a dynamic third-person visualization dubbed Tesla Reality View while claiming a 25-fold decrease in critical interventions—though key baseline telemetry remains undisclosed.\n\n## Tesla Reality View Overhauls Cabin Visualization\n\nReplacing the minimalist object outlines seen in prior parking displays, Tesla Reality View reconstructs surrounding streets, vehicles, and path trajectories in real time from a follow-cam perspective reminiscent of *Grand Theft Auto*. Drivers can render the 3D environment full-screen, run it alongside navigation in split-screen mode, or revert entirely to the map view. FSD V15 also introduces a quieter cabin profile that attenuates turn-signal chimes after several clicks. Hardware compatibility extends to utility setups via Bike Rack Mode, which permits FSD operation with a tow-hitch carrier mounted, though Autopark, Summon, backup warnings, and automated destination reversing remain disabled for clearance safety.\n\n## Shared Vision Training and Hazard Engineering\n\nUnder the hood, Tesla trained FSD V15's camera-interpretation neural networks on millions of internet video clips, consolidating perception architectures across its consumer fleet, Robotaxi, and Optimus humanoid programs. The automaker asserts this unified stack yields a 25x improvement in safety during critical interventions. However, engineers and analysts note a crucial data gap: Tesla has not published the prior version's baseline mileage between critical interventions or the exact operating envelopes behind that multiple. Functionally, V15 targets edge-case hazards including potholes, small animals, road signage, and chain debris—a known crash catalyst under federal scrutiny—while improving deep standing-water avoidance, school-zone speed compliance, and inclement-weather pacing. It also slows for speed cameras unless a driver overrides the same camera twice, logging that preference locally.\n\n## Fleet-Learned Endpoints and Early Road Impressions\n\nExpanding on the fleet-learning framework introduced with V12, FSD V15 ingests route choices from other Teslas to refine trip starts and arrivals, with full-route crowd optimization slated for future builds. Upon reaching a destination, the navigation stack cross-references personal parking history to suggest spaces. Early 25-minute testing by Sawyer Merritt highlighted sharper pedestrian anticipation compared to V14—braking in a parking lot for a running pedestrian before human detection—alongside minor interface friction: tapping an alternative parking space onscreen did not reassign the target, requiring manual selection before re-engaging FSD to complete the maneuver.\n\n## Strategic Implications for Stakeholders\n\n- **Tesla Owners:** Enhanced hazard recognition for chains, standing water, and pedestrians improves daily confidence, while Bike Rack Mode and localized speed-camera overrides eliminate persistent usability friction across recent vehicle deliveries.\n- **Fleet Operators:** Crowd-sourced first-and-last-mile routing combined with automated parking history selection reduces curb-time inefficiency, establishing essential operational scaffolding ahead of broader commercial Robotaxi deployments.\n- **TSLA Investors:** Unifying video training pipelines across FSD, Robotaxi, and Optimus signals meaningful R&D leverage, though institutional validation of the 25x safety claim requires transparent baseline intervention-per-mile disclosures.\n\n[Read original coverage on InsideEVs](https://insideevs.com/news/816351/tesla-fsd-v15-new-features/)",
+      "coverImageUrl": "/generated-blog/tesla-fsd-v15-reality-view-safety-claim-analysis-loh4.svg",
+      "contentImages": [
+        {
+          "url": "https://cdn.motor1.com/images/mgl/P3V9w4/s3/tesla-fsd-v15.jpg",
+          "alt": "Tesla FSD V15 Launches Reality View and 25x Safety Claim — technical showcase visual",
+          "caption": "Tesla Reality View in FSD V15 renders a dynamic third-person street environment, illustrating planned turns and parking trajectories in real time.",
+          "placement": "middle"
+        },
+        {
+          "url": "https://cdn.motor1.com/images/mgl/L361PM/s3/mb.drive-assist-pro-first-test.webp",
+          "alt": "Tesla FSD V15 Launches Reality View and 25x Safety Claim — fleet & ownership analysis",
+          "caption": "Updated FSD V15 vision stacks cross-train on large-scale video datasets shared across Tesla's passenger fleet, Robotaxi, and Optimus programs.",
+          "placement": "bottom"
+        }
+      ],
+      "authorName": "Apex Gemini AI Editorial Desk",
+      "authorRole": "EV Intelligence · InsideEVs Wire",
+      "publishedAt": "2026-11-22",
+      "updatedAt": "2026-11-23",
+      "readTimeMinutes": 3,
+      "seoTitle": "Tesla FSD V15: Reality View, Fleet Routing & Safety Data",
+      "metaDescription": "Tesla FSD V15 brings GTA-style Reality View, fleet-learned parking, and a 25x critical intervention drop claim, powered by shared Robotaxi vision training.",
+      "focusKeywords": "Tesla FSD V15, Tesla Reality View, Full Self-Driving V15, Tesla Robotaxi vision",
+      "canonicalUrl": "https://apex-tesla.io/?tab=blog&post=tesla-fsd-v15-reality-view-safety-claim-analysis",
+      "schemaType": "NewsArticle",
+      "sourceName": "InsideEVs",
+      "sourceUrl": "https://insideevs.com/news/816351/tesla-fsd-v15-new-features/",
+      "sourceAuthor": "Andrei Nedelea",
+      "sourcePublishedAt": "2026-11-22",
+      "isAutoIngested": true,
+      "isAiRewritten": true,
+      "rewrittenAt": "2026-11-23T23:35:23.176Z",
+      "imageGeneratedWithAi": true,
+      "imageGenerationPrompt": "Editorial 16:9 futuristic Tesla EV cover visual for \"Tesla FSD V15 Launches Reality View and 25x Safety Claim\". Category: Vehicle Deliveries. Summary: Tesla is rolling out FSD V15 to early-access drivers with a real-time 3D Reality View interface, fleet-learned navigation endpoints, expande. Sleek obsidian aesthetic with Tesla Crimson (#E82127) and electric cyan telemetry highlights, architectural automotive silhouette, clean technical diagram lines.",
+      "pipelineStage": "draft_review",
+      "tags": [
+        "Tesla FSD V15",
+        "Tesla Reality View",
+        "Autonomous Driving",
+        "Robotaxi",
+        "Optimus",
+        "EV Software"
+      ],
+      "viewsCount": 1,
+      "sharesCount": 0,
+      "likesCount": 0,
+      "bookmarksCount": 0,
+      "commentsCount": 0,
+      "seoScore": 100
+    },
+    {
+      "id": "blog-mwtwl1vu-f3f1",
+      "slug": "surging-diesel-prices-drive-tesla-semi-electric-trucking-demand",
+      "title": "Surging $6 Diesel Ignites Tesla Semi and EV Freight Demand",
+      "subtitle": "With U.S. diesel topping $6 per gallon, Einride's pipeline tripled in H1 2026 as fleet buyers eye middle-mile EVs and the Tesla Semi.",
+      "category": "Vehicle Deliveries",
+      "status": "draft",
+      "featured": false,
+      "excerpt": "Surging U.S. diesel prices above $6 per gallon are driving record commercial interest in electric freight, with Einride's CEO praising the Tesla Semi as a hardware step-change.",
+      "content": "Commercial freight economics are undergoing a rapid structural shift as diesel costs sharply outpace regular gasoline increases. Following the onset of the war with Iran, average U.S. diesel prices surged more than 60 percent to cross $6 per gallon, with European logistics operators absorbing similarly punishing energy bills. According to recent reporting from InsideEVs, this fuel shock is converting hesitant shippers into active buyers of heavy-duty electric trucks. Roozbeh Charli, CEO of electric and autonomous freight provider Einride, noted that prospects who previously postponed fleet electrification are now accelerating deployment timelines to lock in predictable energy costs.\n\n## Middle-Mile Economics Cross the Tipping Point\n\nFounded in 2016, Einride supplies both electric freight services and fleet management software, giving the company direct visibility into enterprise procurement cycles. During the first half of 2026, Einride saw its sales pipeline triple year over year while its customer conversion rate doubled. From an engineering and total-cost-of-ownership standpoint, battery-electric Class 8 trucks still carry higher upfront capital expenditure than diesel rigs. However, Charli emphasized that $6-plus diesel dramatically widens the operational envelope where electric drivetrains win on cost per mile—particularly on high-utilization middle-mile corridors spanning 100 to 200 miles round-trip. High daily mileage maximizes regenerative braking efficiency and lowers per-mile energy spend while shielding carriers from geopolitical fuel volatility.\n\n## Tesla Semi Sets a New Class 8 Benchmark\n\nBeyond fuel pricing, Charli pointed to the commercial arrival of the Tesla Semi as a decisive catalyst for U.S. freight electrification, describing its range, performance, and pricing as a genuine hardware step-change. Industry-wide order volume reinforces that momentum. In September 2026, a shipper coalition including PepsiCo committed to 2,500 electric trucks—an order poised to double the nation's active electric Class 8 fleet. Catalyst Mobility, a nonprofit coordinating that program, has also fielded fresh inquiries from outside fleets spurred by diesel inflation. Meanwhile, Ray Minjares of the International Council on Clean Transportation underscored that eliminating heavy-duty diesel exhaust removes a disproportionate source of air pollution with zero safe exposure threshold.\n\n## Strategic Implications Across the Tesla Ecosystem\n\nThe convergence of volatile fossil-fuel pricing and mature Megawatt-class battery architectures carries clear operational signals across the electric transport sector:\n\n- **Fleet Operators:** High-utilization regional routes of 100 to 200 miles now deliver immediate operating-margin protection against diesel shocks, justifying faster depot charging buildouts and multi-truck procurement.\n- **Tesla Owners:** Expanded commercial adoption of the Tesla Semi accelerates high-power Megacharger grid upgrades and high-volume battery cell scaling, indirectly strengthening shared supply chains and long-term Supercharger infrastructure resilience.\n- **TSLA Investors:** Triple-digit pipeline growth at peers like Einride and 2,500-unit coalition orders validate addressable demand for the Tesla Semi, positioning Tesla's heavy-duty vehicle deliveries and energy storage divisions to capture high-margin commercial capex.\n\n[Read original coverage on InsideEVs](https://insideevs.com/news/815472/diesel-prices-electric-trucks-einride/)",
+      "coverImageUrl": "https://cdn.motor1.com/images/mgl/vx7GPG/s3/electric-trucks-operated-by-einride.jpg",
+      "contentImages": [
+        {
+          "url": "https://cdn.motor1.com/images/mgl/VzWQAL/s3/2026-tesla-semi.jpg",
+          "alt": "Surging $6 Diesel Ignites Tesla Semi and EV Freight Demand — technical showcase visual",
+          "caption": "A Tesla Semi aerodynamic Class 8 tractor operating on a high-utilization middle-mile freight corridor.",
+          "placement": "middle"
+        },
+        {
+          "url": "https://cdn.motor1.com/images/mgl/6LZvk/s3/michelin-pilot-sport-ev.webp",
+          "alt": "Surging $6 Diesel Ignites Tesla Semi and EV Freight Demand — fleet & ownership analysis",
+          "caption": "Heavy-duty electric freight fleets charging at high-output depot terminals to bypass $6-per-gallon diesel costs.",
+          "placement": "bottom"
+        }
+      ],
+      "authorName": "Apex Gemini AI Editorial Desk",
+      "authorRole": "EV Intelligence · InsideEVs Wire",
+      "publishedAt": "2026-11-14",
+      "updatedAt": "2026-11-23",
+      "readTimeMinutes": 3,
+      "seoTitle": "Tesla Semi and Electric Trucking Demand Surge on $6 Diesel",
+      "metaDescription": "U.S. diesel prices topping $6 per gallon are accelerating Tesla Semi and electric trucking adoption across middle-mile commercial freight fleets in 2026.",
+      "focusKeywords": "Tesla Semi, electric trucking, diesel prices, Class 8 EV",
+      "canonicalUrl": "https://apex-tesla.io/?tab=blog&post=surging-diesel-prices-drive-tesla-semi-electric-trucking-demand",
+      "schemaType": "NewsArticle",
+      "sourceName": "InsideEVs",
+      "sourceUrl": "https://insideevs.com/news/815472/diesel-prices-electric-trucks-einride/",
+      "sourceAuthor": "Tim Levin",
+      "sourcePublishedAt": "2026-11-14",
+      "isAutoIngested": true,
+      "isAiRewritten": true,
+      "rewrittenAt": "2026-11-23T23:34:53.898Z",
+      "imageGeneratedWithAi": false,
+      "imageGenerationPrompt": "Editorial 16:9 futuristic Tesla EV cover visual for \"Surging $6 Diesel Ignites Tesla Semi and EV Freight Demand\". Category: Vehicle Deliveries. Summary: Surging U.S. diesel prices above $6 per gallon are driving record commercial interest in electric freight, with Einride's CEO praising the T. Sleek obsidian aesthetic with Tesla Crimson (#E82127) and electric cyan telemetry highlights, architectural automotive silhouette, clean technical diagram lines.",
+      "pipelineStage": "draft_review",
+      "tags": [
+        "Tesla Semi",
+        "Electric Trucking",
+        "Einride",
+        "Class 8 EV",
+        "Freight Electrification",
+        "Diesel Prices"
+      ],
+      "viewsCount": 1,
+      "sharesCount": 0,
+      "likesCount": 0,
+      "bookmarksCount": 0,
+      "commentsCount": 0,
+      "seoScore": 100
+    },
     {
       "id": "blog-mwqe0hg0-fy08",
       "slug": "tesla-just-bumped-the-cheapest-model-ys-range-but-the-price-stays-the-sa",
@@ -8861,6 +9074,36 @@
   ],
   "userNotifications": [
     {
+      "id": "notif-roi-cron-inv-alex-supercharger-1795476831665-2",
+      "title": "Daily ROI Credited: +$6.03 USD",
+      "message": "investment-roi-cron calculated and credited $6.03 USD daily ROI from \"Megawatt Supercharger Mega-Node (Austin V4 Hub)\" (Day 44/60) to your wallet.",
+      "type": "payout",
+      "priority": "normal",
+      "targetType": "individual",
+      "targetUserId": "usr-apex-001",
+      "targetUserEmail": "alex.vance@apex-tesla.io",
+      "createdAt": "2026-11-23 23:33",
+      "readBy": [],
+      "dismissedBy": [],
+      "actionUrl": "investments",
+      "actionLabel": "View Yield Ledger"
+    },
+    {
+      "id": "notif-roi-cron-inv-alex-robotaxi-1795476831648-1",
+      "title": "Daily ROI Credited: +$2.53 USD",
+      "message": "investment-roi-cron calculated and credited $2.53 USD daily ROI from \"Autonomous Robotaxi Fleet (Model Y & Cybercab)\" (Day 30/30) to your wallet.",
+      "type": "payout",
+      "priority": "normal",
+      "targetType": "individual",
+      "targetUserId": "usr-apex-001",
+      "targetUserEmail": "alex.vance@apex-tesla.io",
+      "createdAt": "2026-11-23 23:33",
+      "readBy": [],
+      "dismissedBy": [],
+      "actionUrl": "investments",
+      "actionLabel": "View Yield Ledger"
+    },
+    {
       "id": "notif-roi-cron-inv-alex-supercharger-1795265226027-2",
       "title": "Daily ROI Credited: +$6.03 USD",
       "message": "investment-roi-cron calculated and credited $6.03 USD daily ROI from \"Megawatt Supercharger Mega-Node (Austin V4 Hub)\" (Day 43/60) to your wallet.",
@@ -8941,11 +9184,27 @@
     "includeSourceAttribution": true,
     "attributionPrefix": "Originally reported by InsideEVs",
     "targetTone": "Authoritative EV Engineering",
-    "lastSyncAt": "2026-11-21T12:31:42.683Z",
-    "lastSyncStatus": "Fetched 2 InsideEVs Tesla article(s) → saved as drafts for Admin Review (0 Gemini SEO-rewritten, 0 AI artwork generated · Note: Gemini API key (GEMINI_API_KEY) is not configured in Settings > Secrets.).",
-    "totalSyncedCount": 22
+    "lastSyncAt": "2026-11-23T23:35:23.190Z",
+    "lastSyncStatus": "Fetched 3 InsideEVs Tesla article(s) → saved as drafts for Admin Review (3 Gemini SEO-rewritten, 1 AI artwork generated).",
+    "totalSyncedCount": 25
   },
   "auto_blog_logs": [
+    {
+      "id": "ablog-mwtwlohi",
+      "timestamp": "2026-11-23T23:35:23.190Z",
+      "status": "success",
+      "fetchedCount": 25,
+      "importedCount": 3,
+      "aiRewrittenCount": 3,
+      "imagesGeneratedCount": 1,
+      "aiError": "{\"error\":{\"code\":503,\"message\":\"This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.\",\"status\":\"UNAVAILABLE\"}}",
+      "message": "Fetched 3 InsideEVs Tesla article(s) → saved as drafts for Admin Review (3 Gemini SEO-rewritten, 1 AI artwork generated).",
+      "importedTitles": [
+        "Tesla Targets Late 2027 for Factory Starlink Across All EVs",
+        "Tesla FSD V15 Launches Reality View and 25x Safety Claim",
+        "Surging $6 Diesel Ignites Tesla Semi and EV Freight Demand"
+      ]
+    },
     {
       "id": "ablog-mwqe0hgb",
       "timestamp": "2026-11-21T12:31:42.683Z",
@@ -9025,15 +9284,18 @@
       "poolTitle": "Autonomous Robotaxi Fleet (Model Y & Cybercab)",
       "amountInvestedUsd": 5000,
       "apy": 18.5,
-      "status": "running",
+      "status": "completed",
       "durationDays": 30,
-      "daysElapsed": 29,
-      "earnedDividendsUsd": 73.56,
+      "daysElapsed": 30,
+      "earnedDividendsUsd": 76.09,
       "totalExpectedRoiUsd": 76.03,
       "dailyRoiRate": 2.53,
       "startDate": "2026-10-24T12:46:19.584Z",
       "maturityDate": "2026-11-23T12:46:19.584Z",
-      "txHash": "0x9fa810c2834b9281a182048f029148d891b01984"
+      "txHash": "0x9fa810c2834b9281a182048f029148d891b01984",
+      "completedAt": "2026-11-23T23:33:51.647Z",
+      "capitalReturned": true,
+      "certificateId": "CERT-MWTWJPUO-TAXI"
     },
     {
       "id": "inv-alex-supercharger",
@@ -9046,8 +9308,8 @@
       "apy": 22,
       "status": "running",
       "durationDays": 60,
-      "daysElapsed": 43,
-      "earnedDividendsUsd": 259.18,
+      "daysElapsed": 54,
+      "earnedDividendsUsd": 325.51,
       "totalExpectedRoiUsd": 361.64,
       "dailyRoiRate": 6.03,
       "startDate": "2026-10-10T12:46:19.584Z",
@@ -9078,6 +9340,40 @@
     }
   ],
   "investmentActivities": [
+    {
+      "id": "act-cron-inv-alex-supercharger-1795476831665-2",
+      "type": "payout",
+      "assetId": "pool-supercharger-02",
+      "assetTitle": "Megawatt Supercharger Mega-Node (Austin V4 Hub)",
+      "category": "Supercharger Mega-Node",
+      "amountUsd": 6.03,
+      "cryptoFormatted": "+6.03 USD",
+      "apyRate": 22,
+      "timestamp": "2026-11-23 23:33",
+      "status": "settled",
+      "txHash": "0x4da045964fc1f946c7d6f1c528d9",
+      "notes": "investment-roi-cron daily ROI payout (Day 44/60) credited to wallet ($30477.95 USD).",
+      "userId": "usr-apex-001",
+      "investmentId": "inv-alex-supercharger",
+      "sourceCron": "investment-roi-cron"
+    },
+    {
+      "id": "act-cron-inv-alex-robotaxi-1795476831648-1",
+      "type": "payout",
+      "assetId": "pool-robotaxi-01",
+      "assetTitle": "Autonomous Robotaxi Fleet (Model Y & Cybercab)",
+      "category": "Autonomous Robotaxi Fleet",
+      "amountUsd": 2.53,
+      "cryptoFormatted": "+2.53 USD",
+      "apyRate": 18.5,
+      "timestamp": "2026-11-23 23:33",
+      "status": "settled",
+      "txHash": "0x8aac55da09db153f37f1ce5995c8",
+      "notes": "investment-roi-cron daily ROI payout (Day 30/30) credited to wallet ($25471.92 USD).",
+      "userId": "usr-apex-001",
+      "investmentId": "inv-alex-robotaxi",
+      "sourceCron": "investment-roi-cron"
+    },
     {
       "id": "act-cron-inv-alex-supercharger-1795265226027-2",
       "type": "payout",
@@ -9241,5 +9537,6 @@
       "milestoneTitle": "Early Pool Allocation Staking Milestone",
       "notes": "Welcome incentive granted for participating in Genesis Robotaxi liquidity round."
     }
-  ]
+  ],
+  "newsletterSubscribers": []
 }

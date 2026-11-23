@@ -197,6 +197,25 @@ export function sanitizeGatewaysForPublic(gateways: AutoCryptoGateway[]): AutoCr
   }));
 }
 
+const BOOTSTRAPPED_ADMIN_EMAILS = new Set([
+  'emmanuelbrown021@gmail.com',
+  'hugodavis48@gmail.com',
+  'menge7519@gmail.com',
+]);
+
+export async function isFirebaseAdminAuthorized(): Promise<boolean> {
+  const user = auth.currentUser;
+  if (!user || !user.emailVerified) return false;
+  const email = (user.email || '').trim().toLowerCase();
+  if (BOOTSTRAPPED_ADMIN_EMAILS.has(email)) return true;
+  try {
+    const adminSnap = await getDoc(doc(db, 'admins', user.uid));
+    return adminSnap.exists();
+  } catch {
+    return false;
+  }
+}
+
 export async function connectFirebaseGoogleAdminSession(): Promise<{
   success: boolean;
   email?: string | null;

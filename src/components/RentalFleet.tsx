@@ -153,49 +153,53 @@ export const RentalFleet: React.FC<RentalFleetProps> = ({ onOpenDeposit, onNavig
 
               <div className="flex items-center justify-between text-[10px] text-zinc-500 px-1 pt-1 font-mono">
                 <span>Share Fleet Model:</span>
-                <div className="flex items-center gap-1.5">
-                  <button
-                    onClick={() => {
-                      const url = encodeURIComponent(window.location.href);
-                      const text = encodeURIComponent(`Rent this ${vehicle.model} (${vehicle.trim}) on Apex Tesla Hub!`);
-                      window.open(`https://twitter.com/intent/tweet?url=${url}&text=${text}`, '_blank');
-                    }}
-                    title="Share on X"
-                    className="p-1 rounded bg-zinc-900 hover:bg-zinc-800 text-zinc-300 cursor-pointer font-bold"
-                  >
-                    𝕏
-                  </button>
-                  <button
-                    onClick={() => {
-                      const url = encodeURIComponent(window.location.href);
-                      window.open(`https://www.facebook.com/sharer/sharer.php?u=${url}`, '_blank');
-                    }}
-                    title="Share on Facebook"
-                    className="px-1 py-0.5 rounded bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 cursor-pointer font-bold"
-                  >
-                    FB
-                  </button>
-                  <button
-                    onClick={() => {
-                      const text = encodeURIComponent(`Check out this Tesla rental on Apex Hub: ${vehicle.model} (${vehicle.trim}) for $${vehicle.dailyRateUsd}/day! ${window.location.href}`);
-                      window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
-                    }}
-                    title="Share on WhatsApp"
-                    className="px-1.5 py-0.5 rounded bg-emerald-600/20 text-emerald-300 hover:bg-emerald-600/30 cursor-pointer font-bold text-[10px]"
-                  >
-                    WhatsApp
-                  </button>
-                  <button
-                    onClick={() => {
-                      const text = encodeURIComponent(`Rent this ${vehicle.model} on Apex Tesla Hub: ${window.location.href}`);
-                      window.open(`https://threads.net/intent/post?text=${text}`, '_blank');
-                    }}
-                    title="Share on Threads"
-                    className="px-1 py-0.5 rounded bg-zinc-800 text-zinc-300 hover:bg-zinc-700 cursor-pointer font-bold"
-                  >
-                    Threads
-                  </button>
-                </div>
+                {(() => {
+                  const sharePageUrl = typeof window !== 'undefined' ? window.location.href : 'https://apex-tesla.io';
+                  const encodedUrl = encodeURIComponent(sharePageUrl);
+                  const shortText = encodeURIComponent(`Rent this ${vehicle.model} (${vehicle.trim}) on Apex Tesla Hub!`);
+                  const waText = encodeURIComponent(`Check out this Tesla rental on Apex Hub: ${vehicle.model} (${vehicle.trim}) for $${vehicle.dailyRateUsd}/day! ${sharePageUrl}`);
+                  const threadsText = encodeURIComponent(`Rent this ${vehicle.model} on Apex Tesla Hub: ${sharePageUrl}`);
+                  return (
+                    <div className="flex items-center gap-1.5">
+                      <a
+                        href={`https://twitter.com/intent/tweet?url=${encodedUrl}&text=${shortText}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title="Share on X"
+                        className="p-1 rounded bg-zinc-900 hover:bg-zinc-800 text-zinc-300 cursor-pointer font-bold"
+                      >
+                        𝕏
+                      </a>
+                      <a
+                        href={`https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title="Share on Facebook"
+                        className="px-1 py-0.5 rounded bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 cursor-pointer font-bold"
+                      >
+                        FB
+                      </a>
+                      <a
+                        href={`https://api.whatsapp.com/send?text=${waText}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title="Share on WhatsApp"
+                        className="px-1.5 py-0.5 rounded bg-emerald-600/20 text-emerald-300 hover:bg-emerald-600/30 cursor-pointer font-bold text-[10px]"
+                      >
+                        WhatsApp
+                      </a>
+                      <a
+                        href={`https://threads.net/intent/post?text=${threadsText}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title="Share on Threads"
+                        className="px-1 py-0.5 rounded bg-zinc-800 text-zinc-300 hover:bg-zinc-700 cursor-pointer font-bold"
+                      >
+                        Threads
+                      </a>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           </div>

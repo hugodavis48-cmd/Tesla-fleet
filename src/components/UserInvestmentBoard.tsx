@@ -86,15 +86,14 @@ export const UserInvestmentBoard: React.FC<UserInvestmentBoardProps> = ({
     setTimeout(() => setCopiedHash(null), 2000);
   };
 
-  const handleWhatsAppShare = (inv: UserInvestment) => {
+  const getWhatsAppShareUrl = (inv: UserInvestment) => {
     const isRunning = inv.status === 'running' || !inv.status;
     const shareText = isRunning
       ? `🚗⚡ I am actively earning ${inv.apy}% APY with my $${inv.amountInvestedUsd.toLocaleString()} stake in the ${inv.poolTitle} on Apex Tesla Hub! Check out decentralized fleet yields:`
       : `🏆 Just completed my ${inv.durationDays}-day investment plan in the ${inv.poolTitle} on Apex Tesla Hub! Earned $${inv.earnedDividendsUsd.toFixed(2)} ROI on $${inv.amountInvestedUsd.toLocaleString()} capital.`;
 
     const url = typeof window !== 'undefined' ? window.location.origin : 'https://apex-tesla.io';
-    const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}%20${encodeURIComponent(url)}`;
-    window.open(waUrl, '_blank');
+    return `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}%20${encodeURIComponent(url)}`;
   };
 
   return (
@@ -400,14 +399,16 @@ export const UserInvestmentBoard: React.FC<UserInvestmentBoardProps> = ({
                 {/* Interactive Action Footer */}
                 <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-zinc-800/80">
                   {/* Left: WhatsApp Share Function */}
-                  <button
-                    onClick={() => handleWhatsAppShare(inv)}
+                  <a
+                    href={getWhatsAppShareUrl(inv)}
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="px-3 py-2 rounded-xl bg-emerald-600/10 hover:bg-emerald-600/20 border border-emerald-500/30 text-emerald-400 hover:text-emerald-300 text-xs font-bold transition flex items-center gap-1.5"
                     title="Share this investment on WhatsApp"
                   >
                     <Share2 className="w-3.5 h-3.5" />
                     <span>Share on WhatsApp</span>
-                  </button>
+                  </a>
 
                   {/* Right Actions */}
                   <div className="flex items-center gap-2">
@@ -540,13 +541,15 @@ export const UserInvestmentBoard: React.FC<UserInvestmentBoardProps> = ({
 
             {/* Actions */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2">
-              <button
-                onClick={() => handleWhatsAppShare(selectedCertificate)}
+              <a
+                href={getWhatsAppShareUrl(selectedCertificate)}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="px-4 py-2.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 text-emerald-400 text-xs font-bold transition flex items-center justify-center gap-2"
               >
                 <Share2 className="w-4 h-4" />
                 <span>Share Certificate on WhatsApp</span>
-              </button>
+              </a>
 
               <button
                 onClick={() => {

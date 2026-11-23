@@ -15,9 +15,12 @@
     max-width: 100%;
     overflow-x: clip;
     overscroll-behavior-x: none;
-    selection-background-color: #e82127;
-    selection-color: #ffffff;
     transition: background-color 0.2s ease, color 0.2s ease;
+  }
+
+  ::selection {
+    background-color: #e82127;
+    color: #ffffff;
   }
 
   h1, h2, h3, h4, .font-heading {

@@ -8,6 +8,7 @@ import {
   handleFirestoreError,
   OperationType,
   connectFirebaseGoogleAdminSession,
+  isFirebaseAdminAuthorized,
   saveSeoGlobalToFirestore,
   savePageSeoToFirestore,
   saveAdminSectionToFirestore,
@@ -1668,60 +1669,45 @@ const buildInitialUserBalances = (users: User[]): Record<string, WalletBalances>
   return map;
 };
 
+function safeJsonParse<T>(raw: string | null | undefined, fallback: T): T {
+  if (!raw) return fallback;
+  try {
+    const parsed = JSON.parse(raw);
+    return (parsed ?? fallback) as T;
+  } catch {
+    return fallback;
+  }
+}
+
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Load persistent state from localStorage — fresh visitors start strictly signed out
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     const saved = localStorage.getItem('apex_user');
-    return saved ? JSON.parse(saved) : null;
+    return safeJsonParse<User | null>(saved, null);
   });
   const [adminsList, setAdminsList] = useState<User[]>([]);
 
   const [userBalancesById, setUserBalancesById] = useState<Record<string, WalletBalances>>(() => {
     const seeded = buildInitialUserBalances(INITIAL_USERS);
     const saved = localStorage.getItem('apex_user_balances_v1');
-    if (saved) {
-      try {
-        return { ...seeded, ...JSON.parse(saved) };
-      } catch {
-        return seeded;
-      }
-    }
-    return seeded;
+    const parsed = safeJsonParse<Record<string, WalletBalances> | null>(saved, null);
+    return parsed && typeof parsed === 'object' ? { ...seeded, ...parsed } : seeded;
   });
 
   const [lockedWinsByUserId, setLockedWinsByUserId] = useState<Record<string, number>>(() => {
     const saved = localStorage.getItem('apex_locked_wins_v1');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch {
-        return {};
-      }
-    }
-    return {};
+    return safeJsonParse<Record<string, number>>(saved, {});
   });
 
   // Segregated Wallet Ledger: verified deposit-funded USD vs free promo/spin/scratch/streak USD
   const [activeDepositByUserId, setActiveDepositByUserId] = useState<Record<string, number>>(() => {
-    try {
-      const saved = localStorage.getItem('apex_active_deposit_by_user_v1');
-      if (saved) return JSON.parse(saved);
-    } catch {
-      // fallback
-    }
-    return {
-      'usr-apex-001': DEFAULT_BALANCES.usd,
-    };
+    const saved = localStorage.getItem('apex_active_deposit_by_user_v1');
+    return safeJsonParse<Record<string, number>>(saved, { 'usr-apex-001': DEFAULT_BALANCES.usd });
   });
 
   const [freeWinByUserId, setFreeWinByUserId] = useState<Record<string, number>>(() => {
-    try {
-      const saved = localStorage.getItem('apex_free_win_by_user_v1');
-      if (saved) return JSON.parse(saved);
-    } catch {
-      // fallback
-    }
-    return {};
+    const saved = localStorage.getItem('apex_free_win_by_user_v1');
+    return safeJsonParse<Record<string, number>>(saved, {});
   });
 
   const [balances, setBalances] = useState<WalletBalances>(() => {
@@ -1730,27 +1716,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { usd: 0, btc: 0, usdt: 0, xrp: 0, bnb: 0 };
     }
     const saved = localStorage.getItem('apex_balances');
-    return saved ? JSON.parse(saved) : { usd: 0, btc: 0, usdt: 0, xrp: 0, bnb: 0 };
+    return safeJsonParse<WalletBalances>(saved, { usd: 0, btc: 0, usdt: 0, xrp: 0, bnb: 0 });
   });
 
   const [vehicles, setVehicles] = useState<TeslaVehicle[]>(() => {
     const saved = localStorage.getItem('apex_vehicles');
-    return saved ? JSON.parse(saved) : INITIAL_VEHICLES;
+    return safeJsonParse<TeslaVehicle[]>(saved, INITIAL_VEHICLES);
   });
 
   const [serviceBookings, setServiceBookings] = useState<ServiceBooking[]>(() => {
     const saved = localStorage.getItem('apex_services');
-    return saved ? JSON.parse(saved) : INITIAL_BOOKINGS;
+    return safeJsonParse<ServiceBooking[]>(saved, INITIAL_BOOKINGS);
   });
 
   const [userInvestments, setUserInvestments] = useState<UserInvestment[]>(() => {
     const saved = localStorage.getItem('apex_investments');
-    return saved ? JSON.parse(saved) : INITIAL_INVESTMENTS;
+    return safeJsonParse<UserInvestment[]>(saved, INITIAL_INVESTMENTS);
   });
 
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
     const saved = localStorage.getItem('apex_transactions');
-    return saved ? JSON.parse(saved) : INITIAL_TRANSACTIONS;
+    return safeJsonParse<Transaction[]>(saved, INITIAL_TRANSACTIONS);
   });
   const [lastCheckoutTransaction, setLastCheckoutTransaction] = useState<Transaction | null>(null);
 
@@ -1918,78 +1904,64 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [featuredStockPlans, setFeaturedStockPlans] = useState<FeaturedStockPlan[]>(() => {
     const saved = localStorage.getItem('apex_featured_stock_plans');
-    return saved ? JSON.parse(saved) : INITIAL_FEATURED_STOCK_PLANS;
+    return safeJsonParse<FeaturedStockPlan[]>(saved, INITIAL_FEATURED_STOCK_PLANS);
   });
 
   const [userSpotHolding, setUserSpotHolding] = useState<SpotHolding>(() => {
     const saved = localStorage.getItem('apex_spot_holding');
-    return saved
-      ? JSON.parse(saved)
-      : {
-          id: 'spot-alex-01',
-          userId: 'usr-apex-001',
-          shares: 5.25,
-          avgBuyPrice: 312.40,
-          totalInvestedUsd: 1640.10,
-          currentEquityUsd: Number((5.25 * INITIAL_TSLA_QUOTE.price).toFixed(2)),
-          pnlUsd: Number(((5.25 * INITIAL_TSLA_QUOTE.price) - 1640.10).toFixed(2)),
-          pnlPercent: Number(((((5.25 * INITIAL_TSLA_QUOTE.price) - 1640.10) / 1640.10) * 100).toFixed(2)),
-          lastUpdated: new Date().toISOString(),
-        };
+    return safeJsonParse<SpotHolding>(saved, {
+      id: 'spot-alex-01',
+      userId: 'usr-apex-001',
+      shares: 5.25,
+      avgBuyPrice: 312.40,
+      totalInvestedUsd: 1640.10,
+      currentEquityUsd: Number((5.25 * INITIAL_TSLA_QUOTE.price).toFixed(2)),
+      pnlUsd: Number(((5.25 * INITIAL_TSLA_QUOTE.price) - 1640.10).toFixed(2)),
+      pnlPercent: Number(((((5.25 * INITIAL_TSLA_QUOTE.price) - 1640.10) / 1640.10) * 100).toFixed(2)),
+      lastUpdated: new Date().toISOString(),
+    });
   });
 
   const [withdrawalSettings, setWithdrawalSettings] = useState<WithdrawalSettings>(() => {
     const saved = localStorage.getItem('apex_withdrawal_settings');
-    return saved ? JSON.parse(saved) : DEFAULT_WITHDRAWAL_SETTINGS;
+    return safeJsonParse<WithdrawalSettings>(saved, DEFAULT_WITHDRAWAL_SETTINGS);
   });
 
   const [withdrawalRequests, setWithdrawalRequests] = useState<WithdrawalRequest[]>(() => {
     const saved = localStorage.getItem('apex_withdrawal_requests');
-    return saved ? JSON.parse(saved) : INITIAL_WITHDRAWAL_REQUESTS;
+    return safeJsonParse<WithdrawalRequest[]>(saved, INITIAL_WITHDRAWAL_REQUESTS);
   });
 
   const [featureToggles, setFeatureToggles] = useState<FeatureToggles>(() => {
     const saved = localStorage.getItem('apex_feature_toggles');
-    if (saved) {
-      try {
-        return normalizeFeatureToggles(DEFAULT_FEATURE_TOGGLES, JSON.parse(saved));
-      } catch {
-        return DEFAULT_FEATURE_TOGGLES;
-      }
-    }
-    return DEFAULT_FEATURE_TOGGLES;
+    const parsed = safeJsonParse<Partial<FeatureToggles> | null>(saved, null);
+    return parsed ? normalizeFeatureToggles(DEFAULT_FEATURE_TOGGLES, parsed) : DEFAULT_FEATURE_TOGGLES;
   });
 
   const [autoCryptoGateways, setAutoCryptoGateways] = useState<AutoCryptoGateway[]>(() => {
     const saved = localStorage.getItem('apex_auto_crypto_gateways');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved) as AutoCryptoGateway[];
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          const deletedRaw = localStorage.getItem('apex_deleted_gateway_ids_v1');
-          const deletedIds = new Set<string>(deletedRaw ? JSON.parse(deletedRaw) : []);
-          const existingIds = new Set(parsed.map((g) => g.id));
-          const missingDefaults = DEFAULT_AUTO_CRYPTO_GATEWAYS.filter(
-            (d) => !existingIds.has(d.id) && !deletedIds.has(d.id)
-          );
-          return [...parsed, ...missingDefaults];
-        }
-      } catch {
-        // fallback below
-      }
+    const parsed = safeJsonParse<AutoCryptoGateway[] | null>(saved, null);
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      const deletedIds = new Set<string>(
+        safeJsonParse<string[]>(localStorage.getItem('apex_deleted_gateway_ids_v1'), [])
+      );
+      const existingIds = new Set(parsed.map((g) => g.id));
+      const missingDefaults = DEFAULT_AUTO_CRYPTO_GATEWAYS.filter(
+        (d) => !existingIds.has(d.id) && !deletedIds.has(d.id)
+      );
+      return [...parsed, ...missingDefaults];
     }
     return DEFAULT_AUTO_CRYPTO_GATEWAYS;
   });
 
   const [reviews, setReviews] = useState<ReviewItem[]>(() => {
     const saved = localStorage.getItem('apex_reviews_v1');
-    return saved ? JSON.parse(saved) : INITIAL_REVIEWS;
+    return safeJsonParse<ReviewItem[]>(saved, INITIAL_REVIEWS);
   });
 
   const [stockPriceAlerts, setStockPriceAlerts] = useState<StockPriceAlert[]>(() => {
     const saved = localStorage.getItem('apex_tsla_price_alerts');
-    if (saved) return JSON.parse(saved);
-    return [
+    return safeJsonParse<StockPriceAlert[]>(saved, [
       {
         id: 'tsla-alert-high-01',
         symbol: 'TSLA',
@@ -2008,72 +1980,54 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isActive: true,
         createdAt: new Date().toISOString(),
       },
-    ];
+    ]);
   });
 
   const [marketingBanners, setMarketingBanners] = useState<MarketingBanner[]>(() => {
     const saved = localStorage.getItem('apex_marketing_banners_v1');
-    if (saved) {
-      try {
-        const parsed: MarketingBanner[] = JSON.parse(saved);
-        const has3d = parsed.some((b) => b.is3dHd);
-        if (has3d) return parsed;
-      } catch {
-        // fallback below
-      }
+    const parsed = safeJsonParse<MarketingBanner[] | null>(saved, null);
+    if (Array.isArray(parsed) && parsed.some((b) => b.is3dHd)) {
+      return parsed;
     }
     return INITIAL_MARKETING_BANNERS;
   });
 
   const [allUsers, setAllUsers] = useState<User[]>(() => {
     const saved = localStorage.getItem('apex_all_users');
-    if (saved) {
-      try {
-        const parsed: User[] = JSON.parse(saved);
-        const existingIds = new Set(parsed.map((u) => u.id));
-        const missing = INITIAL_USERS.filter((u) => !existingIds.has(u.id));
-        return missing.length > 0 ? [...parsed, ...missing] : parsed;
-      } catch {
-        return INITIAL_USERS;
-      }
+    const parsed = safeJsonParse<User[] | null>(saved, null);
+    if (Array.isArray(parsed)) {
+      const existingIds = new Set(parsed.map((u) => u.id));
+      const missing = INITIAL_USERS.filter((u) => !existingIds.has(u.id));
+      return missing.length > 0 ? [...parsed, ...missing] : parsed;
     }
     return INITIAL_USERS;
   });
 
   const [smtpConfig, setSmtpConfig] = useState<SmtpConfig>(() => {
     const saved = localStorage.getItem('apex_smtp');
-    return saved ? JSON.parse(saved) : DEFAULT_SMTP;
+    return safeJsonParse<SmtpConfig>(saved, DEFAULT_SMTP);
   });
 
   const [importedEmails, setImportedEmails] = useState<string[]>(() => {
     const saved = localStorage.getItem('apex_imported_emails');
-    return saved
-      ? JSON.parse(saved)
-      : [
-          'vip.tesla.fleet@club-norcal.org',
-          'elon.fan88@cybertruck-owners.net',
-          'plaid.speed@austin-drag.io',
-          'trackday@lagunaseca-ev.com',
-          'investor.tesla@supercharger-node.eu',
-        ];
+    return safeJsonParse<string[]>(saved, [
+      'vip.tesla.fleet@club-norcal.org',
+      'elon.fan88@cybertruck-owners.net',
+      'plaid.speed@austin-drag.io',
+      'trackday@lagunaseca-ev.com',
+      'investor.tesla@supercharger-node.eu',
+    ]);
   });
 
   const [emailCampaigns, setEmailCampaigns] = useState<EmailCampaign[]>(() => {
     const saved = localStorage.getItem('apex_campaigns');
-    return saved ? JSON.parse(saved) : INITIAL_CAMPAIGNS;
+    return safeJsonParse<EmailCampaign[]>(saved, INITIAL_CAMPAIGNS);
   });
 
   const [newsletterSubscribers, setNewsletterSubscribers] = useState<NewsletterSubscriber[]>(() => {
-    try {
-      const saved = localStorage.getItem('apex_newsletter_subscribers_v1');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
-      }
-    } catch {
-      // fallback
-    }
-    return [];
+    const saved = localStorage.getItem('apex_newsletter_subscribers_v1');
+    const parsed = safeJsonParse<NewsletterSubscriber[] | null>(saved, null);
+    return Array.isArray(parsed) ? parsed : [];
   });
 
   const [recentWinners, setRecentWinners] = useState<WinRecord[]>(MOCK_WINNERS);
@@ -2096,27 +2050,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Notifications Hub state
   const [adminNotifications, setAdminNotifications] = useState<AdminNotificationMessage[]>(() => {
     const saved = localStorage.getItem('apex_notifications');
-    return saved ? JSON.parse(saved) : INITIAL_ADMIN_NOTIFICATIONS;
+    return safeJsonParse<AdminNotificationMessage[]>(saved, INITIAL_ADMIN_NOTIFICATIONS);
   });
 
   // Global Site Settings (Reflected Site-Wide)
   const [siteSettings, setSiteSettings] = useState<SiteSettings>(() => {
     const saved = localStorage.getItem('apex_site_settings');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        return { ...DEFAULT_SITE_SETTINGS, ...parsed };
-      } catch {
-        return DEFAULT_SITE_SETTINGS;
-      }
-    }
-    return DEFAULT_SITE_SETTINGS;
+    const parsed = safeJsonParse<Partial<SiteSettings> | null>(saved, null);
+    return parsed && typeof parsed === 'object' ? { ...DEFAULT_SITE_SETTINGS, ...parsed } : DEFAULT_SITE_SETTINGS;
   });
 
   // Site CMS Pages state
   const [sitePages, setSitePages] = useState<SitePage[]>(() => {
     const saved = localStorage.getItem('apex_site_pages');
-    return saved ? JSON.parse(saved) : INITIAL_SITE_PAGES;
+    return safeJsonParse<SitePage[]>(saved, INITIAL_SITE_PAGES);
   });
 
   const sanitizeMediaUrl = (url: string | undefined, fallback = '/img-ev-hardware.jpg'): string => {
@@ -2169,43 +2116,41 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Navigation Menus state (Navbar, Dropdown, Footer)
   const [navigationMenus, setNavigationMenus] = useState<NavigationMenuItem[]>(() => {
     const saved = localStorage.getItem('apex_navigation_menus');
-    return saved ? mergeDefaultNavMenus(JSON.parse(saved)) : INITIAL_NAVIGATION_MENUS;
+    const parsed = safeJsonParse<NavigationMenuItem[] | null>(saved, null);
+    return Array.isArray(parsed) ? mergeDefaultNavMenus(parsed) : INITIAL_NAVIGATION_MENUS;
   });
 
   // Custom & Manual Deposit Gateways state
   const [manualDepositMethods, setManualDepositMethods] = useState<ManualDepositMethod[]>(() => {
     const saved = localStorage.getItem('apex_manual_deposits');
-    return saved ? JSON.parse(saved) : INITIAL_MANUAL_DEPOSIT_METHODS;
+    return safeJsonParse<ManualDepositMethod[]>(saved, INITIAL_MANUAL_DEPOSIT_METHODS);
   });
 
   // Social Connect Links Configuration
   const [socialLinks, setSocialLinks] = useState<SocialLinkConfig[]>(() => {
     const saved = localStorage.getItem('apex_social_links');
-    return saved ? JSON.parse(saved) : INITIAL_SOCIAL_LINKS;
+    return safeJsonParse<SocialLinkConfig[]>(saved, INITIAL_SOCIAL_LINKS);
   });
 
   // Customizable Investment Pools & Plans
   const [investmentPools, setInvestmentPools] = useState<InvestmentPool[]>(() => {
     const saved = localStorage.getItem('apex_investment_pools');
-    const list: InvestmentPool[] = saved ? JSON.parse(saved) : INVESTMENT_POOLS;
-    return list.map((p) => ({ ...p, image: sanitizeMediaUrl(p.image, '/img-supercharger-node.jpg') }));
+    const list = safeJsonParse<InvestmentPool[]>(saved, INVESTMENT_POOLS);
+    return (Array.isArray(list) ? list : INVESTMENT_POOLS).map((p) => ({
+      ...p,
+      image: sanitizeMediaUrl(p.image, '/img-supercharger-node.jpg'),
+    }));
   });
 
   // Store Products Catalog (seeded with full catalog if empty)
   const [productsList, setProductsList] = useState<ProductItem[]>(() => {
     const saved = localStorage.getItem('apex_products_list');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed.map((p: ProductItem) => ({
-            ...p,
-            image: sanitizeMediaUrl(p.image, '/img-ev-hardware.jpg'),
-          }));
-        }
-      } catch {
-        // fallback below
-      }
+    const parsed = safeJsonParse<ProductItem[] | null>(saved, null);
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      return parsed.map((p: ProductItem) => ({
+        ...p,
+        image: sanitizeMediaUrl(p.image, '/img-ev-hardware.jpg'),
+      }));
     }
     return PRODUCTS_CATALOG;
   });
@@ -2213,16 +2158,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Editable Scratch & Win Card Tiers (clean v5 defaults)
   const [scratchCardTiers, setScratchCardTiers] = useState<ScratchCardTier[]>(() => {
     const saved = localStorage.getItem('apex_scratch_tiers');
-    if (saved) {
-      try {
-        const parsed: ScratchCardTier[] = JSON.parse(saved);
-        const migratedV5 = localStorage.getItem('apex_scratch_v5_migrated');
-        if (migratedV5 && Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
-        }
-      } catch {
-        // fallback to latest defaults
-      }
+    const parsed = safeJsonParse<ScratchCardTier[] | null>(saved, null);
+    const migratedV5 = localStorage.getItem('apex_scratch_v5_migrated');
+    if (migratedV5 && Array.isArray(parsed) && parsed.length > 0) {
+      return parsed;
     }
     localStorage.setItem('apex_scratch_v5_migrated', 'true');
     return SCRATCH_CARD_TIERS;
@@ -2231,13 +2170,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Rental Fleet List
   const [rentalFleetList, setRentalFleetList] = useState<RentalVehicle[]>(() => {
     const saved = localStorage.getItem('apex_rental_fleet_list');
-    return saved ? JSON.parse(saved) : RENTAL_FLEET;
+    return safeJsonParse<RentalVehicle[]>(saved, RENTAL_FLEET);
   });
 
   // Tesla Car Sales Catalog
   const [teslaCarListings, setTeslaCarListings] = useState<TeslaCarListing[]>(() => {
     const saved = localStorage.getItem('apex_tesla_cars_catalog');
-    const list: TeslaCarListing[] = saved ? JSON.parse(saved) : INITIAL_TESLA_CARS;
+    const parsed = safeJsonParse<TeslaCarListing[] | null>(saved, null);
+    const list = Array.isArray(parsed) ? parsed : INITIAL_TESLA_CARS;
     return list.map((car) => ({
       ...car,
       image: sanitizeMediaUrl(car.image, '/promo-cyberbeast.jpg'),
@@ -2250,30 +2190,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Nationwide Shipping Settings
   const [nationwideShippingSettings, setNationwideShippingSettings] = useState<NationwideShippingSettings>(() => {
     const saved = localStorage.getItem('apex_shipping_settings');
-    return saved ? JSON.parse(saved) : DEFAULT_SHIPPING_SETTINGS;
+    return safeJsonParse<NationwideShippingSettings>(saved, DEFAULT_SHIPPING_SETTINGS);
   });
 
   // Vehicle Refund Policy Settings
   const [vehicleRefundPolicy, setVehicleRefundPolicy] = useState<VehicleRefundPolicySettings>(() => {
     const saved = localStorage.getItem('apex_refund_policy');
-    return saved ? JSON.parse(saved) : DEFAULT_REFUND_POLICY;
+    return safeJsonParse<VehicleRefundPolicySettings>(saved, DEFAULT_REFUND_POLICY);
   });
 
   // Vehicle Orders
   const [vehicleOrders, setVehicleOrders] = useState<VehicleOrder[]>(() => {
     const saved = localStorage.getItem('apex_vehicle_orders');
-    return saved ? JSON.parse(saved) : INITIAL_VEHICLE_ORDERS;
+    return safeJsonParse<VehicleOrder[]>(saved, INITIAL_VEHICLE_ORDERS);
   });
 
   // Coupons & Promo Codes state
   const [coupons, setCoupons] = useState<Coupon[]>(() => {
     const saved = localStorage.getItem('apex_coupons');
-    return saved ? JSON.parse(saved) : INITIAL_COUPONS;
+    return safeJsonParse<Coupon[]>(saved, INITIAL_COUPONS);
   });
   const [activeCoupon, setActiveCoupon] = useState<Coupon | null>(null);
   const [claimedCoupons, setClaimedCoupons] = useState<string[]>(() => {
     const saved = localStorage.getItem('apex_claimed_coupons');
-    return saved ? JSON.parse(saved) : ['CYBER20', 'FREESPINS5'];
+    return safeJsonParse<string[]>(saved, ['CYBER20', 'FREESPINS5']);
   });
 
   // Automated ROI Cron Engine state
@@ -2401,21 +2341,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [lastFirestoreSyncAt, setLastFirestoreSyncAt] = useState<string | null>(null);
   const [isSyncingFirestore, setIsSyncingFirestore] = useState<boolean>(false);
   const isHydratingRemoteRef = useRef<boolean>(true);
+  const currentUserRoleRef = useRef<UserRole>(currentUser?.role || 'customer');
+  const firebaseAdminAuthorizedRef = useRef<boolean>(false);
+
+  useEffect(() => {
+    currentUserRoleRef.current = currentUser?.role || 'customer';
+  }, [currentUser?.role]);
+
+  const canAccessAdminFirestore = useCallback(
+    () =>
+      Boolean(
+        auth.currentUser &&
+          currentUserRoleRef.current === 'admin' &&
+          firebaseAdminAuthorizedRef.current
+      ),
+    []
+  );
 
   const [sitemapEntries, setSitemapEntries] = useState<SitemapEntry[]>(() => {
     const saved = localStorage.getItem('apex_sitemap_entries_v1');
-    return saved ? mergeDefaultSitemap(JSON.parse(saved)) : INITIAL_SITEMAP_ENTRIES;
+    const parsed = safeJsonParse<SitemapEntry[] | null>(saved, null);
+    return Array.isArray(parsed) ? mergeDefaultSitemap(parsed) : INITIAL_SITEMAP_ENTRIES;
   });
 
   const [rssFeedItems, setRssFeedItems] = useState<RssFeedItem[]>(() => {
     const saved = localStorage.getItem('apex_rss_items_v1');
-    return saved ? JSON.parse(saved) : INITIAL_RSS_ITEMS;
+    return safeJsonParse<RssFeedItem[]>(saved, INITIAL_RSS_ITEMS);
   });
 
   // Promotional Short Videos (AI-Generated + Admin Uploaded)
   const [promoVideos, setPromoVideos] = useState<PromoVideoItem[]>(() => {
     const saved = localStorage.getItem('apex_promo_videos_v1');
-    return saved ? JSON.parse(saved) : INITIAL_PROMO_VIDEOS;
+    return safeJsonParse<PromoVideoItem[]>(saved, INITIAL_PROMO_VIDEOS);
   });
 
   // Business & Operating License Certificates CMS
@@ -2921,11 +2878,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           body: JSON.stringify({ activity: item }),
         }).catch(() => {});
       }
-      if (auth.currentUser) {
+      if (canAccessAdminFirestore()) {
         void saveAdminSectionToFirestore('investment_activities', nextSnapshot.slice(0, 120)).catch(() => {});
       }
     },
-    []
+    [canAccessAdminFirestore]
   );
 
   // Derived segregated balances for active user
@@ -3337,7 +3294,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (Array.isArray(sections.business_certificates) && sections.business_certificates.length > 0) {
         const remoteCerts = sections.business_certificates as BusinessCertificate[];
         const deletedRaw = localStorage.getItem('apex_deleted_cert_ids_v1');
-        const deletedIds = new Set<string>(deletedRaw ? JSON.parse(deletedRaw) : []);
+        const deletedIds = new Set<string>(safeJsonParse<string[]>(deletedRaw, []));
         const existingIds = new Set(remoteCerts.map((c) => c.id));
         const missingDefaults = INITIAL_CERTIFICATES.filter(
           (c) => !existingIds.has(c.id) && !deletedIds.has(c.id)
@@ -3455,15 +3412,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
 
       try {
+        const isFbAdmin = auth.currentUser ? await isFirebaseAdminAuthorized() : false;
+        firebaseAdminAuthorizedRef.current = isFbAdmin;
+        const allowAdminCloud = isFbAdmin && currentUserRoleRef.current === 'admin';
+
         // 2. Hydrate authoritative Firestore SEO + Admin Config + Collection CRUD records
         const [fbSeo, fbSections, fbProducts, fbBanners, fbUsers, fbSubscribers] =
           await Promise.all([
             loadGlobalSeoFromFirestore(),
-            loadAdminSectionsFromFirestore(currentUser?.role === 'admin'),
+            loadAdminSectionsFromFirestore(allowAdminCloud),
             loadCatalogProductsFromFirestore(),
             loadMarketingBannersFromFirestore(),
-            auth.currentUser ? loadManagedUsersFromFirestore() : Promise.resolve([] as User[]),
-            auth.currentUser
+            isFbAdmin ? loadManagedUsersFromFirestore() : Promise.resolve([] as User[]),
+            isFbAdmin
               ? loadNewsletterSubscribersFromFirestore()
               : Promise.resolve([] as NewsletterSubscriber[]),
           ]);
@@ -3513,11 +3474,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     void hydrateAll();
 
-    const unsub = onAuthStateChanged(auth, (fbUser) => {
+    const unsub = onAuthStateChanged(auth, async (fbUser) => {
       setFirebaseAdminEmail(fbUser?.email || null);
       setFirebaseCloudConnected(Boolean(fbUser?.uid));
-      if (fbUser) {
-        void loadAdminSectionsFromFirestore(currentUser?.role === 'admin').then(applyLoadedSections).catch(() => {});
+      if (!fbUser) {
+        firebaseAdminAuthorizedRef.current = false;
+        return;
+      }
+
+      const isFbAdmin = await isFirebaseAdminAuthorized();
+      firebaseAdminAuthorizedRef.current = isFbAdmin;
+      const allowAdminCloud = isFbAdmin && currentUserRoleRef.current === 'admin';
+
+      void loadAdminSectionsFromFirestore(allowAdminCloud).then(applyLoadedSections).catch(() => {});
+
+      if (isFbAdmin) {
         void loadNewsletterSubscribersFromFirestore()
           .then((fbSubs) => {
             if (fbSubs.length > 0) {
@@ -3545,22 +3516,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }
           })
           .catch(() => {});
-        if (fbUser.emailVerified) {
-          void loadEngagementActivitiesFromFirestore(currentUser?.role === 'admin')
-            .then((fbActivities) => {
-              if (fbActivities.length > 0) {
-                setEngagementActivities((prev) => {
-                  const merged = new Map<string, EngagementActivityRecord>();
-                  prev.forEach((a) => merged.set(a.id, a));
-                  fbActivities.forEach((a) => merged.set(a.id, a));
-                  return Array.from(merged.values())
-                    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-                    .slice(0, 300);
-                });
-              }
-            })
-            .catch(() => {});
-        }
+      }
+
+      if (fbUser.emailVerified) {
+        void loadEngagementActivitiesFromFirestore(allowAdminCloud)
+          .then((fbActivities) => {
+            if (fbActivities.length > 0) {
+              setEngagementActivities((prev) => {
+                const merged = new Map<string, EngagementActivityRecord>();
+                prev.forEach((a) => merged.set(a.id, a));
+                fbActivities.forEach((a) => merged.set(a.id, a));
+                return Array.from(merged.values())
+                  .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+                  .slice(0, 300);
+              });
+            }
+          })
+          .catch(() => {});
       }
     });
     return () => unsub();
@@ -4576,7 +4548,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         showToast(msg, 'error');
         return { success: false, error: msg };
       }
-      const msg = error instanceof Error ? error.message : 'Google sign-up failed. Please try again.';
+      const rawMsg = error instanceof Error ? error.message : 'Google sign-up failed. Please try again.';
+      let msg = rawMsg;
+      if (rawMsg.startsWith('{') && rawMsg.includes('"operationType"')) {
+        const parsedErr = safeJsonParse<{ error?: string } | null>(rawMsg, null);
+        msg = parsedErr?.error
+          ? `Cloud profile sync error: ${parsedErr.error}`
+          : 'Google sign-up cloud profile sync failed. Please try again.';
+      }
       showToast(msg, 'error');
       return { success: false, error: msg };
     }
@@ -4895,7 +4874,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setAllUsers((prevUsers) =>
         prevUsers.map((u) => (u.id === currentUser.id ? { ...u, totalDepositedUsd: updatedTotal } : u))
       );
-      void saveManagedUserToFirestore(updatedUser);
+      if (canAccessAdminFirestore()) {
+        void saveManagedUserToFirestore(updatedUser);
+      }
 
       const lockedAmt = lockedWinsByUserId[currentUser.id] || 0;
       if (updatedTotal >= MIN_DEPOSIT_TO_ACTIVATE_WINS_USD && lockedAmt > 0) {
@@ -5515,8 +5496,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     if (activeUid && Array.isArray(snapshot.investmentActivities) && snapshot.investmentActivities.length > 0) {
       const seenCronRaw = localStorage.getItem('apex_applied_cron_payouts');
-      const seenCronIds: string[] = seenCronRaw ? JSON.parse(seenCronRaw) : [];
-      const seenCronSet = new Set<string>(seenCronIds);
+      const seenCronIds = safeJsonParse<string[]>(seenCronRaw, []);
+      const seenCronSet = new Set<string>(Array.isArray(seenCronIds) ? seenCronIds : []);
       let sawNewCronPayout = false;
 
       snapshot.investmentActivities.forEach((act) => {
@@ -5538,8 +5519,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     if (activeUid && Array.isArray(snapshot.settlementEvents) && snapshot.settlementEvents.length > 0) {
       const appliedRaw = localStorage.getItem('apex_applied_settlements');
-      const appliedIds: string[] = appliedRaw ? JSON.parse(appliedRaw) : [];
-      const appliedSet = new Set<string>(appliedIds);
+      const appliedIds = safeJsonParse<string[]>(appliedRaw, []);
+      const appliedSet = new Set<string>(Array.isArray(appliedIds) ? appliedIds : []);
       let creditedAny = false;
 
       snapshot.settlementEvents.forEach((ev) => {
@@ -5748,7 +5729,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             })
             .catch(() => {});
         }
-        if (Array.isArray(data.investmentActivities) && auth.currentUser) {
+        if (Array.isArray(data.investmentActivities) && canAccessAdminFirestore()) {
           void saveAdminSectionToFirestore('investment_activities', data.investmentActivities.slice(0, 120)).catch(() => {});
         }
         showToast(data.summary || `Executed cron job: ${jobId}`, 'success');
@@ -5979,11 +5960,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       id: `prod-${Date.now()}`,
     };
     setProductsList((prev) => [newProduct, ...prev]);
-    void saveProductToFirestore(newProduct).then((res) => {
-      if (res.synced) {
-        setLastFirestoreSyncAt(new Date().toLocaleTimeString());
-      }
-    });
+    if (canAccessAdminFirestore()) {
+      void saveProductToFirestore(newProduct).then((res) => {
+        if (res.synced) {
+          setLastFirestoreSyncAt(new Date().toLocaleTimeString());
+        }
+      });
+    }
     showToast(`Product "${productData.name}" saved to catalog!`, 'success');
   };
 
@@ -5991,7 +5974,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setProductsList((prev) => {
       const next = prev.map((p) => (p.id === id ? { ...p, ...updates } : p));
       const updated = next.find((p) => p.id === id);
-      if (updated) {
+      if (updated && canAccessAdminFirestore()) {
         void saveProductToFirestore(updated).then((res) => {
           if (res.synced) {
             setLastFirestoreSyncAt(new Date().toLocaleTimeString());
@@ -6005,11 +5988,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const deleteProductItem = (id: string) => {
     setProductsList((prev) => prev.filter((p) => p.id !== id));
-    void deleteProductFromFirestore(id).then((res) => {
-      if (res.synced) {
-        setLastFirestoreSyncAt(new Date().toLocaleTimeString());
-      }
-    });
+    if (canAccessAdminFirestore()) {
+      void deleteProductFromFirestore(id).then((res) => {
+        if (res.synced) {
+          setLastFirestoreSyncAt(new Date().toLocaleTimeString());
+        }
+      });
+    }
     showToast('Product deleted from catalog.', 'info');
   };
 
@@ -6107,11 +6092,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       lastVisitedPath: '/dashboard',
     };
     setAllUsers((prev) => [newUser, ...prev]);
-    void saveManagedUserToFirestore(newUser).then((res) => {
-      if (res.synced) {
-        setLastFirestoreSyncAt(new Date().toLocaleTimeString());
-      }
-    });
+    if (canAccessAdminFirestore()) {
+      void saveManagedUserToFirestore(newUser).then((res) => {
+        if (res.synced) {
+          setLastFirestoreSyncAt(new Date().toLocaleTimeString());
+        }
+      });
+    }
     showToast(`User "${newUser.name}" created and saved!`, 'success');
     return newUser;
   };
@@ -6120,7 +6107,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setAllUsers((prev) => {
       const next = prev.map((u) => (u.id === userId ? { ...u, ...updates } : u));
       const updated = next.find((u) => u.id === userId);
-      if (updated) {
+      if (updated && canAccessAdminFirestore()) {
         void saveManagedUserToFirestore(updated).then((res) => {
           if (res.synced) {
             setLastFirestoreSyncAt(new Date().toLocaleTimeString());
@@ -6139,7 +6126,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setAllUsers((prev) => {
       const next = prev.map((u) => (u.id === userId ? { ...u, accountStatus: status } : u));
       const updated = next.find((u) => u.id === userId);
-      if (updated) {
+      if (updated && canAccessAdminFirestore()) {
         void saveManagedUserToFirestore(updated).then((res) => {
           if (res.synced) {
             setLastFirestoreSyncAt(new Date().toLocaleTimeString());
@@ -6156,11 +6143,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const deleteUser = (userId: string) => {
     setAllUsers((prev) => prev.filter((u) => u.id !== userId));
-    void deleteManagedUserFromFirestore(userId).then((res) => {
-      if (res.synced) {
-        setLastFirestoreSyncAt(new Date().toLocaleTimeString());
-      }
-    });
+    if (canAccessAdminFirestore()) {
+      void deleteManagedUserFromFirestore(userId).then((res) => {
+        if (res.synced) {
+          setLastFirestoreSyncAt(new Date().toLocaleTimeString());
+        }
+      });
+    }
     showToast('User account deleted.', 'info');
   };
 
@@ -6227,7 +6216,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return u;
       });
       const updated = next.find((u) => u.id === userId);
-      if (updated) {
+      if (updated && canAccessAdminFirestore()) {
         void saveManagedUserToFirestore(updated).then((res) => {
           if (res.synced) setLastFirestoreSyncAt(new Date().toLocaleTimeString());
         });
@@ -6451,7 +6440,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
       if (res.ok) {
         const data = await res.json();
-        alreadySubscribed = Boolean(data.alreadySubscribed);
+        alreadySubscribed = Boolean(locallyKnown) || Boolean(data.alreadySubscribed);
         if (data.subscriber) {
           serverSubscriber = data.subscriber as NewsletterSubscriber;
         }
@@ -6483,7 +6472,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (fsRes.synced) {
         finalSubscriber = fsRes.subscriber;
       }
-    } else if (auth.currentUser && currentUser?.role === 'admin') {
+    } else if (canAccessAdminFirestore()) {
       await updateNewsletterSubscriberInFirestore(finalSubscriber, {
         name: input.name ?? finalSubscriber.name,
         interestCategory,
@@ -6525,7 +6514,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch {
       // ignore network error
     }
-    if (existing) {
+    if (existing && canAccessAdminFirestore()) {
       await updateNewsletterSubscriberInFirestore(existing, updates);
     }
     showToast('Subscriber record updated.', 'success');
@@ -6541,7 +6530,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch {
       // ignore network error
     }
-    await deleteNewsletterSubscriberFromFirestore(id);
+    if (canAccessAdminFirestore()) {
+      await deleteNewsletterSubscriberFromFirestore(id);
+    }
     showToast('Subscriber removed from mailing list.', 'info');
   };
 
@@ -6550,7 +6541,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       fetch('/api/newsletter/subscribers', { headers: getAuthHeaders(false) })
         .then((r) => (r.ok ? r.json() : { subscribers: [] }))
         .catch(() => ({ subscribers: [] })),
-      loadNewsletterSubscribersFromFirestore(),
+      firebaseAdminAuthorizedRef.current
+        ? loadNewsletterSubscribersFromFirestore()
+        : Promise.resolve([] as NewsletterSubscriber[]),
     ]);
     const serverList: NewsletterSubscriber[] = Array.isArray(serverRes?.subscribers)
       ? serverRes.subscribers
@@ -8158,7 +8151,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }),
     }).catch(() => {});
 
-    if (auth.currentUser) {
+    if (canAccessAdminFirestore()) {
       void saveAdminSectionToFirestore('feature_toggles', nextToggles);
     }
   };
@@ -8204,7 +8197,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }),
     }).catch(() => {});
 
-    if (auth.currentUser) {
+    if (canAccessAdminFirestore()) {
       void saveAdminSectionToFirestore('auto_gateways', nextGateways);
       void saveAdminSectionToFirestore('deposit_gateways', publicCopy);
     }
@@ -8245,7 +8238,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const deleteAutoCryptoGateway = (id: string) => {
     try {
       const raw = localStorage.getItem('apex_deleted_gateway_ids_v1');
-      const existing: string[] = raw ? JSON.parse(raw) : [];
+      const existing = safeJsonParse<string[]>(raw, []);
       if (!existing.includes(id)) {
         localStorage.setItem('apex_deleted_gateway_ids_v1', JSON.stringify([...existing, id]));
       }
@@ -9412,11 +9405,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdAt: new Date().toISOString().split('T')[0],
     };
     setMarketingBanners((prev) => [created, ...prev]);
-    void saveMarketingBannerToFirestore(created).then((res) => {
-      if (res.synced) {
-        setLastFirestoreSyncAt(new Date().toLocaleTimeString());
-      }
-    });
+    if (canAccessAdminFirestore()) {
+      void saveMarketingBannerToFirestore(created).then((res) => {
+        if (res.synced) {
+          setLastFirestoreSyncAt(new Date().toLocaleTimeString());
+        }
+      });
+    }
     showToast(`Promotional banner "${created.title}" published!`, 'success');
     return created;
   };
@@ -9425,7 +9420,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setMarketingBanners((prev) => {
       const next = prev.map((b) => (b.id === id ? { ...b, ...updates } : b));
       const updated = next.find((b) => b.id === id);
-      if (updated) {
+      if (updated && canAccessAdminFirestore()) {
         void saveMarketingBannerToFirestore(updated).then((res) => {
           if (res.synced) {
             setLastFirestoreSyncAt(new Date().toLocaleTimeString());
@@ -9439,11 +9434,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const deleteMarketingBanner = (id: string) => {
     setMarketingBanners((prev) => prev.filter((b) => b.id !== id));
-    void deleteMarketingBannerFromFirestore(id).then((res) => {
-      if (res.synced) {
-        setLastFirestoreSyncAt(new Date().toLocaleTimeString());
-      }
-    });
+    if (canAccessAdminFirestore()) {
+      void deleteMarketingBannerFromFirestore(id).then((res) => {
+        if (res.synced) {
+          setLastFirestoreSyncAt(new Date().toLocaleTimeString());
+        }
+      });
+    }
     showToast('Promotional banner deleted.', 'info');
   };
 
@@ -9886,7 +9883,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         headers: getAuthHeaders(),
         body: JSON.stringify({ section: 'business_certificates', value: targetList }),
       });
-      if (auth.currentUser) {
+      if (canAccessAdminFirestore()) {
         await saveAdminSectionToFirestore('business_certificates', targetList);
       }
       return res.ok;
@@ -9928,7 +9925,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const deleteBusinessCertificate = (id: string) => {
     try {
       const deletedRaw = localStorage.getItem('apex_deleted_cert_ids_v1');
-      const deletedList: string[] = deletedRaw ? JSON.parse(deletedRaw) : [];
+      const deletedList = safeJsonParse<string[]>(deletedRaw, []);
       if (!deletedList.includes(id)) {
         localStorage.setItem('apex_deleted_cert_ids_v1', JSON.stringify([...deletedList, id]));
       }
@@ -9976,7 +9973,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (res.success) {
       setFirebaseAdminEmail(res.email || null);
       setFirebaseCloudConnected(true);
-      showToast(`Connected Firebase Admin Cloud Sync (${res.email || 'Google Auth'})!`, 'success');
+      const authorized = await isFirebaseAdminAuthorized();
+      firebaseAdminAuthorizedRef.current = authorized;
+      showToast(
+        authorized
+          ? `Connected Firebase Admin Cloud Sync (${res.email || 'Google Auth'})!`
+          : `Google signed in (${res.email || 'Account'}), awaiting Firebase admin permission.`,
+        authorized ? 'success' : 'info'
+      );
       return { success: true };
     }
     showToast(res.error || 'Could not connect Google Admin session.', 'error');
@@ -9996,9 +10000,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       body: JSON.stringify({ sections: { ...sections, seoSettings } }),
     }).catch(() => {});
 
-    if (!auth.currentUser) {
+    if (!auth.currentUser || !firebaseAdminAuthorizedRef.current) {
       if (!quiet) {
-        showToast('Saved locally. Connect Google Admin Session to persist all settings directly to Firestore.', 'info');
+        showToast(
+          !auth.currentUser
+            ? 'Saved locally. Connect Google Admin Session to persist all settings directly to Firestore.'
+            : 'Saved to Express server. Sign in with an authorized Google Admin account to sync directly to Firestore.',
+          'info'
+        );
       }
       return { syncedCount: 0, totalCount: entries.length + 1, needsAuth: true };
     }
@@ -10097,9 +10106,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         pageMeta: updates.pageMeta ? { ...(prev.pageMeta || {}), ...updates.pageMeta } : prev.pageMeta,
         updatedAt: new Date().toISOString().split('T')[0],
       };
-      void saveSeoGlobalToFirestore(merged).then((r) => {
-        if (r.synced) setLastFirestoreSyncAt(new Date().toLocaleTimeString());
-      });
+      if (canAccessAdminFirestore()) {
+        void saveSeoGlobalToFirestore(merged).then((r) => {
+          if (r.synced) setLastFirestoreSyncAt(new Date().toLocaleTimeString());
+        });
+      }
       return merged;
     });
     showToast('SEO metadata & branding saved and synchronized!', 'success');
@@ -10125,6 +10136,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
       return next;
     });
+    if (!canAccessAdminFirestore()) {
+      showToast(`Saved SEO for "${cleanMeta.pageLabel}" locally. Connect Google Admin to sync to Firestore.`, 'info');
+      return { synced: false, reason: 'auth_required' };
+    }
     const res = await savePageSeoToFirestore(cleanMeta);
     if (res.synced) {
       setLastFirestoreSyncAt(new Date().toLocaleTimeString());
@@ -11441,7 +11456,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         headers: getAuthHeaders(),
         body: JSON.stringify({ sections: { engagement_reward_config: next } }),
       }).catch(() => {});
-      if (auth.currentUser) {
+      if (canAccessAdminFirestore()) {
         void saveAdminSectionToFirestore('engagement_reward_config', next);
       }
       return next;

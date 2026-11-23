@@ -188,7 +188,7 @@ export const InvestmentHub: React.FC<InvestmentHubProps> = ({ onOpenDeposit, onN
         try {
           new Notification(`⚡ Apex Fleet Target Hit: ${assetTitle}`, {
             body: `${metricLabel} reached ${currentValue}. Daily dividend yield surge active!`,
-            icon: '/favicon.ico',
+            icon: '/favicon.jpg',
           });
           dispatchedChannels.push('browser');
         } catch (e) {
@@ -200,7 +200,7 @@ export const InvestmentHub: React.FC<InvestmentHubProps> = ({ onOpenDeposit, onN
           if (perm === 'granted') {
             new Notification(`⚡ Apex Fleet Target Hit: ${assetTitle}`, {
               body: `${metricLabel} reached ${currentValue}. Daily dividend yield surge active!`,
-              icon: '/favicon.ico',
+              icon: '/favicon.jpg',
             });
             dispatchedChannels.push('browser');
           }
@@ -316,10 +316,10 @@ export const InvestmentHub: React.FC<InvestmentHubProps> = ({ onOpenDeposit, onN
     playTeslaAudioChime();
   };
 
-  const handleSharePoolOnWhatsApp = (pool: InvestmentPool) => {
+  const getPoolWhatsAppShareUrl = (pool: InvestmentPool) => {
     const text = `🚗 Check out this decentralized Tesla fleet yield pool: ${pool.title} earning ${pool.apy}% APY with daily payouts! Learn more:`;
     const url = typeof window !== 'undefined' ? window.location.origin : 'https://apex-tesla.io';
-    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}%20${encodeURIComponent(url)}`, '_blank');
+    return `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}%20${encodeURIComponent(url)}`;
   };
 
   return (
@@ -883,13 +883,15 @@ export const InvestmentHub: React.FC<InvestmentHubProps> = ({ onOpenDeposit, onN
                     <span>Stake Funds into Pool</span>
                   </button>
 
-                  <button
-                    onClick={() => handleSharePoolOnWhatsApp(pool)}
-                    className="p-3.5 rounded-2xl bg-emerald-600/10 hover:bg-emerald-600/20 border border-emerald-500/30 text-emerald-400 hover:text-emerald-300 transition"
+                  <a
+                    href={getPoolWhatsAppShareUrl(pool)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-3.5 rounded-2xl bg-emerald-600/10 hover:bg-emerald-600/20 border border-emerald-500/30 text-emerald-400 hover:text-emerald-300 transition inline-flex items-center justify-center"
                     title="Share this pool on WhatsApp"
                   >
                     <Share2 className="w-4 h-4" />
-                  </button>
+                  </a>
                 </div>
               </div>
             );

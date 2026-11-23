@@ -185,41 +185,34 @@ export const SocialConnect: React.FC = () => {
     setTimeout(() => setCopiedLink(false), 2500);
   };
 
-  const handleOpenShare = (platform: string) => {
+  const getShareUrl = (platform: string): string => {
     const encodedUrl = encodeURIComponent(shareUrl);
     const encodedText = encodeURIComponent(shareText);
-    let target = '';
 
     switch (platform) {
       case 'x':
-        target = `https://twitter.com/intent/tweet?url=${encodedUrl}&text=${encodedText}`;
-        break;
+        return `https://twitter.com/intent/tweet?url=${encodedUrl}&text=${encodedText}`;
       case 'facebook':
-        target = `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`;
-        break;
+        return `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`;
       case 'pinterest':
-        target = `https://pinterest.com/pin/create/button/?url=${encodedUrl}&description=${encodedText}`;
-        break;
+        return `https://pinterest.com/pin/create/button/?url=${encodedUrl}&description=${encodedText}`;
       case 'threads':
-        target = `https://threads.net/intent/post?text=${encodedText}%20${encodedUrl}`;
-        break;
+        return `https://threads.net/intent/post?text=${encodedText}%20${encodedUrl}`;
       case 'whatsapp':
-        target = `https://api.whatsapp.com/send?text=${encodedText}%20${encodedUrl}`;
-        break;
+        return `https://api.whatsapp.com/send?text=${encodedText}%20${encodedUrl}`;
       case 'telegram':
-        target = `https://t.me/share/url?url=${encodedUrl}&text=${encodedText}`;
-        break;
+        return `https://t.me/share/url?url=${encodedUrl}&text=${encodedText}`;
       default:
-        target = shareUrl;
+        return shareUrl;
     }
+  };
 
+  const trackShareClick = (platform: string) => {
     trackSocialShareActivity({
       platform,
       pageTab: 'social',
       targetTitle: `Shared ${siteSettings.siteName} via ${platform.toUpperCase()}`,
     });
-
-    window.open(target, '_blank', 'noopener,noreferrer');
   };
 
   return (
@@ -255,41 +248,56 @@ export const SocialConnect: React.FC = () => {
 
           {/* Social Share Buttons */}
           <div className="flex flex-wrap items-center gap-2">
-            <button
-              onClick={() => handleOpenShare('x')}
+            <a
+              href={getShareUrl('x')}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => trackShareClick('x')}
               className="px-3.5 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer hover:border-red-500/50"
             >
               <span className="font-black">𝕏</span>
               <span>Post</span>
-            </button>
+            </a>
 
-            <button
-              onClick={() => handleOpenShare('facebook')}
+            <a
+              href={getShareUrl('facebook')}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => trackShareClick('facebook')}
               className="px-3.5 py-2 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/40 text-blue-300 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
             >
               <span>Facebook</span>
-            </button>
+            </a>
 
-            <button
-              onClick={() => handleOpenShare('pinterest')}
+            <a
+              href={getShareUrl('pinterest')}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => trackShareClick('pinterest')}
               className="px-3.5 py-2 rounded-xl bg-red-600/20 hover:bg-red-600/30 border border-red-500/40 text-red-300 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
             >
               <span>Pinterest</span>
-            </button>
+            </a>
 
-            <button
-              onClick={() => handleOpenShare('threads')}
+            <a
+              href={getShareUrl('threads')}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => trackShareClick('threads')}
               className="px-3.5 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-600 text-zinc-200 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
             >
               <span>Threads</span>
-            </button>
+            </a>
 
-            <button
-              onClick={() => handleOpenShare('whatsapp')}
+            <a
+              href={getShareUrl('whatsapp')}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => trackShareClick('whatsapp')}
               className="px-3.5 py-2 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
             >
               <span>WhatsApp</span>
-            </button>
+            </a>
 
             <button
               onClick={handleCopyLink}

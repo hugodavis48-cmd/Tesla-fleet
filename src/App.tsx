@@ -42,6 +42,7 @@ import { SitemapRssPage } from './components/SitemapRssPage';
 import { CertificatesPage } from './components/CertificatesPage';
 import { WinActivationPolicyModal } from './components/WinActivationPolicyModal';
 import { BlogNewsHub } from './components/BlogNewsHub';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { isTabEnabled, TAB_DISPLAY_LABELS } from './lib/featureVisibility';
 import { CheckCircle2, AlertCircle, Info, AlertTriangle, Lock, Home } from 'lucide-react';
 
@@ -620,9 +621,11 @@ export default function App() {
   return (
     <ThemeProvider>
       <LanguageProvider>
-        <AppProvider>
-          <MainAppContent />
-        </AppProvider>
+        <ErrorBoundary>
+          <AppProvider>
+            <MainAppContent />
+          </AppProvider>
+        </ErrorBoundary>
       </LanguageProvider>
     </ThemeProvider>
   );

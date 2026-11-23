@@ -497,6 +497,7 @@ export function authenticateToken(req: Request, res: Response, next: NextFunctio
   (req as any).user = user;
   (req as any).session = session;
   next();
+  return;
 }
 
 export function requireAdmin(req: Request, res: Response, next: NextFunction) {
@@ -507,6 +508,7 @@ export function requireAdmin(req: Request, res: Response, next: NextFunction) {
     });
   }
   next();
+  return;
 }
 
 export function requirePrivilege(privilege: AdminPrivilege) {
@@ -522,6 +524,7 @@ export function requirePrivilege(privilege: AdminPrivilege) {
       });
     }
     next();
+    return;
   };
 }
 
