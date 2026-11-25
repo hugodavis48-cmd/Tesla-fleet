@@ -11,6 +11,7 @@
 - `/admin_settings/{sectionId}` permits explicit `get` for non-secret storefront sections (`site_settings`, `currencies`, `feature_toggles`, `faqs`, `navigation_menus`, `site_pages`, etc.), while sensitive admin slices (`smtp_config`, `auto_gateways`, `won_prizes`) and collection `list` are strictly restricted to `isAdmin()`.
 - `/engagement_activities/{activityId}` stores immutable, non-PII user dwell time and social share events; `userId` must match `request.auth.uid`, `createdAt == request.time`, and only the owning verified user or an admin can read/list matching records.
 - `/deposit_records/{recordId}` stores server/admin-verified deposit records (`remainingUsd <= usdEquivalent`, immutable `txHash`/`userId`/`createdAt`); clients cannot mint or inflate their own deposit records via Firestore SDK.
+- `/deposit_requests/{requestId}` stores owner-submitted manual deposit requests (`status == 'pending'` on create, `userId == request.auth.uid`, immutable financial/reference fields); only verified admins can confirm (`approved`) or decline (`rejected`).
 - `/transaction_audits/{auditId}` stores immutable payment cross-reference audit logs (`allow update: if false`) restricted to `isAdmin()` or owning verified user.
 - No collection permits blanket `list` queries on PII or secret operational settings.
 
@@ -29,3 +30,4 @@
 12. Unauthenticated or non-admin reading `/admin_settings/smtp_config` or listing `/admin_settings` -> PERMISSION_DENIED.
 13. Authenticated user `u1` forging `/engagement_activities/a1` with `userId: "u2"` or modifying an existing activity record -> PERMISSION_DENIED.
 14. Authenticated non-admin creating or inflating `/deposit_records/dep1` or mutating `/transaction_audits/aud1` -> PERMISSION_DENIED.
+15. Authenticated non-admin creating `/deposit_requests/req1` with `status: "approved"` or self-updating `/deposit_requests/req1` to `"approved"` -> PERMISSION_DENIED.

@@ -78,7 +78,7 @@ service cloud.firestore {
         (!('bio' in data) || (data.bio is string && data.bio.size() <= 500)) &&
         (!('location' in data) || (data.location is string && data.location.size() <= 120)) &&
         (!('preferredServiceCenter' in data) || (data.preferredServiceCenter is string && data.preferredServiceCenter.size() <= 160)) &&
-        (!('themePreference' in data) || data.themePreference in ['dark', 'light']) &&
+        (!('themePreference' in data) || data.themePreference in ['dark', 'light', 'blue']) &&
         data.createdAt is timestamp &&
         data.updatedAt is timestamp;
     }
@@ -850,6 +850,113 @@ service cloud.firestore {
 
       allow update: if false;
       allow delete: if isValidId(auditId) && isAdmin();
+    }
+
+    function isValidDepositRequest(data) {
+      return data.keys().hasAll([
+          'id',
+          'userId',
+          'userName',
+          'userEmail',
+          'methodId',
+          'methodTitle',
+          'methodCategory',
+          'currency',
+          'amount',
+          'usdEquivalent',
+          'feeUsd',
+          'netUsd',
+          'txReference',
+          'status',
+          'submittedAt',
+          'createdAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id',
+          'userId',
+          'userName',
+          'userEmail',
+          'methodId',
+          'methodTitle',
+          'methodCategory',
+          'currency',
+          'amount',
+          'usdEquivalent',
+          'feeUsd',
+          'netUsd',
+          'txReference',
+          'senderDetails',
+          'senderNote',
+          'proofNote',
+          'status',
+          'submittedAt',
+          'reviewedAt',
+          'reviewedByAdminEmail',
+          'confirmedTxReference',
+          'adminNote',
+          'rejectionReason',
+          'createdAt'
+        ]) &&
+        isValidId(data.id) &&
+        isValidId(data.userId) &&
+        data.userName is string && data.userName.size() >= 1 && data.userName.size() <= 120 &&
+        data.userEmail is string && data.userEmail.size() >= 3 && data.userEmail.size() <= 200 &&
+        data.methodId is string && data.methodId.size() >= 1 && data.methodId.size() <= 128 &&
+        data.methodTitle is string && data.methodTitle.size() >= 1 && data.methodTitle.size() <= 140 &&
+        data.methodCategory in ['fiat', 'e_wallet', 'crypto'] &&
+        data.currency is string && data.currency.size() >= 2 && data.currency.size() <= 16 &&
+        data.amount is number && data.amount > 0 && data.amount <= 50000000 &&
+        data.usdEquivalent is number && data.usdEquivalent > 0 && data.usdEquivalent <= 50000000 &&
+        data.feeUsd is number && data.feeUsd >= 0 && data.feeUsd <= 10000000 &&
+        data.netUsd is number && data.netUsd > 0 && data.netUsd <= 50000000 &&
+        data.txReference is string && data.txReference.size() >= 4 && data.txReference.size() <= 200 &&
+        (!('senderDetails' in data) || (data.senderDetails is string && data.senderDetails.size() <= 200)) &&
+        (!('senderNote' in data) || (data.senderNote is string && data.senderNote.size() <= 300)) &&
+        (!('proofNote' in data) || (data.proofNote is string && data.proofNote.size() <= 500)) &&
+        data.status in ['pending', 'approved', 'rejected'] &&
+        data.submittedAt is string && data.submittedAt.size() >= 1 && data.submittedAt.size() <= 64 &&
+        (!('reviewedAt' in data) || (data.reviewedAt is string && data.reviewedAt.size() <= 64)) &&
+        (!('reviewedByAdminEmail' in data) || (data.reviewedByAdminEmail is string && data.reviewedByAdminEmail.size() <= 200)) &&
+        (!('confirmedTxReference' in data) || (data.confirmedTxReference is string && data.confirmedTxReference.size() <= 200)) &&
+        (!('adminNote' in data) || (data.adminNote is string && data.adminNote.size() <= 300)) &&
+        (!('rejectionReason' in data) || (data.rejectionReason is string && data.rejectionReason.size() <= 300)) &&
+        data.createdAt is timestamp;
+    }
+
+    // Manual deposit requests queue (owner-submitted as pending; strictly admin-reviewed)
+    match /deposit_requests/{requestId} {
+      allow get: if isValidId(requestId) && isVerifiedUser() && (isAdmin() || existing().userId == request.auth.uid);
+      allow list: if isVerifiedUser() && (isAdmin() || existing().userId == request.auth.uid);
+
+      allow create: if isValidId(requestId) &&
+        isVerifiedUser() &&
+        isValidDepositRequest(incoming()) &&
+        incoming().id == requestId &&
+        incoming().userId == request.auth.uid &&
+        incoming().status == 'pending' &&
+        incoming().createdAt == request.time;
+
+      allow update: if isValidId(requestId) &&
+        isAdmin() &&
+        isValidDepositRequest(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().userId == existing().userId &&
+        incoming().txReference == existing().txReference &&
+        incoming().amount == existing().amount &&
+        incoming().usdEquivalent == existing().usdEquivalent &&
+        incoming().netUsd == existing().netUsd &&
+        incoming().submittedAt == existing().submittedAt &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'status',
+          'reviewedAt',
+          'reviewedByAdminEmail',
+          'confirmedTxReference',
+          'adminNote',
+          'rejectionReason'
+        ]);
+
+      allow delete: if isValidId(requestId) && isAdmin();
     }
   }
 }

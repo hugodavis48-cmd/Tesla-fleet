@@ -103,7 +103,7 @@ Apex Tesla Hub is a premier all-in-one ecosystem for Tesla owners and enthusiast
 3. Fleet Rentals: High-performance Tesla fleet including Cybertruck Cyberbeast, Model S Plaid (1,020 HP), Roadster Founders Edition, Model X Tri-Motor, and Model Y Performance.
 4. Vehicle & Fleet Investment: Decentralized fleet revenue-sharing pools, Supercharger node staking with up to 18.5% APY, daily crypto dividend distributions.
 5. Promotions: Daily Spin-and-Win Wheel (credits, Tesla merchandise, car giveaways) and Purchasable Scratch & Win cards ($50 to $8,000 max winnings).
-6. Crypto Payments: Instant deposits and service settlements via BTC, USDT (TRC20/ERC20), XRP, BNB, and ETH.
+6. Treasury Deposits: Admin-verified manual settlements via Bank Wire, CashApp, Zelle, BTC Cold Vault, and USDT (TRC20) Cold Vault — credited directly after administrator confirmation.
 7. Ambassador & Referral Rewards: Every registered customer gets a unique invite link and custom referral code. When a friend signs up and completes their first deposit, the referrer receives tier-based Platform Credits from $25 minimum up to $200 maximum ($25 Standard, $75 Silver Ambassador, $125 Plaid Member, $200 Founders Club) directly into their vault plus 2 Free Wheel Spins. The friend receives a $25 welcome service credit and 5 Free Spins upon sign up.
 
 Customer context:
@@ -1628,8 +1628,9 @@ let serverScratchTiers: any[] = (() => {
 
 const serverWonPrizes: Map<string, any> = new Map();
 const serverUserNotifications: any[] = [];
+const serverDepositRequests: any[] = [];
 
-// Hydrate persisted deposit records, transaction audits, notifications & won prizes on boot
+// Hydrate persisted deposit records, deposit requests, transaction audits, notifications & won prizes on boot
 (() => {
   try {
     const file = path.join(process.cwd(), '.apex_admin_state.json');
@@ -1689,6 +1690,13 @@ const serverUserNotifications: any[] = [];
           }
         }
       }
+      if (Array.isArray(raw.depositRequests)) {
+        for (const dr of raw.depositRequests) {
+          if (dr && dr.id) {
+            serverDepositRequests.push(dr);
+          }
+        }
+      }
       if (raw.serverWalletsFreeWin && typeof raw.serverWalletsFreeWin === 'object') {
         for (const [uid, fw] of Object.entries(raw.serverWalletsFreeWin)) {
           const w = reconcileWalletFromDepositRecords(uid, serverWallets);
@@ -1720,6 +1728,7 @@ function persistServerGameAndCronState() {
       scratchTiers: serverScratchTiers,
       cronJobs: serverCronJobs,
       depositRecords: validatorExport.depositRecords,
+      depositRequests: serverDepositRequests.slice(0, 300),
       transactionAudits: validatorExport.transactionAudits,
       serverWalletsFreeWin,
       investmentsList: Array.from(serverInvestments.values()).slice(0, 300),
@@ -3924,6 +3933,270 @@ app.post('/api/won-prizes/pay-fees', authenticateToken, requireSelfOrAdmin, (req
   });
 });
 
+app.post('/api/deposits/requests', authenticateToken, (req, res) => {
+  const caller = (req as any).user;
+  if (!caller?.id) {
+    return res.status(401).json({ error: 'Authentication required to submit a manual deposit.' });
+  }
+  const {
+    methodId,
+    methodTitle,
+    category,
+    methodCategory,
+    currency = 'USD',
+    amount,
+    usdEquivalent,
+    txReference,
+    senderDetails,
+    senderNote,
+    proofNote,
+    feePercent: rawFeePercent,
+  } = req.body || {};
+
+  const numAmount = Number(amount);
+  const numUsd = Number(usdEquivalent ?? amount);
+  const cleanRef = String(txReference || '').trim();
+  const cleanMethodTitle = String(methodTitle || '').trim();
+
+  if (!Number.isFinite(numAmount) || numAmount <= 0 || !Number.isFinite(numUsd) || numUsd <= 0) {
+    return res.status(400).json({ error: 'Deposit amount and USD equivalent must be positive numbers.' });
+  }
+  if (!cleanMethodTitle || !methodId) {
+    return res.status(400).json({ error: 'A valid manual deposit channel is required.' });
+  }
+  if (cleanRef.length < 4) {
+    return res.status(400).json({ error: 'Please provide a valid Wire Confirmation ID, Payment Reference, or Transaction Hash (min 4 characters).' });
+  }
+
+  const normalizedRef = cleanRef.toLowerCase();
+  const duplicateActive = serverDepositRequests.find(
+    (r) => r && r.status !== 'rejected' && String(r.txReference || '').trim().toLowerCase() === normalizedRef
+  );
+  if (duplicateActive) {
+    return res.status(409).json({
+      error: `Transfer reference "${cleanRef}" is already associated with a ${duplicateActive.status} deposit request.`,
+    });
+  }
+
+  const adminState = readServerAdminState();
+  const configuredMethods = Array.isArray(adminState.manual_deposits) ? adminState.manual_deposits : [];
+  const matchedMethod = configuredMethods.find((m: any) => m && m.id === String(methodId));
+  if (matchedMethod && matchedMethod.enabled === false) {
+    return res.status(400).json({ error: 'This manual deposit channel is temporarily disabled.' });
+  }
+
+  const minUsd = matchedMethod?.minUsd !== undefined ? Number(matchedMethod.minUsd) : 25;
+  const maxUsd = matchedMethod?.maxUsd !== undefined ? Number(matchedMethod.maxUsd) : 500000;
+  if (numUsd < minUsd) {
+    return res.status(400).json({ error: `Minimum deposit for this channel is $${minUsd.toLocaleString()}.` });
+  }
+  if (numUsd > maxUsd) {
+    return res.status(400).json({ error: `Maximum single deposit for this channel is $${maxUsd.toLocaleString()}.` });
+  }
+
+  const resolvedFeePercent = Math.min(
+    15,
+    Math.max(0, Number(matchedMethod?.feePercent ?? rawFeePercent ?? 0) || 0)
+  );
+  const feeUsd = Number(((numUsd * resolvedFeePercent) / 100).toFixed(2));
+  const netUsd = Number(Math.max(0.01, numUsd - feeUsd).toFixed(2));
+  const rawCat = methodCategory || category;
+  const resolvedCategory: 'fiat' | 'e_wallet' | 'crypto' =
+    rawCat === 'crypto' || rawCat === 'e_wallet' || rawCat === 'fiat'
+      ? rawCat
+      : matchedMethod?.category === 'crypto' || matchedMethod?.category === 'e_wallet'
+      ? matchedMethod.category
+      : 'fiat';
+
+  const requestItem = {
+    id: `DEP-REQ-${Date.now().toString(36).toUpperCase()}-${crypto.randomBytes(2).toString('hex').toUpperCase()}`,
+    userId: String(caller.id),
+    userName: String(caller.name || caller.email || 'Apex Member'),
+    userEmail: String(caller.email || ''),
+    methodId: String(methodId),
+    methodTitle: matchedMethod?.title || matchedMethod?.name || cleanMethodTitle,
+    methodCategory: resolvedCategory,
+    category: resolvedCategory,
+    currency: String(currency || matchedMethod?.currencySymbol || 'USD').toUpperCase().slice(0, 12),
+    amount: Number(numAmount.toFixed(6)),
+    usdEquivalent: Number(numUsd.toFixed(2)),
+    feeUsd,
+    netUsd,
+    txReference: cleanRef.slice(0, 200),
+    senderDetails: senderDetails ? String(senderDetails).trim().slice(0, 200) : undefined,
+    senderNote: senderNote ? String(senderNote).trim().slice(0, 300) : undefined,
+    proofNote: proofNote ? String(proofNote).trim().slice(0, 500) : undefined,
+    status: 'pending' as const,
+    submittedAt: new Date().toISOString(),
+  };
+
+  serverDepositRequests.unshift(requestItem);
+  serverUserNotifications.unshift({
+    id: `notif-dep-sub-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    title: 'Deposit Submitted for Verification',
+    message: `Your $${netUsd.toLocaleString()} ${requestItem.methodTitle} transfer (Ref: ${cleanRef}) is pending administrator confirmation.`,
+    type: 'info',
+    createdAt: new Date().toISOString().replace('T', ' ').slice(0, 16),
+    targetType: 'user',
+    targetUserId: caller.id,
+    targetUserEmail: caller.email,
+    readBy: [],
+  });
+  persistServerGameAndCronState();
+
+  return res.status(201).json({
+    success: true,
+    message: 'Deposit submitted and queued for administrator verification.',
+    request: requestItem,
+  });
+});
+
+app.get('/api/deposits/requests/mine', authenticateToken, (req, res) => {
+  const caller = (req as any).user;
+  const cleanEmail = caller?.email ? String(caller.email).trim().toLowerCase() : '';
+  const isAlexAlias = caller?.id === 'usr-alex-001' || caller?.id === 'usr-apex-001';
+
+  const requests = serverDepositRequests.filter((r) => {
+    if (!r) return false;
+    if (r.userId === caller?.id) return true;
+    if (cleanEmail && r.userEmail && String(r.userEmail).trim().toLowerCase() === cleanEmail) return true;
+    if (isAlexAlias && (r.userId === 'usr-alex-001' || r.userId === 'usr-apex-001')) return true;
+    return false;
+  });
+
+  return res.json({ success: true, requests });
+});
+
+app.get('/api/deposits/requests', authenticateToken, requireAdmin, (req, res) => {
+  const statusFilter = typeof req.query.status === 'string' ? req.query.status : '';
+  const filtered = statusFilter
+    ? serverDepositRequests.filter((r) => r && r.status === statusFilter)
+    : serverDepositRequests;
+  return res.json({
+    success: true,
+    requests: filtered,
+    pendingCount: serverDepositRequests.filter((r) => r && r.status === 'pending').length,
+  });
+});
+
+app.post('/api/deposits/requests/:id/review', authenticateToken, requireAdmin, (req, res) => {
+  const caller = (req as any).user;
+  const { id } = req.params;
+  const { decision, confirmedTxReference, adminNote, rejectionReason } = req.body || {};
+
+  if (decision !== 'approve' && decision !== 'reject') {
+    return res.status(400).json({ error: 'Decision must be either "approve" or "reject".' });
+  }
+
+  const reqItem = serverDepositRequests.find((r) => r && r.id === id);
+  if (!reqItem) {
+    return res.status(404).json({ error: 'Deposit request not found.' });
+  }
+  if (reqItem.status !== 'pending') {
+    return res.status(409).json({
+      error: `This deposit request was already ${reqItem.status} on ${reqItem.reviewedAt || 'an earlier review'}.`,
+    });
+  }
+
+  const nowIso = new Date().toISOString();
+
+  if (decision === 'reject') {
+    const reasonText = String(
+      rejectionReason || adminNote || 'Transfer receipt could not be verified by Treasury Admin.'
+    )
+      .trim()
+      .slice(0, 300);
+
+    reqItem.status = 'rejected';
+    reqItem.reviewedAt = nowIso;
+    reqItem.reviewedByAdminEmail = caller?.email || 'admin@apex-tesla.io';
+    reqItem.rejectionReason = reasonText;
+    if (adminNote) reqItem.adminNote = String(adminNote).trim().slice(0, 300);
+
+    serverUserNotifications.unshift({
+      id: `notif-dep-rej-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      title: 'Deposit Request Declined',
+      message: `Your $${Number(reqItem.netUsd).toLocaleString()} deposit (${reqItem.txReference}) was declined: ${reasonText}`,
+      type: 'warning',
+      createdAt: nowIso.replace('T', ' ').slice(0, 16),
+      targetType: 'user',
+      targetUserId: reqItem.userId,
+      targetUserEmail: reqItem.userEmail,
+      readBy: [],
+    });
+    persistServerGameAndCronState();
+
+    return res.json({
+      success: true,
+      message: 'Deposit request rejected. No funds were credited.',
+      request: reqItem,
+    });
+  }
+
+  const confirmedRef = String(confirmedTxReference || reqItem.txReference || '').trim();
+  if (confirmedRef.length < 4) {
+    return res.status(400).json({ error: 'Confirmed transaction reference must be at least 4 characters.' });
+  }
+
+  const result = registerVerifiedDepositRecord({
+    userId: reqItem.userId,
+    currency: reqItem.currency || 'USD',
+    amount: Number(reqItem.amount) || Number(reqItem.netUsd),
+    usdEquivalent: Number(reqItem.netUsd),
+    txHash: confirmedRef,
+    gatewayName: reqItem.methodTitle || 'Manual Treasury Deposit',
+    source: 'manual_approved',
+    walletsMap: serverWallets,
+  });
+
+  if (!result.ok) {
+    return res.status(result.statusCode).json({ error: result.error, wallet: result.wallet });
+  }
+
+  reqItem.status = 'approved';
+  reqItem.reviewedAt = nowIso;
+  reqItem.reviewedByAdminEmail = caller?.email || 'admin@apex-tesla.io';
+  reqItem.confirmedTxReference = confirmedRef;
+  if (adminNote) reqItem.adminNote = String(adminNote).trim().slice(0, 300);
+
+  serverUserNotifications.unshift({
+    id: `notif-dep-app-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    title: 'Deposit Verified & Credited',
+    message: `$${Number(reqItem.netUsd).toLocaleString()} from ${reqItem.methodTitle} (Ref: ${confirmedRef}) has been confirmed and credited to your vault.`,
+    type: 'success',
+    createdAt: nowIso.replace('T', ' ').slice(0, 16),
+    targetType: 'user',
+    targetUserId: reqItem.userId,
+    targetUserEmail: reqItem.userEmail,
+    readBy: [],
+  });
+
+  if (reqItem.userEmail && String(reqItem.userEmail).includes('@')) {
+    void sendDepositNotificationEmail({
+      email: String(reqItem.userEmail).trim(),
+      name: reqItem.userName,
+      currency: reqItem.currency || 'USD',
+      amount: Number(reqItem.amount) || Number(reqItem.netUsd),
+      usdEquivalent: Number(reqItem.netUsd),
+      txHash: confirmedRef,
+      newBalanceUsd: result.wallet.usd,
+    }).catch(() => {
+      // non-fatal email alert failure
+    });
+  }
+
+  persistServerGameAndCronState();
+
+  return res.json({
+    success: true,
+    message: `Deposit confirmed and $${Number(reqItem.netUsd).toLocaleString()} credited to ${reqItem.userName}.`,
+    request: reqItem,
+    record: result.record,
+    wallet: result.wallet,
+    audit: result.audit,
+  });
+});
+
 app.get('/api/deposits/:userId', authenticateToken, requireSelfOrAdmin, (req, res) => {
   const { userId } = req.params;
   const wallet = reconcileWalletFromDepositRecords(userId, serverWallets);
@@ -3939,7 +4212,7 @@ app.get('/api/deposits/:userId', authenticateToken, requireSelfOrAdmin, (req, re
   });
 });
 
-app.post('/api/deposits/record', authenticateToken, requireSelfOrAdmin, (req, res) => {
+app.post('/api/deposits/record', authenticateToken, requireAdmin, (req, res) => {
   const { userId, currency = 'USD', amount, usdEquivalent, amountUsd, txHash, gatewayName, source } = req.body || {};
   if (!userId) return res.status(400).json({ error: 'userId is required' });
   const usdVal = Number(usdEquivalent ?? amountUsd ?? amount);
@@ -3951,7 +4224,7 @@ app.post('/api/deposits/record', authenticateToken, requireSelfOrAdmin, (req, re
     usdEquivalent: usdVal,
     txHash,
     gatewayName,
-    source: source || 'gateway_deposit',
+    source: source || 'manual_approved',
     walletsMap: serverWallets,
   });
   if (!result.ok) {
@@ -3966,7 +4239,7 @@ app.post('/api/deposits/record', authenticateToken, requireSelfOrAdmin, (req, re
   });
 });
 
-app.post('/api/wallet/:userId/deposit-sync', authenticateToken, requireSelfOrAdmin, (req, res) => {
+app.post('/api/wallet/:userId/deposit-sync', authenticateToken, requireAdmin, (req, res) => {
   const { userId } = req.params;
   const { amountUsd, currency = 'USD', txHash, gatewayName, source } = req.body || {};
   const amt = Number(amountUsd) || 0;
@@ -3977,8 +4250,8 @@ app.post('/api/wallet/:userId/deposit-sync', authenticateToken, requireSelfOrAdm
     amount: amt,
     usdEquivalent: amt,
     txHash,
-    gatewayName: gatewayName || 'Verified Deposit Sync',
-    source: source || 'gateway_deposit',
+    gatewayName: gatewayName || 'Admin Verified Deposit Sync',
+    source: source || 'manual_approved',
     walletsMap: serverWallets,
   });
   if (!result.ok) {
@@ -5299,6 +5572,7 @@ app.get('/api/admin/state', (req, res) => {
   }
   const {
     depositRecords: _dr,
+    depositRequests: _dreq,
     transactionAudits: _ta,
     serverWalletsFreeWin: _fw,
     streakStates: _ss,

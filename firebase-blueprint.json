@@ -68,8 +68,8 @@
         },
         "themePreference": {
           "type": "string",
-          "description": "Persisted light or dark UI theme preference synced across sessions.",
-          "enum": ["dark", "light"]
+          "description": "Persisted dark, light, or blue-and-white UI theme preference synced across sessions.",
+          "enum": ["dark", "light", "blue"]
         },
         "createdAt": {
           "type": "string",
@@ -373,6 +373,38 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "userId", "category", "amountUsd", "depositConsumedUsd", "freeWinConsumedUsd", "outcome", "reason", "signature", "createdAt"]
+    },
+    "DepositRequest": {
+      "title": "DepositRequest",
+      "description": "Manual treasury deposit submission queued in Pending Deposits for administrator confirmation or rejection.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "userId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "userName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "userEmail": { "type": "string", "format": "email", "minLength": 3, "maxLength": 200 },
+        "methodId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "methodTitle": { "type": "string", "minLength": 1, "maxLength": 140 },
+        "methodCategory": { "type": "string", "enum": ["fiat", "e_wallet", "crypto"] },
+        "currency": { "type": "string", "minLength": 2, "maxLength": 16 },
+        "amount": { "type": "number" },
+        "usdEquivalent": { "type": "number" },
+        "feeUsd": { "type": "number" },
+        "netUsd": { "type": "number" },
+        "txReference": { "type": "string", "minLength": 4, "maxLength": 200 },
+        "senderDetails": { "type": "string", "minLength": 0, "maxLength": 200 },
+        "senderNote": { "type": "string", "minLength": 0, "maxLength": 300 },
+        "proofNote": { "type": "string", "minLength": 0, "maxLength": 500 },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "submittedAt": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "reviewedAt": { "type": "string", "minLength": 0, "maxLength": 64 },
+        "reviewedByAdminEmail": { "type": "string", "minLength": 0, "maxLength": 200 },
+        "confirmedTxReference": { "type": "string", "minLength": 0, "maxLength": 200 },
+        "adminNote": { "type": "string", "minLength": 0, "maxLength": 300 },
+        "rejectionReason": { "type": "string", "minLength": 0, "maxLength": 300 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "userName", "userEmail", "methodId", "methodTitle", "methodCategory", "currency", "amount", "usdEquivalent", "feeUsd", "netUsd", "txReference", "status", "submittedAt", "createdAt"]
     }
   },
   "firestore": {
@@ -427,6 +459,10 @@
     "/transaction_audits/{auditId}": {
       "schema": { "$ref": "#/entities/TransactionValidationAudit" },
       "description": "Immutable transaction validation & anti-manipulation audit log."
+    },
+    "/deposit_requests/{requestId}": {
+      "schema": { "$ref": "#/entities/DepositRequest" },
+      "description": "Owner-created and admin-reviewed manual deposit verification requests for Pending Deposits queue."
     }
   }
 }

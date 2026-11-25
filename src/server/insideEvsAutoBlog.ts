@@ -1022,7 +1022,7 @@ Editorial & SEO Requirements:
       ],
       'TSLA Markets & Crypto': [
         `**TSLA Equity & Delivery Sensitivity**: Quarterly ${primaryTopic} sentiment and regional registration telemetry remain primary catalysts for institutional valuation multiples.`,
-        `**Digital Settlement Flexibility**: Cross-border buyers and investors increasingly pair treasury equity exposure with BTC, USDT, and MetaMask/Trust Wallet liquidity rails.`,
+        `**Digital Settlement Flexibility**: Cross-border buyers and investors increasingly pair treasury equity exposure with BTC, USDT, and admin-verified wire settlement rails.`,
         `**Margin Trajectory**: Manufacturing vertical integration and software attach rates continue to separate high-margin EV ecosystems from legacy automakers.`,
       ],
       'Vehicle Deliveries': [

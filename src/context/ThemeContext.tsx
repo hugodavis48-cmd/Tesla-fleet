@@ -3,7 +3,7 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
 
-export type ThemeMode = 'dark' | 'light';
+export type ThemeMode = 'dark' | 'light' | 'blue';
 
 interface ThemeContextType {
   theme: ThemeMode;
@@ -11,6 +11,7 @@ interface ThemeContextType {
   toggleTheme: () => void;
   isDark: boolean;
   isLight: boolean;
+  isBlue: boolean;
   isSyncingTheme: boolean;
 }
 
@@ -18,11 +19,14 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 const STORAGE_KEY = 'apex_tesla_theme';
 
+const isValidThemeMode = (val: unknown): val is ThemeMode =>
+  val === 'dark' || val === 'light' || val === 'blue';
+
 const readStoredTheme = (): ThemeMode | null => {
   if (typeof window === 'undefined') return null;
   try {
     const saved = window.localStorage.getItem(STORAGE_KEY);
-    if (saved === 'light' || saved === 'dark') {
+    if (isValidThemeMode(saved)) {
       return saved;
     }
   } catch {
@@ -93,7 +97,8 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   );
 
   const toggleTheme = useCallback(() => {
-    const nextTheme: ThemeMode = latestThemeRef.current === 'dark' ? 'light' : 'dark';
+    const current = latestThemeRef.current;
+    const nextTheme: ThemeMode = current === 'dark' ? 'light' : current === 'light' ? 'blue' : 'dark';
     setTheme(nextTheme);
   }, [setTheme]);
 
@@ -109,7 +114,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const snap = await getDoc(userDocRef);
         if (snap.exists()) {
           const remotePref = snap.data()?.themePreference;
-          if (!localPref && (remotePref === 'light' || remotePref === 'dark')) {
+          if (!localPref && isValidThemeMode(remotePref)) {
             applyLocalTheme(remotePref);
           } else if (remotePref !== latestThemeRef.current) {
             await updateDoc(userDocRef, {
@@ -136,7 +141,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   useEffect(() => {
     const handleRemoteSync = (event: Event) => {
       const customEvent = event as CustomEvent<unknown>;
-      if (customEvent.detail === 'light' || customEvent.detail === 'dark') {
+      if (isValidThemeMode(customEvent.detail)) {
         if (!readStoredTheme()) {
           applyLocalTheme(customEvent.detail);
         }
@@ -150,7 +155,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   useEffect(() => {
     const handleStorageChange = (event: StorageEvent) => {
       if (event.key !== STORAGE_KEY) return;
-      if (event.newValue === 'light' || event.newValue === 'dark') {
+      if (isValidThemeMode(event.newValue)) {
         setThemeState(event.newValue);
         latestThemeRef.current = event.newValue;
       }
@@ -165,20 +170,27 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const root = document.documentElement;
     const body = document.body;
 
-    if (theme === 'light') {
-      root.classList.add('light');
+    if (theme === 'blue') {
+      root.classList.add('light', 'blue');
       root.classList.remove('dark');
+      root.setAttribute('data-theme', 'blue');
+      root.style.colorScheme = 'light';
+      body.classList.add('light', 'blue');
+      body.classList.remove('dark');
+    } else if (theme === 'light') {
+      root.classList.add('light');
+      root.classList.remove('dark', 'blue');
       root.setAttribute('data-theme', 'light');
       root.style.colorScheme = 'light';
       body.classList.add('light');
-      body.classList.remove('dark');
+      body.classList.remove('dark', 'blue');
     } else {
       root.classList.add('dark');
-      root.classList.remove('light');
+      root.classList.remove('light', 'blue');
       root.setAttribute('data-theme', 'dark');
       root.style.colorScheme = 'dark';
       body.classList.add('dark');
-      body.classList.remove('light');
+      body.classList.remove('light', 'blue');
     }
   }, [theme]);
 
@@ -189,7 +201,8 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setTheme,
         toggleTheme,
         isDark: theme === 'dark',
-        isLight: theme === 'light',
+        isLight: theme === 'light' || theme === 'blue',
+        isBlue: theme === 'blue',
         isSyncingTheme,
       }}
     >

@@ -148,7 +148,7 @@
       }
     }
   },
-  "updatedAt": "2026-11-23T23:43:21.676Z",
+  "updatedAt": "2026-11-25T01:17:39.145Z",
   "sitemapEntries": [
     {
       "id": "sm-home",
@@ -4392,9 +4392,9 @@
       "description": "Triggers daily (every 24h) to calculate ROI on active investment plans, credit payouts to user wallets, and append InvestmentActivityTable records.",
       "enabled": true,
       "intervalMinutes": 1440,
-      "lastRunAt": "2026-11-23T23:33:51.647Z",
-      "runsCount": 3,
-      "lastSummary": "investment-roi-cron credited $8.56 USD daily ROI across 2 active plan(s) (1 matured) and logged 2 InvestmentActivityTable record(s)."
+      "lastRunAt": "2026-11-25T00:49:22.454Z",
+      "runsCount": 4,
+      "lastSummary": "investment-roi-cron credited $6.03 USD daily ROI across 1 active plan(s) (0 matured) and logged 1 InvestmentActivityTable record(s)."
     },
     {
       "id": "roi_accrual",
@@ -4402,9 +4402,9 @@
       "description": "Accrues daily dividends across running fleet & Fast-ROI equity plans and settles matured positions.",
       "enabled": true,
       "intervalMinutes": 1,
-      "lastRunAt": "2026-11-23T23:43:21.671Z",
-      "runsCount": 198,
-      "lastSummary": "Accrued $6.03 ROI; 0 matured."
+      "lastRunAt": "2026-11-25T01:17:39.140Z",
+      "runsCount": 193,
+      "lastSummary": "Accrued $0.00 ROI; 0 matured."
     },
     {
       "id": "daily_streak_audit",
@@ -4412,8 +4412,8 @@
       "description": "Audits UTC check-in timestamps, resets expired streaks beyond resetAfterHours, and seals milestone claims.",
       "enabled": true,
       "intervalMinutes": 15,
-      "lastRunAt": "2026-11-23T23:33:51.689Z",
-      "runsCount": 53,
+      "lastRunAt": "2026-11-25T01:04:28.230Z",
+      "runsCount": 55,
       "lastSummary": "Audited 2 member streak ledger(s); auto-reset 0 lapsed streak(s) exceeding 48h."
     },
     {
@@ -4422,8 +4422,8 @@
       "description": "Automatically switches repeat winners (>= threshold wins) to Super Hard difficulty and audits free-spin win caps.",
       "enabled": true,
       "intervalMinutes": 5,
-      "lastRunAt": "2026-11-23T23:39:21.672Z",
-      "runsCount": 118,
+      "lastRunAt": "2026-11-25T01:12:39.146Z",
+      "runsCount": 123,
       "lastSummary": "Audited 6 spin profile(s); switched 0 multi-winner account(s) (>= 2 wins) to Super Hard."
     },
     {
@@ -4432,8 +4432,8 @@
       "description": "Advances fee-paid won vehicles from fees_paid_processing to documentation_ready and carrier dispatch.",
       "enabled": true,
       "intervalMinutes": 10,
-      "lastRunAt": "2026-11-23T23:33:51.704Z",
-      "runsCount": 45,
+      "lastRunAt": "2026-11-25T01:12:39.156Z",
+      "runsCount": 48,
       "lastSummary": "Verified 4 won-prize vault item(s); progressed shipping logistics on 0 admin-approved vehicle(s)."
     },
     {
@@ -4442,9 +4442,9 @@
       "description": "Refreshes TSLA quote baselines and triggers active user price alerts when thresholds cross.",
       "enabled": true,
       "intervalMinutes": 5,
-      "lastRunAt": "2026-11-23T23:39:21.680Z",
-      "runsCount": 141,
-      "lastSummary": "Synced NASDAQ: TSLA telemetry feed ($330.7)."
+      "lastRunAt": "2026-11-25T01:12:39.164Z",
+      "runsCount": 146,
+      "lastSummary": "Synced NASDAQ: TSLA telemetry feed ($332.81)."
     }
   ],
   "scratchTiers": [
@@ -4674,6 +4674,20 @@
       }
     ],
     "usr-apex-001": [
+      {
+        "id": "dep-mwveugum-ad4336",
+        "userId": "usr-apex-001",
+        "currency": "USD",
+        "amount": 10000,
+        "usdEquivalent": 10000,
+        "remainingUsd": 10000,
+        "txHash": "CERT-MWVEUGUL-RGER",
+        "gatewayName": "Fleet Maturity Settlement",
+        "source": "investment_maturity",
+        "status": "verified",
+        "createdAt": "2026-11-25T00:53:52.462Z",
+        "signature": "c73831a8636a1a4e27b7c24666f7905986fab261d721269cff10dc5e77f1bfd5"
+      },
       {
         "id": "dep-mwtwjpuo-ac1704",
         "userId": "usr-apex-001",
@@ -5039,6 +5053,25 @@
     ]
   },
   "transactionAudits": [
+    {
+      "userId": "usr-apex-001",
+      "category": "deposit_record",
+      "amountUsd": 10000,
+      "depositConsumedUsd": 0,
+      "freeWinConsumedUsd": 0,
+      "depositRecordIdsUsed": [
+        "dep-mwveugum-ad4336"
+      ],
+      "verifiedDepositBeforeUsd": 40080.38,
+      "verifiedDepositAfterUsd": 40080.38,
+      "freeWinBeforeUsd": 403.6,
+      "freeWinAfterUsd": 403.6,
+      "outcome": "approved",
+      "reason": "Verified deposit record (investment_maturity) via Fleet Maturity Settlement",
+      "id": "audit-mwveugun-05c74c",
+      "createdAt": "2026-11-25T00:53:52.463Z",
+      "signature": "7a8cf21a630e02d65a88c8b14758b3a314173eeee6146fcc9d33b2f084d5fd43"
+    },
     {
       "userId": "usr-apex-001",
       "category": "deposit_record",
@@ -6026,7 +6059,7 @@
   ],
   "serverWalletsFreeWin": {
     "usr-alex-001": 437.78,
-    "usr-apex-001": 397.57,
+    "usr-apex-001": 765.29,
     "usr-003": 0,
     "usr-004": 0,
     "usr-005": 0,
@@ -6043,7 +6076,9 @@
     "usr-1794793990495": 22450,
     "usr-1794795680529": 0,
     "usr-apex-admin-01": 0.08,
-    "usr-1794796892771": 0
+    "usr-1794796892771": 0,
+    "usr-1795568918486": 0,
+    "requests": 0
   },
   "wonPrizesList": [
     {
@@ -9074,6 +9109,43 @@
   ],
   "userNotifications": [
     {
+      "id": "notif-dep-sub-1795568918548-99ho",
+      "title": "Deposit Submitted for Verification",
+      "message": "Your $300 Bank Wire Transfer (SWIFT / Fedwire / SEPA) transfer (Ref: WIRE-REF-REJECT-1) is pending administrator confirmation.",
+      "type": "info",
+      "createdAt": "2026-11-25 01:08",
+      "targetType": "user",
+      "targetUserId": "usr-1795568918486",
+      "targetUserEmail": "verify_dep_1795568918438@example.com",
+      "readBy": []
+    },
+    {
+      "id": "notif-dep-sub-1795568918521-kiyl",
+      "title": "Deposit Submitted for Verification",
+      "message": "Your $500 Bank Wire Transfer (SWIFT / Fedwire / SEPA) transfer (Ref: WIRE-REF-998877) is pending administrator confirmation.",
+      "type": "info",
+      "createdAt": "2026-11-25 01:08",
+      "targetType": "user",
+      "targetUserId": "usr-1795568918486",
+      "targetUserEmail": "verify_dep_1795568918438@example.com",
+      "readBy": []
+    },
+    {
+      "id": "notif-roi-cron-inv-alex-supercharger-1795567762454-1",
+      "title": "Daily ROI Credited: +$6.03 USD",
+      "message": "investment-roi-cron calculated and credited $6.03 USD daily ROI from \"Megawatt Supercharger Mega-Node (Austin V4 Hub)\" (Day 55/60) to your wallet.",
+      "type": "payout",
+      "priority": "normal",
+      "targetType": "individual",
+      "targetUserId": "usr-apex-001",
+      "targetUserEmail": "alex.vance@apex-tesla.io",
+      "createdAt": "2026-11-25 00:49",
+      "readBy": [],
+      "dismissedBy": [],
+      "actionUrl": "investments",
+      "actionLabel": "View Yield Ledger"
+    },
+    {
       "id": "notif-roi-cron-inv-alex-supercharger-1795476831665-2",
       "title": "Daily ROI Credited: +$6.03 USD",
       "message": "investment-roi-cron calculated and credited $6.03 USD daily ROI from \"Megawatt Supercharger Mega-Node (Austin V4 Hub)\" (Day 44/60) to your wallet.",
@@ -9184,11 +9256,22 @@
     "includeSourceAttribution": true,
     "attributionPrefix": "Originally reported by InsideEVs",
     "targetTone": "Authoritative EV Engineering",
-    "lastSyncAt": "2026-11-23T23:35:23.190Z",
-    "lastSyncStatus": "Fetched 3 InsideEVs Tesla article(s) → saved as drafts for Admin Review (3 Gemini SEO-rewritten, 1 AI artwork generated).",
+    "lastSyncAt": "2026-11-25T00:55:52.563Z",
+    "lastSyncStatus": "Checked 25 InsideEVs Tesla articles — all fetched items are already in your repository.",
     "totalSyncedCount": 25
   },
   "auto_blog_logs": [
+    {
+      "id": "ablog-mwvex1ir",
+      "timestamp": "2026-11-25T00:55:52.563Z",
+      "status": "success",
+      "fetchedCount": 25,
+      "importedCount": 0,
+      "aiRewrittenCount": 0,
+      "imagesGeneratedCount": 0,
+      "message": "Checked 25 InsideEVs Tesla articles — all fetched items are already in your repository.",
+      "importedTitles": []
+    },
     {
       "id": "ablog-mwtwlohi",
       "timestamp": "2026-11-23T23:35:23.190Z",
@@ -9306,15 +9389,18 @@
       "poolTitle": "Megawatt Supercharger Mega-Node (Austin V4 Hub)",
       "amountInvestedUsd": 10000,
       "apy": 22,
-      "status": "running",
+      "status": "completed",
       "durationDays": 60,
-      "daysElapsed": 54,
-      "earnedDividendsUsd": 325.51,
+      "daysElapsed": 60,
+      "earnedDividendsUsd": 361.69,
       "totalExpectedRoiUsd": 361.64,
       "dailyRoiRate": 6.03,
       "startDate": "2026-10-10T12:46:19.584Z",
       "maturityDate": "2026-12-09T12:46:19.584Z",
-      "txHash": "0x3cb19028a71928491823908f9182903847a98291"
+      "txHash": "0x3cb19028a71928491823908f9182903847a98291",
+      "completedAt": "2026-11-25T00:53:52.461Z",
+      "capitalReturned": true,
+      "certificateId": "CERT-MWVEUGUL-RGER"
     },
     {
       "id": "inv-alex-plaid",
@@ -9340,6 +9426,23 @@
     }
   ],
   "investmentActivities": [
+    {
+      "id": "act-cron-inv-alex-supercharger-1795567762454-1",
+      "type": "payout",
+      "assetId": "pool-supercharger-02",
+      "assetTitle": "Megawatt Supercharger Mega-Node (Austin V4 Hub)",
+      "category": "Supercharger Mega-Node",
+      "amountUsd": 6.03,
+      "cryptoFormatted": "+6.03 USD",
+      "apyRate": 22,
+      "timestamp": "2026-11-25 00:49",
+      "status": "settled",
+      "txHash": "0x1109705f74a4b35ad5ea6375ec71",
+      "notes": "investment-roi-cron daily ROI payout (Day 55/60) credited to wallet ($30483.98 USD).",
+      "userId": "usr-apex-001",
+      "investmentId": "inv-alex-supercharger",
+      "sourceCron": "investment-roi-cron"
+    },
     {
       "id": "act-cron-inv-alex-supercharger-1795476831665-2",
       "type": "payout",
@@ -9538,5 +9641,42 @@
       "notes": "Welcome incentive granted for participating in Genesis Robotaxi liquidity round."
     }
   ],
-  "newsletterSubscribers": []
+  "newsletterSubscribers": [],
+  "depositRequests": [
+    {
+      "id": "DEP-REQ-MWVFDGK4-FE32",
+      "userId": "usr-1795568918486",
+      "userName": "Verify Tester",
+      "userEmail": "verify_dep_1795568918438@example.com",
+      "methodId": "dep-wire",
+      "methodTitle": "Bank Wire Transfer (SWIFT / Fedwire / SEPA)",
+      "category": "fiat",
+      "currency": "USD",
+      "amount": 300,
+      "usdEquivalent": 300,
+      "feeUsd": 0,
+      "netUsd": 300,
+      "txReference": "WIRE-REF-REJECT-1",
+      "status": "pending",
+      "submittedAt": "2026-11-25T01:08:38.548Z"
+    },
+    {
+      "id": "DEP-REQ-MWVFDGJD-00BA",
+      "userId": "usr-1795568918486",
+      "userName": "Verify Tester",
+      "userEmail": "verify_dep_1795568918438@example.com",
+      "methodId": "dep-wire",
+      "methodTitle": "Bank Wire Transfer (SWIFT / Fedwire / SEPA)",
+      "category": "fiat",
+      "currency": "USD",
+      "amount": 500,
+      "usdEquivalent": 500,
+      "feeUsd": 0,
+      "netUsd": 500,
+      "txReference": "WIRE-REF-998877",
+      "senderNote": "Sent from test account",
+      "status": "pending",
+      "submittedAt": "2026-11-25T01:08:38.521Z"
+    }
+  ]
 }

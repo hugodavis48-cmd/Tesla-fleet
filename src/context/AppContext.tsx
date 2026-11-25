@@ -23,7 +23,6 @@ import {
   loadManagedUsersFromFirestore,
   saveManagedUserToFirestore,
   deleteManagedUserFromFirestore,
-  sanitizeGatewaysForPublic,
   subscribeNewsletterInFirestore,
   loadNewsletterSubscribersFromFirestore,
   updateNewsletterSubscriberInFirestore,
@@ -31,6 +30,9 @@ import {
   toNewsletterSubscriberId,
   saveEngagementActivityToFirestore,
   loadEngagementActivitiesFromFirestore,
+  saveDepositRequestToFirestore,
+  updateDepositRequestStatusInFirestore,
+  subscribeDepositRequestsFromFirestore,
 } from '../lib/firebase';
 import { PageSeoMeta } from '../types';
 import {
@@ -79,7 +81,7 @@ import {
   WithdrawalSettings,
   WheelReward,
   FeatureToggles,
-  AutoCryptoGateway,
+  DepositRequest,
   ReviewItem,
   StockPriceAlert,
   MarketingBanner,
@@ -142,7 +144,6 @@ import {
   DEFAULT_WITHDRAWAL_SETTINGS,
   INITIAL_WITHDRAWAL_REQUESTS,
   DEFAULT_FEATURE_TOGGLES,
-  DEFAULT_AUTO_CRYPTO_GATEWAYS,
   INITIAL_REVIEWS,
   INITIAL_MARKETING_BANNERS,
   DEFAULT_SITE_SETTINGS,
@@ -325,11 +326,26 @@ interface AppContextType {
   setRole: (role: UserRole) => void;
   toggle2FA: () => void;
   updatePin: (newPin: string) => void;
-  depositFunds: (
-    currency: CryptoCurrency | 'USD',
-    amount: number,
-    meta?: { gatewayId?: string; gatewayName?: string; txHash?: string; senderAddress?: string }
-  ) => Promise<Transaction>;
+  depositRequests: DepositRequest[];
+  refreshDepositRequests: () => Promise<void>;
+  submitManualDepositRequest: (payload: {
+    methodId: string;
+    methodTitle: string;
+    category: 'fiat' | 'e_wallet' | 'crypto';
+    currency: string;
+    amount: number;
+    usdEquivalent: number;
+    txReference: string;
+    senderDetails?: string;
+    senderNote?: string;
+    proofNote?: string;
+    feePercent?: number;
+  }) => Promise<{ success: boolean; request?: DepositRequest; message: string }>;
+  reviewDepositRequest: (
+    requestId: string,
+    decision: 'approve' | 'reject',
+    options?: { confirmedTxReference?: string; adminNote?: string; rejectionReason?: string }
+  ) => Promise<{ success: boolean; request?: DepositRequest; message: string }>;
   addVehicle: (vehicle: Omit<TeslaVehicle, 'id' | 'userId'>) => void;
   bookService: (booking: Omit<ServiceBooking, 'id' | 'userId' | 'createdAt' | 'progressPercentage' | 'status'>) => ServiceBooking;
   // Investment & ROI Automation
@@ -635,12 +651,6 @@ interface AppContextType {
   featureToggles: FeatureToggles;
   updateFeatureToggles: (toggles: Partial<FeatureToggles>) => void;
   resetFeatureToggles: () => void;
-  // Automated Crypto Payment Gateways
-  autoCryptoGateways: AutoCryptoGateway[];
-  updateAutoCryptoGateway: (id: string, updates: Partial<AutoCryptoGateway>) => void;
-  addAutoCryptoGateway: (gateway: Omit<AutoCryptoGateway, 'id' | 'totalProcessedUsd' | 'totalTransactionsCount'>) => void;
-  deleteAutoCryptoGateway: (id: string) => void;
-  testAutoCryptoGatewayPing: (id: string) => Promise<{ success: boolean; latencyMs: number; message: string }>;
   // Verified Customer Reviews & Ratings
   reviews: ReviewItem[];
   addReview: (review: {
@@ -1620,7 +1630,7 @@ const INITIAL_TRANSACTIONS: Transaction[] = [
     timestamp: '2026-11-02 14:22',
     status: 'completed',
     txHash: '0x3fe9b2...84ad1',
-    description: 'TRC-20 Instant Gateway Deposit',
+    description: 'USDT Cold Vault Verified Deposit (Admin Confirmed)',
   },
   {
     id: 'tx-002',
@@ -1938,21 +1948,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return parsed ? normalizeFeatureToggles(DEFAULT_FEATURE_TOGGLES, parsed) : DEFAULT_FEATURE_TOGGLES;
   });
 
-  const [autoCryptoGateways, setAutoCryptoGateways] = useState<AutoCryptoGateway[]>(() => {
-    const saved = localStorage.getItem('apex_auto_crypto_gateways');
-    const parsed = safeJsonParse<AutoCryptoGateway[] | null>(saved, null);
-    if (Array.isArray(parsed) && parsed.length > 0) {
-      const deletedIds = new Set<string>(
-        safeJsonParse<string[]>(localStorage.getItem('apex_deleted_gateway_ids_v1'), [])
-      );
-      const existingIds = new Set(parsed.map((g) => g.id));
-      const missingDefaults = DEFAULT_AUTO_CRYPTO_GATEWAYS.filter(
-        (d) => !existingIds.has(d.id) && !deletedIds.has(d.id)
-      );
-      return [...parsed, ...missingDefaults];
-    }
-    return DEFAULT_AUTO_CRYPTO_GATEWAYS;
+  const [depositRequests, setDepositRequests] = useState<DepositRequest[]>(() => {
+    const saved = localStorage.getItem('apex_deposit_requests_v1');
+    return safeJsonParse<DepositRequest[]>(saved, []);
   });
+  const knownDepositStatusRef = useRef<Map<string, DepositRequest['status']>>(new Map());
+  const toastedDepositOutcomesRef = useRef<Set<string>>(
+    new Set(
+      safeJsonParse<string[]>(
+        typeof window !== 'undefined' ? localStorage.getItem('apex_toasted_deposit_outcomes_v1') : null,
+        []
+      )
+    )
+  );
 
   const [reviews, setReviews] = useState<ReviewItem[]>(() => {
     const saved = localStorage.getItem('apex_reviews_v1');
@@ -2762,8 +2770,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [featureToggles]);
 
   useEffect(() => {
-    localStorage.setItem('apex_auto_crypto_gateways', JSON.stringify(autoCryptoGateways));
-  }, [autoCryptoGateways]);
+    localStorage.setItem('apex_deposit_requests_v1', JSON.stringify(depositRequests));
+  }, [depositRequests]);
 
   useEffect(() => {
     localStorage.setItem('apex_reviews_v1', JSON.stringify(reviews));
@@ -3282,11 +3290,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       if (sections.smtp_config && typeof sections.smtp_config === 'object') {
         setSmtpConfig((prev) => ({ ...prev, ...sections.smtp_config }));
-      }
-      if (Array.isArray(sections.auto_gateways) && sections.auto_gateways.length > 0) {
-        setAutoCryptoGateways(sections.auto_gateways);
-      } else if (Array.isArray(sections.deposit_gateways) && sections.deposit_gateways.length > 0) {
-        setAutoCryptoGateways(sections.deposit_gateways);
       }
       if (Array.isArray(sections.won_prizes) && sections.won_prizes.length > 0) {
         setWonPrizes(sections.won_prizes.map(normalizeWonPrizeRecord));
@@ -3904,6 +3907,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         })
         .catch(() => {});
     }
+
+    const reqEndpoint = currentUser.role === 'admin' ? '/api/deposits/requests' : '/api/deposits/requests/mine';
+    fetch(reqEndpoint, { headers })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (Array.isArray(data?.requests)) {
+          setDepositRequests(data.requests);
+        }
+      })
+      .catch(() => {});
   }, [currentUser?.id, currentUser?.role, getAuthHeaders, applyServerWallet]);
 
   const [sessionToken, setSessionToken] = useState<string | null>(() => {
@@ -3938,7 +3951,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       .then((data) => {
         if (data.user) {
           setCurrentUser(data.user);
-          if (data.user.themePreference === 'dark' || data.user.themePreference === 'light') {
+          if (
+            data.user.themePreference === 'dark' ||
+            data.user.themePreference === 'light' ||
+            data.user.themePreference === 'blue'
+          ) {
             window.dispatchEvent(new CustomEvent('apex:theme-sync', { detail: data.user.themePreference }));
           }
         }
@@ -3952,7 +3969,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     const handleThemeChanged = (event: Event) => {
       const nextTheme = (event as CustomEvent<unknown>).detail;
-      if (nextTheme !== 'dark' && nextTheme !== 'light') return;
+      if (nextTheme !== 'dark' && nextTheme !== 'light' && nextTheme !== 'blue') return;
       setCurrentUser((prev) => (prev ? { ...prev, themePreference: nextTheme } : prev));
       if (sessionToken) {
         fetch('/api/auth/profile', {
@@ -4003,7 +4020,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [currentUser?.id, currentUser?.role, sessionToken]);
 
-  const showToast = (text: string, type: 'success' | 'info' | 'error' = 'success') => {
+  const showToast = useCallback((text: string, type: 'success' | 'info' | 'error' = 'success') => {
     setToastMessage({ text, type });
     if (type === 'success') {
       playSuccessSound(inferAudioVariantFromMessage(text));
@@ -4011,7 +4028,188 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setTimeout(() => {
       setToastMessage(null);
     }, 4500);
-  };
+  }, []);
+
+  // Real-time deposit status monitor: updates user balance & fires toast notification when admin Confirms or Rejects
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    const cleanEmail = (currentUser.email || '').trim().toLowerCase();
+
+    for (const req of depositRequests) {
+      const prevStatus = knownDepositStatusRef.current.get(req.id);
+      knownDepositStatusRef.current.set(req.id, req.status);
+
+      const isForCurrentUser =
+        req.userId === currentUser.id ||
+        (cleanEmail && req.userEmail?.trim().toLowerCase() === cleanEmail);
+      if (!isForCurrentUser) continue;
+      if (req.status !== 'approved' && req.status !== 'rejected') continue;
+
+      const outcomeKey = `${req.id}:${req.status}`;
+      if (toastedDepositOutcomesRef.current.has(outcomeKey)) continue;
+
+      const hasPendingTx = transactions.some((t) => t.id === req.id && t.status === 'pending');
+      const reviewedRecently =
+        Boolean(req.reviewedAt) &&
+        Date.now() - new Date(req.reviewedAt || 0).getTime() < 15 * 60 * 1000;
+
+      if (prevStatus === 'pending' || hasPendingTx || (prevStatus === undefined && reviewedRecently)) {
+        toastedDepositOutcomesRef.current.add(outcomeKey);
+        try {
+          localStorage.setItem(
+            'apex_toasted_deposit_outcomes_v1',
+            JSON.stringify(Array.from(toastedDepositOutcomesRef.current).slice(-120))
+          );
+        } catch {
+          // ignore storage quota errors
+        }
+
+        if (req.status === 'approved') {
+          const tok = localStorage.getItem('apex_session_token');
+          if (tok) {
+            fetch(`/api/wallet/${encodeURIComponent(currentUser.id)}`, {
+              headers: { Authorization: `Bearer ${tok}` },
+            })
+              .then((res) => (res.ok ? res.json() : null))
+              .then((walletData) => {
+                if (walletData?.wallet && typeof walletData.wallet.usd === 'number') {
+                  applyServerWallet(walletData.wallet, currentUser.id);
+                }
+              })
+              .catch(() => {});
+          }
+
+          setTransactions((prev) =>
+            prev.map((t) =>
+              t.id === req.id
+                ? {
+                    ...t,
+                    status: 'completed',
+                    txHash: req.confirmedTxReference || req.txReference,
+                    description: `${req.methodTitle} — Admin Verified Deposit`,
+                  }
+                : t
+            )
+          );
+
+          showToast(
+            `Deposit Confirmed! $${Number(req.netUsd).toLocaleString()} USD (${req.methodTitle}) has been credited to your balance.`,
+            'success'
+          );
+        } else {
+          setTransactions((prev) =>
+            prev.map((t) =>
+              t.id === req.id
+                ? {
+                    ...t,
+                    status: 'rejected',
+                    description: `${req.methodTitle} — Declined (${req.rejectionReason || 'Unverified'})`,
+                  }
+                : t
+            )
+          );
+
+          showToast(
+            `Deposit Rejected (${req.txReference}): ${req.rejectionReason || 'Transfer receipt could not be verified.'}`,
+            'error'
+          );
+        }
+      }
+    }
+  }, [depositRequests, currentUser?.id, currentUser?.email, transactions, applyServerWallet, showToast]);
+
+  // Live polling & Firestore onSnapshot sync for pending deposits, wallet balance, and notifications
+  useEffect(() => {
+    if (!currentUser?.id) return;
+
+    const pollUpdates = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      const tok = localStorage.getItem('apex_session_token');
+      if (!tok) return;
+      const headers = { Authorization: `Bearer ${tok}` };
+      const reqEndpoint =
+        currentUser.role === 'admin' ? '/api/deposits/requests' : '/api/deposits/requests/mine';
+
+      fetch(reqEndpoint, { headers })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (Array.isArray(data?.requests)) {
+            setDepositRequests(data.requests);
+          }
+        })
+        .catch(() => {});
+
+      fetch(`/api/wallet/${encodeURIComponent(currentUser.id)}`, { headers })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (data?.wallet && typeof data.wallet.usd === 'number') {
+            applyServerWallet(data.wallet, currentUser.id);
+          }
+        })
+        .catch(() => {});
+
+      fetch('/api/notifications', { headers })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (Array.isArray(data?.notifications) && data.notifications.length > 0) {
+            setAdminNotifications((prev) => {
+              const byId = new Map<string, AdminNotificationMessage>();
+              prev.forEach((n) => byId.set(n.id, n));
+              (data.notifications as AdminNotificationMessage[]).forEach((sn) => {
+                const existing = byId.get(sn.id);
+                if (existing) {
+                  byId.set(sn.id, {
+                    ...sn,
+                    readBy: Array.from(new Set([...(existing.readBy || []), ...(sn.readBy || [])])),
+                    dismissedBy: Array.from(
+                      new Set([...(existing.dismissedBy || []), ...(sn.dismissedBy || [])])
+                    ),
+                  });
+                } else {
+                  byId.set(sn.id, sn);
+                }
+              });
+              return Array.from(byId.values()).sort((a, b) =>
+                String(b.createdAt || '').localeCompare(String(a.createdAt || ''))
+              );
+            });
+          }
+        })
+        .catch(() => {});
+    };
+
+    const intervalId = window.setInterval(pollUpdates, 8000);
+    window.addEventListener('focus', pollUpdates);
+
+    let unsubscribeFirestore = () => {};
+    if (auth.currentUser?.emailVerified) {
+      unsubscribeFirestore = subscribeDepositRequestsFromFirestore(
+        currentUser.role === 'admin',
+        (fsRequests) => {
+          if (fsRequests.length === 0) return;
+          setDepositRequests((prev) => {
+            const byId = new Map<string, DepositRequest>();
+            prev.forEach((r) => byId.set(r.id, r));
+            fsRequests.forEach((fr) => {
+              const existing = byId.get(fr.id);
+              if (!existing || (existing.status === 'pending' && fr.status !== 'pending')) {
+                byId.set(fr.id, fr);
+              }
+            });
+            return Array.from(byId.values()).sort((a, b) =>
+              b.submittedAt.localeCompare(a.submittedAt)
+            );
+          });
+        }
+      );
+    }
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', pollUpdates);
+      unsubscribeFirestore();
+    };
+  }, [currentUser?.id, currentUser?.role, applyServerWallet]);
 
   const requireSignedIn = (actionLabel?: string): boolean => {
     if (!currentUser) {
@@ -4049,7 +4247,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setSessionToken(data.token);
       localStorage.setItem('apex_session_token', data.token);
       setCurrentUser(data.user);
-      if (data.user?.themePreference === 'dark' || data.user?.themePreference === 'light') {
+      if (
+        data.user?.themePreference === 'dark' ||
+        data.user?.themePreference === 'light' ||
+        data.user?.themePreference === 'blue'
+      ) {
         window.dispatchEvent(new CustomEvent('apex:theme-sync', { detail: data.user.themePreference }));
       }
       showToast(data.message || `Welcome back, ${data.user.name}!`, 'success');
@@ -4090,7 +4292,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setSessionToken(data.token);
       localStorage.setItem('apex_session_token', data.token);
       setCurrentUser(data.user);
-      if (data.user?.themePreference === 'dark' || data.user?.themePreference === 'light') {
+      if (
+        data.user?.themePreference === 'dark' ||
+        data.user?.themePreference === 'light' ||
+        data.user?.themePreference === 'blue'
+      ) {
         window.dispatchEvent(new CustomEvent('apex:theme-sync', { detail: data.user.themePreference }));
       }
       showToast(data.message || `Admin console unlocked for ${data.user.name}.`, 'success');
@@ -4429,9 +4635,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           .replace(/[^A-Z0-9_-]/g, '')
           .substring(0, 32);
 
-      const localTheme: 'dark' | 'light' =
-        localStorage.getItem('apex_tesla_theme') === 'light' ? 'light' : 'dark';
-      let resolvedRemoteTheme: 'dark' | 'light' = localTheme;
+      const storedTheme = localStorage.getItem('apex_tesla_theme');
+      const localTheme: 'dark' | 'light' | 'blue' =
+        storedTheme === 'blue' ? 'blue' : storedTheme === 'light' ? 'light' : 'dark';
+      let resolvedRemoteTheme: 'dark' | 'light' | 'blue' = localTheme;
 
       try {
         if (!existingSnap.exists()) {
@@ -4454,7 +4661,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           });
         } else {
           const existingTheme = existingSnap.data()?.themePreference;
-          if (existingTheme === 'dark' || existingTheme === 'light') {
+          if (existingTheme === 'dark' || existingTheme === 'light' || existingTheme === 'blue') {
             resolvedRemoteTheme = existingTheme;
           }
           await setDoc(
@@ -4462,7 +4669,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             {
               name: (data.user?.name || fbUser.displayName || 'Tesla Member').substring(0, 120),
               avatar: (data.user?.avatar || fbUser.photoURL || '').substring(0, 500),
-              ...(existingTheme !== 'dark' && existingTheme !== 'light'
+              ...(existingTheme !== 'dark' && existingTheme !== 'light' && existingTheme !== 'blue'
                 ? { themePreference: localTheme }
                 : {}),
               updatedAt: serverTimestamp(),
@@ -4743,181 +4950,234 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const depositFunds = async (
-    currency: CryptoCurrency | 'USD',
-    amount: number,
-    meta?: { gatewayId?: string; gatewayName?: string; txHash?: string; senderAddress?: string }
-  ): Promise<Transaction> => {
-    if (!requireSignedIn('deposit funds into your vault')) {
-      throw new Error('Authentication required to deposit funds.');
-    }
-
-    let usdValue = amount;
-    if (currency !== 'USD') {
-      const rate = CRYPTO_NETWORKS[currency]?.rateUsd || 1;
-      usdValue = amount * rate;
-    }
-
-    const txId = `tx-${Date.now()}`;
-    const txHash =
-      meta?.txHash ||
-      `0x${Math.random().toString(16).substring(2, 14)}...${Math.random().toString(16).substring(2, 6)}`;
-    const usdEquivRounded = Math.round(usdValue * 100) / 100;
-
-    const descParts = [
-      meta?.gatewayName || `${currency} Instant Gateway`,
-      'Deposit Confirmed',
-      meta?.senderAddress ? `(${meta.senderAddress.slice(0, 6)}...${meta.senderAddress.slice(-4)})` : '',
-    ].filter(Boolean);
-
-    const newTx: Transaction = {
-      id: txId,
-      type: 'deposit',
-      currency,
-      amount,
-      usdEquivalent: usdEquivRounded,
-      timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
-      status: 'completed',
-      txHash,
-      description: descParts.join(' '),
-    };
-
-    if (meta?.gatewayId) {
-      setAutoCryptoGateways((prev) =>
-        prev.map((gw) =>
-          gw.id === meta.gatewayId
-            ? {
-                ...gw,
-                totalProcessedUsd: Number(((gw.totalProcessedUsd || 0) + usdEquivRounded).toFixed(2)),
-                totalTransactionsCount: (gw.totalTransactionsCount || 0) + 1,
-              }
-            : gw
-        )
-      );
-    }
-
-    const addUsdEquiv = Number((currency === 'USD' ? amount : usdValue).toFixed(2));
-    let nextUsdBalance = Number((balances.usd + addUsdEquiv).toFixed(2));
-    let syncedWallet: any = null;
-
-    if (currentUser) {
-      let depositHttpError: string | null = null;
-      try {
-        const res = await fetch('/api/deposits/record', {
-          method: 'POST',
-          headers: getAuthHeaders(),
-          body: JSON.stringify({
-            userId: currentUser.id,
-            currency,
-            amount,
-            usdEquivalent: addUsdEquiv,
-            txHash,
-            gatewayName: meta?.gatewayName || `${currency} Instant Gateway`,
-            source: 'gateway_deposit',
-          }),
-        });
+  const refreshDepositRequests = useCallback(async () => {
+    const tok = localStorage.getItem('apex_session_token');
+    if (!currentUser?.id || !tok) return;
+    try {
+      const endpoint = currentUser.role === 'admin' ? '/api/deposits/requests' : '/api/deposits/requests/mine';
+      const res = await fetch(endpoint, { headers: getAuthHeaders(false) });
+      if (res.ok) {
         const data = await res.json();
-        if (!res.ok) {
-          depositHttpError = data.error || 'Deposit verification rejected by server ledger.';
-        } else if (data.wallet) {
-          syncedWallet = data.wallet;
-          nextUsdBalance = Number(data.wallet.usd ?? nextUsdBalance);
+        if (Array.isArray(data?.requests)) {
+          setDepositRequests(data.requests);
         }
-      } catch {
-        // Offline fallback if server unreachable
       }
-
-      if (depositHttpError) {
-        showToast(depositHttpError, 'error');
-        throw new Error(depositHttpError);
-      }
+    } catch {
+      // ignore transient network errors
     }
+  }, [currentUser?.id, currentUser?.role, getAuthHeaders]);
 
-    setBalances((prev) => {
-      const targetUsd = syncedWallet ? Number(syncedWallet.usd) : prev.usd + addUsdEquiv;
-      if (currency === 'USD') {
-        return { ...prev, usd: targetUsd };
-      } else if (currency === 'BTC') {
-        return { ...prev, btc: prev.btc + amount, usd: targetUsd };
-      } else if (currency === 'USDT') {
-        return { ...prev, usdt: prev.usdt + amount, usd: targetUsd };
-      } else if (currency === 'XRP') {
-        return { ...prev, xrp: prev.xrp + amount, usd: targetUsd };
-      } else if (currency === 'BNB') {
-        return { ...prev, bnb: prev.bnb + amount, usd: targetUsd };
-      }
-      return prev;
-    });
-
-    if (currentUser) {
-      setActiveDepositByUserId((prev) => ({
-        ...prev,
-        [currentUser.id]: syncedWallet
-          ? Number(syncedWallet.depositUsd)
-          : Number(((prev[currentUser.id] || 0) + addUsdEquiv).toFixed(2)),
-      }));
-      if (syncedWallet && typeof syncedWallet.freeWinUsd === 'number') {
-        setFreeWinByUserId((prev) => ({
-          ...prev,
-          [currentUser.id]: Number(syncedWallet.freeWinUsd),
-        }));
-      }
+  const submitManualDepositRequest = async (payload: {
+    methodId: string;
+    methodTitle: string;
+    category: 'fiat' | 'e_wallet' | 'crypto';
+    currency: string;
+    amount: number;
+    usdEquivalent: number;
+    txReference: string;
+    senderDetails?: string;
+    senderNote?: string;
+    proofNote?: string;
+    feePercent?: number;
+  }): Promise<{ success: boolean; request?: DepositRequest; message: string }> => {
+    if (!requireSignedIn('submit a manual deposit receipt for verification')) {
+      return { success: false, message: 'Sign in required to submit a deposit.' };
     }
+    try {
+      const res = await fetch('/api/deposits/requests', {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.request) {
+        const msg = data?.error || 'Could not submit deposit request.';
+        showToast(msg, 'error');
+        return { success: false, message: msg };
+      }
 
-    setTransactions((prev) => [newTx, ...prev]);
+      const created: DepositRequest = {
+        ...data.request,
+        methodCategory: data.request.methodCategory || data.request.category || payload.category,
+      };
+      knownDepositStatusRef.current.set(created.id, created.status);
+      setDepositRequests((prev) => [created, ...prev.filter((r) => r.id !== created.id)]);
 
-    // Update user's total deposited metric & auto-unlock locked $250-threshold spin winnings
-    if (currentUser) {
-      const updatedTotal = Number(((currentUser.totalDepositedUsd || 0) + usdValue).toFixed(2));
-      const updatedUser: User = { ...currentUser, totalDepositedUsd: updatedTotal };
-      setCurrentUser(updatedUser);
-      setAllUsers((prevUsers) =>
-        prevUsers.map((u) => (u.id === currentUser.id ? { ...u, totalDepositedUsd: updatedTotal } : u))
+      if (auth.currentUser?.emailVerified) {
+        void saveDepositRequestToFirestore(created);
+      }
+
+      const pendingTx: Transaction = {
+        id: created.id,
+        type: 'deposit',
+        currency: (created.currency as CryptoCurrency | 'USD') || 'USD',
+        amount: created.amount,
+        usdEquivalent: created.netUsd,
+        timestamp: created.submittedAt.replace('T', ' ').substring(0, 16),
+        status: 'pending',
+        txHash: created.txReference,
+        description: `${created.methodTitle} — Pending Admin Confirmation`,
+      };
+      setTransactions((prev) => [pendingTx, ...prev.filter((t) => t.id !== pendingTx.id)]);
+
+      showToast(
+        `Deposit receipt "${created.txReference}" submitted ($${created.netUsd.toLocaleString()}). Balance credits once an administrator confirms receipt.`,
+        'info'
       );
-      if (canAccessAdminFirestore()) {
-        void saveManagedUserToFirestore(updatedUser);
-      }
+      return {
+        success: true,
+        request: created,
+        message: data.message || 'Deposit queued for administrator confirmation.',
+      };
+    } catch {
+      const msg = 'Unable to reach deposit verification server. Please try again.';
+      showToast(msg, 'error');
+      return { success: false, message: msg };
+    }
+  };
 
-      const lockedAmt = lockedWinsByUserId[currentUser.id] || 0;
-      if (updatedTotal >= MIN_DEPOSIT_TO_ACTIVATE_WINS_USD && lockedAmt > 0) {
-        creditFreeWinUsd(lockedAmt, currentUser.id);
-        setLockedWinsByUserId((prev) => ({ ...prev, [currentUser.id]: 0 }));
-        const unlockTx: Transaction = {
-          id: `tx-unlock-${Date.now()}`,
-          type: 'promotion_win',
-          currency: 'USD',
-          amount: lockedAmt,
-          usdEquivalent: lockedAmt,
-          timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
-          status: 'completed',
-          txHash: `0x${Math.random().toString(16).substring(2, 12)}...unlk`,
-          description: `Activated $${lockedAmt.toFixed(2)} Locked Spin/Promo Winnings ($250 Min Deposit Verified)`,
-        };
-        setTransactions((prev) => [unlockTx, ...prev]);
-        showToast(
-          `🔓 $${lockedAmt.toLocaleString()} locked promotional winnings activated & moved to your spendable vault!`,
-          'success'
-        );
-      }
-
-      // Dispatch .env SMTP email notification for completed deposit
-      fetch('/api/notifications/deposit', {
+  const reviewDepositRequest = async (
+    requestId: string,
+    decision: 'approve' | 'reject',
+    options?: { confirmedTxReference?: string; adminNote?: string; rejectionReason?: string }
+  ): Promise<{ success: boolean; request?: DepositRequest; message: string }> => {
+    if (!currentUser || currentUser.role !== 'admin') {
+      const msg = 'Only verified administrators can confirm and approve deposits.';
+      showToast(msg, 'error');
+      return { success: false, message: msg };
+    }
+    try {
+      const res = await fetch(`/api/deposits/requests/${encodeURIComponent(requestId)}/review`, {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({
-          email: currentUser.email,
-          name: currentUser.name,
-          currency,
-          amount,
-          usdEquivalent: usdEquivRounded,
-          txHash,
-          newBalanceUsd: nextUsdBalance,
+          decision,
+          confirmedTxReference: options?.confirmedTxReference,
+          adminNote: options?.adminNote,
+          rejectionReason: options?.rejectionReason,
         }),
-      }).catch(() => {});
-    }
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.request) {
+        const msg = data?.error || 'Failed to review deposit request.';
+        showToast(msg, 'error');
+        return { success: false, message: msg };
+      }
 
-    showToast(`Deposit of ${amount} ${currency} (~$${Math.round(usdValue).toLocaleString()}) credited to your vault!`, 'success');
-    return newTx;
+      const updatedReq: DepositRequest = {
+        ...data.request,
+        methodCategory: data.request.methodCategory || data.request.category || 'fiat',
+      };
+      setDepositRequests((prev) => prev.map((r) => (r.id === updatedReq.id ? updatedReq : r)));
+
+      if (auth.currentUser?.emailVerified) {
+        void updateDepositRequestStatusInFirestore(updatedReq.id, {
+          status: updatedReq.status as 'approved' | 'rejected',
+          reviewedAt: updatedReq.reviewedAt || new Date().toISOString(),
+          reviewedByAdminEmail: updatedReq.reviewedByAdminEmail || currentUser.email,
+          confirmedTxReference: updatedReq.confirmedTxReference,
+          adminNote: updatedReq.adminNote,
+          rejectionReason: updatedReq.rejectionReason,
+        });
+      }
+
+      if (currentUser.id === updatedReq.userId) {
+        toastedDepositOutcomesRef.current.add(`${updatedReq.id}:${updatedReq.status}`);
+        try {
+          localStorage.setItem(
+            'apex_toasted_deposit_outcomes_v1',
+            JSON.stringify(Array.from(toastedDepositOutcomesRef.current).slice(-120))
+          );
+        } catch {
+          // ignore storage quota
+        }
+      }
+
+      if (decision === 'approve') {
+        if (data.wallet) {
+          applyServerWallet(data.wallet, updatedReq.userId);
+        }
+        const netUsdAdded = Number(updatedReq.netUsd) || 0;
+
+        setAllUsers((prevUsers) =>
+          prevUsers.map((u) =>
+            u.id === updatedReq.userId
+              ? { ...u, totalDepositedUsd: Number(((u.totalDepositedUsd || 0) + netUsdAdded).toFixed(2)) }
+              : u
+          )
+        );
+
+        if (currentUser.id === updatedReq.userId) {
+          const updatedTotal = Number(((currentUser.totalDepositedUsd || 0) + netUsdAdded).toFixed(2));
+          setCurrentUser((prev) => (prev ? { ...prev, totalDepositedUsd: updatedTotal } : prev));
+          const lockedAmt = lockedWinsByUserId[currentUser.id] || 0;
+          if (updatedTotal >= MIN_DEPOSIT_TO_ACTIVATE_WINS_USD && lockedAmt > 0) {
+            creditFreeWinUsd(lockedAmt, currentUser.id);
+            setLockedWinsByUserId((prev) => ({ ...prev, [currentUser.id]: 0 }));
+          }
+        }
+
+        setTransactions((prev) => {
+          const exists = prev.some((t) => t.id === updatedReq.id);
+          if (exists) {
+            return prev.map((t) =>
+              t.id === updatedReq.id
+                ? {
+                    ...t,
+                    status: 'completed',
+                    txHash: updatedReq.confirmedTxReference || updatedReq.txReference,
+                    description: `${updatedReq.methodTitle} — Admin Verified Deposit`,
+                  }
+                : t
+            );
+          }
+          if (currentUser.id === updatedReq.userId) {
+            return [
+              {
+                id: updatedReq.id,
+                type: 'deposit',
+                currency: (updatedReq.currency as CryptoCurrency | 'USD') || 'USD',
+                amount: updatedReq.amount,
+                usdEquivalent: updatedReq.netUsd,
+                timestamp: (updatedReq.reviewedAt || new Date().toISOString()).replace('T', ' ').substring(0, 16),
+                status: 'completed',
+                txHash: updatedReq.confirmedTxReference || updatedReq.txReference,
+                description: `${updatedReq.methodTitle} — Admin Verified Deposit`,
+              },
+              ...prev,
+            ];
+          }
+          return prev;
+        });
+
+        showToast(
+          data.message || `Deposit Confirmed: $${netUsdAdded.toLocaleString()} credited to ${updatedReq.userName}'s balance and notification sent.`,
+          'success'
+        );
+      } else {
+        setTransactions((prev) =>
+          prev.map((t) =>
+            t.id === updatedReq.id
+              ? {
+                  ...t,
+                  status: 'rejected',
+                  description: `${updatedReq.methodTitle} — Declined (${updatedReq.rejectionReason || 'Unverified'})`,
+                }
+              : t
+          )
+        );
+        showToast(
+          data.message || `Deposit ${updatedReq.id} rejected and ${updatedReq.userName} notified.`,
+          'info'
+        );
+      }
+
+      return { success: true, request: updatedReq, message: data.message || 'Review saved.' };
+    } catch {
+      const msg = 'Network error processing deposit review.';
+      showToast(msg, 'error');
+      return { success: false, message: msg };
+    }
   };
 
   const addVehicle = (vehicleData: Omit<TeslaVehicle, 'id' | 'userId'>) => {
@@ -8179,102 +8439,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast('All platform page displays and features reset to ON.', 'success');
   };
 
-  // ==========================================
-  // AUTOMATED CRYPTO & WEB3 PAYMENT GATEWAYS CMS
-  // ==========================================
-
-  const persistGatewaysNow = (nextGateways: AutoCryptoGateway[]) => {
-    const publicCopy = sanitizeGatewaysForPublic(nextGateways);
-    localStorage.setItem('apex_auto_crypto_gateways', JSON.stringify(nextGateways));
-    fetch('/api/admin/state', {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({
-        sections: {
-          auto_gateways: nextGateways,
-          deposit_gateways: publicCopy,
-        },
-      }),
-    }).catch(() => {});
-
-    if (canAccessAdminFirestore()) {
-      void saveAdminSectionToFirestore('auto_gateways', nextGateways);
-      void saveAdminSectionToFirestore('deposit_gateways', publicCopy);
-    }
-  };
-
-  const updateAutoCryptoGateway = (id: string, updates: Partial<AutoCryptoGateway>) => {
-    setAutoCryptoGateways((prev) => {
-      const next = prev.map((gw) => (gw.id === id ? { ...gw, ...updates } : gw));
-      persistGatewaysNow(next);
-      return next;
-    });
-    showToast('Payment gateway updated & synchronized successfully!', 'success');
-  };
-
-  const addAutoCryptoGateway = (gateway: Omit<AutoCryptoGateway, 'id' | 'totalProcessedUsd' | 'totalTransactionsCount'>) => {
-    const prefix =
-      gateway.providerType === 'metamask'
-        ? 'gw-metamask'
-        : gateway.providerType === 'trust_wallet'
-        ? 'gw-trust'
-        : `gw-${gateway.network.toLowerCase()}`;
-    const newGw: AutoCryptoGateway = {
-      ...gateway,
-      id: `${prefix}-${Date.now().toString(36)}`,
-      totalProcessedUsd: 0,
-      totalTransactionsCount: 0,
-      lastPingSuccess: true,
-      lastPingAt: new Date().toISOString(),
-    };
-    setAutoCryptoGateways((prev) => {
-      const next = [...prev, newGw];
-      persistGatewaysNow(next);
-      return next;
-    });
-    showToast(`Added new gateway: ${newGw.name}`, 'success');
-  };
-
-  const deleteAutoCryptoGateway = (id: string) => {
-    try {
-      const raw = localStorage.getItem('apex_deleted_gateway_ids_v1');
-      const existing = safeJsonParse<string[]>(raw, []);
-      if (!existing.includes(id)) {
-        localStorage.setItem('apex_deleted_gateway_ids_v1', JSON.stringify([...existing, id]));
-      }
-    } catch {
-      // ignore
-    }
-    setAutoCryptoGateways((prev) => {
-      const next = prev.filter((gw) => gw.id !== id);
-      persistGatewaysNow(next);
-      return next;
-    });
-    showToast('Payment gateway removed.', 'info');
-  };
-
-  const testAutoCryptoGatewayPing = async (id: string): Promise<{ success: boolean; latencyMs: number; message: string }> => {
-    const gw = autoCryptoGateways.find((g) => g.id === id);
-    if (!gw) {
-      return { success: false, latencyMs: 0, message: 'Gateway not found' };
-    }
-    const start = Date.now();
-    await new Promise((r) => setTimeout(r, 400 + Math.random() * 250));
-    const latencyMs = Date.now() - start;
-    const nowIso = new Date().toISOString();
-
-    updateAutoCryptoGateway(id, {
-      lastPingSuccess: true,
-      lastPingAt: nowIso,
-    });
-
-    return {
-      success: true,
-      latencyMs,
-      message: `Node Ping 200 OK (${latencyMs}ms) • Webhook handshake verified for ${gw.network} receiver: ${gw.receivingAddress.substring(0, 10)}...`,
-    };
-  };
-
 
   const purchaseScratchCard = async (tier: ScratchCardTier): Promise<{
     success: boolean;
@@ -9860,8 +10024,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     streak_config: dailyStreakConfig,
     cron_jobs_config: cronJobsConfig,
     smtp_config: smtpConfig,
-    auto_gateways: autoCryptoGateways,
-    deposit_gateways: sanitizeGatewaysForPublic(autoCryptoGateways),
     won_prizes: wonPrizes,
     business_certificates: businessCertificates,
     blog_posts: blogPosts,
@@ -10086,7 +10248,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     dailyStreakConfig,
     cronJobsConfig,
     smtpConfig,
-    autoCryptoGateways,
     wonPrizes,
     seoSettings,
     businessCertificates,
@@ -11848,7 +12009,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setRole,
         toggle2FA,
         updatePin,
-        depositFunds,
+        depositRequests,
+        refreshDepositRequests,
+        submitManualDepositRequest,
+        reviewDepositRequest,
         addVehicle,
         bookService,
         stakeInPool,
@@ -11985,12 +12149,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         featureToggles,
         updateFeatureToggles,
         resetFeatureToggles,
-        // Automated Crypto Payment Gateways
-        autoCryptoGateways,
-        updateAutoCryptoGateway,
-        addAutoCryptoGateway,
-        deleteAutoCryptoGateway,
-        testAutoCryptoGatewayPing,
         // Verified Customer Reviews
         reviews,
         addReview,

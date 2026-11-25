@@ -4,6 +4,7 @@
  */
 
 import React, { useState } from 'react';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { AppProvider, useApp } from './context/AppContext';
 import { LanguageProvider } from './context/LanguageContext';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
@@ -90,7 +91,8 @@ const resolveTabFromLocation = (): string => {
 
 const MainAppContent: React.FC = () => {
   const { currentUser, userRole, toastMessage, sitePages, siteSettings, featureToggles, showToast, trackVisitorAction, setActiveRouteTab } = useApp();
-  const { isLight } = useTheme();
+  const { isLight, isBlue } = useTheme();
+  const prefersReducedMotion = useReducedMotion();
 
   const [activeTab, setActiveTabState] = useState<string>(() => resolveTabFromLocation());
   const [isDepositModalOpen, setIsDepositModalOpen] = useState(false);
@@ -241,7 +243,15 @@ const MainAppContent: React.FC = () => {
     activeTab !== 'home' && activeTab !== 'admin' && !isTabEnabled(activeTab, featureToggles);
 
   return (
-    <div className={`min-h-screen w-full max-w-[100vw] overflow-x-clip flex flex-col transition-colors duration-200 selection:bg-red-600 selection:text-white ${isLight ? 'bg-slate-50 text-slate-900' : 'bg-[#07090e] text-slate-100'}`}>
+    <div
+      className={`min-h-screen w-full max-w-[100vw] overflow-x-clip flex flex-col transition-colors duration-200 ${
+        isBlue
+          ? 'bg-[#f4f8ff] text-slate-900 selection:bg-blue-600 selection:text-white'
+          : isLight
+          ? 'bg-slate-50 text-slate-900 selection:bg-red-600 selection:text-white'
+          : 'bg-[#07090e] text-slate-100 selection:bg-red-600 selection:text-white'
+      }`}
+    >
       {/* Proof-of-fair Live Winning Ticker Bar */}
       {featureToggles.enableLiveTickerBar !== false && (
         <LiveWinningTicker
@@ -299,29 +309,43 @@ const MainAppContent: React.FC = () => {
           </div>
         )}
 
-        {activeRouteDisabled ? (
-          <div className="max-w-2xl mx-auto px-4 py-20 text-center space-y-5">
-            <div className="w-16 h-16 rounded-3xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mx-auto text-amber-400">
-              <Lock className="w-8 h-8" />
-            </div>
-            <div className="space-y-2">
-              <h2 className="font-heading text-2xl font-black">
-                {TAB_DISPLAY_LABELS[activeTab] || 'Section'} is Temporarily Paused
-              </h2>
-              <p className={`text-sm ${isLight ? 'text-slate-600' : 'text-zinc-400'}`}>
-                This module has been toggled off in the Administrator Feature &amp; Page Controls. Check back soon or explore active sections from Home.
-              </p>
-            </div>
-            <button
-              onClick={() => setActiveTab('home')}
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs shadow-lg transition"
-            >
-              <Home className="w-4 h-4" />
-              <span>Return Home</span>
-            </button>
-          </div>
-        ) : (
-          <>
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div
+            key={activeRouteDisabled ? `paused-${activeTab}` : activeTab}
+            initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 12, scale: 0.994 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -8, scale: 0.996 }}
+            transition={{
+              duration: prefersReducedMotion ? 0.08 : 0.22,
+              ease: [0.22, 1, 0.36, 1],
+            }}
+            className="w-full"
+          >
+            {activeRouteDisabled ? (
+              <div className="max-w-2xl mx-auto px-4 py-20 text-center space-y-5">
+                <div className="w-16 h-16 rounded-3xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mx-auto text-amber-400">
+                  <Lock className="w-8 h-8" />
+                </div>
+                <div className="space-y-2">
+                  <h2 className="font-heading text-2xl font-black">
+                    {TAB_DISPLAY_LABELS[activeTab] || 'Section'} is Temporarily Paused
+                  </h2>
+                  <p className={`text-sm ${isLight ? 'text-slate-600' : 'text-zinc-400'}`}>
+                    This module has been toggled off in the Administrator Feature &amp; Page Controls. Check back soon or explore active sections from Home.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setActiveTab('home')}
+                  className={`inline-flex items-center gap-2 px-6 py-3 rounded-2xl text-white font-bold text-xs shadow-lg transition ${
+                    isBlue ? 'bg-blue-600 hover:bg-blue-700' : 'bg-red-600 hover:bg-red-500'
+                  }`}
+                >
+                  <Home className="w-4 h-4" />
+                  <span>Return Home</span>
+                </button>
+              </div>
+            ) : (
+              <>
         {activeTab === 'home' && (
           <div className="space-y-12">
             <Hero
@@ -541,8 +565,10 @@ const MainAppContent: React.FC = () => {
             }}
           />
         )}
-          </>
-        )}
+              </>
+            )}
+          </motion.div>
+        </AnimatePresence>
       </main>
 
       {/* Footer */}
@@ -606,10 +632,18 @@ const MainAppContent: React.FC = () => {
 
       {/* Global Toast Notification */}
       {toastMessage && (
-        <div className="fixed top-24 right-4 z-50 max-w-sm p-4 rounded-2xl bg-zinc-950/95 border border-red-500/40 shadow-2xl backdrop-blur-md text-xs text-white flex items-start gap-3 animate-in slide-in-from-top-4 duration-300">
-          {toastMessage.type === 'success' && <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />}
+        <div
+          className={`fixed top-24 right-4 z-50 max-w-sm p-4 rounded-2xl border shadow-2xl backdrop-blur-md text-xs flex items-start gap-3 animate-in slide-in-from-top-4 duration-300 ${
+            isBlue
+              ? 'bg-white/95 border-blue-300 text-slate-900 shadow-blue-900/10'
+              : isLight
+              ? 'bg-white/95 border-slate-200 text-slate-900'
+              : 'bg-zinc-950/95 border-red-500/40 text-white'
+          }`}
+        >
+          {toastMessage.type === 'success' && <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />}
           {toastMessage.type === 'error' && <AlertCircle className="w-5 h-5 text-rose-500 shrink-0 mt-0.5" />}
-          {toastMessage.type === 'info' && <Info className="w-5 h-5 text-cyan-400 shrink-0 mt-0.5" />}
+          {toastMessage.type === 'info' && <Info className={`w-5 h-5 shrink-0 mt-0.5 ${isBlue ? 'text-blue-600' : 'text-cyan-400'}`} />}
           <p className="leading-snug">{toastMessage.text}</p>
         </div>
       )}

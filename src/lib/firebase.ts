@@ -13,6 +13,7 @@ import {
   query,
   where,
   limit,
+  onSnapshot,
   getDocFromServer,
   serverTimestamp,
 } from 'firebase/firestore';
@@ -27,7 +28,7 @@ import {
 } from 'firebase/storage';
 import firebaseConfig from '../../firebase-applet-config.json';
 import {
-  AutoCryptoGateway,
+  DepositRequest,
   EngagementActivityRecord,
   MarketingBanner,
   MediaAssetRecord,
@@ -185,17 +186,9 @@ export const PUBLIC_ADMIN_SETTING_SECTIONS = [
 
 export const PROTECTED_ADMIN_SETTING_SECTIONS = [
   'smtp_config',
-  'auto_gateways',
   'won_prizes',
   'engagement_rewards',
 ] as const;
-
-export function sanitizeGatewaysForPublic(gateways: AutoCryptoGateway[]): AutoCryptoGateway[] {
-  return gateways.map((gw) => ({
-    ...gw,
-    webhookSecret: '',
-  }));
-}
 
 const BOOTSTRAPPED_ADMIN_EMAILS = new Set([
   'emmanuelbrown021@gmail.com',
@@ -1254,5 +1247,169 @@ export async function loadEngagementActivitiesFromFirestore(
   }
 }
 
+// ---------- MANUAL DEPOSIT REQUESTS (`/deposit_requests/{requestId}`) ----------
+
+export async function saveDepositRequestToFirestore(
+  reqItem: DepositRequest
+): Promise<{ synced: boolean; reason?: string }> {
+  if (!auth.currentUser || !auth.currentUser.emailVerified) {
+    return { synced: false, reason: 'verified_auth_required' };
+  }
+  const safeId = toSafeFirestoreId(reqItem.id, 'dep_req');
+  const path = `deposit_requests/${safeId}`;
+  const methodCategory =
+    reqItem.methodCategory === 'crypto' || reqItem.methodCategory === 'e_wallet'
+      ? reqItem.methodCategory
+      : 'fiat';
+
+  const payload: Record<string, unknown> = {
+    id: safeId,
+    userId: auth.currentUser.uid,
+    userName: (reqItem.userName || auth.currentUser.displayName || 'Apex Member').slice(0, 120),
+    userEmail: (reqItem.userEmail || auth.currentUser.email || 'member@apex-tesla.io').slice(0, 200),
+    methodId: (reqItem.methodId || 'manual-wire').slice(0, 128),
+    methodTitle: (reqItem.methodTitle || 'Manual Treasury Deposit').slice(0, 140),
+    methodCategory,
+    currency: (reqItem.currency || 'USD').toUpperCase().slice(0, 16),
+    amount: Math.max(0.000001, Math.min(50000000, Number(reqItem.amount) || 1)),
+    usdEquivalent: Math.max(0.01, Math.min(50000000, Number(reqItem.usdEquivalent) || 1)),
+    feeUsd: Math.max(0, Math.min(10000000, Number(reqItem.feeUsd) || 0)),
+    netUsd: Math.max(0.01, Math.min(50000000, Number(reqItem.netUsd) || 1)),
+    txReference: (reqItem.txReference || 'REF-PENDING').trim().slice(0, 200),
+    status: 'pending',
+    submittedAt: (reqItem.submittedAt || new Date().toISOString()).slice(0, 64),
+    createdAt: serverTimestamp(),
+  };
+
+  if (reqItem.senderDetails) {
+    payload.senderDetails = String(reqItem.senderDetails).trim().slice(0, 200);
+  }
+  if (reqItem.senderNote) {
+    payload.senderNote = String(reqItem.senderNote).trim().slice(0, 300);
+  }
+  if (reqItem.proofNote) {
+    payload.proofNote = String(reqItem.proofNote).trim().slice(0, 500);
+  }
+
+  try {
+    await setDoc(doc(db, 'deposit_requests', safeId), payload);
+    return { synced: true };
+  } catch (err) {
+    try {
+      handleFirestoreError(err, OperationType.CREATE, path);
+    } catch (wrapped) {
+      return { synced: false, reason: wrapped instanceof Error ? wrapped.message : String(wrapped) };
+    }
+  }
+}
+
+export async function updateDepositRequestStatusInFirestore(
+  requestId: string,
+  updates: {
+    status: 'approved' | 'rejected';
+    reviewedAt: string;
+    reviewedByAdminEmail: string;
+    confirmedTxReference?: string;
+    adminNote?: string;
+    rejectionReason?: string;
+  }
+): Promise<{ synced: boolean; reason?: string }> {
+  if (!auth.currentUser || !auth.currentUser.emailVerified) {
+    return { synced: false, reason: 'verified_auth_required' };
+  }
+  const safeId = toSafeFirestoreId(requestId, 'dep_req');
+  const path = `deposit_requests/${safeId}`;
+  try {
+    const payload: Record<string, unknown> = {
+      status: updates.status,
+      reviewedAt: updates.reviewedAt.slice(0, 64),
+      reviewedByAdminEmail: updates.reviewedByAdminEmail.slice(0, 200),
+    };
+    if (updates.confirmedTxReference) {
+      payload.confirmedTxReference = String(updates.confirmedTxReference).trim().slice(0, 200);
+    }
+    if (updates.adminNote) {
+      payload.adminNote = String(updates.adminNote).trim().slice(0, 300);
+    }
+    if (updates.rejectionReason) {
+      payload.rejectionReason = String(updates.rejectionReason).trim().slice(0, 300);
+    }
+    await updateDoc(doc(db, 'deposit_requests', safeId), payload);
+    return { synced: true };
+  } catch (err) {
+    try {
+      handleFirestoreError(err, OperationType.UPDATE, path);
+    } catch (wrapped) {
+      return { synced: false, reason: wrapped instanceof Error ? wrapped.message : String(wrapped) };
+    }
+  }
+}
+
+export function subscribeDepositRequestsFromFirestore(
+  isAdminUser: boolean,
+  onUpdate: (requests: DepositRequest[]) => void
+): () => void {
+  if (!auth.currentUser || !auth.currentUser.emailVerified) {
+    return () => {};
+  }
+  const path = 'deposit_requests';
+  const refCol = collection(db, path);
+  const targetQuery = isAdminUser
+    ? query(refCol, limit(200))
+    : query(refCol, where('userId', '==', auth.currentUser.uid), limit(100));
+
+  return onSnapshot(
+    targetQuery,
+    (snapshot) => {
+      const list: DepositRequest[] = [];
+      snapshot.forEach((docSnap) => {
+        const d = docSnap.data();
+        if (!d || !d.txReference) return;
+        list.push({
+          id: String(d.id || docSnap.id),
+          userId: String(d.userId || ''),
+          userName: String(d.userName || 'Apex Member'),
+          userEmail: String(d.userEmail || ''),
+          methodId: String(d.methodId || ''),
+          methodTitle: String(d.methodTitle || 'Manual Deposit'),
+          methodCategory:
+            d.methodCategory === 'crypto' || d.methodCategory === 'e_wallet' ? d.methodCategory : 'fiat',
+          currency: String(d.currency || 'USD').toUpperCase() as DepositRequest['currency'],
+          amount: Number(d.amount ?? 0),
+          usdEquivalent: Number(d.usdEquivalent ?? 0),
+          feeUsd: Number(d.feeUsd ?? 0),
+          netUsd: Number(d.netUsd ?? 0),
+          txReference: String(d.txReference),
+          senderDetails: typeof d.senderDetails === 'string' && d.senderDetails ? d.senderDetails : undefined,
+          senderNote: typeof d.senderNote === 'string' && d.senderNote ? d.senderNote : undefined,
+          proofNote: typeof d.proofNote === 'string' && d.proofNote ? d.proofNote : undefined,
+          status:
+            d.status === 'approved' || d.status === 'rejected' ? d.status : 'pending',
+          submittedAt: String(d.submittedAt || new Date().toISOString()),
+          reviewedAt: typeof d.reviewedAt === 'string' && d.reviewedAt ? d.reviewedAt : undefined,
+          reviewedByAdminEmail:
+            typeof d.reviewedByAdminEmail === 'string' && d.reviewedByAdminEmail
+              ? d.reviewedByAdminEmail
+              : undefined,
+          confirmedTxReference:
+            typeof d.confirmedTxReference === 'string' && d.confirmedTxReference
+              ? d.confirmedTxReference
+              : undefined,
+          adminNote: typeof d.adminNote === 'string' && d.adminNote ? d.adminNote : undefined,
+          rejectionReason:
+            typeof d.rejectionReason === 'string' && d.rejectionReason ? d.rejectionReason : undefined,
+        });
+      });
+      onUpdate(list.sort((a, b) => b.submittedAt.localeCompare(a.submittedAt)));
+    },
+    (err) => {
+      try {
+        handleFirestoreError(err, OperationType.GET, path);
+      } catch {
+        // surfaced cleanly without crashing React listener
+      }
+    }
+  );
+}
 
 

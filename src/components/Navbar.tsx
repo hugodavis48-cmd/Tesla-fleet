@@ -83,7 +83,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     toggleSoundEnabled,
   } = useApp();
   const { currentLanguageOption, setLanguage, languages, t } = useLanguage();
-  const { isLight, toggleTheme } = useTheme();
+  const { theme, setTheme, isLight, isBlue } = useTheme();
   const prefersReducedMotion = useReducedMotion();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
@@ -726,23 +726,53 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                   {/* Preferences: Theme Toggle & Language Selector */}
                   <div className="px-3 py-2.5 border-b border-zinc-800 space-y-2">
-                    {/* Theme Switcher Toggle */}
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2 text-xs text-zinc-300">
-                        {isLight ? (
-                          <Sun className="w-4 h-4 text-amber-400" />
-                        ) : (
-                          <Moon className="w-4 h-4 text-indigo-400" />
-                        )}
-                        <span className="font-medium">Theme</span>
+                    {/* Theme Switcher Selector (Dark / Light / Blue & White) */}
+                    <div>
+                      <div className="flex items-center justify-between text-xs text-zinc-300 mb-1.5">
+                        <div className="flex items-center gap-2">
+                          {isBlue ? (
+                            <Palette className="w-4 h-4 text-blue-500" />
+                          ) : isLight ? (
+                            <Sun className="w-4 h-4 text-amber-400" />
+                          ) : (
+                            <Moon className="w-4 h-4 text-indigo-400" />
+                          )}
+                          <span className="font-medium">Color Theme</span>
+                        </div>
+                        <span className="text-[10px] text-zinc-500 uppercase font-mono">
+                          {theme === 'blue' ? 'Blue & White' : theme === 'light' ? 'Light' : 'Dark'}
+                        </span>
                       </div>
-                      <button
-                        onClick={toggleTheme}
-                        className="px-2.5 py-1 rounded-lg bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-xs font-semibold text-zinc-200 hover:text-white flex items-center gap-1.5 transition"
-                      >
-                        <span>{isLight ? 'Light Mode' : 'Dark Mode'}</span>
-                        <span className="text-[10px] text-zinc-500">Toggle</span>
-                      </button>
+                      <div className="grid grid-cols-3 gap-1.5">
+                        {(
+                          [
+                            { id: 'dark', label: 'Dark', Icon: Moon },
+                            { id: 'light', label: 'Light', Icon: Sun },
+                            { id: 'blue', label: 'Blue', Icon: Palette },
+                          ] as const
+                        ).map(({ id, label, Icon }) => {
+                          const active = theme === id;
+                          return (
+                            <button
+                              key={`desk-theme-${id}`}
+                              type="button"
+                              onClick={() => setTheme(id)}
+                              className={`py-1.5 px-2 rounded-lg text-[11px] font-semibold flex items-center justify-center gap-1.5 border transition cursor-pointer ${
+                                active
+                                  ? id === 'blue'
+                                    ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
+                                    : isBlue
+                                    ? 'bg-blue-600 border-blue-600 text-white'
+                                    : 'bg-red-600/30 border-red-500 text-white'
+                                  : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white'
+                              }`}
+                            >
+                              <Icon className="w-3.5 h-3.5 shrink-0" />
+                              <span>{label}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
 
                     {/* UI Sound Feedback Toggle */}
@@ -1291,27 +1321,53 @@ export const Navbar: React.FC<NavbarProps> = ({
                         Display &amp; Regional Preferences
                       </span>
 
-                      <button
-                        type="button"
-                        onClick={toggleTheme}
-                        className={`w-full min-h-[48px] px-3.5 py-2.5 rounded-xl border flex items-center justify-between gap-3 font-semibold text-xs transition cursor-pointer ${
-                          isLight
-                            ? 'bg-white border-slate-300 text-slate-900 hover:bg-slate-100'
-                            : 'bg-zinc-950 border-zinc-800 text-zinc-100 hover:border-zinc-700'
-                        }`}
-                      >
-                        <span className="flex items-center gap-2.5">
-                          {isLight ? (
-                            <Sun className="w-4 h-4 text-amber-500" />
-                          ) : (
-                            <Moon className="w-4 h-4 text-indigo-400" />
-                          )}
-                          <span>{isLight ? 'Light Mode Active' : 'Dark Mode Active'}</span>
-                        </span>
-                        <span className="text-[11px] font-mono text-red-400">
-                          Switch to {isLight ? 'Dark' : 'Light'}
-                        </span>
-                      </button>
+                      <div>
+                        <div className="flex items-center justify-between text-xs font-medium text-zinc-400 mb-2">
+                          <span className="flex items-center gap-1.5">
+                            {isBlue ? (
+                              <Palette className="w-3.5 h-3.5 text-blue-600" />
+                            ) : isLight ? (
+                              <Sun className="w-3.5 h-3.5 text-amber-500" />
+                            ) : (
+                              <Moon className="w-3.5 h-3.5 text-indigo-400" />
+                            )}
+                            <span>Color Theme</span>
+                          </span>
+                          <span className="font-mono text-[11px] uppercase">
+                            {theme === 'blue' ? 'Blue & White' : theme === 'light' ? 'Light' : 'Dark'}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2">
+                          {(
+                            [
+                              { id: 'dark', label: 'Dark', Icon: Moon },
+                              { id: 'light', label: 'Light', Icon: Sun },
+                              { id: 'blue', label: 'Blue & White', Icon: Palette },
+                            ] as const
+                          ).map(({ id, label, Icon }) => {
+                            const active = theme === id;
+                            return (
+                              <button
+                                key={`mob-theme-${id}`}
+                                type="button"
+                                onClick={() => setTheme(id)}
+                                className={`min-h-[44px] px-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 border transition cursor-pointer ${
+                                  active
+                                    ? id === 'blue' || isBlue
+                                      ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
+                                      : 'bg-red-600 border-red-500 text-white shadow-sm'
+                                    : isLight
+                                    ? 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100'
+                                    : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-white'
+                                }`}
+                              >
+                                <Icon className="w-3.5 h-3.5 shrink-0" />
+                                <span className="truncate">{label}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
 
                       <button
                         type="button"

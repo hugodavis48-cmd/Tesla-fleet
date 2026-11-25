@@ -56,7 +56,7 @@ export interface User {
   totalWithdrawnUsd?: number;
   ipAddress?: string;
   deviceInfo?: string;
-  themePreference?: 'dark' | 'light';
+  themePreference?: 'dark' | 'light' | 'blue';
 }
 
 export interface UserKycData {
@@ -212,7 +212,7 @@ export interface Transaction {
   amount: number;
   usdEquivalent: number;
   timestamp: string;
-  status: 'completed' | 'confirming' | 'pending';
+  status: 'completed' | 'confirming' | 'pending' | 'rejected';
   txHash: string;
   description: string;
   invoiceData?: TransactionInvoiceDetails;
@@ -503,6 +503,32 @@ export interface ManualDepositMethod {
   enabled?: boolean;
   requiresProofUpload: boolean;
   network?: string;
+}
+
+export interface DepositRequest {
+  id: string;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  methodId: string;
+  methodTitle: string;
+  methodCategory: 'crypto' | 'fiat' | 'e_wallet';
+  currency: CryptoCurrency | 'USD';
+  amount: number;
+  usdEquivalent: number;
+  feeUsd: number;
+  netUsd: number;
+  senderDetails?: string;
+  senderNote?: string;
+  txReference: string;
+  proofNote?: string;
+  status: 'pending' | 'approved' | 'rejected';
+  submittedAt: string;
+  reviewedAt?: string;
+  reviewedByAdminEmail?: string;
+  confirmedTxReference?: string;
+  adminNote?: string;
+  rejectionReason?: string;
 }
 
 export interface SocialLinkConfig {
@@ -798,34 +824,6 @@ export interface FeatureToggles {
   scratchCardsEnabled?: boolean;
   vehicleSalesEnabled?: boolean;
   investmentsEnabled?: boolean;
-}
-
-export interface AutoCryptoGateway {
-  id: string;
-  name: string;
-  providerType?: 'standard_node' | 'metamask' | 'trust_wallet';
-  network: 'TRC20' | 'ERC20' | 'BTC' | 'ETH' | 'BEP20' | 'XRPL';
-  currency: 'USDT' | 'BTC' | 'ETH' | 'BNB' | 'XRP';
-  symbol: string;
-  receivingAddress: string;
-  rpcEndpoint: string;
-  webhookSecret: string;
-  chainId?: string;
-  chainName?: string;
-  walletConnectProjectId?: string;
-  supportedTokens?: CryptoCurrency[];
-  description?: string;
-  requiredConfirmations: number;
-  minDepositUsd: number;
-  maxDepositUsd: number;
-  feePercent: number;
-  autoCreditEnabled: boolean;
-  autoPayoutEnabled: boolean;
-  status: 'active' | 'testing' | 'disabled';
-  lastPingSuccess?: boolean;
-  lastPingAt?: string;
-  totalProcessedUsd: number;
-  totalTransactionsCount: number;
 }
 
 export interface ReviewItem {

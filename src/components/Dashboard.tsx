@@ -133,6 +133,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
     investInFeaturedStock,
     featureToggles,
     wonPrizes,
+    depositRequests,
+    refreshDepositRequests,
     currencies,
     selectedCurrencyCode,
     selectedCurrency,
@@ -1240,7 +1242,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 <ArrowDownLeft className="w-5 h-5 text-emerald-400" />
                 <span>{formatCurrency(totalDepositsUsd)}</span>
               </div>
-              <span className="text-[10px] text-zinc-500 block">Verified on-chain via XRP, USDT, BTC, BNB</span>
+              <span className="text-[10px] text-zinc-500 block">Admin-verified Bank Wire, CashApp, Zelle, BTC &amp; USDT</span>
             </div>
 
             <div className="p-5 rounded-3xl bg-zinc-950 border border-zinc-800 space-y-1 shadow-lg">
@@ -1301,7 +1303,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
           <div className="p-6 rounded-3xl bg-gradient-to-r from-red-950/40 via-zinc-900 to-zinc-950 border border-red-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <h4 className="font-heading font-bold text-lg text-white">Vault Fundings & Payouts</h4>
-              <p className="text-xs text-zinc-400">Instant funding via XRP, USDT, BNB, BTC, or request secure payout to your external wallet.</p>
+              <p className="text-xs text-zinc-400">Submit manual Bank Wire, CashApp, Zelle, BTC or USDT transfer references for administrator verification, or request a vault payout.</p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <button
@@ -1309,7 +1311,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 className="px-5 py-3 rounded-2xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 text-white font-heading font-bold text-xs shadow-lg shadow-red-950/50 flex items-center gap-2 shrink-0 transition cursor-pointer"
               >
                 <Zap className="w-4 h-4" />
-                <span>Launch Deposit Gateway</span>
+                <span>Submit Manual Deposit</span>
               </button>
               {onOpenWithdraw && (
                 <button
@@ -1322,6 +1324,72 @@ export const Dashboard: React.FC<DashboardProps> = ({
               )}
             </div>
           </div>
+
+          {/* Manual Deposit Verification Queue */}
+          {(() => {
+            const myDeps = depositRequests.filter(
+              (r) =>
+                r.userId === displayUser.id ||
+                (displayUser.email && r.userEmail?.toLowerCase() === displayUser.email.toLowerCase())
+            );
+            if (myDeps.length === 0) return null;
+            return (
+              <div className="rounded-3xl border border-zinc-800 bg-zinc-950 p-5 space-y-3 shadow-lg">
+                <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+                  <div>
+                    <h4 className="font-heading font-bold text-base text-white">
+                      Manual Deposit Verification Queue
+                    </h4>
+                    <p className="text-xs text-zinc-400">
+                      Deposits credit to your vault immediately once confirmed received by an administrator.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void refreshDepositRequests()}
+                    className="px-3 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-xs font-semibold text-zinc-200 flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Clock className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Sync Status</span>
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {myDeps.slice(0, 6).map((req) => (
+                    <div
+                      key={req.id}
+                      className="p-3.5 rounded-2xl bg-zinc-900/70 border border-zinc-800 flex items-start justify-between gap-3 text-xs"
+                    >
+                      <div className="min-w-0 space-y-1">
+                        <span className="font-bold text-white block">{req.methodTitle}</span>
+                        <span className="font-mono text-emerald-400 font-bold block">
+                          {formatCurrency(req.netUsd, { includeCode: true })}
+                        </span>
+                        <span className="text-[10px] font-mono text-zinc-400 block truncate">
+                          Ref: {req.txReference}
+                        </span>
+                        {req.status === 'rejected' && req.rejectionReason && (
+                          <span className="text-[11px] text-rose-400 block">
+                            Declined: {req.rejectionReason}
+                          </span>
+                        )}
+                      </div>
+                      <span
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold uppercase shrink-0 ${
+                          req.status === 'approved'
+                            ? 'bg-emerald-950/60 text-emerald-400 border border-emerald-500/30'
+                            : req.status === 'rejected'
+                            ? 'bg-rose-950/60 text-rose-400 border border-rose-500/30'
+                            : 'bg-amber-950/60 text-amber-400 border border-amber-500/30'
+                        }`}
+                      >
+                        {req.status === 'pending' ? 'Pending Admin' : req.status}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
 
 
           {/* Summary of Transactions Ledger Table with Filtering */}
@@ -1403,7 +1471,17 @@ export const Dashboard: React.FC<DashboardProps> = ({
                             {tx.type === 'deposit' || tx.type === 'promotion_win' || tx.type === 'dividend_claim' || tx.type === 'referral_credit' || tx.type === 'engagement_reward' ? '+' : '-'}
                             {formatCurrency(tx.usdEquivalent, { includeCode: true })}
                           </span>
-                          <span className="text-[10px] text-emerald-400 font-mono block capitalize">{tx.status}</span>
+                          <span
+                            className={`text-[10px] font-mono block capitalize ${
+                              tx.status === 'completed'
+                                ? 'text-emerald-400'
+                                : tx.status === 'rejected'
+                                ? 'text-rose-400'
+                                : 'text-amber-400'
+                            }`}
+                          >
+                            {tx.status === 'pending' ? 'pending verification' : tx.status}
+                          </span>
                         </div>
                         <button
                           type="button"

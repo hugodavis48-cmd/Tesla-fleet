@@ -98,7 +98,6 @@ import {
   WithdrawalSettings,
   WheelReward,
   FeatureToggles,
-  AutoCryptoGateway,
   MarketingBanner,
   BannerSizeType,
   Banner3dPreset,
@@ -113,6 +112,7 @@ import {
   SpinAdminMode,
   CronJobId,
   CronJobConfigItem,
+  DepositRequest,
 } from '../types';
 import { AdminVisitorAnalytics } from './AdminVisitorAnalytics';
 import { AdminSeoFaqManager } from './AdminSeoFaqManager';
@@ -237,7 +237,7 @@ type AdminTab =
   | 'investment_mgmt'
   | 'withdrawals_mgmt'
   | 'stocks_mgmt'
-  | 'auto_gateways'
+  | 'deposits_mgmt'
   | 'spins_cms'
   | 'promo_banners'
   | 'feature_switches'
@@ -284,8 +284,8 @@ const ADMIN_PRIVILEGE_CATALOG: {
   },
   {
     id: 'manage_withdrawals',
-    label: 'Withdrawals & Gateways',
-    description: 'Approve user crypto/wire payouts, $200 rule & Web3 RPC gateways',
+    label: 'Deposit Approvals & Withdrawals',
+    description: 'Confirm received manual deposits, approve user payouts & configure $200 deposit policy',
     color: 'indigo',
   },
   {
@@ -460,12 +460,10 @@ export const AdminDashboard: React.FC = () => {
     featureToggles,
     updateFeatureToggles,
     resetFeatureToggles,
-    // Automated Crypto Gateways & RPC Nodes
-    autoCryptoGateways,
-    updateAutoCryptoGateway,
-    addAutoCryptoGateway,
-    deleteAutoCryptoGateway,
-    testAutoCryptoGatewayPing,
+    // Manual Deposit Approval Queue
+    depositRequests,
+    refreshDepositRequests,
+    reviewDepositRequest,
     // Promotional Marketing Banners & Videos CMS
     marketingBanners,
     createMarketingBanner,
@@ -575,35 +573,13 @@ export const AdminDashboard: React.FC = () => {
   const [bannerSizeFilter, setBannerSizeFilter] = useState<'all' | BannerSizeType>('all');
   const [pendingDeleteBannerId, setPendingDeleteBannerId] = useState<string | null>(null);
 
-  // Auto Crypto & Web3 Gateways Admin Local State
-  const [gatewayNetworkFilter, setGatewayNetworkFilter] = useState<string>('all');
-  const [editingGatewayId, setEditingGatewayId] = useState<string | null>(null);
-  const [gatewayEditDraft, setGatewayEditDraft] = useState<Partial<AutoCryptoGateway>>({});
-  const [pendingDeleteGatewayId, setPendingDeleteGatewayId] = useState<string | null>(null);
-  const [isAddGatewayModalOpen, setIsAddGatewayModalOpen] = useState(false);
-  const [pingingGatewayId, setPingingGatewayId] = useState<string | null>(null);
-  const [showWebhookSecret, setShowWebhookSecret] = useState<{ [id: string]: boolean }>({});
-  const [newGatewayForm, setNewGatewayForm] = useState<Omit<AutoCryptoGateway, 'id' | 'lastPingSuccess' | 'totalProcessedUsd' | 'totalTransactionsCount'>>({
-    name: 'Tether TRC-20 Automated Node',
-    providerType: 'standard_node',
-    network: 'TRC20',
-    currency: 'USDT',
-    symbol: 'USDT-TRC20',
-    receivingAddress: 'TYDzsYUEpvnYmQK4WKnmbukC44FgwTRC20',
-    rpcEndpoint: 'https://api.trongrid.io/jsonrpc',
-    webhookSecret: 'whsec_trc20_' + Math.random().toString(36).substring(2, 10),
-    chainId: '',
-    chainName: '',
-    walletConnectProjectId: '',
-    description: '',
-    requiredConfirmations: 19,
-    minDepositUsd: 20,
-    maxDepositUsd: 100000,
-    feePercent: 0,
-    autoCreditEnabled: true,
-    autoPayoutEnabled: false,
-    status: 'active',
-  });
+  // Manual Deposit Verification Queue Admin State
+  const [depositStatusFilter, setDepositStatusFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('pending');
+  const [depositSearchTerm, setDepositSearchTerm] = useState('');
+  const [depositConfirmedRefs, setDepositConfirmedRefs] = useState<Record<string, string>>({});
+  const [depositAdminNotes, setDepositAdminNotes] = useState<Record<string, string>>({});
+  const [reviewingDepositId, setReviewingDepositId] = useState<string | null>(null);
+  const [selectedDepositRequest, setSelectedDepositRequest] = useState<DepositRequest | null>(null);
 
   // Tesla Car Sales & Nationwide Logistics Admin State
   const [carSalesSubTab, setCarSalesSubTab] = useState<'inventory' | 'won_prizes' | 'shipping' | 'refund_policy' | 'orders' | 'coupons'>('inventory');
@@ -1137,13 +1113,13 @@ export const AdminDashboard: React.FC = () => {
       badge: `${featuredStockPlans.length} Plans`,
     },
     {
-      id: 'auto_gateways',
+      id: 'deposits_mgmt',
       requiredPrivilege: 'manage_withdrawals',
-      label: 'Auto Crypto Gateways & Web3 RPC Nodes',
-      shortLabel: 'Auto Crypto Gateways',
-      description: 'Configure automated blockchain receiving addresses, RPC nodes, webhook secrets, confirmations & latency ping',
-      icon: Server,
-      badge: `${autoCryptoGateways.filter((g) => g.status === 'active').length} Active`,
+      label: 'Pending Deposits',
+      shortLabel: 'Pending Deposits',
+      description: 'Inspect manual deposit submissions, view attached transfer details, and Confirm or Reject to update balances & notify users',
+      icon: ShieldCheck,
+      badge: `${depositRequests.filter((r) => r.status === 'pending').length} Pending`,
     },
     {
       id: 'spins_cms',
@@ -4347,10 +4323,15 @@ export const AdminDashboard: React.FC = () => {
                   >
                     <div className="flex items-start justify-between">
                       <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-heading font-bold text-white text-base">{method.name}</span>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-heading font-bold text-white text-base">
+                            {method.title || method.name}
+                          </span>
                           <span className="px-2 py-0.5 rounded text-[10px] font-mono uppercase bg-zinc-800 text-emerald-400 border border-zinc-700">
-                            {method.currency}
+                            {method.currencySymbol || method.currency}
+                          </span>
+                          <span className="px-2 py-0.5 rounded text-[10px] font-mono uppercase bg-zinc-950 text-cyan-400 border border-zinc-700">
+                            {method.category || 'fiat'}
                           </span>
                         </div>
                         <span className="text-xs text-zinc-400">{method.accountName}</span>
@@ -7851,799 +7832,600 @@ export const AdminDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* 11. Automated Crypto Payment Gateways & RPC Nodes CMS */}
-      {activeAdminTab === 'auto_gateways' && (
+      {/* 11. Pending Deposits View & Verification Queue */}
+      {activeAdminTab === 'deposits_mgmt' && (
         <div className="space-y-6 animate-in fade-in duration-300">
-          {/* Header Panel */}
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 sm:p-6 space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-800 pb-4">
               <div>
-                <h3 className="text-lg font-heading font-black text-white flex items-center gap-2">
-                  <Server className="w-5 h-5 text-emerald-400" />
-                  Automated Web3 Crypto Payment Gateways & RPC Nodes
+                <h3 className="text-lg sm:text-xl font-heading font-black text-white flex items-center gap-2">
+                  <ShieldCheck className="w-5 h-5 text-emerald-400" />
+                  <span>Pending Deposits</span>
                 </h3>
                 <p className="text-xs text-zinc-400 mt-1 max-w-2xl">
-                  Configure live blockchain listeners, receiving addresses, confirmation thresholds, RPC endpoints, and instant auto-credit webhook triggers. Edit, modify, and save changes with persistent state.
+                  Review manual deposit submissions, inspect attached transfer details, and trigger Confirm or Reject to update the user&apos;s balance and dispatch a live user notification.
                 </p>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
                 <button
-                  onClick={() => setIsAddGatewayModalOpen(true)}
-                  className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-emerald-950/40 cursor-pointer"
+                  type="button"
+                  onClick={() => void refreshDepositRequests()}
+                  className="px-3.5 py-2 rounded-xl bg-zinc-950 hover:bg-zinc-800 border border-zinc-700 text-zinc-200 font-bold text-xs flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
                 >
-                  <Plus className="w-4 h-4" />
-                  <span>Add New Gateway</span>
+                  <RefreshCw className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>Refresh List</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveAdminTab('site_editor');
+                    setSiteCmsSubTab('manual_deposits');
+                  }}
+                  className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                >
+                  <CreditCard className="w-3.5 h-3.5" />
+                  <span>Deposit Channels ({manualDepositMethods.filter((m) => m.enabled ?? m.isActive).length})</span>
                 </button>
               </div>
             </div>
 
-            {/* Overall Gateway Analytics Bar */}
+            {/* Summary Metrics */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
               <div className="p-3.5 rounded-xl bg-zinc-950 border border-zinc-800">
-                <span className="text-[10px] text-zinc-500 block uppercase font-mono">Active Nodes</span>
-                <span className="font-heading font-black text-xl text-emerald-400 font-mono">
-                  {autoCryptoGateways.filter((g) => g.status === 'active').length} / {autoCryptoGateways.length}
+                <span className="text-[11px] text-zinc-400 block font-medium">Awaiting Review</span>
+                <span className="font-heading font-black text-xl text-amber-400 font-mono tabular-nums">
+                  {depositRequests.filter((r) => r.status === 'pending').length} Pending
                 </span>
               </div>
               <div className="p-3.5 rounded-xl bg-zinc-950 border border-zinc-800">
-                <span className="text-[10px] text-zinc-500 block uppercase font-mono">Total Auto-Processed</span>
-                <span className="font-heading font-black text-xl text-white font-mono">
-                  ${autoCryptoGateways.reduce((acc, g) => acc + (g.totalProcessedUsd || 0), 0).toLocaleString()}
+                <span className="text-[11px] text-zinc-400 block font-medium">Confirmed Volume</span>
+                <span className="font-heading font-black text-xl text-emerald-400 font-mono tabular-nums">
+                  ${depositRequests
+                    .filter((r) => r.status === 'approved')
+                    .reduce((acc, r) => acc + (Number(r.netUsd) || 0), 0)
+                    .toLocaleString()}
                 </span>
               </div>
               <div className="p-3.5 rounded-xl bg-zinc-950 border border-zinc-800">
-                <span className="text-[10px] text-zinc-500 block uppercase font-mono">Total Auto Credits</span>
-                <span className="font-heading font-black text-xl text-cyan-400 font-mono">
-                  {autoCryptoGateways.reduce((acc, g) => acc + (g.totalTransactionsCount || 0), 0)} Txns
+                <span className="text-[11px] text-zinc-400 block font-medium">Rejected Submissions</span>
+                <span className="font-heading font-black text-xl text-rose-400 font-mono tabular-nums">
+                  {depositRequests.filter((r) => r.status === 'rejected').length} Rejected
                 </span>
               </div>
               <div className="p-3.5 rounded-xl bg-zinc-950 border border-zinc-800">
-                <span className="text-[10px] text-zinc-500 block uppercase font-mono">Webhook Security</span>
-                <span className="font-heading font-black text-xl text-amber-400 font-mono">
-                  HMAC-SHA256
+                <span className="text-[11px] text-zinc-400 block font-medium">Active Deposit Channels</span>
+                <span className="font-heading font-black text-xl text-white font-mono tabular-nums">
+                  {manualDepositMethods.filter((m) => m.enabled ?? m.isActive).length} / {manualDepositMethods.length}
                 </span>
               </div>
             </div>
 
-            {/* Network & Web3 Provider Filter Bar */}
-            <div className="flex items-center gap-1.5 pt-2 overflow-x-auto pb-1">
-              {[
-                { key: 'all', label: 'All Gateways' },
-                { key: 'metamask', label: 'MetaMask Web3' },
-                { key: 'trust_wallet', label: 'Trust Wallet Connect' },
-                { key: 'TRC20', label: 'TRC20' },
-                { key: 'ERC20', label: 'ERC20' },
-                { key: 'BTC', label: 'BTC' },
-                { key: 'ETH', label: 'ETH' },
-                { key: 'BEP20', label: 'BEP20' },
-                { key: 'XRPL', label: 'XRPL' },
-              ].map((item) => {
-                const count =
-                  item.key === 'all'
-                    ? autoCryptoGateways.length
-                    : item.key === 'metamask' || item.key === 'trust_wallet'
-                    ? autoCryptoGateways.filter((g) => g.providerType === item.key).length
-                    : autoCryptoGateways.filter((g) => g.network === item.key).length;
-                return (
-                  <button
-                    key={item.key}
-                    onClick={() => setGatewayNetworkFilter(item.key)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 cursor-pointer transition ${
-                      gatewayNetworkFilter === item.key
-                        ? 'bg-red-600 text-white font-bold'
-                        : 'bg-zinc-950 border border-zinc-800 text-zinc-400 hover:text-white'
-                    }`}
-                  >
-                    <span>{item.label}</span>
-                    <span className="ml-1.5 text-[10px] opacity-70 font-mono">({count})</span>
-                  </button>
-                );
-              })}
+            {/* Filter & Search Bar */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+                {(
+                  [
+                    { key: 'pending', label: 'Pending' },
+                    { key: 'approved', label: 'Confirmed' },
+                    { key: 'rejected', label: 'Rejected' },
+                    { key: 'all', label: 'All Submissions' },
+                  ] as const
+                ).map((item) => {
+                  const count =
+                    item.key === 'all'
+                      ? depositRequests.length
+                      : depositRequests.filter((r) => r.status === item.key).length;
+                  return (
+                    <button
+                      key={item.key}
+                      type="button"
+                      onClick={() => setDepositStatusFilter(item.key)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 cursor-pointer transition whitespace-nowrap ${
+                        depositStatusFilter === item.key
+                          ? 'bg-red-600 text-white font-bold'
+                          : 'bg-zinc-950 border border-zinc-800 text-zinc-400 hover:text-white'
+                      }`}
+                    >
+                      <span>{item.label}</span>
+                      <span className="ml-1.5 text-[11px] opacity-80 font-mono tabular-nums">({count})</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="relative w-full sm:w-72">
+                <Search className="w-3.5 h-3.5 text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={depositSearchTerm}
+                  onChange={(e) => setDepositSearchTerm(e.target.value)}
+                  placeholder="Search user, ref #, or channel..."
+                  className="w-full pl-8 pr-3 py-2 rounded-xl bg-zinc-950 border border-zinc-800 text-xs text-white focus:border-emerald-500 outline-none"
+                />
+              </div>
             </div>
           </div>
 
-          {/* Gateways List & Inline Editor */}
+          {/* Manual Deposit Submissions List */}
           <div className="space-y-4">
-            {autoCryptoGateways
-              .filter((g) => {
-                if (gatewayNetworkFilter === 'all') return true;
-                if (gatewayNetworkFilter === 'metamask' || gatewayNetworkFilter === 'trust_wallet') {
-                  return g.providerType === gatewayNetworkFilter;
-                }
-                return g.network === gatewayNetworkFilter;
-              })
-              .map((gw) => {
-                const isEditing = editingGatewayId === gw.id;
-                const draft = isEditing ? { ...gw, ...gatewayEditDraft } : gw;
-                const isPinging = pingingGatewayId === gw.id;
-                const providerBadge =
-                  gw.providerType === 'metamask'
-                    ? 'METAMASK EIP-1193'
-                    : gw.providerType === 'trust_wallet'
-                    ? 'TRUST WALLET WC2'
-                    : 'BLOCKCHAIN NODE';
+            {(() => {
+              const q = depositSearchTerm.trim().toLowerCase();
+              const filteredList = depositRequests.filter((r) => {
+                if (depositStatusFilter !== 'all' && r.status !== depositStatusFilter) return false;
+                if (!q) return true;
+                return (
+                  r.id.toLowerCase().includes(q) ||
+                  r.userName.toLowerCase().includes(q) ||
+                  r.userEmail.toLowerCase().includes(q) ||
+                  r.methodTitle.toLowerCase().includes(q) ||
+                  r.txReference.toLowerCase().includes(q) ||
+                  (r.senderDetails || '').toLowerCase().includes(q) ||
+                  (r.senderNote || '').toLowerCase().includes(q)
+                );
+              });
+
+              if (filteredList.length === 0) {
+                return (
+                  <div className="p-10 rounded-2xl bg-zinc-950 border border-zinc-800 text-center space-y-3">
+                    <Clock className="w-8 h-8 text-zinc-500 mx-auto" />
+                    <p className="text-sm font-bold text-white">No Deposit Submissions Match Current Filter</p>
+                    <p className="text-xs text-zinc-400 max-w-md mx-auto">
+                      Manual Wire, CashApp, Zelle, BTC, and USDT deposit receipts submitted by users will appear here for inspection and confirmation.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => void refreshDepositRequests()}
+                      className="px-4 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-xs font-semibold text-zinc-200 inline-flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5 text-cyan-400" />
+                      <span>Check for New Submissions</span>
+                    </button>
+                  </div>
+                );
+              }
+
+              return filteredList.map((req) => {
+                const isPending = req.status === 'pending';
+                const isBusy = reviewingDepositId === req.id;
+                const refValue = depositConfirmedRefs[req.id] ?? req.txReference;
+                const noteValue = depositAdminNotes[req.id] ?? '';
+                const userCurrentBal = getUserWalletBalances(req.userId);
 
                 return (
                   <div
-                    key={gw.id}
-                    className={`rounded-2xl border transition p-5 space-y-4 ${
-                      gw.status === 'active'
-                        ? 'bg-zinc-950/90 border-zinc-800 hover:border-zinc-700'
-                        : 'bg-zinc-950/50 border-zinc-900 opacity-80'
+                    key={req.id}
+                    className={`rounded-2xl border p-5 space-y-4 transition ${
+                      isPending
+                        ? 'bg-zinc-950 border-amber-500/40 shadow-lg'
+                        : 'bg-zinc-950/75 border-zinc-800'
                     }`}
                   >
-                    {/* Gateway Top Status Header */}
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-800 pb-3">
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={`w-10 h-10 rounded-xl border flex items-center justify-center font-bold font-mono text-xs ${
-                            gw.providerType === 'metamask'
-                              ? 'bg-amber-500/15 border-amber-500/40 text-amber-400'
-                              : gw.providerType === 'trust_wallet'
-                              ? 'bg-cyan-500/15 border-cyan-500/40 text-cyan-400'
-                              : 'bg-zinc-900 border-zinc-700 text-emerald-400'
-                          }`}
-                        >
-                          {gw.providerType === 'metamask'
-                            ? 'MM'
-                            : gw.providerType === 'trust_wallet'
-                            ? 'TW'
-                            : gw.currency}
-                        </div>
-                        <div>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <h4 className="font-heading font-black text-white text-base">
-                              {isEditing ? draft.name : gw.name}
-                            </h4>
-                            <span
-                              className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold border ${
-                                gw.providerType === 'metamask'
-                                  ? 'bg-amber-950/60 border-amber-500/40 text-amber-300'
-                                  : gw.providerType === 'trust_wallet'
-                                  ? 'bg-cyan-950/60 border-cyan-500/40 text-cyan-300'
-                                  : 'bg-zinc-900 border-zinc-700 text-zinc-300'
-                              }`}
-                            >
-                              {providerBadge}
-                            </span>
-                            <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-zinc-900 border border-zinc-700 text-zinc-300">
-                              {gw.network}
-                            </span>
-                            <span
-                              className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase ${
-                                gw.status === 'active'
-                                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                                  : gw.status === 'testing'
-                                  ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                                  : 'bg-zinc-800 text-zinc-500 border border-zinc-700'
-                              }`}
-                            >
-                              {gw.status === 'disabled' ? 'inactive' : gw.status}
-                            </span>
-                          </div>
-                          <span className="text-xs text-zinc-400 font-mono">
-                            Symbol: <strong className="text-zinc-200">{gw.symbol}</strong> • Processed: <strong className="text-emerald-400">${gw.totalProcessedUsd.toLocaleString()} USD</strong> ({gw.totalTransactionsCount} txns)
+                      <div className="space-y-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-heading font-black text-white text-base">
+                            {req.userName}
                           </span>
-                        </div>
-                      </div>
-
-                      {/* Quick Gateway Master Toggles */}
-                      <div className="flex flex-wrap items-center gap-3">
-                        {/* Auto Credit Toggle */}
-                        <div className="flex items-center gap-1.5 bg-zinc-900/90 border border-zinc-800 px-3 py-1.5 rounded-xl">
-                          <span className="text-[11px] text-zinc-300 font-mono">Auto-Credit:</span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              updateAutoCryptoGateway(gw.id, { autoCreditEnabled: !gw.autoCreditEnabled });
-                            }}
-                            className={`cursor-pointer ${gw.autoCreditEnabled ? 'text-emerald-400' : 'text-zinc-600'}`}
+                          <span className="text-xs font-mono text-zinc-400">{req.userEmail}</span>
+                          <span
+                            className={`px-2 py-0.5 rounded text-[11px] font-mono font-semibold inline-flex items-center gap-1 ${
+                              req.status === 'approved'
+                                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                : req.status === 'rejected'
+                                ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                                : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                            }`}
                           >
-                            {gw.autoCreditEnabled ? <ToggleRight className="w-6 h-6" /> : <ToggleLeft className="w-6 h-6" />}
-                          </button>
-                        </div>
-
-                        {/* Status Toggle (Active / Inactive) */}
-                        <div className="flex items-center gap-1.5 bg-zinc-900/90 border border-zinc-800 px-3 py-1.5 rounded-xl">
-                          <span className="text-[11px] text-zinc-300 font-mono">
-                            Gateway {gw.status === 'active' ? 'Active' : 'Inactive'}:
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const nextStatus = gw.status === 'active' ? 'disabled' : 'active';
-                              updateAutoCryptoGateway(gw.id, { status: nextStatus });
-                            }}
-                            className={`cursor-pointer ${gw.status === 'active' ? 'text-emerald-400' : 'text-zinc-600'}`}
-                          >
-                            {gw.status === 'active' ? <ToggleRight className="w-6 h-6" /> : <ToggleLeft className="w-6 h-6" />}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Gateway Config Form (Inline Editable) */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                      {/* Left Column: Provider Identity, Addresses & Node URLs */}
-                      <div className="space-y-3">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          <div>
-                            <label className="text-[11px] font-bold text-zinc-400 block mb-1">
-                              Gateway Display Name
-                            </label>
-                            <input
-                              type="text"
-                              value={isEditing ? draft.name : gw.name}
-                              onChange={(e) => {
-                                if (!isEditing) {
-                                  setEditingGatewayId(gw.id);
-                                  setGatewayEditDraft({ name: e.target.value });
-                                } else {
-                                  setGatewayEditDraft((prev) => ({ ...prev, name: e.target.value }));
-                                }
-                              }}
-                              className="w-full bg-zinc-900 border border-zinc-700 focus:border-emerald-500 rounded-xl px-3 py-2 text-xs text-white outline-none"
-                            />
-                          </div>
-
-                          <div>
-                            <label className="text-[11px] font-bold text-zinc-400 block mb-1">
-                              Gateway Provider Type
-                            </label>
-                            <select
-                              value={(isEditing ? draft.providerType : gw.providerType) || 'standard_node'}
-                              onChange={(e) => {
-                                const val = e.target.value as AutoCryptoGateway['providerType'];
-                                if (!isEditing) {
-                                  setEditingGatewayId(gw.id);
-                                  setGatewayEditDraft({ providerType: val });
-                                } else {
-                                  setGatewayEditDraft((prev) => ({ ...prev, providerType: val }));
-                                }
-                              }}
-                              className="w-full bg-zinc-900 border border-zinc-700 focus:border-emerald-500 rounded-xl px-3 py-2 text-xs font-mono text-white outline-none"
-                            >
-                              <option value="standard_node">Standard Blockchain Node</option>
-                              <option value="metamask">MetaMask Web3 (EIP-1193)</option>
-                              <option value="trust_wallet">Trust Wallet Connect (WC2)</option>
-                            </select>
-                          </div>
-                        </div>
-
-                        <div>
-                          <label className="text-[11px] font-bold text-zinc-400 block mb-1">
-                            Receiving Vault Address ({gw.network} Network)
-                          </label>
-                          <input
-                            type="text"
-                            value={isEditing ? draft.receivingAddress : gw.receivingAddress}
-                            onChange={(e) => {
-                              if (!isEditing) {
-                                setEditingGatewayId(gw.id);
-                                setGatewayEditDraft({ receivingAddress: e.target.value });
-                              } else {
-                                setGatewayEditDraft((prev) => ({ ...prev, receivingAddress: e.target.value }));
-                              }
-                            }}
-                            className="w-full bg-zinc-900 border border-zinc-700 focus:border-emerald-500 rounded-xl px-3 py-2 text-xs font-mono text-white outline-none"
-                            placeholder="Wallet address for receiving automated deposits"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="text-[11px] font-bold text-zinc-400 block mb-1">
-                            RPC Node Endpoint URL
-                          </label>
-                          <input
-                            type="text"
-                            value={isEditing ? draft.rpcEndpoint : gw.rpcEndpoint}
-                            onChange={(e) => {
-                              if (!isEditing) {
-                                setEditingGatewayId(gw.id);
-                                setGatewayEditDraft({ rpcEndpoint: e.target.value });
-                              } else {
-                                setGatewayEditDraft((prev) => ({ ...prev, rpcEndpoint: e.target.value }));
-                              }
-                            }}
-                            className="w-full bg-zinc-900 border border-zinc-700 focus:border-emerald-500 rounded-xl px-3 py-2 text-xs font-mono text-white outline-none"
-                            placeholder="https://rpc.node.example.com"
-                          />
-                        </div>
-
-                        {(draft.providerType === 'metamask' || draft.providerType === 'trust_wallet' || gw.chainId || gw.walletConnectProjectId) && (
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <div>
-                              <label className="text-[11px] font-bold text-zinc-400 block mb-1">
-                                EVM Chain ID &amp; Label
-                              </label>
-                              <input
-                                type="text"
-                                value={isEditing ? (draft.chainId || '') : (gw.chainId || '')}
-                                onChange={(e) => {
-                                  if (!isEditing) {
-                                    setEditingGatewayId(gw.id);
-                                    setGatewayEditDraft({ chainId: e.target.value });
-                                  } else {
-                                    setGatewayEditDraft((prev) => ({ ...prev, chainId: e.target.value }));
-                                  }
-                                }}
-                                className="w-full bg-zinc-900 border border-zinc-700 focus:border-emerald-500 rounded-xl px-3 py-2 text-xs font-mono text-white outline-none"
-                                placeholder="0x1 (ETH) or 0x38 (BSC)"
-                              />
-                            </div>
-                            <div>
-                              <label className="text-[11px] font-bold text-zinc-400 block mb-1">
-                                {draft.providerType === 'trust_wallet' ? 'WalletConnect v2 Project ID' : 'Chain Network Name'}
-                              </label>
-                              <input
-                                type="text"
-                                value={
-                                  draft.providerType === 'trust_wallet'
-                                    ? (isEditing ? (draft.walletConnectProjectId || '') : (gw.walletConnectProjectId || ''))
-                                    : (isEditing ? (draft.chainName || '') : (gw.chainName || ''))
-                                }
-                                onChange={(e) => {
-                                  const fieldKey = draft.providerType === 'trust_wallet' ? 'walletConnectProjectId' : 'chainName';
-                                  if (!isEditing) {
-                                    setEditingGatewayId(gw.id);
-                                    setGatewayEditDraft({ [fieldKey]: e.target.value });
-                                  } else {
-                                    setGatewayEditDraft((prev) => ({ ...prev, [fieldKey]: e.target.value }));
-                                  }
-                                }}
-                                className="w-full bg-zinc-900 border border-zinc-700 focus:border-emerald-500 rounded-xl px-3 py-2 text-xs font-mono text-white outline-none"
-                                placeholder={draft.providerType === 'trust_wallet' ? 'wc2-project-id' : 'Ethereum Mainnet'}
-                              />
-                            </div>
-                          </div>
-                        )}
-
-                        <div>
-                          <div className="flex justify-between items-center mb-1">
-                            <label className="text-[11px] font-bold text-zinc-400 block">
-                              Webhook Signing Secret
-                            </label>
-                            <button
-                              type="button"
-                              onClick={() => setShowWebhookSecret((prev) => ({ ...prev, [gw.id]: !prev[gw.id] }))}
-                              className="text-[10px] text-zinc-400 hover:text-white flex items-center gap-1 cursor-pointer"
-                            >
-                              {showWebhookSecret[gw.id] ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-                              <span>{showWebhookSecret[gw.id] ? 'Hide' : 'Reveal'}</span>
-                            </button>
-                          </div>
-                          <input
-                            type={showWebhookSecret[gw.id] ? 'text' : 'password'}
-                            value={isEditing ? draft.webhookSecret : gw.webhookSecret}
-                            onChange={(e) => {
-                              if (!isEditing) {
-                                setEditingGatewayId(gw.id);
-                                setGatewayEditDraft({ webhookSecret: e.target.value });
-                              } else {
-                                setGatewayEditDraft((prev) => ({ ...prev, webhookSecret: e.target.value }));
-                              }
-                            }}
-                            className="w-full bg-zinc-900 border border-zinc-700 focus:border-emerald-500 rounded-xl px-3 py-2 text-xs font-mono text-white outline-none"
-                            placeholder="whsec_..."
-                          />
-                        </div>
-                      </div>
-
-                      {/* Right Column: Confirmation Thresholds & Limits */}
-                      <div className="space-y-3">
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <label className="text-[11px] font-bold text-zinc-400 block mb-1">
-                              Required Confirmations
-                            </label>
-                            <input
-                              type="number"
-                              min={1}
-                              max={100}
-                              value={isEditing ? draft.requiredConfirmations : gw.requiredConfirmations}
-                              onChange={(e) => {
-                                const val = parseInt(e.target.value) || 1;
-                                if (!isEditing) {
-                                  setEditingGatewayId(gw.id);
-                                  setGatewayEditDraft({ requiredConfirmations: val });
-                                } else {
-                                  setGatewayEditDraft((prev) => ({ ...prev, requiredConfirmations: val }));
-                                }
-                              }}
-                              className="w-full bg-zinc-900 border border-zinc-700 focus:border-emerald-500 rounded-xl px-3 py-2 text-xs font-mono text-white outline-none"
-                            />
-                          </div>
-
-                          <div>
-                            <label className="text-[11px] font-bold text-zinc-400 block mb-1">
-                              Gateway Fee %
-                            </label>
-                            <input
-                              type="number"
-                              min={0}
-                              max={10}
-                              step={0.1}
-                              value={isEditing ? draft.feePercent : gw.feePercent}
-                              onChange={(e) => {
-                                const val = parseFloat(e.target.value) || 0;
-                                if (!isEditing) {
-                                  setEditingGatewayId(gw.id);
-                                  setGatewayEditDraft({ feePercent: val });
-                                } else {
-                                  setGatewayEditDraft((prev) => ({ ...prev, feePercent: val }));
-                                }
-                              }}
-                              className="w-full bg-zinc-900 border border-zinc-700 focus:border-emerald-500 rounded-xl px-3 py-2 text-xs font-mono text-white outline-none"
-                            />
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <label className="text-[11px] font-bold text-zinc-400 block mb-1">
-                              Min Deposit ($ USD)
-                            </label>
-                            <input
-                              type="number"
-                              min={1}
-                              value={isEditing ? draft.minDepositUsd : gw.minDepositUsd}
-                              onChange={(e) => {
-                                const val = parseFloat(e.target.value) || 10;
-                                if (!isEditing) {
-                                  setEditingGatewayId(gw.id);
-                                  setGatewayEditDraft({ minDepositUsd: val });
-                                } else {
-                                  setGatewayEditDraft((prev) => ({ ...prev, minDepositUsd: val }));
-                                }
-                              }}
-                              className="w-full bg-zinc-900 border border-zinc-700 focus:border-emerald-500 rounded-xl px-3 py-2 text-xs font-mono text-white outline-none"
-                            />
-                          </div>
-
-                          <div>
-                            <label className="text-[11px] font-bold text-zinc-400 block mb-1">
-                              Max Deposit ($ USD)
-                            </label>
-                            <input
-                              type="number"
-                              min={100}
-                              value={isEditing ? draft.maxDepositUsd : gw.maxDepositUsd}
-                              onChange={(e) => {
-                                const val = parseFloat(e.target.value) || 100000;
-                                if (!isEditing) {
-                                  setEditingGatewayId(gw.id);
-                                  setGatewayEditDraft({ maxDepositUsd: val });
-                                } else {
-                                  setGatewayEditDraft((prev) => ({ ...prev, maxDepositUsd: val }));
-                                }
-                              }}
-                              className="w-full bg-zinc-900 border border-zinc-700 focus:border-emerald-500 rounded-xl px-3 py-2 text-xs font-mono text-white outline-none"
-                            />
-                          </div>
-                        </div>
-
-                        {/* Health Ping & Telemetry Status Box */}
-                        <div className="p-3 rounded-xl bg-zinc-900/60 border border-zinc-800 flex items-center justify-between text-xs font-mono">
-                          <div className="flex items-center gap-2">
-                            <span className={`w-2 h-2 rounded-full ${gw.lastPingSuccess ? 'bg-emerald-400 animate-pulse' : 'bg-red-400'}`} />
-                            <span className="text-zinc-300">
-                              {gw.lastPingSuccess ? 'Node Status: Operational' : 'Node Status: Standby'}
-                            </span>
-                            {gw.lastPingAt && (
-                              <span className="text-[10px] text-zinc-500">
-                                ({gw.lastPingAt.split(' ')[1] || 'recent'})
-                              </span>
+                            {req.status === 'approved' ? (
+                              <CheckCircle2 className="w-3 h-3" />
+                            ) : req.status === 'rejected' ? (
+                              <XCircle className="w-3 h-3" />
+                            ) : (
+                              <Clock className="w-3 h-3" />
                             )}
-                          </div>
-                          <button
-                            type="button"
-                            disabled={isPinging}
-                            onClick={async () => {
-                              setPingingGatewayId(gw.id);
-                              const res = await testAutoCryptoGatewayPing(gw.id);
-                              setPingingGatewayId(null);
-                              showToast(res.message, res.success ? 'success' : 'error');
-                            }}
-                            className="px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-[11px] font-bold flex items-center gap-1 transition cursor-pointer disabled:opacity-50"
-                          >
-                            <RefreshCw className={`w-3 h-3 ${isPinging ? 'animate-spin text-emerald-400' : ''}`} />
-                            <span>{isPinging ? 'Pinging...' : 'Ping Node'}</span>
-                          </button>
+                            <span>
+                              {req.status === 'pending'
+                                ? 'Pending Confirmation'
+                                : req.status === 'approved'
+                                ? 'Confirmed'
+                                : 'Rejected'}
+                            </span>
+                          </span>
+                        </div>
+                        <div className="text-xs font-mono text-zinc-400 flex flex-wrap items-center gap-x-2 gap-y-1">
+                          <span>ID: <strong className="text-zinc-200">{req.id}</strong></span>
+                          <span aria-hidden="true">·</span>
+                          <span>Channel: <strong className="text-cyan-400">{req.methodTitle}</strong></span>
+                          <span aria-hidden="true">·</span>
+                          <span className="tabular-nums">{req.submittedAt.replace('T', ' ').slice(0, 16)} UTC</span>
                         </div>
                       </div>
-                    </div>
 
-                    {/* Bottom Action Buttons */}
-                    <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-zinc-800/80">
-                      <div className="text-[11px] text-zinc-500 font-mono">
-                        Gateway ID: <code className="text-zinc-400">{gw.id}</code>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        {isEditing && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditingGatewayId(null);
-                              setGatewayEditDraft({});
-                            }}
-                            className="px-3 py-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-bold transition cursor-pointer"
-                          >
-                            Cancel
-                          </button>
-                        )}
-
+                      <div className="flex sm:flex-col items-center sm:items-end justify-between gap-2 shrink-0">
+                        <div className="sm:text-right">
+                          <span className="text-[11px] font-medium text-zinc-400 block">
+                            Net Credit Amount
+                          </span>
+                          <span className="font-heading font-black text-xl text-emerald-400 font-mono tabular-nums">
+                            ${Number(req.netUsd).toLocaleString()} USD
+                          </span>
+                          {req.currency !== 'USD' && (
+                            <span className="text-[11px] font-mono text-amber-400 tabular-nums block">
+                              ({req.amount} {req.currency})
+                            </span>
+                          )}
+                        </div>
                         <button
                           type="button"
-                          onClick={() => {
-                            if (isEditing) {
-                              updateAutoCryptoGateway(gw.id, gatewayEditDraft);
-                              setEditingGatewayId(null);
-                              setGatewayEditDraft({});
-                            } else {
-                              setEditingGatewayId(gw.id);
-                              setGatewayEditDraft({
-                                name: gw.name,
-                                providerType: gw.providerType || 'standard_node',
-                                receivingAddress: gw.receivingAddress,
-                                rpcEndpoint: gw.rpcEndpoint,
-                                webhookSecret: gw.webhookSecret,
-                                chainId: gw.chainId || '',
-                                chainName: gw.chainName || '',
-                                walletConnectProjectId: gw.walletConnectProjectId || '',
-                                requiredConfirmations: gw.requiredConfirmations,
-                                minDepositUsd: gw.minDepositUsd,
-                                maxDepositUsd: gw.maxDepositUsd,
-                                feePercent: gw.feePercent,
-                              });
-                            }
-                          }}
-                          className={`px-4 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
-                            isEditing
-                              ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-950/40'
-                              : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-200'
-                          }`}
+                          onClick={() => setSelectedDepositRequest(req)}
+                          className="px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-xs font-semibold text-zinc-200 inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
                         >
-                          <Edit3 className="w-3.5 h-3.5" />
-                          <span>{isEditing ? 'Save Changes' : 'Edit Gateway'}</span>
+                          <Eye className="w-3.5 h-3.5 text-cyan-400" />
+                          <span>View Details</span>
                         </button>
+                      </div>
+                    </div>
 
-                        {pendingDeleteGatewayId === gw.id ? (
-                          <div className="inline-flex items-center gap-1.5">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                deleteAutoCryptoGateway(gw.id);
-                                setPendingDeleteGatewayId(null);
-                              }}
-                              className="px-3 py-1.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold cursor-pointer"
-                            >
-                              Confirm Delete
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setPendingDeleteGatewayId(null)}
-                              className="px-2.5 py-1.5 rounded-xl bg-zinc-800 text-zinc-300 text-xs font-semibold cursor-pointer"
-                            >
-                              Cancel
-                            </button>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 text-xs">
+                      <div className="p-3.5 rounded-xl bg-zinc-900/70 border border-zinc-800 space-y-2 font-mono">
+                        <div className="flex justify-between gap-2">
+                          <span className="text-zinc-400">Transfer Reference / TX:</span>
+                          <span className="text-white font-bold break-all text-right">{req.txReference}</span>
+                        </div>
+                        <div className="flex justify-between gap-2 tabular-nums">
+                          <span className="text-zinc-400">Gross / Channel Fee:</span>
+                          <span className="text-zinc-200">
+                            ${Number(req.usdEquivalent).toLocaleString()} (−${Number(req.feeUsd || 0).toFixed(2)})
+                          </span>
+                        </div>
+                        <div className="flex justify-between gap-2 tabular-nums">
+                          <span className="text-zinc-400">User Current Balance:</span>
+                          <span className="text-zinc-200">${Number(userCurrentBal.usd || 0).toLocaleString()} USD</span>
+                        </div>
+                        {req.senderDetails && (
+                          <div className="flex justify-between gap-2">
+                            <span className="text-zinc-400">Sender Account / Wallet:</span>
+                            <span className="text-zinc-200 break-all text-right">{req.senderDetails}</span>
                           </div>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => setPendingDeleteGatewayId(gw.id)}
-                            className="p-2 rounded-xl bg-red-950/30 hover:bg-red-900/50 border border-red-500/30 text-red-400 transition cursor-pointer"
-                            title="Delete Gateway"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                        )}
+                        {req.senderNote && (
+                          <div className="pt-1 border-t border-zinc-800 text-zinc-300">
+                            <span className="text-zinc-400 block text-[11px] font-sans font-medium">Sender Note:</span>
+                            <span className="font-sans text-xs">{req.senderNote}</span>
+                          </div>
+                        )}
+                        {req.proofNote && (
+                          <div className="pt-1 border-t border-zinc-800 text-zinc-300">
+                            <span className="text-zinc-400 block text-[11px] font-sans font-medium">Attached Proof Details:</span>
+                            <span className="font-sans text-xs break-all">{req.proofNote}</span>
+                          </div>
                         )}
                       </div>
+
+                      {isPending ? (
+                        <div className="space-y-2.5">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                            <div>
+                              <label className="text-[11px] font-semibold text-zinc-300 block mb-1">
+                                Verified Bank / Blockchain Reference
+                              </label>
+                              <input
+                                type="text"
+                                value={refValue}
+                                onChange={(e) =>
+                                  setDepositConfirmedRefs((prev) => ({
+                                    ...prev,
+                                    [req.id]: e.target.value,
+                                  }))
+                                }
+                                className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 focus:border-emerald-500 text-xs font-mono text-white outline-none"
+                                placeholder="Confirmed TX / Wire Ref"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[11px] font-semibold text-zinc-300 block mb-1">
+                                Admin Note / Rejection Reason
+                              </label>
+                              <input
+                                type="text"
+                                value={noteValue}
+                                onChange={(e) =>
+                                  setDepositAdminNotes((prev) => ({
+                                    ...prev,
+                                    [req.id]: e.target.value,
+                                  }))
+                                }
+                                className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 focus:border-emerald-500 text-xs text-white outline-none"
+                                placeholder="Cleared / Decline reason"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-2 pt-1">
+                            <button
+                              type="button"
+                              disabled={isBusy}
+                              onClick={async () => {
+                                setReviewingDepositId(req.id);
+                                await reviewDepositRequest(req.id, 'approve', {
+                                  confirmedTxReference: refValue.trim(),
+                                  adminNote: noteValue.trim() || undefined,
+                                });
+                                setReviewingDepositId(null);
+                              }}
+                              className="flex-1 min-w-[160px] py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-lg cursor-pointer disabled:opacity-50 whitespace-nowrap"
+                            >
+                              <CheckCircle2 className="w-4 h-4" />
+                              <span>
+                                {isBusy
+                                  ? 'Processing...'
+                                  : `Confirm ($${Number(req.netUsd).toLocaleString()})`}
+                              </span>
+                            </button>
+                            <button
+                              type="button"
+                              disabled={isBusy}
+                              onClick={async () => {
+                                setReviewingDepositId(req.id);
+                                await reviewDepositRequest(req.id, 'reject', {
+                                  rejectionReason:
+                                    noteValue.trim() ||
+                                    'Deposit receipt could not be verified on treasury ledger.',
+                                });
+                                setReviewingDepositId(null);
+                              }}
+                              className="py-2.5 px-4 rounded-xl bg-rose-950/60 hover:bg-rose-900/70 border border-rose-500/40 text-rose-300 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 whitespace-nowrap"
+                            >
+                              <XCircle className="w-4 h-4" />
+                              <span>Reject</span>
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="p-3.5 rounded-xl bg-zinc-900/50 border border-zinc-800 space-y-1.5 font-mono">
+                          <div className="flex justify-between gap-2">
+                            <span className="text-zinc-400">Reviewed By:</span>
+                            <span className="text-zinc-200">{req.reviewedByAdminEmail || 'Admin'}</span>
+                          </div>
+                          <div className="flex justify-between gap-2 tabular-nums">
+                            <span className="text-zinc-400">Reviewed At:</span>
+                            <span className="text-zinc-200">
+                              {req.reviewedAt ? req.reviewedAt.replace('T', ' ').slice(0, 16) : '—'} UTC
+                            </span>
+                          </div>
+                          {req.confirmedTxReference && (
+                            <div className="flex justify-between gap-2">
+                              <span className="text-zinc-400">Confirmed Ref:</span>
+                              <span className="text-emerald-400 break-all text-right">{req.confirmedTxReference}</span>
+                            </div>
+                          )}
+                          {req.adminNote && (
+                            <div className="text-zinc-300 pt-1 border-t border-zinc-800 font-sans">
+                              Admin Note: {req.adminNote}
+                            </div>
+                          )}
+                          {req.rejectionReason && (
+                            <div className="text-rose-400 pt-1 border-t border-zinc-800 font-sans">
+                              Rejection Reason: {req.rejectionReason}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
-              })}
+              });
+            })()}
           </div>
         </div>
       )}
 
-      {/* Add New Automated Gateway Modal */}
-      {isAddGatewayModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md">
-          <div className="relative w-full max-w-lg bg-zinc-950 border border-zinc-800 rounded-2xl sm:rounded-3xl p-5 sm:p-7 space-y-4 text-zinc-100 shadow-2xl max-h-[92vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
-              <div className="flex items-center gap-2">
-                <Server className="w-5 h-5 text-emerald-400" />
-                <h3 className="font-heading font-black text-lg sm:text-xl text-white">
-                  Add Crypto / Web3 Payment Gateway
-                </h3>
-              </div>
-              <button
-                onClick={() => setIsAddGatewayModalOpen(false)}
-                className="p-1 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+      {/* Manual Deposit Submission Details Modal */}
+      {selectedDepositRequest && (() => {
+        const req = depositRequests.find((item) => item.id === selectedDepositRequest.id) || selectedDepositRequest;
+        const isPending = req.status === 'pending';
+        const isBusy = reviewingDepositId === req.id;
+        const modalRefValue = depositConfirmedRefs[req.id] ?? req.txReference;
+        const modalNoteValue = depositAdminNotes[req.id] ?? '';
+        const memberBalance = getUserWalletBalances(req.userId);
+        const matchedMember = allUsers.find(
+          (u) =>
+            u.id === req.userId ||
+            (req.userEmail && u.email.toLowerCase() === req.userEmail.toLowerCase())
+        );
 
-            <div className="space-y-3 text-xs">
-              <div>
-                <label className="text-[11px] font-bold text-zinc-400 block mb-1">Provider Type</label>
-                <select
-                  value={newGatewayForm.providerType || 'standard_node'}
-                  onChange={(e) => {
-                    const pType = e.target.value as AutoCryptoGateway['providerType'];
-                    setNewGatewayForm((prev) => ({
-                      ...prev,
-                      providerType: pType,
-                      ...(pType === 'metamask'
-                        ? {
-                            name: 'MetaMask Web3 EVM Gateway',
-                            network: 'ERC20',
-                            currency: 'USDT',
-                            symbol: 'METAMASK-WEB3',
-                            chainId: '0x1',
-                            chainName: 'Ethereum Mainnet (EIP-1193)',
-                          }
-                        : pType === 'trust_wallet'
-                        ? {
-                            name: 'Trust Wallet Connect v2 Node',
-                            network: 'BEP20',
-                            currency: 'BNB',
-                            symbol: 'TRUST-WC2',
-                            chainId: '0x38',
-                            chainName: 'BNB Smart Chain & WalletConnect v2',
-                            walletConnectProjectId: prev.walletConnectProjectId || 'apex-tesla-wc2-' + Math.random().toString(36).slice(2, 8),
-                          }
-                        : {}),
-                    }));
-                  }}
-                  className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono outline-none"
-                >
-                  <option value="standard_node">Standard Blockchain Node</option>
-                  <option value="metamask">MetaMask Web3 Browser Wallet (EIP-1193)</option>
-                  <option value="trust_wallet">Trust Wallet Connect v2 Relay</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="text-[11px] font-bold text-zinc-400 block mb-1">Gateway Name</label>
-                <input
-                  type="text"
-                  value={newGatewayForm.name}
-                  onChange={(e) => setNewGatewayForm({ ...newGatewayForm, name: e.target.value })}
-                  className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-medium outline-none focus:border-emerald-500"
-                  placeholder="e.g. MetaMask Mainnet Vault"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-[11px] font-bold text-zinc-400 block mb-1">Network</label>
-                  <select
-                    value={newGatewayForm.network}
-                    onChange={(e) => setNewGatewayForm({ ...newGatewayForm, network: e.target.value as any })}
-                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono outline-none"
-                  >
-                    <option value="TRC20">TRC20 (Tron)</option>
-                    <option value="ERC20">ERC20 (Ethereum)</option>
-                    <option value="BTC">BTC (Bitcoin Native)</option>
-                    <option value="ETH">ETH (Mainnet)</option>
-                    <option value="BEP20">BEP20 (BNB Chain)</option>
-                    <option value="XRPL">XRPL (XRP Ledger)</option>
-                  </select>
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md">
+            <div className="relative w-full max-w-xl bg-zinc-950 border border-zinc-800 rounded-2xl sm:rounded-3xl p-5 sm:p-7 space-y-5 text-zinc-100 shadow-2xl max-h-[92vh] overflow-y-auto">
+              <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0" />
+                  <div className="min-w-0">
+                    <h3 className="font-heading font-black text-base sm:text-lg text-white truncate">
+                      Deposit Submission Details
+                    </h3>
+                    <p className="text-xs font-mono text-zinc-400 truncate">{req.id}</p>
+                  </div>
                 </div>
-
-                <div>
-                  <label className="text-[11px] font-bold text-zinc-400 block mb-1">Currency</label>
-                  <select
-                    value={newGatewayForm.currency}
-                    onChange={(e) => setNewGatewayForm({ ...newGatewayForm, currency: e.target.value as any, symbol: `${e.target.value}-${newGatewayForm.network}` })}
-                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono outline-none"
-                  >
-                    <option value="USDT">USDT</option>
-                    <option value="BTC">BTC</option>
-                    <option value="ETH">ETH</option>
-                    <option value="BNB">BNB</option>
-                    <option value="XRP">XRP</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="text-[11px] font-bold text-zinc-400 block mb-1">Receiving Blockchain Address</label>
-                <input
-                  type="text"
-                  value={newGatewayForm.receivingAddress}
-                  onChange={(e) => setNewGatewayForm({ ...newGatewayForm, receivingAddress: e.target.value })}
-                  className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono outline-none focus:border-emerald-500"
-                  placeholder="Blockchain address"
-                />
-              </div>
-
-              <div>
-                <label className="text-[11px] font-bold text-zinc-400 block mb-1">RPC Node Endpoint URL</label>
-                <input
-                  type="text"
-                  value={newGatewayForm.rpcEndpoint}
-                  onChange={(e) => setNewGatewayForm({ ...newGatewayForm, rpcEndpoint: e.target.value })}
-                  className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono outline-none focus:border-emerald-500"
-                  placeholder="https://..."
-                />
-              </div>
-
-              <div className="grid grid-cols-3 gap-2">
-                <div>
-                  <label className="text-[10px] font-bold text-zinc-400 block mb-1">Confirmations</label>
-                  <input
-                    type="number"
-                    min={1}
-                    value={newGatewayForm.requiredConfirmations}
-                    onChange={(e) => setNewGatewayForm({ ...newGatewayForm, requiredConfirmations: parseInt(e.target.value) || 1 })}
-                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-2 py-2 text-white font-mono outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold text-zinc-400 block mb-1">Min Dep ($)</label>
-                  <input
-                    type="number"
-                    min={1}
-                    value={newGatewayForm.minDepositUsd}
-                    onChange={(e) => setNewGatewayForm({ ...newGatewayForm, minDepositUsd: parseFloat(e.target.value) || 10 })}
-                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-2 py-2 text-white font-mono outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold text-zinc-400 block mb-1">Fee %</label>
-                  <input
-                    type="number"
-                    min={0}
-                    step={0.1}
-                    value={newGatewayForm.feePercent}
-                    onChange={(e) => setNewGatewayForm({ ...newGatewayForm, feePercent: parseFloat(e.target.value) || 0 })}
-                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-2 py-2 text-white font-mono outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 pt-2">
-                <input
-                  type="checkbox"
-                  id="autoCreditCheck"
-                  checked={newGatewayForm.autoCreditEnabled}
-                  onChange={(e) => setNewGatewayForm({ ...newGatewayForm, autoCreditEnabled: e.target.checked })}
-                  className="rounded text-emerald-500 focus:ring-0"
-                />
-                <label htmlFor="autoCreditCheck" className="text-zinc-300 font-medium">
-                  Enable automatic balance credit upon required blockchain confirmations
-                </label>
-              </div>
-
-              <div className="flex gap-2 pt-3">
                 <button
                   type="button"
-                  onClick={() => setIsAddGatewayModalOpen(false)}
-                  className="flex-1 py-2.5 rounded-xl bg-zinc-800 text-zinc-300 font-bold cursor-pointer"
+                  onClick={() => setSelectedDepositRequest(null)}
+                  aria-label="Close deposit details modal"
+                  className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-900 cursor-pointer"
                 >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  disabled={!newGatewayForm.name.trim() || !newGatewayForm.receivingAddress.trim()}
-                  onClick={() => {
-                    addAutoCryptoGateway(newGatewayForm);
-                    setIsAddGatewayModalOpen(false);
-                    showToast(`Automated gateway ${newGatewayForm.name} created!`, 'success');
-                  }}
-                  className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold disabled:opacity-50 cursor-pointer shadow-lg shadow-emerald-950/40"
-                >
-                  Create Gateway
+                  <X className="w-5 h-5" />
                 </button>
               </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div className="p-3.5 rounded-xl bg-zinc-900 border border-zinc-800 space-y-1.5">
+                  <span className="text-[11px] font-semibold text-zinc-400 block">Member Account</span>
+                  <p className="font-bold text-white text-sm">{req.userName}</p>
+                  <p className="font-mono text-zinc-300 break-all">{req.userEmail}</p>
+                  <p className="font-mono text-zinc-400">
+                    Current Balance: <strong className="text-emerald-400 tabular-nums">${Number(memberBalance.usd || 0).toLocaleString()} USD</strong>
+                  </p>
+                  {matchedMember && (
+                    <p className="font-mono text-zinc-400">
+                      Tier: <strong className="text-zinc-200">{matchedMember.tier}</strong>
+                    </p>
+                  )}
+                </div>
+
+                <div className="p-3.5 rounded-xl bg-zinc-900 border border-zinc-800 space-y-1.5 font-mono tabular-nums">
+                  <span className="text-[11px] font-sans font-semibold text-zinc-400 block">Financial Summary</span>
+                  <div className="flex justify-between gap-2">
+                    <span className="text-zinc-400">Channel:</span>
+                    <span className="text-cyan-400 font-bold text-right">{req.methodTitle}</span>
+                  </div>
+                  <div className="flex justify-between gap-2">
+                    <span className="text-zinc-400">Submitted:</span>
+                    <span className="text-zinc-200">{req.amount} {req.currency}</span>
+                  </div>
+                  <div className="flex justify-between gap-2">
+                    <span className="text-zinc-400">Gross / Fee:</span>
+                    <span className="text-zinc-200">${Number(req.usdEquivalent).toLocaleString()} (−${Number(req.feeUsd || 0).toFixed(2)})</span>
+                  </div>
+                  <div className="flex justify-between gap-2 border-t border-zinc-800 pt-1.5 text-emerald-400 font-bold">
+                    <span>Net Credit:</span>
+                    <span>${Number(req.netUsd).toLocaleString()} USD</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-4 rounded-xl bg-zinc-900/80 border border-zinc-800 space-y-2.5 text-xs">
+                <span className="text-[11px] font-semibold text-zinc-400 block">Attached Transfer &amp; Proof Details</span>
+                <div className="flex justify-between gap-3 font-mono">
+                  <span className="text-zinc-400 shrink-0">Reference / TX Hash:</span>
+                  <span className="text-white font-bold break-all text-right">{req.txReference}</span>
+                </div>
+                <div className="flex justify-between gap-3 font-mono">
+                  <span className="text-zinc-400 shrink-0">Sender Account / Wallet:</span>
+                  <span className="text-zinc-200 break-all text-right">{req.senderDetails || 'Not provided'}</span>
+                </div>
+                <div className="flex justify-between gap-3 font-mono">
+                  <span className="text-zinc-400 shrink-0">Submitted At:</span>
+                  <span className="text-zinc-200 tabular-nums">{req.submittedAt.replace('T', ' ').slice(0, 19)} UTC</span>
+                </div>
+                <div className="pt-2 border-t border-zinc-800">
+                  <span className="text-zinc-400 block mb-1">Sender Note:</span>
+                  <p className="text-zinc-200 leading-relaxed">{req.senderNote || 'No sender note attached.'}</p>
+                </div>
+                <div className="pt-2 border-t border-zinc-800">
+                  <span className="text-zinc-400 block mb-1">Attached Proof / Receipt Summary:</span>
+                  <p className="text-zinc-200 leading-relaxed break-all">{req.proofNote || 'No additional receipt link or proof note attached.'}</p>
+                </div>
+              </div>
+
+              {isPending ? (
+                <div className="space-y-3 pt-1">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-semibold text-zinc-300 block mb-1">
+                        Verified Reference / TX
+                      </label>
+                      <input
+                        type="text"
+                        value={modalRefValue}
+                        onChange={(e) =>
+                          setDepositConfirmedRefs((prev) => ({
+                            ...prev,
+                            [req.id]: e.target.value,
+                          }))
+                        }
+                        className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 focus:border-emerald-500 text-xs font-mono text-white outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-zinc-300 block mb-1">
+                        Admin Note / Rejection Reason
+                      </label>
+                      <input
+                        type="text"
+                        value={modalNoteValue}
+                        onChange={(e) =>
+                          setDepositAdminNotes((prev) => ({
+                            ...prev,
+                            [req.id]: e.target.value,
+                          }))
+                        }
+                        placeholder="Optional note or decline reason"
+                        className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 focus:border-emerald-500 text-xs text-white outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row gap-2.5">
+                    <button
+                      type="button"
+                      disabled={isBusy}
+                      onClick={async () => {
+                        setReviewingDepositId(req.id);
+                        const res = await reviewDepositRequest(req.id, 'approve', {
+                          confirmedTxReference: modalRefValue.trim(),
+                          adminNote: modalNoteValue.trim() || undefined,
+                        });
+                        setReviewingDepositId(null);
+                        if (res.success) {
+                          setSelectedDepositRequest(null);
+                        }
+                      }}
+                      className="flex-1 py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg cursor-pointer disabled:opacity-50"
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>{isBusy ? 'Confirming...' : `Confirm & Credit $${Number(req.netUsd).toLocaleString()} USD`}</span>
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isBusy}
+                      onClick={async () => {
+                        setReviewingDepositId(req.id);
+                        const res = await reviewDepositRequest(req.id, 'reject', {
+                          rejectionReason:
+                            modalNoteValue.trim() ||
+                            'Deposit receipt could not be verified on treasury ledger.',
+                        });
+                        setReviewingDepositId(null);
+                        if (res.success) {
+                          setSelectedDepositRequest(null);
+                        }
+                      }}
+                      className="sm:w-40 py-3 px-4 rounded-xl bg-rose-950/60 hover:bg-rose-900/70 border border-rose-500/40 text-rose-300 font-bold text-xs flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                    >
+                      <XCircle className="w-4 h-4" />
+                      <span>Reject</span>
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-3.5 rounded-xl bg-zinc-900 border border-zinc-800 space-y-1.5 text-xs font-mono">
+                  <div className="flex justify-between">
+                    <span className="text-zinc-400">Final Status:</span>
+                    <span className={req.status === 'approved' ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
+                      {req.status === 'approved' ? 'CONFIRMED & CREDITED' : 'REJECTED'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-zinc-400">Reviewed By:</span>
+                    <span className="text-zinc-200">{req.reviewedByAdminEmail || 'Admin'}</span>
+                  </div>
+                  {req.confirmedTxReference && (
+                    <div className="flex justify-between gap-2">
+                      <span className="text-zinc-400">Confirmed Reference:</span>
+                      <span className="text-emerald-400 break-all text-right">{req.confirmedTxReference}</span>
+                    </div>
+                  )}
+                  {req.rejectionReason && (
+                    <div className="text-rose-400 pt-1 border-t border-zinc-800 font-sans">
+                      Rejection Reason: {req.rejectionReason}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
 
       {/* KYC Dossier Modal - Responsive for all screens */}
@@ -11462,24 +11244,47 @@ export const AdminDashboard: React.FC = () => {
             </div>
 
             <div className="space-y-3.5 text-xs">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label className="text-zinc-400 block mb-1">Gateway Name</label>
+                  <label className="text-zinc-400 block mb-1">Channel Name</label>
                   <input
                     type="text"
                     value={depositForm.name}
                     onChange={(e) => setDepositForm({ ...depositForm, name: e.target.value, title: e.target.value })}
-                    placeholder="e.g. Bank Wire USA, CashApp"
+                    placeholder="e.g. Bank Wire USA, USDT Vault"
                     className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white"
                   />
+                </div>
+                <div>
+                  <label className="text-zinc-400 block mb-1">Category</label>
+                  <select
+                    value={depositForm.category}
+                    onChange={(e) =>
+                      setDepositForm({
+                        ...depositForm,
+                        category: e.target.value as ManualDepositMethod['category'],
+                      })
+                    }
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono"
+                  >
+                    <option value="fiat">Bank Wire (Fiat)</option>
+                    <option value="e_wallet">E-Wallet (CashApp/Zelle)</option>
+                    <option value="crypto">Cold Vault Crypto</option>
+                  </select>
                 </div>
                 <div>
                   <label className="text-zinc-400 block mb-1">Currency Code</label>
                   <input
                     type="text"
                     value={depositForm.currency}
-                    onChange={(e) => setDepositForm({ ...depositForm, currency: e.target.value.toUpperCase() })}
-                    placeholder="USD"
+                    onChange={(e) =>
+                      setDepositForm({
+                        ...depositForm,
+                        currency: e.target.value.toUpperCase(),
+                        currencySymbol: e.target.value.toUpperCase() === 'USD' ? '$' : e.target.value.toUpperCase(),
+                      })
+                    }
+                    placeholder="USD / USDT / BTC"
                     className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono"
                   />
                 </div>
@@ -11498,7 +11303,7 @@ export const AdminDashboard: React.FC = () => {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-zinc-400 block mb-1">Account / Tag / Handle</label>
+                  <label className="text-zinc-400 block mb-1">Account / Vault Address / Tag</label>
                   <input
                     type="text"
                     value={depositForm.accountNumber}
@@ -11509,17 +11314,17 @@ export const AdminDashboard: React.FC = () => {
                         accountDetails: e.target.value,
                       })
                     }
-                    placeholder="Account number or tag"
+                    placeholder="Account number, tag, or crypto address"
                     className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono"
                   />
                 </div>
                 <div>
-                  <label className="text-zinc-400 block mb-1">Bank Name / Routing</label>
+                  <label className="text-zinc-400 block mb-1">Bank / Routing / Network</label>
                   <input
                     type="text"
                     value={depositForm.routingOrBank}
                     onChange={(e) => setDepositForm({ ...depositForm, routingOrBank: e.target.value })}
-                    placeholder="e.g. JPMorgan Chase (Routing #)"
+                    placeholder="e.g. JPMorgan Chase / TRON TRC-20"
                     className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white"
                   />
                 </div>
@@ -11531,14 +11336,14 @@ export const AdminDashboard: React.FC = () => {
                   rows={3}
                   value={depositForm.instructions}
                   onChange={(e) => setDepositForm({ ...depositForm, instructions: e.target.value })}
-                  placeholder="Specify wire instructions, reference memo format, or confirmation turnaround..."
+                  placeholder="Specify transfer instructions and remind users that admin receipt confirmation credits their vault..."
                   className="w-full bg-zinc-900 border border-zinc-700 rounded-xl p-3 text-white leading-relaxed"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="text-zinc-400 block mb-1">Min Deposit (USD)</label>
+                  <label className="text-zinc-400 block mb-1">Min Deposit ($)</label>
                   <input
                     type="number"
                     value={depositForm.minDepositUsd}
@@ -11549,12 +11354,26 @@ export const AdminDashboard: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="text-zinc-400 block mb-1">Max Deposit (USD)</label>
+                  <label className="text-zinc-400 block mb-1">Max Deposit ($)</label>
                   <input
                     type="number"
                     value={depositForm.maxDepositUsd}
                     onChange={(e) =>
                       setDepositForm({ ...depositForm, maxDepositUsd: parseFloat(e.target.value) || 0 })
+                    }
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="text-zinc-400 block mb-1">Fee %</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={15}
+                    step={0.1}
+                    value={depositForm.feePercent}
+                    onChange={(e) =>
+                      setDepositForm({ ...depositForm, feePercent: parseFloat(e.target.value) || 0 })
                     }
                     className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white font-mono"
                   />
@@ -11572,7 +11391,7 @@ export const AdminDashboard: React.FC = () => {
                   className="rounded text-emerald-500 focus:ring-0"
                 />
                 <label htmlFor="depEnabled" className="text-zinc-300">
-                  Enable this method in the public deposit gateway modal
+                  Enable this manual channel in the user Deposit Modal (always requires Admin Confirmation)
                 </label>
               </div>
 

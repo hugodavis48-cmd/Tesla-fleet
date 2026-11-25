@@ -65,7 +65,7 @@ export interface StoredUser {
   referralEarningsUsd: number;
   referralCount: number;
   referredUsers: any[];
-  themePreference?: 'dark' | 'light';
+  themePreference?: 'dark' | 'light' | 'blue';
 }
 
 // In-memory persistent database for users and sessions
@@ -1046,8 +1046,9 @@ authRouter.put('/profile', authenticateToken, (req: Request, res: Response) => {
   if (location !== undefined) user.location = String(location).trim();
   if (preferredServiceCenter !== undefined) user.preferredServiceCenter = String(preferredServiceCenter).trim();
   if (avatar && typeof avatar === 'string') user.avatar = avatar.trim();
-  if (themePreference === 'dark' || themePreference === 'light') {
+  if (themePreference === 'dark' || themePreference === 'light' || themePreference === 'blue') {
     user.themePreference = themePreference;
+    persistAuthStore();
   }
 
   return res.json({

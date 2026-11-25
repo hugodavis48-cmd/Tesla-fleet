@@ -273,3 +273,158 @@ html.light ::-webkit-scrollbar-thumb:hover {
   background: #e82127;
 }
 
+/* =========================================================================
+   Executive Blue & White Theme Overrides (Layered on .light)
+   ========================================================================= */
+
+html.blue,
+body.blue {
+  background-color: #f4f8ff !important;
+  color: #0f172a !important;
+}
+
+html.blue ::selection {
+  background-color: #2563eb;
+  color: #ffffff;
+}
+
+html.blue .bg-\[\#07090e\],
+html.blue .bg-black,
+html.blue .bg-slate-50 {
+  background-color: #f4f8ff !important;
+}
+
+html.blue .bg-zinc-950,
+html.blue .bg-zinc-950\/95,
+html.blue .bg-zinc-950\/90,
+html.blue .bg-zinc-950\/85,
+html.blue .bg-zinc-950\/80,
+html.blue .bg-zinc-950\/70,
+html.blue .bg-zinc-950\/60,
+html.blue .bg-zinc-950\/50,
+html.blue .bg-black\/70,
+html.blue .bg-black\/80,
+html.blue .bg-black\/85 {
+  background-color: #ffffff !important;
+}
+
+html.blue .bg-zinc-900,
+html.blue .bg-zinc-900\/90,
+html.blue .bg-zinc-900\/80,
+html.blue .bg-zinc-900\/70,
+html.blue .bg-zinc-900\/60,
+html.blue .bg-zinc-900\/50,
+html.blue .bg-zinc-900\/40,
+html.blue .bg-slate-100 {
+  background-color: #eff6ff !important;
+}
+
+html.blue .bg-zinc-800,
+html.blue .bg-zinc-800\/90,
+html.blue .bg-zinc-800\/80 {
+  background-color: #dbeafe !important;
+}
+
+html.blue .border-zinc-800,
+html.blue .border-zinc-800\/80,
+html.blue .border-zinc-800\/50,
+html.blue .border-zinc-700,
+html.blue .border-zinc-700\/80,
+html.blue .border-zinc-900,
+html.blue .border-slate-200,
+html.blue .border-slate-300 {
+  border-color: #bfdbfe !important;
+}
+
+html.blue .text-white {
+  color: #0f172a !important;
+}
+
+/* Preserve crisp white typography inside primary solid accent buttons & badges */
+html.blue button.bg-red-600,
+html.blue button.bg-gradient-to-r,
+html.blue a.bg-red-600,
+html.blue a.bg-gradient-to-r,
+html.blue .bg-blue-600,
+html.blue .bg-blue-700,
+html.blue .bg-emerald-600,
+html.blue .bg-cyan-600,
+html.blue .bg-indigo-600,
+html.blue .bg-red-600,
+html.blue .bg-red-600 *,
+html.blue .bg-blue-600 *,
+html.blue .bg-emerald-600 *,
+html.blue .bg-cyan-600 *,
+html.blue .bg-indigo-600 *,
+html.blue .from-red-600,
+html.blue .from-red-600 * {
+  color: #ffffff !important;
+}
+
+/* Transform brand primary crimson accents into Executive Cobalt Blue */
+html.blue .bg-red-600,
+html.blue .bg-red-500 {
+  background-color: #2563eb !important;
+}
+
+html.blue .hover\:bg-red-500:hover,
+html.blue .hover\:bg-red-600:hover {
+  background-color: #1d4ed8 !important;
+}
+
+html.blue .from-red-600 {
+  --tw-gradient-from: #2563eb !important;
+  --tw-gradient-to: rgb(37 99 235 / 0) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+
+html.blue .via-rose-600,
+html.blue .to-rose-600,
+html.blue .to-red-700,
+html.blue .to-red-800 {
+  --tw-gradient-to: #1d4ed8 !important;
+}
+
+html.blue .bg-red-600\/20,
+html.blue .bg-red-600\/25,
+html.blue .bg-red-600\/30,
+html.blue .bg-red-500\/10,
+html.blue .bg-red-500\/15,
+html.blue .bg-red-500\/20,
+html.blue .bg-red-950\/30,
+html.blue .bg-red-950\/40 {
+  background-color: #dbeafe !important;
+}
+
+html.blue .border-red-500,
+html.blue .border-red-500\/30,
+html.blue .border-red-500\/40,
+html.blue .border-red-500\/50,
+html.blue .border-red-500\/60 {
+  border-color: #3b82f6 !important;
+}
+
+html.blue .text-red-400,
+html.blue .text-red-500,
+html.blue .text-red-600 {
+  color: #1d4ed8 !important;
+}
+
+html.blue .shadow-red-900\/40,
+html.blue .shadow-red-600\/20 {
+  --tw-shadow-color: rgb(37 99 235 / 0.22) !important;
+}
+
+html.blue .tesla-glow-red {
+  box-shadow: 0 8px 28px -6px rgba(37, 99, 235, 0.35);
+}
+
+html.blue ::-webkit-scrollbar-track {
+  background: #eff6ff;
+}
+html.blue ::-webkit-scrollbar-thumb {
+  background: #93c5fd;
+}
+html.blue ::-webkit-scrollbar-thumb:hover {
+  background: #2563eb;
+}
