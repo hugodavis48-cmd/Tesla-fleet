@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
+import { useTheme } from '../context/ThemeContext';
 import {
   Shield,
   Bot,
@@ -497,6 +498,7 @@ export const AdminDashboard: React.FC = () => {
     syncAllAdminSettingsToFirestore,
     connectAdminCloudSync,
   } = useApp();
+  const { isLight } = useTheme();
 
   const [activeAdminTab, setActiveAdminTab] = useState<AdminTab>('users_kyc');
 
@@ -580,6 +582,49 @@ export const AdminDashboard: React.FC = () => {
   const [depositAdminNotes, setDepositAdminNotes] = useState<Record<string, string>>({});
   const [reviewingDepositId, setReviewingDepositId] = useState<string | null>(null);
   const [selectedDepositRequest, setSelectedDepositRequest] = useState<DepositRequest | null>(null);
+
+  const renderDepositStatusBadge = (status: DepositRequest['status']) => {
+    if (status === 'approved') {
+      return (
+        <span
+          className={`px-2.5 py-1 rounded-lg border text-xs font-mono font-semibold inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
+            isLight
+              ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
+              : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/45'
+          }`}
+        >
+          <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+          <span>Confirmed</span>
+        </span>
+      );
+    }
+    if (status === 'rejected') {
+      return (
+        <span
+          className={`px-2.5 py-1 rounded-lg border text-xs font-mono font-semibold inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
+            isLight
+              ? 'bg-rose-100 text-rose-900 border-rose-300'
+              : 'bg-rose-500/15 text-rose-300 border-rose-500/45'
+          }`}
+        >
+          <XCircle className="w-3.5 h-3.5 shrink-0" />
+          <span>Rejected</span>
+        </span>
+      );
+    }
+    return (
+      <span
+        className={`px-2.5 py-1 rounded-lg border text-xs font-mono font-semibold inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
+          isLight
+            ? 'bg-amber-100 text-amber-900 border-amber-300'
+            : 'bg-amber-500/15 text-amber-300 border-amber-500/45'
+        }`}
+      >
+        <Clock className="w-3.5 h-3.5 shrink-0" />
+        <span>Pending</span>
+      </span>
+    );
+  };
 
   // Tesla Car Sales & Nationwide Logistics Admin State
   const [carSalesSubTab, setCarSalesSubTab] = useState<'inventory' | 'won_prizes' | 'shipping' | 'refund_policy' | 'orders' | 'coupons'>('inventory');
@@ -7888,7 +7933,11 @@ export const AdminDashboard: React.FC = () => {
               </div>
               <div className="p-3.5 rounded-xl bg-zinc-950 border border-zinc-800">
                 <span className="text-[11px] text-zinc-400 block font-medium">Rejected Submissions</span>
-                <span className="font-heading font-black text-xl text-rose-400 font-mono tabular-nums">
+                <span
+                  className={`font-heading font-black text-xl font-mono tabular-nums ${
+                    isLight ? 'text-rose-700' : 'text-rose-400'
+                  }`}
+                >
                   {depositRequests.filter((r) => r.status === 'rejected').length} Rejected
                 </span>
               </div>
@@ -7905,29 +7954,53 @@ export const AdminDashboard: React.FC = () => {
               <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
                 {(
                   [
-                    { key: 'pending', label: 'Pending' },
-                    { key: 'approved', label: 'Confirmed' },
-                    { key: 'rejected', label: 'Rejected' },
-                    { key: 'all', label: 'All Submissions' },
+                    { key: 'pending', label: 'Pending', tone: 'amber' },
+                    { key: 'approved', label: 'Confirmed', tone: 'emerald' },
+                    { key: 'rejected', label: 'Rejected', tone: 'rose' },
+                    { key: 'all', label: 'All Submissions', tone: 'brand' },
                   ] as const
                 ).map((item) => {
                   const count =
                     item.key === 'all'
                       ? depositRequests.length
                       : depositRequests.filter((r) => r.status === item.key).length;
+                  const isActive = depositStatusFilter === item.key;
+                  const activeStyle =
+                    item.tone === 'amber'
+                      ? isLight
+                        ? 'bg-amber-100 text-amber-950 border border-amber-400 font-bold'
+                        : 'bg-amber-500/20 text-amber-300 border border-amber-500/50 font-bold'
+                      : item.tone === 'emerald'
+                      ? isLight
+                        ? 'bg-emerald-100 text-emerald-950 border border-emerald-400 font-bold'
+                        : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/50 font-bold'
+                      : item.tone === 'rose'
+                      ? isLight
+                        ? 'bg-rose-100 text-rose-950 border border-rose-400 font-bold'
+                        : 'bg-rose-500/20 text-rose-300 border border-rose-500/50 font-bold'
+                      : 'bg-red-600 text-white border border-red-600 font-bold';
+                  const dotColor =
+                    item.tone === 'amber'
+                      ? 'bg-amber-500'
+                      : item.tone === 'emerald'
+                      ? 'bg-emerald-500'
+                      : item.tone === 'rose'
+                      ? 'bg-rose-500'
+                      : '';
                   return (
                     <button
                       key={item.key}
                       type="button"
                       onClick={() => setDepositStatusFilter(item.key)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 cursor-pointer transition whitespace-nowrap ${
-                        depositStatusFilter === item.key
-                          ? 'bg-red-600 text-white font-bold'
-                          : 'bg-zinc-950 border border-zinc-800 text-zinc-400 hover:text-white'
+                      className={`px-3 py-1.5 rounded-lg text-xs shrink-0 cursor-pointer transition whitespace-nowrap inline-flex items-center gap-1.5 ${
+                        isActive
+                          ? activeStyle
+                          : 'bg-zinc-950 border border-zinc-800 text-zinc-400 hover:text-white font-semibold'
                       }`}
                     >
+                      {dotColor && <span className={`w-2 h-2 rounded-sm shrink-0 ${dotColor}`} aria-hidden="true" />}
                       <span>{item.label}</span>
-                      <span className="ml-1.5 text-[11px] opacity-80 font-mono tabular-nums">({count})</span>
+                      <span className="text-[11px] opacity-80 font-mono tabular-nums">({count})</span>
                     </button>
                   );
                 })}
@@ -7991,14 +8064,17 @@ export const AdminDashboard: React.FC = () => {
                 const noteValue = depositAdminNotes[req.id] ?? '';
                 const userCurrentBal = getUserWalletBalances(req.userId);
 
+                const cardBorderStyle =
+                  req.status === 'pending'
+                    ? 'bg-zinc-950 border-amber-500/45 shadow-lg'
+                    : req.status === 'approved'
+                    ? 'bg-zinc-950/90 border-emerald-500/35'
+                    : 'bg-zinc-950/90 border-rose-500/35';
+
                 return (
                   <div
                     key={req.id}
-                    className={`rounded-2xl border p-5 space-y-4 transition ${
-                      isPending
-                        ? 'bg-zinc-950 border-amber-500/40 shadow-lg'
-                        : 'bg-zinc-950/75 border-zinc-800'
-                    }`}
+                    className={`rounded-2xl border p-5 space-y-4 transition ${cardBorderStyle}`}
                   >
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-800 pb-3">
                       <div className="space-y-1">
@@ -8006,31 +8082,8 @@ export const AdminDashboard: React.FC = () => {
                           <span className="font-heading font-black text-white text-base">
                             {req.userName}
                           </span>
+                          {renderDepositStatusBadge(req.status)}
                           <span className="text-xs font-mono text-zinc-400">{req.userEmail}</span>
-                          <span
-                            className={`px-2 py-0.5 rounded text-[11px] font-mono font-semibold inline-flex items-center gap-1 ${
-                              req.status === 'approved'
-                                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                                : req.status === 'rejected'
-                                ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
-                                : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                            }`}
-                          >
-                            {req.status === 'approved' ? (
-                              <CheckCircle2 className="w-3 h-3" />
-                            ) : req.status === 'rejected' ? (
-                              <XCircle className="w-3 h-3" />
-                            ) : (
-                              <Clock className="w-3 h-3" />
-                            )}
-                            <span>
-                              {req.status === 'pending'
-                                ? 'Pending Confirmation'
-                                : req.status === 'approved'
-                                ? 'Confirmed'
-                                : 'Rejected'}
-                            </span>
-                          </span>
                         </div>
                         <div className="text-xs font-mono text-zinc-400 flex flex-wrap items-center gap-x-2 gap-y-1">
                           <span>ID: <strong className="text-zinc-200">{req.id}</strong></span>
@@ -8174,7 +8227,11 @@ export const AdminDashboard: React.FC = () => {
                                 });
                                 setReviewingDepositId(null);
                               }}
-                              className="py-2.5 px-4 rounded-xl bg-rose-950/60 hover:bg-rose-900/70 border border-rose-500/40 text-rose-300 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 whitespace-nowrap"
+                              className={`py-2.5 px-4 rounded-xl border font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 whitespace-nowrap ${
+                                isLight
+                                  ? 'bg-rose-100 hover:bg-rose-200 border-rose-300 text-rose-900'
+                                  : 'bg-rose-950/60 hover:bg-rose-900/70 border-rose-500/40 text-rose-300'
+                              }`}
                             >
                               <XCircle className="w-4 h-4" />
                               <span>Reject</span>
@@ -8205,7 +8262,11 @@ export const AdminDashboard: React.FC = () => {
                             </div>
                           )}
                           {req.rejectionReason && (
-                            <div className="text-rose-400 pt-1 border-t border-zinc-800 font-sans">
+                            <div
+                              className={`pt-1 border-t border-zinc-800 font-sans ${
+                                isLight ? 'text-rose-700' : 'text-rose-400'
+                              }`}
+                            >
                               Rejection Reason: {req.rejectionReason}
                             </div>
                           )}
@@ -8237,13 +8298,16 @@ export const AdminDashboard: React.FC = () => {
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md">
             <div className="relative w-full max-w-xl bg-zinc-950 border border-zinc-800 rounded-2xl sm:rounded-3xl p-5 sm:p-7 space-y-5 text-zinc-100 shadow-2xl max-h-[92vh] overflow-y-auto">
-              <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+              <div className="flex items-center justify-between gap-3 border-b border-zinc-800 pb-3">
                 <div className="flex items-center gap-2.5 min-w-0">
                   <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0" />
                   <div className="min-w-0">
-                    <h3 className="font-heading font-black text-base sm:text-lg text-white truncate">
-                      Deposit Submission Details
-                    </h3>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="font-heading font-black text-base sm:text-lg text-white truncate">
+                        Deposit Submission Details
+                      </h3>
+                      {renderDepositStatusBadge(req.status)}
+                    </div>
                     <p className="text-xs font-mono text-zinc-400 truncate">{req.id}</p>
                   </div>
                 </div>
@@ -8251,7 +8315,7 @@ export const AdminDashboard: React.FC = () => {
                   type="button"
                   onClick={() => setSelectedDepositRequest(null)}
                   aria-label="Close deposit details modal"
-                  className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-900 cursor-pointer"
+                  className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-900 cursor-pointer shrink-0"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -8390,7 +8454,11 @@ export const AdminDashboard: React.FC = () => {
                           setSelectedDepositRequest(null);
                         }
                       }}
-                      className="sm:w-40 py-3 px-4 rounded-xl bg-rose-950/60 hover:bg-rose-900/70 border border-rose-500/40 text-rose-300 font-bold text-xs flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                      className={`sm:w-40 py-3 px-4 rounded-xl border font-bold text-xs flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 ${
+                        isLight
+                          ? 'bg-rose-100 hover:bg-rose-200 border-rose-300 text-rose-900'
+                          : 'bg-rose-950/60 hover:bg-rose-900/70 border-rose-500/40 text-rose-300'
+                      }`}
                     >
                       <XCircle className="w-4 h-4" />
                       <span>Reject</span>
@@ -8398,12 +8466,10 @@ export const AdminDashboard: React.FC = () => {
                   </div>
                 </div>
               ) : (
-                <div className="p-3.5 rounded-xl bg-zinc-900 border border-zinc-800 space-y-1.5 text-xs font-mono">
-                  <div className="flex justify-between">
+                <div className="p-3.5 rounded-xl bg-zinc-900 border border-zinc-800 space-y-2 text-xs font-mono">
+                  <div className="flex items-center justify-between gap-2">
                     <span className="text-zinc-400">Final Status:</span>
-                    <span className={req.status === 'approved' ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
-                      {req.status === 'approved' ? 'CONFIRMED & CREDITED' : 'REJECTED'}
-                    </span>
+                    {renderDepositStatusBadge(req.status)}
                   </div>
                   <div className="flex justify-between">
                     <span className="text-zinc-400">Reviewed By:</span>
@@ -8416,7 +8482,11 @@ export const AdminDashboard: React.FC = () => {
                     </div>
                   )}
                   {req.rejectionReason && (
-                    <div className="text-rose-400 pt-1 border-t border-zinc-800 font-sans">
+                    <div
+                      className={`pt-1 border-t border-zinc-800 font-sans ${
+                        isLight ? 'text-rose-700' : 'text-rose-400'
+                      }`}
+                    >
                       Rejection Reason: {req.rejectionReason}
                     </div>
                   )}
